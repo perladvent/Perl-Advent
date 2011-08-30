@@ -1,0 +1,2530 @@
+<html>
+<head>
+<title>A Perl Module Advent Calendar</title></head>
+<body bgcolor="#281093" text="white" link="yellow" vlink="yellow">
+
+
+
+
+
+<p><img src="../../images/2000/17th.jpg" alt="17th" border="0" width="100" height="75">
+<hr>
+
+
+
+
+<A NAME="__index__"></A>
+<!-- INDEX BEGIN -->
+
+<UL>
+
+	<LI><A HREF="#name">NAME</A></LI>
+	<LI><A HREF="#synopsis">SYNOPSIS</A></LI>
+	<UL>
+
+		<LI><A HREF="#getting help">GETTING HELP</A></LI>
+		<LI><A HREF="#note">NOTE</A></LI>
+		<LI><A HREF="#recent changes">RECENT CHANGES</A></LI>
+	</UL>
+
+	<LI><A HREF="#description">DESCRIPTION</A></LI>
+	<UL>
+
+		<LI><A HREF="#architecture of a dbi application">Architecture of a DBI Application</A></LI>
+		<LI><A HREF="#notation and conventions">Notation and Conventions</A></LI>
+		<LI><A HREF="#outline usage">Outline Usage</A></LI>
+		<LI><A HREF="#general interface rules & caveats">General Interface Rules &amp; Caveats</A></LI>
+		<LI><A HREF="#naming conventions and name space">Naming Conventions and Name Space</A></LI>
+		<LI><A HREF="#sql  a query language">SQL - A Query Language</A></LI>
+		<LI><A HREF="#placeholders and bind values">Placeholders and Bind Values</A></LI>
+	</UL>
+
+	<LI><A HREF="#the dbi class">THE DBI CLASS</A></LI>
+	<UL>
+
+		<LI><A HREF="#dbi class methods">DBI Class Methods</A></LI>
+		<LI><A HREF="#dbi utility functions">DBI Utility Functions</A></LI>
+		<LI><A HREF="#dbi dynamic attributes">DBI Dynamic Attributes</A></LI>
+	</UL>
+
+	<LI><A HREF="#methods common to all handles">METHODS COMMON TO ALL HANDLES</A></LI>
+	<LI><A HREF="#attributes common to all handles">ATTRIBUTES COMMON TO ALL HANDLES</A></LI>
+	<LI><A HREF="#dbi database handle objects">DBI DATABASE HANDLE OBJECTS</A></LI>
+	<UL>
+
+		<LI><A HREF="#database handle methods">Database Handle Methods</A></LI>
+		<LI><A HREF="#database handle attributes">Database Handle Attributes</A></LI>
+	</UL>
+
+	<LI><A HREF="#dbi statement handle objects">DBI STATEMENT HANDLE OBJECTS</A></LI>
+	<UL>
+
+		<LI><A HREF="#statement handle methods">Statement Handle Methods</A></LI>
+		<LI><A HREF="#statement handle attributes">Statement Handle Attributes</A></LI>
+	</UL>
+
+	<LI><A HREF="#further information">FURTHER INFORMATION</A></LI>
+	<UL>
+
+		<LI><A HREF="#transactions">Transactions</A></LI>
+		<LI><A HREF="#handling blob / long / memo fields">Handling BLOB / LONG / Memo Fields</A></LI>
+		<LI><A HREF="#simple examples">Simple Examples</A></LI>
+		<LI><A HREF="#threads and thread safety">Threads and Thread Safety</A></LI>
+		<LI><A HREF="#signal handling and canceling operations">Signal Handling and Canceling Operations</A></LI>
+	</UL>
+
+	<LI><A HREF="#debugging">DEBUGGING</A></LI>
+	<LI><A HREF="#warning and error messages">WARNING AND ERROR MESSAGES</A></LI>
+	<UL>
+
+		<LI><A HREF="#fatal errors">Fatal Errors</A></LI>
+		<LI><A HREF="#warnings">Warnings</A></LI>
+	</UL>
+
+	<LI><A HREF="#see also">SEE ALSO</A></LI>
+	<UL>
+
+		<LI><A HREF="#driver and database documentation">Driver and Database Documentation</A></LI>
+		<LI><A HREF="#books and journals">Books and Journals</A></LI>
+		<LI><A HREF="#manual pages">Manual Pages</A></LI>
+		<LI><A HREF="#mailing list">Mailing List</A></LI>
+		<LI><A HREF="#assorted related www links">Assorted Related WWW Links</A></LI>
+		<LI><A HREF="#faq">FAQ</A></LI>
+	</UL>
+
+	<LI><A HREF="#authors">AUTHORS</A></LI>
+	<LI><A HREF="#copyright">COPYRIGHT</A></LI>
+	<LI><A HREF="#acknowledgements">ACKNOWLEDGEMENTS</A></LI>
+	<LI><A HREF="#translations">TRANSLATIONS</A></LI>
+	<LI><A HREF="#support / warranty">SUPPORT / WARRANTY</A></LI>
+	<LI><A HREF="#training">TRAINING</A></LI>
+	<LI><A HREF="#frequently asked questions">FREQUENTLY ASKED QUESTIONS</A></LI>
+	<UL>
+
+		<LI><A HREF="#how fast is the dbi">How fast is the DBI?</A></LI>
+		<LI><A HREF="#why doesn't my cgi script work right">Why doesn't my CGI script work right?</A></LI>
+		<LI><A HREF="#how can i maintain a www connection to a database">How can I maintain a WWW connection to a database?</A></LI>
+		<LI><A HREF="#what about odbc">What about ODBC?</A></LI>
+		<LI><A HREF="#does the dbi have a year 2000 problem">Does the DBI have a year 2000 problem?</A></LI>
+	</UL>
+
+	<LI><A HREF="#other related work and perl modules">OTHER RELATED WORK AND PERL MODULES</A></LI>
+</UL>
+<!-- INDEX END -->
+
+<HR>
+<P>
+<H1><A NAME="name">NAME</A></H1>
+<P>DBI - Database independent interface for Perl</P>
+<P>
+<HR>
+<H1><A NAME="synopsis">SYNOPSIS</A></H1>
+<PRE>
+  use DBI;</PRE>
+<PRE>
+  @driver_names = DBI-&gt;available_drivers;
+  @data_sources = DBI-&gt;data_sources($driver_name);</PRE>
+<PRE>
+  $dbh = DBI-&gt;connect($data_source, $username, $auth, \%attr);</PRE>
+<PRE>
+  $rv  = $dbh-&gt;do($statement);
+  $rv  = $dbh-&gt;do($statement, \%attr);
+  $rv  = $dbh-&gt;do($statement, \%attr, @bind_values);</PRE>
+<PRE>
+  $ary_ref = $dbh-&gt;selectall_arrayref($statement);
+  @row_ary = $dbh-&gt;selectrow_array($statement);
+  $ary_ref = $dbh-&gt;selectcol_arrayref($statement);</PRE>
+<PRE>
+  $sth = $dbh-&gt;prepare($statement);
+  $sth = $dbh-&gt;prepare_cached($statement);</PRE>
+<PRE>
+  $rv = $sth-&gt;bind_param($p_num, $bind_value);
+  $rv = $sth-&gt;bind_param($p_num, $bind_value, $bind_type);
+  $rv = $sth-&gt;bind_param($p_num, $bind_value, \%attr);</PRE>
+<PRE>
+  $rv = $sth-&gt;execute;
+  $rv = $sth-&gt;execute(@bind_values);</PRE>
+<PRE>
+  $rc = $sth-&gt;bind_col($col_num, \$col_variable);
+  $rc = $sth-&gt;bind_columns(@list_of_refs_to_vars_to_bind);</PRE>
+<PRE>
+  @row_ary  = $sth-&gt;fetchrow_array;
+  $ary_ref  = $sth-&gt;fetchrow_arrayref;
+  $hash_ref = $sth-&gt;fetchrow_hashref;</PRE>
+<PRE>
+  $ary_ref  = $sth-&gt;fetchall_arrayref;</PRE>
+<PRE>
+  $rv  = $sth-&gt;rows;</PRE>
+<PRE>
+  $rc  = $dbh-&gt;commit;
+  $rc  = $dbh-&gt;rollback;</PRE>
+<PRE>
+  $sql = $dbh-&gt;quote($string);</PRE>
+<PRE>
+  $rc  = $h-&gt;err;
+  $str = $h-&gt;errstr;
+  $rv  = $h-&gt;state;</PRE>
+<PRE>
+  $rc  = $dbh-&gt;disconnect;</PRE>
+<P><EM>The synopsis above only lists the major methods.</EM></P>
+<P>
+<H2><A NAME="getting help">GETTING HELP</A></H2>
+<P>If you have questions about DBI, you can get help from
+the <EM><A HREF="mailto:dbi-users@isc.org">dbi-users@isc.org</A></EM> mailing list.
+You can subscribe to the list by visiting:</P>
+<PRE>
+  <A HREF="http://www.isc.org/dbi-lists.html">http://www.isc.org/dbi-lists.html</A></PRE>
+<P>Also worth a visit is the DBI home page at:</P>
+<PRE>
+  <A HREF="http://www.symbolstone.org/technology/perl/DBI">http://www.symbolstone.org/technology/perl/DBI</A></PRE>
+<P>Before asking any questions, reread this document, consult the
+archives and read the DBI FAQ. The archives are listed
+at the end of this document.
+The FAQ is installed as a DBI::FAQ module so
+you can read it by executing <CODE>perldoc DBI::FAQ</CODE>.</P>
+<P>Please note that Tim Bunce does not maintain the mailing lists or the
+web page (generous volunteers do that).  So please don't send mail
+directly to him; he just doesn't have the time to answer questions
+personally. The <EM>dbi-users</EM> mailing list has lots of experienced
+people who should be able to help you if you need it.</P>
+<P>
+<H2><A NAME="note">NOTE</A></H2>
+<P>This is the DBI specification that corresponds to the DBI version 1.14
+(<CODE>$Date: 2000/06/14 20:04:03 $</CODE>).</P>
+<P>The DBI specification is evolving at a steady pace, so it's
+important to check that you have the latest copy. The RECENT CHANGES
+section below has a summary of user-visible changes. The <EM>Changes</EM>
+file supplied with the DBI holds more detailed change information.</P>
+<P>Note also that whenever the DBI changes, the drivers take some time to
+catch up. Recent versions of the DBI have added new features
+(marked <EM>NEW</EM> in the text) that may not yet be supported by the drivers
+you use. Talk to the authors of those drivers if you need the features.</P>
+<P>Extensions to the DBI and other DBI related modules use the <CODE>DBIx::*</CODE>
+namespace. See <A HREF="#naming conventions and name space">Naming Conventions and Name Space</A> and:</P>
+<PRE>
+  <A HREF="http://www.perl.com/CPAN/modules/by-module/DBIx/">http://www.perl.com/CPAN/modules/by-module/DBIx/</A></PRE>
+<P>
+<H2><A NAME="recent changes">RECENT CHANGES</A></H2>
+<P>Here is a brief summary of significant user-visible changes in recent versions.
+(If a recent version isn't mentioned, it simply means that there were no
+significant user-visible changes in that version.)</P>
+<DL>
+<DT><STRONG><A NAME="item_Between_DBI_1%2E00_and_DBI_1%2E09%3A">Between DBI 1.00 and DBI 1.09:</A></STRONG><BR>
+<DD>
+<PRE>
+  Added $dbh-&gt;selectcol_arrayref($statement) method.</PRE>
+<PRE>
+  Connect now allows you to specify attribute settings within the DSN.
+  For example: 
+        dbi:Driver(RaiseError=&gt;1,Taint=&gt;1,AutoCommit=&gt;0):dbname&quot;</PRE>
+<PRE>
+  Added $h-&gt;{Taint}, $sth-&gt;{NAME_uc}, and $sth-&gt;{NAME_lc} attributes.</PRE>
+</DL>
+<P>
+<HR>
+<H1><A NAME="description">DESCRIPTION</A></H1>
+<P>The DBI is a database access module for the Perl programming language.  It defines
+a set of methods, variables, and conventions that provide a consistent
+database interface, independent of the actual database being used.</P>
+<P>It is important to remember that the DBI is just an interface. 
+The DBI is a layer
+of ``glue'' between an application and one or more database <EM>driver</EM>
+modules.  It is the driver modules which do most of the real work. The DBI
+provides a standard interface and framework for the drivers to operate
+within.</P>
+<P>
+<H2><A NAME="architecture of a dbi application">Architecture of a DBI Application</A></H2>
+<PRE>
+             |&lt;- Scope of DBI -&gt;|
+                  .-.   .--------------.   .-------------.
+  .-------.       | |---| XYZ Driver   |---| XYZ Engine  |
+  | Perl  |       | |   `--------------'   `-------------'
+  | script|  |A|  |D|   .--------------.   .-------------.
+  | using |--|P|--|B|---|Oracle Driver |---|Oracle Engine|
+  | DBI   |  |I|  |I|   `--------------'   `-------------'
+  | API   |       | |...
+  |methods|       | |... Other drivers
+  `-------'       | |...
+                  `-'</PRE>
+<P>The API, or Application Programming Interface, defines the 
+call interface and variables for Perl scripts to use. The API
+is implemented by the Perl DBI extension.</P>
+<P>The DBI ``dispatches'' the method calls to the appropriate driver for
+actual execution.  The DBI is also responsible for the dynamic loading
+of drivers, error checking and handling, providing default
+implementations for methods, and many other non-database specific duties.</P>
+<P>Each driver 
+contains implementations of the DBI methods using the
+private interface functions of the corresponding database engine.  Only authors
+of sophisticated/multi-database applications or generic library
+functions need be concerned with drivers.</P>
+<P>
+<H2><A NAME="notation and conventions">Notation and Conventions</A></H2>
+<P>The following conventions are used in this document:</P>
+<PRE>
+  $dbh    Database handle object
+  $sth    Statement handle object
+  $drh    Driver handle object (rarely seen or used in applications)
+  $h      Any of the handle types above ($dbh, $sth, or $drh)
+  $rc     General Return Code  (boolean: true=ok, false=error)
+  $rv     General Return Value (typically an integer)
+  @ary    List of values returned from the database, typically a row of data
+  $rows   Number of rows processed (if available, else -1)
+  $fh     A filehandle
+  undef   NULL values are represented by undefined values in Perl
+  \%attr  Reference to a hash of attribute values passed to methods</PRE>
+<P>Note that Perl will automatically destroy database and statement handle objects
+if all references to them are deleted.</P>
+<P>
+<H2><A NAME="outline usage">Outline Usage</A></H2>
+<P>To use DBI, 
+first you need to load the DBI module:</P>
+<PRE>
+  use DBI;
+  use strict;</PRE>
+<P>(The <CODE>use strict;</CODE> isn't required but is strongly recommended.)</P>
+<P>Then you need to <A HREF="#connect">connect</A> to your data source and get a <EM>handle</EM> for that
+connection:</P>
+<PRE>
+  $dbh = DBI-&gt;connect($dsn, $user, $password,
+                      { RaiseError =&gt; 1, AutoCommit =&gt; 0 });</PRE>
+<P>Since connecting can be expensive, you generally just connect at the
+start of your program and disconnect at the end.</P>
+<P>Explicitly defining the required <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> behavior is strongly
+recommended and may become mandatory in a later version.  This
+determines whether changes are automatically committed to the
+database when executed, or need to be explicitly committed later.</P>
+<P>The DBI allows an application to ``prepare'' statements for later
+execution.  A prepared statement is identified by a statement handle
+held in a Perl variable.
+We'll call the Perl variable <CODE>$sth</CODE> in our examples.</P>
+<P>The typical method call sequence for a <CODE>SELECT</CODE> statement is:</P>
+<PRE>
+  prepare,
+    execute, fetch, fetch, ...
+    execute, fetch, fetch, ...
+    execute, fetch, fetch, ...</PRE>
+<P>for example:</P>
+<PRE>
+  $sth = $dbh-&gt;prepare(&quot;SELECT foo, bar FROM table WHERE baz=?&quot;);</PRE>
+<PRE>
+  $sth-&gt;execute( $baz );</PRE>
+<PRE>
+  while ( @row = $sth-&gt;fetchrow_array ) {
+    print &quot;@row\n&quot;;
+  }</PRE>
+<P>The typical method call sequence for a <EM>non</EM>-<CODE>SELECT</CODE> statement is:</P>
+<PRE>
+  prepare,
+    execute,
+    execute,
+    execute.</PRE>
+<P>for example:</P>
+<PRE>
+  $sth = $dbh-&gt;prepare(&quot;INSERT INTO table(foo,bar,baz) VALUES (?,?,?)&quot;);</PRE>
+<PRE>
+  while(&lt;CSV&gt;) {
+    chop;
+    my ($foo,$bar,$baz) = split /,/;
+        $sth-&gt;execute( $foo, $bar, $baz );
+  }</PRE>
+<P>The <A HREF="#item_do"><CODE>do()</CODE></A> method can be used for non repeated <EM>non</EM>-<CODE>SELECT</CODE> statement
+(or with drivers that don't support placeholders):</P>
+<PRE>
+  $rows_affected = $dbh-&gt;do(&quot;UPDATE your_table SET foo = foo + 1&quot;);</PRE>
+<P>To commit your changes to the database (when <A HREF="#autocommit">AutoCommit</A> is off):</P>
+<PRE>
+  $dbh-&gt;commit;  # or call $dbh-&gt;rollback; to undo changes</PRE>
+<P>Finally, when you have finished working with the data source, you should
+<A HREF="#disconnect">disconnect</A> from it:</P>
+<PRE>
+  $dbh-&gt;disconnect;</PRE>
+<P>
+<H2><A NAME="general interface rules & caveats">General Interface Rules &amp; Caveats</A></H2>
+<P>The DBI does not have a concept of a ``current session''. Every session
+has a handle object (i.e., a <CODE>$dbh</CODE>) returned from the <A HREF="#item_connect"><CODE>connect</CODE></A> method.
+That handle object is used to invoke database related methods.</P>
+<P>Most data is returned to the Perl script as strings. (Null values are
+returned as <CODE>undef</CODE>.)  This allows arbitrary precision numeric data to be
+handled without loss of accuracy.  Beware that Perl may not preserve
+the same accuracy when the string is used as a number.</P>
+<P>Dates and times are returned as character strings in the native format
+of the corresponding database engine.  Time zone effects are
+database/driver dependent.</P>
+<P>Perl supports binary data in Perl strings, and the DBI will pass binary
+data to and from the driver without change. It is up to the driver
+implementors to decide how they wish to handle such binary data.</P>
+<P>Most databases that understand multiple character sets have a
+default global charset. Text stored in the database is, or should
+be, stored in that charset; if not, then that's the fault of either
+the database or the application that inserted the data. When text is
+fetched it should be automatically converted to the charset of the
+client, presumably based on the locale. If a driver needs to set a
+flag to get that behavior, then it should do so; it should not require
+the application to do that.</P>
+<P>Multiple SQL statements may not be combined in a single statement
+handle (<CODE>$sth</CODE>), although some databases and drivers do support this
+(notably Sybase and SQL Server).</P>
+<P>Non-sequential record reads are not supported in this version of the DBI.
+In other words, records can only be fetched in the order that the
+database returned them, and once fetched they are forgotten.</P>
+<P>Positioned updates and deletes are not directly supported by the DBI.
+See the description of the <A HREF="#item_CursorName"><CODE>CursorName</CODE></A> attribute for an alternative.</P>
+<P>Individual driver implementors are free to provide any private
+functions and/or handle attributes that they feel are useful.
+Private driver functions can be invoked using the DBI <A HREF="#item_func"><CODE>func()</CODE></A> method.
+Private driver attributes are accessed just like standard attributes.</P>
+<P>Many methods have an optional <CODE>\%attr</CODE> parameter which can be used to
+pass information to the driver implementing the method. Except where
+specifically documented, the <CODE>\%attr</CODE> parameter can only be used to pass
+driver specific hints. In general, you can ignore <CODE>\%attr</CODE> parameters
+or pass it as <CODE>undef</CODE>.</P>
+<P>
+<H2><A NAME="naming conventions and name space">Naming Conventions and Name Space</A></H2>
+<P>The DBI package and all packages below it (<CODE>DBI::*</CODE>) are reserved for
+use by the DBI. Extensions and related modules use the <CODE>DBIx::</CODE>
+namespace (see <CODE>http://www.perl.com/CPAN/modules/by-module/DBIx/</CODE>).
+Package names beginning with <CODE>DBD::</CODE> are reserved for use
+by DBI database drivers.  All environment variables used by the DBI
+or by individual DBDs begin with ``<CODE>DBI_</CODE>'' or ``<CODE>DBD_</CODE>''.</P>
+<P>The letter case used for attribute names is significant and plays an
+important part in the portability of DBI scripts.  The case of the
+attribute name is used to signify who defined the meaning of that name
+and its values.</P>
+<PRE>
+  Case of name  Has a meaning defined by
+  ------------  ------------------------
+  UPPER_CASE    Standards, e.g.,  X/Open, ISO SQL92 etc (portable)
+  MixedCase     DBI API (portable), underscores are not used.
+  lower_case    Driver or database engine specific (non-portable)</PRE>
+<P>It is of the utmost importance that Driver developers only use
+lowercase attribute names when defining private attributes. Private
+attribute names must be prefixed with the driver name or suitable
+abbreviation (e.g., ``<CODE>ora_</CODE>'' for Oracle, ``<CODE>ing_</CODE>'' for Ingres, etc).</P>
+<P>Driver Specific Prefix Registry:</P>
+<PRE>
+  ado_     DBD::ADO
+  best_    DBD::BestWins
+  csv_     DBD::CSV
+  db2_     DBD::DB2
+  f_       DBD::File
+  file_    DBD::TextFile
+  ib_      DBD::InterBase
+  ing_     DBD::Ingres
+  ix_      DBD::Informix
+  msql_    DBD::mSQL
+  mysql_   DBD::mysql
+  odbc_    DBD::ODBC
+  ora_     DBD::Oracle
+  pg_      DBD::Pg
+  proxy_   DBD::Proxy
+  solid_   DBD::Solid
+  syb_     DBD::Sybase
+  tuber_   DBD::Tuber
+  xbase_   DBD::XBase</PRE>
+<P>
+<H2><A NAME="sql  a query language">SQL - A Query Language</A></H2>
+<P>Most DBI drivers require applications to use a dialect of SQL 
+(Structured Query Language) to interact with the database engine.
+The following links provide useful information and further links about
+SQL:</P>
+<PRE>
+  <A HREF="http://www.altavista.com/query?q=sql+tutorial">http://www.altavista.com/query?q=sql+tutorial</A>
+  <A HREF="http://www.jcc.com/sql_stnd.html">http://www.jcc.com/sql_stnd.html</A>
+  <A HREF="http://www.contrib.andrew.cmu.edu/~shadow/sql.html">http://www.contrib.andrew.cmu.edu/~shadow/sql.html</A></PRE>
+<P>The DBI itself does not mandate or require any particular language to
+be used; it is language independent. In ODBC terms, the DBI is in
+``pass-thru'' mode, although individual drivers might not be. The only requirement
+is that queries and other statements must be expressed as a single
+string of characters passed as the first argument to the <A HREF="#prepare">prepare</A> or
+<A HREF="#do">do</A> methods.</P>
+<P>For an interesting diversion on the <EM>real</EM> history of RDBMS and SQL,
+from the people who made it happen, see:</P>
+<PRE>
+  <A HREF="http://ftp.digital.com/pub/DEC/SRC/technical-notes/SRC-1997-018-html/sqlr95.html">http://ftp.digital.com/pub/DEC/SRC/technical-notes/SRC-1997-018-html/sqlr95.html</A></PRE>
+<P>Follow the ``And the rest'' and ``Intergalactic dataspeak'' links for the
+SQL history.</P>
+<P>
+<H2><A NAME="placeholders and bind values">Placeholders and Bind Values</A></H2>
+<P>Some drivers support placeholders and bind values. 
+<EM>Placeholders</EM>, also called parameter markers, are used to indicate
+values in a database statement that will be supplied later,
+before the prepared statement is executed.  For example, an application
+might use the following to insert a row of data into the SALES table:</P>
+<PRE>
+  INSERT INTO sales (product_code, qty, price) VALUES (?, ?, ?)</PRE>
+<P>or the following, to select the description for a product:</P>
+<PRE>
+  SELECT description FROM products WHERE product_code = ?</PRE>
+<P>The <CODE>?</CODE> characters are the placeholders.  The association of actual
+values with placeholders is known as <EM>binding</EM>, and the values are
+referred to as <EM>bind values</EM>.</P>
+<P>When using placeholders with the SQL <CODE>LIKE</CODE> qualifier, you must
+remember that the placeholder substitutes for the whole string.
+So you should use ``<CODE>... LIKE ? ...</CODE>'' and include any wildcard
+characters in the value that you bind to the placeholder.</P>
+<P><STRONG>Null Values</STRONG></P>
+<P>Undefined values, or <CODE>undef</CODE>, can be used to indicate null values.
+However, care must be taken in the particular case of trying to use
+null values to qualify a <CODE>SELECT</CODE> statement. Consider:</P>
+<PRE>
+  SELECT description FROM products WHERE product_code = ?</PRE>
+<P>Binding an <CODE>undef</CODE> (NULL) to the placeholder will <EM>not</EM> select rows
+which have a NULL <CODE>product_code</CODE>! Refer to the SQL manual for your database
+engine or any SQL book for the reasons for this.  To explicitly select
+NULLs you have to say ``<CODE>WHERE product_code IS NULL</CODE>'' and to make that
+general you have to say:</P>
+<PRE>
+  ... WHERE (product_code = ? OR (? IS NULL AND product_code IS NULL))</PRE>
+<P>and bind the same value to both placeholders.</P>
+<P><STRONG>Performance</STRONG></P>
+<P>Without using placeholders, the insert statement shown previously would have to
+contain the literal values to be inserted and would have to be
+re-prepared and re-executed for each row. With placeholders, the insert
+statement only needs to be prepared once. The bind values for each row
+can be given to the <A HREF="#item_execute"><CODE>execute</CODE></A> method each time it's called. By avoiding
+the need to re-prepare the statement for each row, the application
+typically runs many times faster. Here's an example:</P>
+<PRE>
+  my $sth = $dbh-&gt;prepare(q{
+    INSERT INTO sales (product_code, qty, price) VALUES (?, ?, ?)
+  }) || die $dbh-&gt;errstr;
+  while (&lt;&gt;) {
+      chop;
+      my ($product_code, $qty, $price) = split /,/;
+      $sth-&gt;execute($product_code, $qty, $price) || die $dbh-&gt;errstr;
+  }
+  $dbh-&gt;commit || die $dbh-&gt;errstr;</PRE>
+<P>See <A HREF="#execute">execute</A> and <A HREF="#bind_param">bind_param</A> for more details.</P>
+<P>The <CODE>q{...}</CODE> style quoting used in this example avoids clashing with
+quotes that may be used in the SQL statement. Use the double-quote like
+<CODE>qq{...}</CODE> operator if you want to interpolate variables into the string.
+See <EM>perlop/``Quote and Quote-like Operators''</EM> for more details.</P>
+<P>See also the <A HREF="#bind_column">bind_column</A> method, which is used to associate Perl
+variables with the output columns of a <CODE>SELECT</CODE> statement.</P>
+<P>
+<HR>
+<H1><A NAME="the dbi class">THE DBI CLASS</A></H1>
+<P>In this section, we cover the DBI class methods, utility functions,
+and the dynamic attributes associated with generic DBI handles.</P>
+<P>
+<H2><A NAME="dbi class methods">DBI Class Methods</A></H2>
+<P>The following methods are provided by the DBI class:</P>
+<DL>
+<DT><STRONG><A NAME="item_connect"><CODE>connect</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $dbh = DBI-&gt;connect($data_source, $username, $password)
+            || die $DBI::errstr;
+  $dbh = DBI-&gt;connect($data_source, $username, $password, \%attr)
+            || die $DBI::errstr;</PRE>
+<P>Establishes a database connection, or session, to the requested <CODE>$data_source</CODE>.
+Returns a database handle object if the connection succeeds. Use
+<CODE>$dbh-</CODE>&gt;<A HREF="#item_disconnect"><CODE>disconnect</CODE></A> to terminate the connection.</P>
+<P>If the connect fails (see below), it returns <CODE>undef</CODE> and sets both <A HREF="#item_%24DBI%3A%3Aerr"><CODE>$DBI::err</CODE></A>
+and <A HREF="#item_%24DBI%3A%3Aerrstr"><CODE>$DBI::errstr</CODE></A>. (It does <EM>not</EM> set <CODE>$!</CODE>, etc.) You should generally
+test the return status of <A HREF="#item_connect"><CODE>connect</CODE></A> and <CODE>print $DBI::errstr</CODE> if it has failed.</P>
+<P>Multiple simultaneous connections to multiple databases through multiple
+drivers can be made via the DBI. Simply make one <A HREF="#item_connect"><CODE>connect</CODE></A> call for each
+database and keep a copy of each returned database handle.</P>
+<P>The <CODE>$data_source</CODE> value should begin with ``<CODE>dbi:</CODE><EM>driver_name</EM><CODE>:</CODE>''. The
+<EM>driver_name</EM> specifies the driver that will be used to make the
+connection. (Letter case is significant.)</P>
+<P>As a convenience, if the <CODE>$data_source</CODE> parameter is undefined or empty, the
+DBI will substitute the value of the environment variable <CODE>DBI_DSN</CODE>.
+If just the <EM>driver_name</EM> part is empty (i.e., the <CODE>$data_source</CODE> prefix is ``<CODE>dbi::</CODE>''),
+the environment variable <CODE>DBI_DRIVER</CODE> is used. If neither variable is set,
+then <A HREF="#item_connect"><CODE>connect</CODE></A> dies.</P>
+<P>Examples of <CODE>$data_source</CODE> values are:</P>
+<PRE>
+  dbi:DriverName:database_name
+  dbi:DriverName:database_name@hostname:port
+  dbi:DriverName:database=database_name;host=hostname;port=port</PRE>
+<P>There is <EM>no standard</EM> for the text following the driver name. Each
+driver is free to use whatever syntax it wants. The only requirement the
+DBI makes is that all the information is supplied in a single string.
+You must consult the documentation for the drivers you are using for a
+description of the syntax they require. (Where a driver author needs
+to define a syntax for the <CODE>$data_source</CODE>, it is recommended that
+they follow the ODBC style, shown in the last example above.)</P>
+<P>If the environment variable <CODE>DBI_AUTOPROXY</CODE> is defined (and the driver in
+<CODE>$data_source</CODE> is not ``<CODE>Proxy</CODE>'') then the connect request will
+automatically be changed to:</P>
+<PRE>
+  dbi:Proxy:$ENV{DBI_AUTOPROXY};dsn=$data_source</PRE>
+<P>and passed to the DBD::Proxy module. <CODE>DBI_AUTOPROXY</CODE> is typically set as
+``<CODE>hostname=...;port=...</CODE>''. See the DBD::Proxy documentation for more details.</P>
+<P>If <CODE>$username</CODE> or <CODE>$password</CODE> are undefined (rather than just empty),
+then the DBI will substitute the values of the <CODE>DBI_USER</CODE> and <CODE>DBI_PASS</CODE>
+environment variables, respectively.  The DBI will warn if the
+environment variables are not defined.  However, the everyday use of 
+these environment 
+variables is not recommended for security reasons. The mechanism is
+primarily intended to simplify testing.</P>
+<P><CODE>DBI-</CODE>&gt;<A HREF="#item_connect"><CODE>connect</CODE></A> automatically installs the driver if it has not been
+installed yet. Driver installation either returns a valid driver
+handle, or it <EM>dies</EM> with an error message that includes the string
+``<CODE>install_driver</CODE>'' and the underlying problem. So <CODE>DBI-</CODE>&gt;<A HREF="#item_connect"><CODE>connect</CODE></A> 
+will die
+on a driver installation failure and will only return <CODE>undef</CODE> on a
+connect failure, in which case <A HREF="#item_%24DBI%3A%3Aerrstr"><CODE>$DBI::errstr</CODE></A> will hold the error message.</P>
+<P>The <CODE>$data_source</CODE> argument (with the ``<CODE>dbi:...:</CODE>'' prefix removed) and the
+<CODE>$username</CODE> and <CODE>$password</CODE> arguments are then passed to the driver for
+processing. The DBI does not define any interpretation for the
+contents of these fields.  The driver is free to interpret the
+<CODE>$data_source</CODE>, <CODE>$username</CODE>, and <CODE>$password</CODE> fields in any way, and supply
+whatever defaults are appropriate for the engine being accessed.
+(Oracle, for example, uses the ORACLE_SID and TWO_TASK environment 
+variables if no <CODE>$data_source</CODE> is specified.)</P>
+<P>The <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> and <A HREF="#item_PrintError"><CODE>PrintError</CODE></A> attributes for each connection default to
+``on''. (See <A HREF="#autocommit">AutoCommit</A> and <A HREF="#printerror">PrintError</A> for more information.)
+However, it is strongly recommended that you explicitly define <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A>
+rather than rely on the default. Future versions of
+the DBI may issue a warning if <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> is not explicitly defined.</P>
+<P>The <CODE>\%attr</CODE> parameter can be used to alter the default settings of 
+<A HREF="#item_PrintError"><CODE>PrintError</CODE></A>, <A HREF="#item_RaiseError"><CODE>RaiseError</CODE></A>, <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A>, and other attributes. For example:</P>
+<PRE>
+  $dbh = DBI-&gt;connect($data_source, $user, $pass, {
+        PrintError =&gt; 0,
+        AutoCommit =&gt; 0
+  });</PRE>
+<P>You can also define connection attribute values within the <CODE>$data_source</CODE>
+parameter. For example:</P>
+<PRE>
+  dbi:DriverName(PrintError=&gt;0,Taint=&gt;1):...</PRE>
+<P>Individual attributes values specified in this way take precedence over
+any conflicting values specified via the <CODE>\%attr</CODE> parameter to <A HREF="#item_connect"><CODE>connect</CODE></A>.</P>
+<P>Where possible, each session (<CODE>$dbh</CODE>) is independent from the transactions
+in other sessions. This is useful when you need to hold cursors open
+across transactions--for example, if you use one session for your long lifespan
+cursors (typically read-only) and another for your short update
+transactions.</P>
+<P>For compatibility with old DBI scripts, the driver can be specified by
+passing its name as the fourth argument to <A HREF="#item_connect"><CODE>connect</CODE></A> (instead of <CODE>\%attr</CODE>):</P>
+<PRE>
+  $dbh = DBI-&gt;connect($data_source, $user, $pass, $driver);</PRE>
+<P>In this ``old-style'' form of <A HREF="#item_connect"><CODE>connect</CODE></A>, the <CODE>$data_source</CODE> should not start
+with ``<CODE>dbi:driver_name:</CODE>''. (If it does, the embedded driver_name
+will be ignored). Also note that in this older form of <A HREF="#item_connect"><CODE>connect</CODE></A>, 
+the <CODE>$dbh-</CODE>&gt;<CODE>{AutoCommit}</CODE> attribute is <EM>undefined</EM>, the
+<CODE>$dbh-</CODE>&gt;<CODE>{PrintError}</CODE> attribute is off, and the old <CODE>DBI_DBNAME</CODE>
+environment variable is
+checked if <CODE>DBI_DSN</CODE> is not defined. Beware that this ``old-style'' 
+<A HREF="#item_connect"><CODE>connect</CODE></A> will be withdrawn in a future version of DBI.</P>
+<DT><STRONG><A NAME="item_connect_cached_NEW"><CODE>connect_cached</CODE> <EM>NEW</EM></A></STRONG><BR>
+<DD>
+<PRE>
+  $dbh = DBI-&gt;connect_cached($data_source, $username, $password)
+            || die $DBI::errstr;
+  $dbh = DBI-&gt;connect_cached($data_source, $username, $password, \%attr)
+            || die $DBI::errstr;</PRE>
+<P><CODE>connect_cached</CODE> is like <A HREF="#connect">connect</A>, except that the database handle
+returned is also
+stored in a hash associated with the given parameters. If another call
+is made to <CODE>connect_cached</CODE> with the same parameter values, then the
+corresponding cached <CODE>$dbh</CODE> will be returned if it is still valid.
+The cached database handle is replaced with a new connection if it
+has been disconnected or if the <A HREF="#item_ping"><CODE>ping</CODE></A> method fails.</P>
+<P>Note that the behavior of this method differs in several respects from the
+behavior of presistent connections implemented by Apache::DBI.</P>
+<P>Caching can be useful in some applications, but it can also cause
+problems and should be used with care. The exact behavior of this
+method is liable to change, so if you intend to use it in any production
+applications you should discuss your needs on the <EM>dbi-users</EM> mailing list.</P>
+<P>The cache can be accessed (and cleared) via the <A HREF="#cachedkids">CachedKids</A> attribute.</P>
+<DT><STRONG><A NAME="item_available_drivers"><CODE>available_drivers</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  @ary = DBI-&gt;available_drivers;
+  @ary = DBI-&gt;available_drivers($quiet);</PRE>
+<P>Returns a list of all available drivers by searching for <CODE>DBD::*</CODE> modules
+through the directories in <CODE>@INC</CODE>. By default, a warning is given if
+some drivers are hidden by others of the same name in earlier
+directories. Passing a true value for <CODE>$quiet</CODE> will inhibit the warning.</P>
+<DT><STRONG><A NAME="item_data_sources"><CODE>data_sources</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  @ary = DBI-&gt;data_sources($driver);
+  @ary = DBI-&gt;data_sources($driver, \%attr);</PRE>
+<P>Returns a list of all data sources (databases) available via the named
+driver. The driver will be loaded if it hasn't been already. If <CODE>$driver</CODE> is empty
+or <CODE>undef</CODE>, then the value of the <CODE>DBI_DRIVER</CODE> environment variable is
+used.</P>
+<P>Data sources are returned in a form suitable for passing to the
+<A HREF="#connect">connect</A> method (that is, they will include the ``<CODE>dbi:$driver:</CODE>'' prefix).</P>
+<P>Note that many drivers have no way of knowing what data sources might
+be available for it. These drivers return an empty or incomplete list.</P>
+<DT><STRONG><A NAME="item_trace"><CODE>trace</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  DBI-&gt;trace($trace_level)
+  DBI-&gt;trace($trace_level, $trace_filename)</PRE>
+<P>DBI trace information can be enabled for all handles using the <A HREF="#item_trace"><CODE>trace</CODE></A>
+DBI class method. To enable trace information for a specific handle, use
+the similar <CODE>$h-</CODE>&gt;<A HREF="#item_trace"><CODE>trace</CODE></A> method described elsewhere.</P>
+<P>Trace levels are as follows:</P>
+<PRE>
+  0 - Trace disabled.
+  1 - Trace DBI method calls returning with results or errors.
+  2 - Trace method entry with parameters and returning with results.
+  3 - As above, adding some high-level information from the driver
+      and some internal information from the DBI.
+  4 - As above, adding more detailed information from the driver.
+      Also includes DBI mutex information when using threaded Perl.
+  5 and above - As above but with more and more obscure information.</PRE>
+<P>Trace level 1 is best for a simple overview of what's happening.
+Trace level 2 is a good choice for general purpose tracing.  Levels 3
+and above (up to 9) are best reserved for investigating a
+specific problem, when you need to see ``inside'' the driver and DBI.</P>
+<P>The trace output is detailed and typically very useful. Much of the
+trace output is formatted using the <A HREF="#neat">neat</A> function, so strings
+in the trace output may be edited and truncated.</P>
+<P>Initially trace output is written to <CODE>STDERR</CODE>.  If <CODE>$trace_filename</CODE> is
+specified, then the file is opened in append mode and all trace
+output (including that from other handles) is redirected to that file.
+Further calls to <A HREF="#item_trace"><CODE>trace</CODE></A> without a <CODE>$trace_filename</CODE> do not alter where
+the trace output is sent. If <CODE>$trace_filename</CODE> is undefined, then
+trace output is sent to <CODE>STDERR</CODE> and the previous trace file is closed.</P>
+<P>See also the <CODE>$h-</CODE>&gt;<A HREF="#item_trace"><CODE>trace</CODE></A> and <CODE>$h-</CODE>&gt;<A HREF="#item_trace_msg"><CODE>trace_msg</CODE></A> methods and the
+<A HREF="#debugging">DEBUGGING</A> section
+for information about the <CODE>DBI_TRACE</CODE> environment variable.</P>
+</DL>
+<P>
+<H2><A NAME="dbi utility functions">DBI Utility Functions</A></H2>
+<P>In addition to the methods listed in the previous section,
+the DBI package also provides these utility functions:</P>
+<DL>
+<DT><STRONG><A NAME="item_neat"><CODE>neat</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $str = DBI::neat($value, $maxlen);</PRE>
+<P>Return a string containing a neat (and tidy) representation of the
+supplied value.</P>
+<P>Strings will be quoted, although internal quotes will <EM>not</EM> be escaped.
+Values known to be numeric will be unquoted. Undefined (NULL) values
+will be shown as <CODE>undef</CODE> (without quotes). Unprintable characters will
+be replaced by dot (.).</P>
+<P>For result strings longer than <CODE>$maxlen</CODE> the result string will be
+truncated to <CODE>$maxlen-4</CODE> and ``<CODE>...'</CODE>'' will be appended.  If <CODE>$maxlen</CODE> is 0
+or <CODE>undef</CODE>, it defaults to <CODE>$DBI::neat_maxlen</CODE> which, in turn, defaults to 400.</P>
+<P>This function is designed to format values for human consumption.
+It is used internally by the DBI for <A HREF="#trace">trace</A> output. It should
+typically <EM>not</EM> be used for formatting values for database use.
+(See also <A HREF="#quote">quote</A>.)</P>
+<DT><STRONG><A NAME="item_neat_list"><CODE>neat_list</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $str = DBI::neat_list(\@listref, $maxlen, $field_sep);</PRE>
+<P>Calls <CODE>DBI::neat</CODE> on each element of the list and returns a string
+containing the results joined with <CODE>$field_sep</CODE>. <CODE>$field_sep</CODE> defaults
+to <CODE>&quot;, &quot;</CODE>.</P>
+<DT><STRONG><A NAME="item_looks_like_number"><CODE>looks_like_number</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  @bool = DBI::looks_like_number(@array);</PRE>
+<P>Returns true for each element that looks like a number.
+Returns false for each element that does not look like a number.
+Returns <CODE>undef</CODE> for each element that is undefined or empty.</P>
+</DL>
+<P>
+<H2><A NAME="dbi dynamic attributes">DBI Dynamic Attributes</A></H2>
+<P>Dynamic attributes are always associated with the <EM>last handle used</EM>
+(that handle is represented by <CODE>$h</CODE> in the descriptions below).</P>
+<P>Where an attribute is equivalent to a method call, then refer to
+the method call for all related documentation.</P>
+<P>Warning: these attributes are provided as a convenience but they
+do have limitations. Specifically, they have a short lifespan:
+because they are associated with
+the last handle used, they should only be used <EM>immediately</EM> after
+calling the method that ``sets'' them.
+If in any doubt, use the corresponding method call.</P>
+<DL>
+<DT><STRONG><A NAME="item_%24DBI%3A%3Aerr"><CODE>$DBI::err</CODE></A></STRONG><BR>
+<DD>
+Equivalent to <CODE>$h-</CODE>&gt;<A HREF="#item_err"><CODE>err</CODE></A>.
+<P></P>
+<DT><STRONG><A NAME="item_%24DBI%3A%3Aerrstr"><CODE>$DBI::errstr</CODE></A></STRONG><BR>
+<DD>
+Equivalent to <CODE>$h-</CODE>&gt;<A HREF="#item_errstr"><CODE>errstr</CODE></A>.
+<P></P>
+<DT><STRONG><A NAME="item_%24DBI%3A%3Astate"><CODE>$DBI::state</CODE></A></STRONG><BR>
+<DD>
+Equivalent to <CODE>$h-</CODE>&gt;<A HREF="#item_state"><CODE>state</CODE></A>.
+<P></P>
+<DT><STRONG><A NAME="item_%24DBI%3A%3Arows"><CODE>$DBI::rows</CODE></A></STRONG><BR>
+<DD>
+Equivalent to <CODE>$h-</CODE>&gt;<A HREF="#item_rows"><CODE>rows</CODE></A>. Please refer to the documentation 
+for the <A HREF="#rows">rows</A> method.
+<P></P></DL>
+<P>
+<HR>
+<H1><A NAME="methods common to all handles">METHODS COMMON TO ALL HANDLES</A></H1>
+<P>The following methods can be used by all types of DBI handles.</P>
+<DL>
+<DT><STRONG><A NAME="item_err"><CODE>err</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rv = $h-&gt;err;</PRE>
+<P>Returns the <EM>native</EM> database engine error code from the last driver
+method called. The code is typically an integer but you should not
+assume that.</P>
+<P>The DBI resets $h-&gt;err to undef before most DBI method calls, so the
+value only has a short lifespan. Also, most drivers share the same
+error variables across all their handles, so calling a method on
+one handle will typically reset the error on all the other handles
+that are children of that driver.</P>
+<P>If you need to test for individual errors <EM>and</EM> have your program be
+portable to different database engines, then you'll need to determine
+what the corresponding error codes are for all those engines and test for
+all of them.</P>
+<DT><STRONG><A NAME="item_errstr"><CODE>errstr</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $str = $h-&gt;errstr;</PRE>
+<P>Returns the native database engine error message from the last driver
+method called. This has the same lifespan issues as the <A HREF="#err">err</A> method
+described above.</P>
+<DT><STRONG><A NAME="item_state"><CODE>state</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $str = $h-&gt;state;</PRE>
+<P>Returns an error code in the standard SQLSTATE five character format.
+Note that the specific success code <CODE>00000</CODE> is translated to <CODE>0</CODE>
+(false). If the driver does not support SQLSTATE (and most don't),
+then state will return <CODE>S1000</CODE> (General Error) for all errors.</P>
+<DT><STRONG><CODE>trace</CODE></STRONG><BR>
+<DD>
+<PRE>
+  $h-&gt;trace($trace_level);
+  $h-&gt;trace($trace_level, $trace_filename);</PRE>
+<P>DBI trace information can be enabled for a specific handle (and any
+future children of that handle) by setting the trace level using the
+<A HREF="#item_trace"><CODE>trace</CODE></A> method.</P>
+<P>Trace level 1 is best for a simple overview of what's happening.
+Trace level 2 is a good choice for general purpose tracing.  Levels 3
+and above (up to 9) are best reserved for investigating a
+specific problem, when you need to see ``inside'' the driver and DBI.
+Set <CODE>$trace_level</CODE> to 0 to disable the trace.</P>
+<P>The trace output is detailed and typically very useful. Much of the
+trace output is formatted using the <A HREF="#neat">neat</A> function, so strings
+in the trace output may be edited and truncated.</P>
+<P>Initially, trace output is written to <CODE>STDERR</CODE>.  If <CODE>$trace_filename</CODE> is
+specified, then the file is opened in append mode and <EM>all</EM> trace
+output (including that from other handles) is redirected to that file.
+Further calls to trace without a <CODE>$trace_filename</CODE> do not alter where
+the trace output is sent. If <CODE>$trace_filename</CODE> is undefined, then
+trace output is sent to <CODE>STDERR</CODE> and the previous trace file is closed.</P>
+<P>See also the <CODE>DBI-</CODE>&gt;<A HREF="#item_trace"><CODE>trace</CODE></A> method and <A HREF="#debugging">DEBUGGING</A> for information
+about the <CODE>DBI_TRACE</CODE> environment variable.</P>
+<DT><STRONG><A NAME="item_trace_msg"><CODE>trace_msg</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $h-&gt;trace_msg($message_text);
+  $h-&gt;trace_msg($message_text, $min_level);</PRE>
+<P>Writes <CODE>$message_text</CODE> to the trace file if trace is enabled for <CODE>$h</CODE> or
+for the DBI as a whole. Can also be called as <CODE>DBI-</CODE>&gt;<A HREF="#item_trace_msg"><CODE>trace_msg($msg)</CODE></A>.
+See <A HREF="#trace">trace</A>.</P>
+<P>If <CODE>$min_level</CODE> is defined, then the message is output only if the trace
+level is equal to or greater than that level. <CODE>$min_level</CODE> defaults to 1.</P>
+<DT><STRONG><A NAME="item_func"><CODE>func</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $h-&gt;func(@func_arguments, $func_name);</PRE>
+<P>The <A HREF="#item_func"><CODE>func</CODE></A> method can be used to call private non-standard and
+non-portable methods implemented by the driver. Note that the function
+name is given as the last argument.</P>
+<P>This method is not directly related to calling stored procedures.
+Calling stored procedures is currently not defined by the DBI.
+Some drivers, such as DBD::Oracle, support it in non-portable ways.
+See driver documentation for more details.</P>
+</DL>
+<P>
+<HR>
+<H1><A NAME="attributes common to all handles">ATTRIBUTES COMMON TO ALL HANDLES</A></H1>
+<P>These attributes are common to all types of DBI handles.</P>
+<P>Some attributes are inherited by child handles. That is, the value
+of an inherited attribute in a newly created statement handle is the
+same as the value in the parent database handle. Changes to attributes
+in the new statement handle do not affect the parent database handle
+and changes to the database handle do not affect existing statement
+handles, only future ones.</P>
+<P>Attempting to set or get the value of an unknown attribute is fatal,
+except for private driver specific attributes (which all have names
+starting with a lowercase letter).</P>
+<P>Example:</P>
+<PRE>
+  $h-&gt;{AttributeName} = ...;    # set/write
+  ... = $h-&gt;{AttributeName};    # get/read</PRE>
+<DL>
+<DT><STRONG><A NAME="item_Warn"><CODE>Warn</CODE> (boolean, inherited)</A></STRONG><BR>
+<DD>
+Enables useful warnings for certain bad practices. Enabled by default. Some
+emulation layers, especially those for Perl 4 interfaces, disable warnings.
+Since warnings are generated using the Perl <CODE>warn</CODE> function, they can be
+intercepted using the Perl <CODE>$SIG{__WARN__}</CODE> hook.
+<P></P>
+<DT><STRONG><A NAME="item_Active"><CODE>Active</CODE> (boolean, read-only)</A></STRONG><BR>
+<DD>
+True if the handle object is ``active''. This is rarely used in
+applications. The exact meaning of active is somewhat vague at the
+moment. For a database handle it typically means that the handle is
+connected to a database (<CODE>$dbh-</CODE>&gt;<A HREF="#item_disconnect"><CODE>disconnect</CODE></A> sets <A HREF="#item_Active"><CODE>Active</CODE></A> off).  For
+a statement handle it typically means that the handle is a <CODE>SELECT</CODE>
+that may have more data to fetch. (Fetching all the data or calling <CODE>$sth-</CODE>&gt;<A HREF="#item_finish"><CODE>finish</CODE></A>
+sets <A HREF="#item_Active"><CODE>Active</CODE></A> off.)
+<P></P>
+<DT><STRONG><A NAME="item_Kids"><CODE>Kids</CODE> (integer, read-only)</A></STRONG><BR>
+<DD>
+For a driver handle, <A HREF="#item_Kids"><CODE>Kids</CODE></A> is the number of currently existing database
+handles that were created from that driver handle.  For a database
+handle, <A HREF="#item_Kids"><CODE>Kids</CODE></A> is the number of currently existing statement handles that
+were created from that database handle.
+<P></P>
+<DT><STRONG><A NAME="item_ActiveKids"><CODE>ActiveKids</CODE> (integer, read-only)</A></STRONG><BR>
+<DD>
+Like <A HREF="#item_Kids"><CODE>Kids</CODE></A>, but only counting those that are <A HREF="#item_Active"><CODE>Active</CODE></A> (as above).
+<P></P>
+<DT><STRONG><A NAME="item_CachedKids"><CODE>CachedKids</CODE> (hash ref)</A></STRONG><BR>
+<DD>
+For a database handle, returns a reference to the cache (hash) of
+statement handles created by the <A HREF="#prepare_cached">prepare_cached</A> method.  For a
+driver handle, returns a reference to the cache (hash) of
+database handles created by the <A HREF="#connect_cached">connect_cached</A> method.
+<P></P>
+<DT><STRONG><A NAME="item_CompatMode"><CODE>CompatMode</CODE> (boolean, inherited)</A></STRONG><BR>
+<DD>
+Used by emulation layers (such as Oraperl) to enable compatible behavior
+in the underlying driver (e.g., DBD::Oracle) for this handle. Not normally
+set by application code.
+<P></P>
+<DT><STRONG><A NAME="item_InactiveDestroy"><CODE>InactiveDestroy</CODE> (boolean)</A></STRONG><BR>
+<DD>
+This attribute can be used to disable the <EM>database engine</EM> related
+effect of DESTROYing a handle (which would normally close a prepared
+statement or disconnect from the database etc).
+<P>For a database handle, this attribute does not disable an <EM>explicit</EM>
+call to the disconnect method, only the implicit call from DESTROY.</P>
+<P>This attribute is specifically designed for use in Unix applications
+that ``fork'' child processes. Either the parent or the child process,
+but not both, should set <A HREF="#item_InactiveDestroy"><CODE>InactiveDestroy</CODE></A> on all their shared handles.
+Note that some databases, including Oracle, don't support passing a
+database connection across a fork.</P>
+<P></P>
+<DT><STRONG><A NAME="item_PrintError"><CODE>PrintError</CODE> (boolean, inherited)</A></STRONG><BR>
+<DD>
+This attribute can be used to force errors to generate warnings (using
+<CODE>warn</CODE>) in addition to returning error codes in the normal way.  When set
+``on'', any method which results in an error occuring will cause the DBI to
+effectively do a <CODE>warn(&quot;$class $method failed: $DBI::errstr&quot;)</CODE> where <CODE>$class</CODE>
+is the driver class and <CODE>$method</CODE> is the name of the method which failed. E.g.,
+<PRE>
+  DBD::Oracle::db prepare failed: ... error text here ...</PRE>
+<P>By default, <CODE>DBI-</CODE>&gt;<A HREF="#item_connect"><CODE>connect</CODE></A> sets <A HREF="#item_PrintError"><CODE>PrintError</CODE></A> ``on''.</P>
+<P>If desired, the warnings can be caught and processed using a <CODE>$SIG{__WARN__}</CODE>
+handler or modules like CGI::Carp and CGI::ErrorWrap.</P>
+<P></P>
+<DT><STRONG><A NAME="item_RaiseError"><CODE>RaiseError</CODE> (boolean, inherited)</A></STRONG><BR>
+<DD>
+This attribute can be used to force errors to raise exceptions rather
+than simply return error codes in the normal way. It is ``off'' by default.
+When set ``on'', any method which results in an error will cause
+the DBI to effectively do a <CODE>die(&quot;$class $method failed: $DBI::errstr&quot;)</CODE>,
+where <CODE>$class</CODE> is the driver class and <CODE>$method</CODE> is the name of the method
+that failed. E.g.,
+<PRE>
+  DBD::Oracle::db prepare failed: ... error text here ...</PRE>
+<P>If <A HREF="#item_PrintError"><CODE>PrintError</CODE></A> is also on, then the <A HREF="#item_PrintError"><CODE>PrintError</CODE></A> is done before the
+<A HREF="#item_RaiseError"><CODE>RaiseError</CODE></A> unless no <CODE>__DIE__</CODE> handler has been defined, in which case
+<A HREF="#item_PrintError"><CODE>PrintError</CODE></A> is skipped since the <CODE>die</CODE> will print the message.</P>
+<P>If you want to temporarily turn <A HREF="#item_RaiseError"><CODE>RaiseError</CODE></A> off (inside a library function
+that is likely to fail, for example), the recommended way is like this:</P>
+<PRE>
+  {
+    local $h-&gt;{RaiseError};  # localize and turn off for this block
+    ...
+  }</PRE>
+<P>The original value will automatically and reliably be restored by Perl,
+regardless of how the block is exited.
+The same logic applies to other attributes, including <A HREF="#item_PrintError"><CODE>PrintError</CODE></A>.</P>
+<P>Sadly, this doesn't work for Perl versions up to and including 5.004_04.
+For backwards compatibility, you could just use <CODE>eval { ... }</CODE> instead.</P>
+<P></P>
+<DT><STRONG><A NAME="item_ChopBlanks"><CODE>ChopBlanks</CODE> (boolean, inherited)</A></STRONG><BR>
+<DD>
+This attribute can be used to control the trimming of trailing space
+characters from fixed width character (CHAR) fields. No other field
+types are affected, even where field values have trailing spaces.
+<P>The default is false (although it is possible that the default may change).
+Applications that need specific behavior should set the attribute as
+needed. Emulation interfaces should set the attribute to match the
+behavior of the interface they are emulating.</P>
+<P>Drivers are not required to support this attribute, but any driver which
+does not support it must arrange to return <CODE>undef</CODE> as the attribute value.</P>
+<P></P>
+<DT><STRONG><A NAME="item_LongReadLen"><CODE>LongReadLen</CODE> (unsigned integer, inherited)</A></STRONG><BR>
+<DD>
+This attribute may be used to control the maximum length of long fields
+(``blob'', ``memo'', etc.) which the driver will read from the
+database automatically when it fetches each row of data.  The
+<A HREF="#item_LongReadLen"><CODE>LongReadLen</CODE></A> attribute only relates to fetching and reading long values; it
+is not involved in inserting or updating them.
+<P>A value of 0 means not to automatically fetch any long data. (<CODE>fetch</CODE>
+should return <CODE>undef</CODE> for long fields when <A HREF="#item_LongReadLen"><CODE>LongReadLen</CODE></A> is 0.)</P>
+<P>The default is typically 0 (zero) bytes but may vary between drivers.
+Applications fetching long fields should set this value to slightly
+larger than the longest long field value to be fetched.</P>
+<P>Some databases return some long types encoded as pairs of hex digits.
+For these types, <A HREF="#item_LongReadLen"><CODE>LongReadLen</CODE></A> relates to the underlying data length and not the
+doubled-up length of the encoded string.</P>
+<P>Changing the value of <A HREF="#item_LongReadLen"><CODE>LongReadLen</CODE></A> for a statement handle after it
+has been <A HREF="#item_prepare"><CODE>prepare</CODE></A>'d will typically have no effect, so it's common to
+set <A HREF="#item_LongReadLen"><CODE>LongReadLen</CODE></A> on the <CODE>$dbh</CODE> before calling <A HREF="#item_prepare"><CODE>prepare</CODE></A>.</P>
+<P>Note that the value used here has a direct effect on the memory used
+by the application, so don't be too generous.</P>
+<P>See <A HREF="#longtruncok">LongTruncOk</A> for more information on truncation behavior.</P>
+<P></P>
+<DT><STRONG><A NAME="item_LongTruncOk"><CODE>LongTruncOk</CODE> (boolean, inherited)</A></STRONG><BR>
+<DD>
+This attribute may be used to control the effect of fetching a long
+field value which has been truncated (typically because it's longer
+than the value of the <A HREF="#item_LongReadLen"><CODE>LongReadLen</CODE></A> attribute).
+<P>By default, <A HREF="#item_LongTruncOk"><CODE>LongTruncOk</CODE></A> is false and so fetching a long value that
+needs to be truncated will cause the fetch to fail.
+(Applications should always be sure to
+check for errors after a fetch loop in case an error, such as a divide
+by zero or long field truncation, caused the fetch to terminate
+prematurely.)</P>
+<P>If a fetch fails due to a long field truncation when <A HREF="#item_LongTruncOk"><CODE>LongTruncOk</CODE></A> is
+false, many drivers will allow you to continue fetching further rows.</P>
+<P>See also <A HREF="#longreadlen">LongReadLen</A>.</P>
+<P></P>
+<DT><STRONG><A NAME="item_Taint"><CODE>Taint</CODE> (boolean, inherited)</A></STRONG><BR>
+<DD>
+If this attribute is set to a true value <EM>and</EM> Perl is running in
+taint mode (e.g., started with the <CODE>-T</CODE> option), then all data
+fetched from the database is tainted, and the arguments to most DBI
+method calls are checked for being tainted. <EM>This may change.</EM>
+<P>The attribute defaults to off, even if Perl is in taint mode.
+See <EM>perlsec</EM> for more about taint mode.  If Perl is not
+running in taint mode, this attribute has no effect.</P>
+<P>When fetching data that you trust you can turn off the Taint attribute,
+for that statement handle, for the duration of the fetch loop.</P>
+<P>Currently only fetched data is tainted. It is possible that the results
+of other DBI method calls, and the value of fetched attributes, may
+also be tainted in future versions. That change may well break your
+applications unless you take great care now. If you use DBI Taint mode,
+please report your experience and any suggestions for changes.</P>
+<P></P>
+<DT><STRONG><A NAME="item_private_%2A"><CODE>private_*</CODE></A></STRONG><BR>
+<DD>
+The DBI provides a way to store extra information in a DBI handle as
+``private'' attributes. The DBI will allow you to store and retreive any
+attribute which has a name starting with ``<CODE>private_</CODE>''. It is strongly
+recommended that you use just <EM>one</EM> private attribute (e.g., use a
+hash ref) and give it a long and unambiguous name that includes the
+module or application name that the attribute relates to (e.g.,
+``<CODE>private_YourFullModuleName_thingy</CODE>'').
+<P></P></DL>
+<P>
+<HR>
+<H1><A NAME="dbi database handle objects">DBI DATABASE HANDLE OBJECTS</A></H1>
+<P>This section covers the methods and attributes associated with
+database handles.</P>
+<P>
+<H2><A NAME="database handle methods">Database Handle Methods</A></H2>
+<P>The following methods are specified for DBI database handles:</P>
+<DL>
+<DT><STRONG><A NAME="item_do"><CODE>do</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rc  = $dbh-&gt;do($statement)           || die $dbh-&gt;errstr;
+  $rc  = $dbh-&gt;do($statement, \%attr)   || die $dbh-&gt;errstr;
+  $rv  = $dbh-&gt;do($statement, \%attr, @bind_values) || ...</PRE>
+<P>Prepare and execute a single statement. Returns the number of rows
+affected or <CODE>undef</CODE> on error. A return value of <CODE>-1</CODE> means the 
+number of rows is not known or is not available.</P>
+<P>This method is typically most useful for <EM>non</EM>-<CODE>SELECT</CODE> statements that
+either cannot be prepared in advance (due to a limitation of the
+driver) or do not need to be executed repeatedly. It should not
+be used for <CODE>SELECT</CODE> statements because it does not return a statement
+handle (so you can't fetch any data).</P>
+<P>The default <A HREF="#item_do"><CODE>do</CODE></A> method is logically similar to:</P>
+<PRE>
+  sub do {
+      my($dbh, $statement, $attr, @bind_values) = @_;
+      my $sth = $dbh-&gt;prepare($statement, $attr) or return undef;
+      $sth-&gt;execute(@bind_values) or return undef;
+      my $rows = $sth-&gt;rows;
+      ($rows == 0) ? &quot;0E0&quot; : $rows; # always return true if no error
+  }</PRE>
+<P>For example:</P>
+<PRE>
+  my $rows_deleted = $dbh-&gt;do(q{
+      DELETE FROM table
+      WHERE status = ?
+  }, undef, 'DONE') || die $dbh-&gt;errstr;</PRE>
+<P>Using placeholders and <CODE>@bind_values</CODE> with the <A HREF="#item_do"><CODE>do</CODE></A> method can be
+useful because it avoids the need to correctly quote any variables
+in the <CODE>$statement</CODE>. But if you'll be executing the statement many
+times then it's more efficient to <A HREF="#item_prepare"><CODE>prepare</CODE></A> it once and call
+<A HREF="#item_execute"><CODE>execute</CODE></A> many times instead.</P>
+<P>The <CODE>q{...}</CODE> style quoting used in this example avoids clashing with
+quotes that may be used in the SQL statement. Use the double-quote-like
+<CODE>qq{...}</CODE> operator if you want to interpolate variables into the string.
+See <EM>perlop/``Quote and Quote-like Operators''</EM> for more details.</P>
+<DT><STRONG><A NAME="item_selectrow_array"><CODE>selectrow_array</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  @row_ary = $dbh-&gt;selectrow_array($statement);
+  @row_ary = $dbh-&gt;selectrow_array($statement, \%attr);
+  @row_ary = $dbh-&gt;selectrow_array($statement, \%attr, @bind_values);</PRE>
+<P>This utility method combines <A HREF="#prepare">prepare</A>, <A HREF="#execute">execute</A> and
+<A HREF="#fetchrow_array">fetchrow_array</A> into a single call. If called in a list context, it
+returns the first row of data from the statement. If called in a scalar
+context, it returns the first field of the first row. The <CODE>$statement</CODE>
+parameter can be a previously prepared statement handle, in which case
+the <A HREF="#item_prepare"><CODE>prepare</CODE></A> is skipped.</P>
+<P>If any method fails, and <A HREF="#raiseerror">RaiseError</A> is not set, <A HREF="#item_selectrow_array"><CODE>selectrow_array</CODE></A>
+will return an empty list.</P>
+<P>In a scalar context, <A HREF="#item_selectrow_array"><CODE>selectrow_array</CODE></A> returns the value of the first
+field. An <CODE>undef</CODE> is returned if there are no matching rows or an error
+occurred. Since that <CODE>undef</CODE> can't be distinguished from an <CODE>undef</CODE> returned
+because the first field value was NULL, calling <A HREF="#item_selectrow_array"><CODE>selectrow_array</CODE></A> in
+a scalar context should be used with caution.</P>
+<DT><STRONG><A NAME="item_selectall_arrayref"><CODE>selectall_arrayref</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $ary_ref = $dbh-&gt;selectall_arrayref($statement);
+  $ary_ref = $dbh-&gt;selectall_arrayref($statement, \%attr);
+  $ary_ref = $dbh-&gt;selectall_arrayref($statement, \%attr, @bind_values);</PRE>
+<P>This utility method combines <A HREF="#prepare">prepare</A>, <A HREF="#execute">execute</A> and
+<A HREF="#fetchall_arrayref">fetchall_arrayref</A> into a single call. It returns a reference to an
+array containing a reference to an array for each row of data fetched.</P>
+<P>The <CODE>$statement</CODE> parameter can be a previously prepared statement handle,
+in which case the <A HREF="#item_prepare"><CODE>prepare</CODE></A> is skipped. This is recommended if the
+statement is going to be executed many times.</P>
+<P>If any method except <CODE>fetch</CODE> fails, and <A HREF="#raiseerror">RaiseError</A> is not set,
+<A HREF="#item_selectall_arrayref"><CODE>selectall_arrayref</CODE></A> will return <CODE>undef</CODE>.  If <CODE>fetch</CODE> fails and
+<A HREF="#raiseerror">RaiseError</A> is not set, then it will return with whatever data it
+has fetched thus far.</P>
+<DT><STRONG><A NAME="item_selectcol_arrayref"><CODE>selectcol_arrayref</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $ary_ref = $dbh-&gt;selectcol_arrayref($statement);
+  $ary_ref = $dbh-&gt;selectcol_arrayref($statement, \%attr);
+  $ary_ref = $dbh-&gt;selectcol_arrayref($statement, \%attr, @bind_values);</PRE>
+<P>This utility method combines <A HREF="#prepare">prepare</A>, <A HREF="#execute">execute</A>, and fetching one
+column from all the rows, into a single call. It returns a reference to
+an array containing the values of the first column from each row.</P>
+<P>The <CODE>$statement</CODE> parameter can be a previously prepared statement handle,
+in which case the <A HREF="#item_prepare"><CODE>prepare</CODE></A> is skipped. This is recommended if the
+statement is going to be executed many times.</P>
+<P>If any method except <CODE>fetch</CODE> fails, and <A HREF="#raiseerror">RaiseError</A> is not set,
+<A HREF="#item_selectall_arrayref"><CODE>selectall_arrayref</CODE></A> will return <CODE>undef</CODE>.  If <CODE>fetch</CODE> fails and
+<A HREF="#raiseerror">RaiseError</A> is not set, then it will return with whatever data it
+has fetched thus far.</P>
+<DT><STRONG><A NAME="item_prepare"><CODE>prepare</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $sth = $dbh-&gt;prepare($statement)          || die $dbh-&gt;errstr;
+  $sth = $dbh-&gt;prepare($statement, \%attr)  || die $dbh-&gt;errstr;</PRE>
+<P>Prepares a single statement for later execution by the database
+engine and returns a reference to a statement handle object.</P>
+<P>The returned statement handle can be used to get attributes of the
+statement and invoke the <A HREF="#execute">execute</A> method. See <A HREF="#statement handle methods">Statement Handle Methods</A>.</P>
+<P>Drivers for engines without the concept of preparing a
+statement will typically just store the statement in the returned
+handle and process it when <CODE>$sth-</CODE>&gt;<A HREF="#item_execute"><CODE>execute</CODE></A> is called. Such drivers are
+unlikely to give much useful information about the
+statement, such as <CODE>$sth-</CODE>&gt;<CODE>{NUM_OF_FIELDS}</CODE>, until after <CODE>$sth-</CODE>&gt;<A HREF="#item_execute"><CODE>execute</CODE></A>
+has been called. Portable applications should take this into account.</P>
+<P>In general, DBI drivers do not parse the contents of the statement
+(other than simply counting any <A HREF="#placeholders">Placeholders</A>). The statement is
+passed directly to the database engine, sometimes known as pass-thru
+mode. This has advantages and disadvantages. On the plus side, you can
+access all the functionality of the engine being used. On the downside,
+you're limited if you're using a simple engine, and you need to take extra care if
+writing applications intended to be portable between engines.</P>
+<P>Portable applications should not assume that a new statement can be
+prepared and/or executed while still fetching results from a previous
+statement.</P>
+<P>Some command-line SQL tools use statement terminators, like a semicolon,
+to indicate the end of a statement. Such terminators should not normally
+be used with the DBI.</P>
+<DT><STRONG><A NAME="item_prepare_cached"><CODE>prepare_cached</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $sth = $dbh-&gt;prepare_cached($statement)
+  $sth = $dbh-&gt;prepare_cached($statement, \%attr)
+  $sth = $dbh-&gt;prepare_cached($statement, \%attr, $allow_active)</PRE>
+<P>Like <A HREF="#prepare">prepare</A> except that the statement handle returned will be
+stored in a hash associated with the <CODE>$dbh</CODE>. If another call is made to
+<A HREF="#item_prepare_cached"><CODE>prepare_cached</CODE></A> with the same <CODE>$statement</CODE> and <CODE>%attr</CODE> values, then the
+corresponding cached <CODE>$sth</CODE> will be returned without contacting the
+database server.</P>
+<P>This caching can be useful in some applications, but it can also cause
+problems and should be used with care. If the cached <CODE>$sth</CODE> being
+returned is active (i.e., is a <CODE>SELECT</CODE> that may still have data to be
+fetched) then a warning will be generated and <A HREF="#item_finish"><CODE>finish</CODE></A> will be called
+for you.  The warning can be suppressed by setting <CODE>$allow_active</CODE> to
+true.  The cache can be accessed (and cleared) via the <A HREF="#cachedkids">CachedKids</A>
+attribute.</P>
+<P>Here's an example of one possible use of <A HREF="#item_prepare_cached"><CODE>prepare_cached</CODE></A>:</P>
+<PRE>
+  while ( ($field, $value) = each %search_fields ) {
+      push @sql,   &quot;$field = ?&quot;;
+      push @values, $value;
+  }
+  $qualifier = &quot;&quot;;
+  $qualifier = &quot;where &quot;.join(&quot; and &quot;, @sql) if @sql;
+  $sth = $dbh-&gt;prepare_cached(&quot;SELECT * FROM table $qualifier&quot;);
+  $sth-&gt;execute(@values);</PRE>
+<DT><STRONG><A NAME="item_commit"><CODE>commit</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rc  = $dbh-&gt;commit     || die $dbh-&gt;errstr;</PRE>
+<P>Commit (make permanent) the most recent series of database changes
+if the database supports transactions and AutoCommit is off.</P>
+<P>If <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> is on, then calling
+<A HREF="#item_commit"><CODE>commit</CODE></A> will issue a ``commit ineffective with AutoCommit'' warning.</P>
+<P>See also <A HREF="#transactions">Transactions</A> in the <A HREF="#further information">FURTHER INFORMATION</A> section below.</P>
+<DT><STRONG><A NAME="item_rollback"><CODE>rollback</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rc  = $dbh-&gt;rollback   || die $dbh-&gt;errstr;</PRE>
+<P>Rollback (undo) the most recent series of uncommitted database
+changes if the database supports transactions and AutoCommit is off.</P>
+<P>If <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> is on, then calling
+<A HREF="#item_rollback"><CODE>rollback</CODE></A> will issue a ``rollback ineffective with AutoCommit'' warning.</P>
+<P>See also <A HREF="#transactions">Transactions</A> in the <A HREF="#further information">FURTHER INFORMATION</A> section below.</P>
+<DT><STRONG><A NAME="item_disconnect"><CODE>disconnect</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rc = $dbh-&gt;disconnect  || warn $dbh-&gt;errstr;</PRE>
+<P>Disconnects the database from the database handle. <A HREF="#item_disconnect"><CODE>disconnect</CODE></A> is typically only used
+before exiting the program. The handle is of little use after disconnecting.</P>
+<P>The transaction behavior of the <A HREF="#item_disconnect"><CODE>disconnect</CODE></A> method is, sadly,
+undefined.  Some database systems (such as Oracle and Ingres) will
+automatically commit any outstanding changes, but others (such as
+Informix) will rollback any outstanding changes.  Applications not
+using <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> should explicitly call <A HREF="#item_commit"><CODE>commit</CODE></A> or <A HREF="#item_rollback"><CODE>rollback</CODE></A> before
+calling <A HREF="#item_disconnect"><CODE>disconnect</CODE></A>.</P>
+<P>The database is automatically disconnected by the <CODE>DESTROY</CODE> method if
+still connected when there are no longer any references to the handle.
+The <CODE>DESTROY</CODE> method for each driver should implicitly call <A HREF="#item_rollback"><CODE>rollback</CODE></A> to
+undo any uncommitted changes. This is vital behavior to ensure that
+incomplete transactions don't get committed simply because Perl calls
+<CODE>DESTROY</CODE> on every object before exiting. Also, do not rely on the order
+of object destruction during ``global destruction'', as it is undefined.</P>
+<P>Generally, if you want your changes to be commited or rolled back when
+you disconnect, then you should explicitly call <A HREF="#commit">commit</A> or <A HREF="#rollback">rollback</A>
+before disconnecting.</P>
+<P>If you disconnect from a database while you still have active statement
+handles, you will get a warning. The statement handles should either be
+cleared (destroyed) before disconnecting, or the <A HREF="#item_finish"><CODE>finish</CODE></A> method 
+should be called on
+each one.</P>
+<DT><STRONG><A NAME="item_ping"><CODE>ping</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rc = $dbh-&gt;ping;</PRE>
+<P>Attempts to determine, in a reasonably efficient way, if the database
+server is still running and the connection to it is still working.
+Individual drivers should implement this function in the most suitable
+manner for their database engine.</P>
+<P>The current <EM>default</EM> implementation always returns true without
+actually doing anything. Actually, it returns ``<CODE>0 but true</CODE>'' which is
+true but zero. That way you can tell if the return value is genuine or
+just the default. Drivers should override this method with one that
+does the right thing for their type of database.</P>
+<P>Few applications would have use for this method. See the specialized
+Apache::DBI module for one example usage.</P>
+<DT><STRONG><A NAME="item_table_info_NEW"><CODE>table_info</CODE> <EM>NEW</EM></A></STRONG><BR>
+<DD>
+<STRONG>Warning:</STRONG> This method is experimental and may change.
+<PRE>
+  $sth = $dbh-&gt;table_info;</PRE>
+<P>Returns an active statement handle that can be used to fetch
+information about tables and views that exist in the database.</P>
+<P>The handle has at least the following fields in the order show
+below. Other fields, after these, may also be present.</P>
+<P><STRONG>TABLE_CAT</STRONG>: Table catalog identifier. This field is NULL (<CODE>undef</CODE>) if not
+applicable to the data source, which is usually the case. This field
+is empty if not applicable to the table.</P>
+<P><STRONG>TABLE_SCHEM</STRONG>: The name of the schema containing the TABLE_NAME value.
+This field is NULL (<CODE>undef</CODE>) if not applicable to data source, and
+empty if not applicable to the table.</P>
+<P><STRONG>TABLE_NAME</STRONG>: Name of the table (or view, synonym, etc).</P>
+<P><STRONG>TABLE_TYPE</STRONG>: One of the following: ``TABLE'', ``VIEW'', ``SYSTEM TABLE'',
+``GLOBAL TEMPORARY'', ``LOCAL TEMPORARY'', ``ALIAS'', ``SYNONYM'' or a type
+identifier that is specific to the data
+source.</P>
+<P><STRONG>REMARKS</STRONG>: A description of the table. May be NULL (<CODE>undef</CODE>).</P>
+<P>Note that <CODE>table_info</CODE> might not return records for all tables.
+Applications can use any valid table regardless of whether it's
+returned by <CODE>table_info</CODE>.  See also <A HREF="#tables">tables</A>.</P>
+<P>For more detailed information about the fields and their meanings,
+you can refer to:</P>
+<PRE>
+  <A HREF="http://msdn.microsoft.com/library/psdk/dasdk/odch6wqb.htm">http://msdn.microsoft.com/library/psdk/dasdk/odch6wqb.htm</A></PRE>
+<P>If that URL ceases to work then use the MSDN search facility at:</P>
+<PRE>
+  <A HREF="http://search.microsoft.com/us/dev/">http://search.microsoft.com/us/dev/</A></PRE>
+<P>and search for <CODE>SQLTables returns</CODE> using the exact phrase option.
+The link you want will probably just be called <CODE>SQLTables</CODE> and will
+be part of the Data Access SDK.</P>
+<P></P>
+<DT><STRONG><A NAME="item_tables"><CODE>tables</CODE> <EM>NEW</EM></A></STRONG><BR>
+<DD>
+<STRONG>Warning:</STRONG> This method is experimental and may change.
+<PRE>
+  @names = $dbh-&gt;tables;</PRE>
+<P>Returns a list of table and view names, possibly including a schema prefix.
+This list should include all
+tables that can be used in a <CODE>SELECT</CODE> statement without further
+qualification.</P>
+<P>Note that <CODE>table_info</CODE> might not return records for all tables.
+Applications can use any valid table regardless of whether it's
+returned by tables.  See also <A HREF="#table_info">table_info</A>.</P>
+<P></P>
+<DT><STRONG><A NAME="item_type_info_all_NEW"><CODE>type_info_all</CODE> <EM>NEW</EM></A></STRONG><BR>
+<DD>
+<STRONG>Warning:</STRONG> This method is experimental and may change.
+<PRE>
+  $type_info_all = $dbh-&gt;type_info_all;</PRE>
+<P>Returns a reference to an array which holds information about each data
+type variant supported by the database and driver. The array and its
+contents should be treated as read-only.</P>
+<P>The first item is a reference to a hash of <CODE>Name =</CODE>&gt; <CODE>Index</CODE> pairs. The
+following items are references to arrays, one per supported data type
+variant. The leading hash defines the names and order of the fields
+within the following list of arrays. For example:</P>
+<PRE>
+  $type_info_all = [
+    {   TYPE_NAME         =&gt; 0,
+        DATA_TYPE         =&gt; 1,
+        COLUMN_SIZE       =&gt; 2,     # was PRECISION originally
+        LITERAL_PREFIX    =&gt; 3,
+        LITERAL_SUFFIX    =&gt; 4,
+        CREATE_PARAMS     =&gt; 5,
+        NULLABLE          =&gt; 6,
+        CASE_SENSITIVE    =&gt; 7,
+        SEARCHABLE        =&gt; 8,
+        UNSIGNED_ATTRIBUTE=&gt; 9,
+        FIXED_PREC_SCALE  =&gt; 10,    # was MONEY originally
+        AUTO_UNIQUE_VALUE =&gt; 11,    # was AUTO_INCREMENT originally
+        LOCAL_TYPE_NAME   =&gt; 12,
+        MINIMUM_SCALE     =&gt; 13,
+        MAXIMUM_SCALE     =&gt; 14,
+        NUM_PREC_RADIX    =&gt; 15,
+    },
+    [ 'VARCHAR', SQL_VARCHAR,
+        undef, &quot;'&quot;,&quot;'&quot;, undef,0, 1,1,0,0,0,undef,1,255, undef
+    ],
+    [ 'INTEGER', SQL_INTEGER,
+        undef,  &quot;&quot;, &quot;&quot;, undef,0, 0,1,0,0,0,undef,0,  0, 10
+    ],
+  ];</PRE>
+<P>Note that more than one row may have the same value in the <A HREF="#item_DATA_TYPE"><CODE>DATA_TYPE</CODE></A>
+field if there are different ways to spell the type name and/or there
+are variants of the type with different attributes (e.g., with and
+without <A HREF="#item_AUTO_UNIQUE_VALUE"><CODE>AUTO_UNIQUE_VALUE</CODE></A> set, with and without <A HREF="#item_UNSIGNED_ATTRIBUTE"><CODE>UNSIGNED_ATTRIBUTE</CODE></A>, etc).</P>
+<P>The rows are ordered by <A HREF="#item_DATA_TYPE"><CODE>DATA_TYPE</CODE></A> first and then by how closely each
+type maps to the corresponding ODBC SQL data type, closest first.</P>
+<P>The meaning of the fields is described in the documentation for
+the <A HREF="#type_info">type_info</A> method. The index values shown above (e.g.,
+<CODE>NULLABLE =</CODE>&gt; <CODE>6</CODE>) are for illustration only. Drivers may define the
+fields with a different order.</P>
+<P>This method is not normally used directly. The <A HREF="#type_info">type_info</A> method
+provides a more useful interface to the data.</P>
+<P></P>
+<DT><STRONG><A NAME="item_type_info_NEW"><CODE>type_info</CODE> <EM>NEW</EM></A></STRONG><BR>
+<DD>
+<STRONG>Warning:</STRONG> This method is experimental and may change.
+<PRE>
+  @type_info = $dbh-&gt;type_info($data_type);</PRE>
+<P>Returns a list of hash references holding information about one or more
+variants of <CODE>$data_type</CODE>. The list is ordered by <A HREF="#item_DATA_TYPE"><CODE>DATA_TYPE</CODE></A> first and
+then by how closely each type maps to the corresponding ODBC SQL data
+type, closest first.  If called in a scalar context then only the first
+(best) element is returned.</P>
+<P>If <CODE>$data_type</CODE> is undefined or <CODE>SQL_ALL_TYPES</CODE>, then the list will
+contain hashes for all data type variants supported by the database and driver.</P>
+<P>If <CODE>$data_type</CODE> is an array reference then <CODE>type_info</CODE> returns the
+information for the <EM>first</EM> type in the array that has any matches.</P>
+<P>The keys of the hash follow the same letter case conventions as the
+rest of the DBI (see <A HREF="#naming conventions and name space">Naming Conventions and Name Space</A>). The
+following items should exist:</P>
+<DL>
+<DT><STRONG><A NAME="item_TYPE_NAME">TYPE_NAME (string)</A></STRONG><BR>
+<DD>
+Data type name for use in CREATE TABLE statements etc.
+<P></P>
+<DT><STRONG><A NAME="item_DATA_TYPE">DATA_TYPE (integer)</A></STRONG><BR>
+<DD>
+SQL data type number.
+<P></P>
+<DT><STRONG><A NAME="item_COLUMN_SIZE">COLUMN_SIZE (integer)</A></STRONG><BR>
+<DD>
+For numeric types, this is either the total number of digits (if the
+NUM_PREC_RADIX value is 10) or the total number of bits allowed in the
+column (if NUM_PREC_RADIX is 2).
+<P>For string types, this is the maximum size of the string in bytes.</P>
+<P>For date and interval types, this is the maximum number of characters
+needed to display the value.</P>
+<P></P>
+<DT><STRONG><A NAME="item_LITERAL_PREFIX">LITERAL_PREFIX (string)</A></STRONG><BR>
+<DD>
+Characters used to prefix a literal. A typical prefix is ``<CODE>'</CODE>'' for characters,
+or possibly ``<CODE>0x</CODE>'' for binary values passed as hexadecimal.  NULL (<CODE>undef</CODE>) is
+returned for data types for which this is not applicable.
+<P></P>
+<DT><STRONG><A NAME="item_LITERAL_SUFFIX">LITERAL_SUFFIX (string)</A></STRONG><BR>
+<DD>
+Characters used to suffix a literal. Typically ``<CODE>'</CODE>'' for characters.
+NULL (<CODE>undef</CODE>) is returned for data types where this is not applicable.
+<P></P>
+<DT><STRONG><A NAME="item_CREATE_PARAMS">CREATE_PARAMS (string)</A></STRONG><BR>
+<DD>
+Parameter names for data type definition. For example, <A HREF="#item_CREATE_PARAMS"><CODE>CREATE_PARAMS</CODE></A> for a
+<CODE>DECIMAL</CODE> would be ``<CODE>precision,scale</CODE>'' if the DECIMAL type should be
+declared as <CODE>DECIMAL(</CODE><EM>precision,scale</EM><CODE>)</CODE> where <EM>precision</EM> and <EM>scale</EM>
+are integer values.  For a <CODE>VARCHAR</CODE> it would be ``<CODE>max length</CODE>''.
+NULL (<CODE>undef</CODE>) is returned for data types for which this is not applicable.
+<P></P>
+<DT><STRONG><A NAME="item_NULLABLE">NULLABLE (integer)</A></STRONG><BR>
+<DD>
+Indicates whether the data type accepts a NULL value:
+<CODE>0</CODE> or an empty string = no, <CODE>1</CODE> = yes, <CODE>2</CODE> = unknown.
+<P></P>
+<DT><STRONG><A NAME="item_CASE_SENSITIVE">CASE_SENSITIVE (boolean)</A></STRONG><BR>
+<DD>
+Indicates whether the data type is case sensitive in collations and
+comparisons.
+<P></P>
+<DT><STRONG><A NAME="item_SEARCHABLE">SEARCHABLE (integer)</A></STRONG><BR>
+<DD>
+Indicates how the data type can be used in a WHERE clause, as
+follows:
+<PRE>
+  0 - Cannot be used in a WHERE clause
+  1 - Only with a LIKE predicate
+  2 - All comparison operators except LIKE
+  3 - Can be used in a WHERE clause with any comparison operator</PRE>
+<P></P>
+<DT><STRONG><A NAME="item_UNSIGNED_ATTRIBUTE">UNSIGNED_ATTRIBUTE (boolean)</A></STRONG><BR>
+<DD>
+Indicates whether the data type is unsigned.  NULL (<CODE>undef</CODE>) is returned
+for data types for which this is not applicable.
+<P></P>
+<DT><STRONG><A NAME="item_FIXED_PREC_SCALE">FIXED_PREC_SCALE (boolean)</A></STRONG><BR>
+<DD>
+Indicates whether the data type always has the same precision and scale
+(such as a money type).  NULL (<CODE>undef</CODE>) is returned for data types 
+for which
+this is not applicable.
+<P></P>
+<DT><STRONG><A NAME="item_AUTO_UNIQUE_VALUE">AUTO_UNIQUE_VALUE (boolean)</A></STRONG><BR>
+<DD>
+Indicates whether a column of this data type is automatically set to a
+unique value whenever a new row is inserted.  NULL (<CODE>undef</CODE>) is returned
+for data types for which this is not applicable.
+<P></P>
+<DT><STRONG><A NAME="item_LOCAL_TYPE_NAME">LOCAL_TYPE_NAME (string)</A></STRONG><BR>
+<DD>
+Localized version of the <A HREF="#item_TYPE_NAME"><CODE>TYPE_NAME</CODE></A> for use in dialog with users.
+NULL (<CODE>undef</CODE>) is returned if a localized name is not available (in which
+case <A HREF="#item_TYPE_NAME"><CODE>TYPE_NAME</CODE></A> should be used).
+<P></P>
+<DT><STRONG><A NAME="item_MINIMUM_SCALE">MINIMUM_SCALE (integer)</A></STRONG><BR>
+<DD>
+The minimum scale of the data type. If a data type has a fixed scale,
+then <A HREF="#item_MAXIMUM_SCALE"><CODE>MAXIMUM_SCALE</CODE></A> holds the same value.  NULL (<CODE>undef</CODE>) is returned for
+data types for which this is not applicable.
+<P></P>
+<DT><STRONG><A NAME="item_MAXIMUM_SCALE">MAXIMUM_SCALE (integer)</A></STRONG><BR>
+<DD>
+The maximum scale of the data type. If a data type has a fixed scale,
+then <A HREF="#item_MINIMUM_SCALE"><CODE>MINIMUM_SCALE</CODE></A> holds the same value.  NULL (<CODE>undef</CODE>) is returned for
+data types for which this is not applicable.
+<P></P>
+<DT><STRONG><A NAME="item_SQL_DATA_TYPE">SQL_DATA_TYPE (integer)</A></STRONG><BR>
+<DD>
+This column is the same as the <A HREF="#item_DATA_TYPE"><CODE>DATA_TYPE</CODE></A> column, except for interval
+and datetime data types.  For interval and datetime data types, the
+<A HREF="#item_SQL_DATA_TYPE"><CODE>SQL_DATA_TYPE</CODE></A> field will return <CODE>SQL_INTERVAL</CODE> or <CODE>SQL_DATETIME</CODE>, and the
+<A HREF="#item_SQL_DATETIME_SUB"><CODE>SQL_DATETIME_SUB</CODE></A> field below will return the subcode for the specific
+interval or datetime data type. If this field is NULL, then the driver
+does not support or report on interval or date subtypes.
+<P></P>
+<DT><STRONG><A NAME="item_SQL_DATETIME_SUB">SQL_DATETIME_SUB (integer)</A></STRONG><BR>
+<DD>
+For interval or datetime data types, where the <A HREF="#item_SQL_DATA_TYPE"><CODE>SQL_DATA_TYPE</CODE></A> field
+above is <CODE>SQL_INTERVAL</CODE> or <CODE>SQL_DATETIME</CODE>, this field will hold the subcode
+for the specific interval or datetime data type. Otherwise it will be
+NULL (<CODE>undef</CODE>).
+<P></P>
+<DT><STRONG><A NAME="item_NUM_PREC_RADIX">NUM_PREC_RADIX (integer)</A></STRONG><BR>
+<DD>
+The radix value of the data type. For approximate numeric types, 
+<A HREF="#item_NUM_PREC_RADIX"><CODE>NUM_PREC_RADIX</CODE></A>
+contains the value 2 and <A HREF="#item_COLUMN_SIZE"><CODE>COLUMN_SIZE</CODE></A> holds the number of bits. For
+exact numeric types, <A HREF="#item_NUM_PREC_RADIX"><CODE>NUM_PREC_RADIX</CODE></A> contains the value 10 and <A HREF="#item_COLUMN_SIZE"><CODE>COLUMN_SIZE</CODE></A> holds
+the number of decimal digits. NULL (<CODE>undef</CODE>) is returned either for data types
+for which this is not applicable or if the driver cannot report this information.
+<P></P>
+<DT><STRONG><A NAME="item_INTERVAL_PRECISION">INTERVAL_PRECISION (integer)</A></STRONG><BR>
+<DD>
+The interval leading precision for interval types. NULL is returned
+either for data types for which this is not applicable or if the driver
+cannot report this information.
+<P></P></DL>
+<P>Since DBI and ODBC drivers vary in how they map their types into the
+ISO standard types you may need to search for more than one type.
+Here's an example looking for a usable type to store a date:</P>
+<PRE>
+  $my_date_type = $dbh-&gt;type_info( [ SQL_DATE, SQL_TIMESTAMP ] );</PRE>
+<P>Similarly, to more reliably find a type to store small integers, you could
+use a list starting with <CODE>SQL_SMALLINT</CODE>, <CODE>SQL_INTEGER</CODE>, <CODE>SQL_DECIMAL</CODE>, etc.</P>
+<P>For more detailed information about these fields and their meanings, you
+can refer to:</P>
+<PRE>
+  <A HREF="http://msdn.microsoft.com/library/psdk/dasdk/odch6yy7.htm">http://msdn.microsoft.com/library/psdk/dasdk/odch6yy7.htm</A></PRE>
+<P>If that URL ceases to work then use the MSDN search facility at 
+</P>
+<PRE>
+
+    <A HREF="http://search.microsoft.com/us/dev/">http://search.microsoft.com/us/dev/</A></PRE>
+<PRE>
+
+and search the MSDN Library for C&lt;SQLGetTypeInfo returns&gt; using the exact phrase option.
+The link you want will probably just be called C&lt;SQLGetTypeInfo&gt; (there
+may be more than one).</PRE>
+<P>The individual data types are currently described here:</P>
+<PRE>
+  <A HREF="http://msdn.microsoft.com/library/psdk/dasdk/odap8fcj.htm">http://msdn.microsoft.com/library/psdk/dasdk/odap8fcj.htm</A></PRE>
+<P>If that URL ceases to work, or to get more general information, use the
+MSDN search facility as described above and search for <CODE>SQL Data Types</CODE>.</P>
+<DT><STRONG><A NAME="item_quote"><CODE>quote</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $sql = $dbh-&gt;quote($value);
+  $sql = $dbh-&gt;quote($value, $data_type);</PRE>
+<P>Quote a string literal for use as a literal value in an SQL statement,
+by escaping any special characters (such as quotation marks)
+contained within the string and adding the required type of outer
+quotation marks.</P>
+<PRE>
+  $sql = sprintf &quot;SELECT foo FROM bar WHERE baz = %s&quot;,
+                $dbh-&gt;quote(&quot;Don't&quot;);</PRE>
+<P>For most database types, quote would return <CODE>'Don''t'</CODE> (including the
+outer quotation marks).</P>
+<P>An undefined <CODE>$value</CODE> value will be returned as the string <CODE>NULL</CODE> (without
+quotation marks) to match how NULLs are represented in SQL.</P>
+<P>If <CODE>$data_type</CODE> is supplied, it is used to try to determine the required
+quoting behavior by using the information returned by <A HREF="#type_info">type_info</A>.
+As a special case, the standard numeric types are optimized to return
+<CODE>$value</CODE> without calling <CODE>type_info</CODE>.</P>
+<P>Quote will probably <EM>not</EM> be able to deal with all possible input
+(such as binary data or data containing newlines), and is not related in
+any way with escaping or quoting shell meta-characters. There is no
+need to quote values being used with <A HREF="#placeholders and bind values">Placeholders and Bind Values</A>.</P>
+</DL>
+<P>
+<H2><A NAME="database handle attributes">Database Handle Attributes</A></H2>
+<P>This section describes attributes specific to database handles.</P>
+<P>Changes to these database handle attributes do not affect any other
+existing or future database handles.</P>
+<P>Attempting to set or get the value of an unknown attribute is fatal,
+except for private driver-specific attributes (which all have names
+starting with a lowercase letter).</P>
+<P>Example:</P>
+<PRE>
+  $h-&gt;{AutoCommit} = ...;       # set/write
+  ... = $h-&gt;{AutoCommit};       # get/read</PRE>
+<DL>
+<DT><STRONG><A NAME="item_AutoCommit"><CODE>AutoCommit</CODE>  (boolean)</A></STRONG><BR>
+<DD>
+If true, then database changes cannot be rolled-back (undone).  If false,
+then database changes automatically occur within a ``transaction'', which
+must either be committed or rolled back using the <A HREF="#item_commit"><CODE>commit</CODE></A> or <A HREF="#item_rollback"><CODE>rollback</CODE></A>
+methods.
+<P>Drivers should always default to <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> mode (an unfortunate
+choice largely forced on the DBI by ODBC and JDBC conventions.)</P>
+<P>Attempting to set <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> to an unsupported value is a fatal error.
+This is an important feature of the DBI. Applications that need
+full transaction behavior can set <CODE>$dbh-</CODE>&gt;<CODE>{AutoCommit} = 0</CODE> (or
+set <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> to 0 via <A HREF="#connect">connect</A>) 
+without having to check that the value was assigned successfully.</P>
+<P>For the purposes of this description, we can divide databases into three
+categories:</P>
+<PRE>
+  Databases which don't support transactions at all.
+  Databases in which a transaction is always active.
+  Databases in which a transaction must be explicitly started (C&lt;'BEGIN WORK'&gt;).</PRE>
+<P><STRONG>* Databases which don't support transactions at all</STRONG></P>
+<P>For these databases, attempting to turn <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> off is a fatal error.
+<A HREF="#item_commit"><CODE>commit</CODE></A> and <A HREF="#item_rollback"><CODE>rollback</CODE></A> both issue warnings about being ineffective while
+<A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> is in effect.</P>
+<P><STRONG>* Databases in which a transaction is always active</STRONG></P>
+<P>These are typically mainstream commercial relational databases with
+``ANSI standard'' transaction behavior.
+If <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> is off, then changes to the database won't have any
+lasting effect unless <A HREF="#commit">commit</A> is called (but see also
+<A HREF="#disconnect">disconnect</A>). If <A HREF="#rollback">rollback</A> is called then any changes since the
+last commit are undone.</P>
+<P>If <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> is on, then the effect is the same as if the DBI 
+called <A HREF="#item_commit"><CODE>commit</CODE></A> automatically after every successful database
+operation. In other words, calling <A HREF="#item_commit"><CODE>commit</CODE></A> or <A HREF="#item_rollback"><CODE>rollback</CODE></A> explicitly while
+<A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> is on would be ineffective because the changes would
+have already been commited.</P>
+<P>Changing <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> from off to on should issue a <A HREF="#commit">commit</A> in most drivers.</P>
+<P>Changing <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> from on to off should have no immediate effect.</P>
+<P>For databases which don't support a specific auto-commit mode, the
+driver has to commit each statement automatically using an explicit
+<CODE>COMMIT</CODE> after it completes successfully (and roll it back using an
+explicit <CODE>ROLLBACK</CODE> if it fails).  The error information reported to the
+application will correspond to the statement which was executed, unless
+it succeeded and the commit or rollback failed.</P>
+<P><STRONG>* Databases in which a transaction must be explicitly started</STRONG></P>
+<P>For these databases, the intention is to have them act like databases in
+which a transaction is always active (as described above).</P>
+<P>To do this, the DBI driver will automatically begin a transaction when
+<A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> is turned off (from the default ``on'' state) and will
+automatically begin another transaction after a <A HREF="#commit">commit</A> or <A HREF="#rollback">rollback</A>.
+In this way, the application does not have to treat these databases as a
+special case.</P>
+<P>See <A HREF="#disconnect">disconnect</A> for other important notes about transactions.</P>
+<P></P>
+<DT><STRONG><A NAME="item_Driver"><CODE>Driver</CODE>  (handle)</A></STRONG><BR>
+<DD>
+Holds the handle of the parent driver. The only recommended use for this
+is to find the name of the driver using:
+<PRE>
+  $dbh-&gt;{Driver}-&gt;{Name}</PRE>
+<P></P>
+<DT><STRONG><A NAME="item_Name"><CODE>Name</CODE>  (string)</A></STRONG><BR>
+<DD>
+Holds the ``name'' of the database. Usually (and recommended to be) the
+same as the ``<CODE>dbi:DriverName:...</CODE>'' string used to connect to the database,
+but with the leading ``<CODE>dbi:DriverName:</CODE>'' removed.
+<P></P>
+<DT><STRONG><A NAME="item_RowCacheSize"><CODE>RowCacheSize</CODE>  (integer) <EM>NEW</EM></A></STRONG><BR>
+<DD>
+A hint to the driver indicating the size of the local row cache that the
+application would like the driver to use for future <CODE>SELECT</CODE> statements.
+If a row cache is not implemented, then setting <A HREF="#item_RowCacheSize"><CODE>RowCacheSize</CODE></A> is ignored
+and getting the value returns <CODE>undef</CODE>.
+<P>Some <A HREF="#item_RowCacheSize"><CODE>RowCacheSize</CODE></A> values have special meaning, as follows:</P>
+<PRE>
+  0 - Automatically determine a reasonable cache size for each C&lt;SELECT&gt;
+  1 - Disable the local row cache
+ &gt;1 - Cache this many rows
+ &lt;0 - Cache as many rows that will fit into this much memory for each C&lt;SELECT&gt;.</PRE>
+<P>Note that large cache sizes may require a very large amount of memory
+(<EM>cached rows * maximum size of row</EM>). Also, a large cache will cause
+a longer delay not only for the first fetch, but also whenever the 
+cache needs refilling.</P>
+<P>See also the <A HREF="#rowsincache">RowsInCache</A> statement handle attribute.</P>
+<P></P></DL>
+<P>
+<HR>
+<H1><A NAME="dbi statement handle objects">DBI STATEMENT HANDLE OBJECTS</A></H1>
+<P>This section lists the methods and attributes associated with DBI
+statement handles.</P>
+<P>
+<H2><A NAME="statement handle methods">Statement Handle Methods</A></H2>
+<P>The DBI defines the following methods for use on DBI statement handles:</P>
+<DL>
+<DT><STRONG><A NAME="item_bind_param"><CODE>bind_param</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rc = $sth-&gt;bind_param($p_num, $bind_value)  || die $sth-&gt;errstr;
+  $rv = $sth-&gt;bind_param($p_num, $bind_value, \%attr)     || ...
+  $rv = $sth-&gt;bind_param($p_num, $bind_value, $bind_type) || ...</PRE>
+<P>The <A HREF="#item_bind_param"><CODE>bind_param</CODE></A> method can be used to bind a value
+with a placeholder embedded in the prepared statement. Placeholders
+are indicated with question mark character (<CODE>?</CODE>). For example:</P>
+<PRE>
+  $dbh-&gt;{RaiseError} = 1;        # save having to check each method call
+  $sth = $dbh-&gt;prepare(&quot;SELECT name, age FROM people WHERE name LIKE ?&quot;);
+  $sth-&gt;bind_param(1, &quot;John%&quot;);  # placeholders are numbered from 1
+  $sth-&gt;execute;
+  DBI::dump_results($sth);</PRE>
+<P>Note that the <CODE>?</CODE> is not enclosed in quotation marks, even when the
+placeholder represents a string.  Some drivers also allow placeholders
+like <CODE>:</CODE><EM>name</EM> and <CODE>:</CODE><EM>n</EM> (e.g., <CODE>:1</CODE>, <CODE>:2</CODE>, and so on)
+in addition to <CODE>?</CODE>, but their use
+is not portable.  Undefined bind values or <CODE>undef</CODE> can be used to
+indicate null values.</P>
+<P>Some drivers do not support placeholders.</P>
+<P>With most drivers, placeholders can't be used for any element of a
+statement that would prevent the database server from validating the
+statement and creating a query execution plan for it. For example:</P>
+<PRE>
+  &quot;SELECT name, age FROM ?&quot;         # wrong (will probably fail)
+  &quot;SELECT name, ?   FROM people&quot;    # wrong (but may not 'fail')</PRE>
+<P>Also, placeholders can only represent single scalar values.
+For example, the following
+statement won't work as expected for more than one value:</P>
+<PRE>
+  &quot;SELECT name, age FROM people WHERE name IN (?)&quot;    # wrong</PRE>
+<P><STRONG>Data Types for Placeholders</STRONG></P>
+<P>The <CODE>\%attr</CODE> parameter can be used to hint at the data type the
+placeholder should have. Typically, the driver is only interested in
+knowing if the placeholder should be bound as a number or a string.</P>
+<PRE>
+  $sth-&gt;bind_param(1, $value, { TYPE =&gt; SQL_INTEGER });</PRE>
+<P>As a short-cut for this common case, the data type can be passed
+directly, in place of the <CODE>\%attr</CODE> hash reference. This example is
+equivalent to the one above:</P>
+<PRE>
+  $sth-&gt;bind_param(1, $value, SQL_INTEGER);</PRE>
+<P>The <A HREF="#item_TYPE"><CODE>TYPE</CODE></A> value indicates the standard (non-driver-specific) type for
+this parameter. To specify the driver-specific type, the driver may
+support a driver-specific attribute, such as <CODE>{ ora_type =</CODE>&gt;<CODE> 97 }</CODE>.  The
+data type for a placeholder cannot be changed after the first
+<A HREF="#item_bind_param"><CODE>bind_param</CODE></A> call. However, it can be left unspecified, in which case it
+defaults to the previous value.</P>
+<P>Perl only has string and number scalar data types. All database types
+that aren't numbers are bound as strings and must be in a format the
+database will understand.</P>
+<P>As an alternative to specifying the data type in the <A HREF="#item_bind_param"><CODE>bind_param</CODE></A> call,
+you can let the driver pass the value as the default type (<CODE>VARCHAR</CODE>).
+You can then use an SQL function to convert the type within the statement.
+For example:</P>
+<PRE>
+  INSERT INTO price(code, price) VALUES (?, CONVERT(MONEY,?))</PRE>
+<P>The <CODE>CONVERT</CODE> function used here is just an example. The actual function
+and syntax will vary between different databases and is non-portable.</P>
+<P>See also <A HREF="#placeholders and bind values">Placeholders and Bind Values</A> for more information.</P>
+<DT><STRONG><A NAME="item_bind_param_inout"><CODE>bind_param_inout</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rc = $sth-&gt;bind_param_inout($p_num, \$bind_value, $max_len)  || die $sth-&gt;errstr;
+  $rv = $sth-&gt;bind_param_inout($p_num, \$bind_value, $max_len, \%attr)     || ...
+  $rv = $sth-&gt;bind_param_inout($p_num, \$bind_value, $max_len, $bind_type) || ...</PRE>
+<P>This method acts like <A HREF="#bind_param">bind_param</A>, but also enables values to be
+updated by the statement. The statement is typically
+a call to a stored procedure. The <CODE>$bind_value</CODE> must be passed as a
+reference to the actual value to be used.</P>
+<P>Note that unlike <A HREF="#bind_param">bind_param</A>, the <CODE>$bind_value</CODE> variable is not
+read when <A HREF="#item_bind_param_inout"><CODE>bind_param_inout</CODE></A> is called. Instead, the value in the
+variable is read at the time <A HREF="#execute">execute</A> is called.</P>
+<P>The additional <CODE>$max_len</CODE> parameter specifies the minimum amount of
+memory to allocate to <CODE>$bind_value</CODE> for the new value. If the value
+returned from the database is too
+big to fit, then the execution should fail. If unsure what value to use,
+pick a generous length, i.e., a length larger than the longest value that would ever be
+returned.  The only cost of using a larger value than needed is wasted memory.</P>
+<P>It is expected that few drivers will support this method. The only
+driver currently known to do so is DBD::Oracle (DBD::ODBC may support
+it in a future release). Therefore it should not be used for database
+independent applications.</P>
+<P>Undefined values or <CODE>undef</CODE> are used to indicate null values.
+See also <A HREF="#placeholders and bind values">Placeholders and Bind Values</A> for more information.</P>
+<DT><STRONG><A NAME="item_execute"><CODE>execute</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rv = $sth-&gt;execute                || die $sth-&gt;errstr;
+  $rv = $sth-&gt;execute(@bind_values)  || die $sth-&gt;errstr;</PRE>
+<P>Perform whatever processing is necessary to execute the prepared
+statement.  An <CODE>undef</CODE> is returned if an error occurs.  A successful
+<A HREF="#item_execute"><CODE>execute</CODE></A> always returns true regardless of the number of rows affected,
+even if it's zero (see below). It is always important to check the
+return status of <A HREF="#item_execute"><CODE>execute</CODE></A> (and most other DBI methods) for errors.</P>
+<P>For a <EM>non</EM>-<CODE>SELECT</CODE> statement, <A HREF="#item_execute"><CODE>execute</CODE></A> returns the number of rows
+affected, if known. If no rows were affected, then <A HREF="#item_execute"><CODE>execute</CODE></A> returns
+``<CODE>0E0</CODE>'', which Perl will treat as 0 but will regard as true. Note that it
+is <EM>not</EM> an error for no rows to be affected by a statement. If the
+number of rows affected is not known, then <A HREF="#item_execute"><CODE>execute</CODE></A> returns -1.</P>
+<P>For <CODE>SELECT</CODE> statements, execute simply ``starts'' the query within the
+database engine. Use one of the fetch methods to retreive the data after
+calling <A HREF="#item_execute"><CODE>execute</CODE></A>.  The <A HREF="#item_execute"><CODE>execute</CODE></A> method does <EM>not</EM> return the number of
+rows that will be returned by the query (because most databases can't
+tell in advance), it simply returns a true value.</P>
+<P>If any arguments are given, then <A HREF="#item_execute"><CODE>execute</CODE></A> will effectively call
+<A HREF="#bind_param">bind_param</A> for each value before executing the statement.
+Values bound in this way are usually treated as <CODE>SQL_VARCHAR</CODE> types
+unless the driver can determine the correct type (which is rare), or
+unless
+<A HREF="#item_bind_param"><CODE>bind_param</CODE></A> (or <A HREF="#item_bind_param_inout"><CODE>bind_param_inout</CODE></A>) has already been used to specify the
+type.</P>
+<DT><STRONG><A NAME="item_fetchrow_arrayref"><CODE>fetchrow_arrayref</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $ary_ref = $sth-&gt;fetchrow_arrayref;
+  $ary_ref = $sth-&gt;fetch;    # alias</PRE>
+<P>Fetches the next row of data and returns a reference to an array
+holding the field values.  Null fields are returned as <CODE>undef</CODE>
+values in the array.
+This is the fastest way to fetch data, particularly if used with
+<CODE>$sth-</CODE>&gt;<A HREF="#item_bind_columns"><CODE>bind_columns</CODE></A>.</P>
+<P>If there are no more rows or if an error occurs, then <A HREF="#item_fetchrow_arrayref"><CODE>fetchrow_arrayref</CODE></A>
+returns an <CODE>undef</CODE>. You should check <CODE>$sth-</CODE>&gt;<A HREF="#item_err"><CODE>err</CODE></A> afterwards (or use the
+<A HREF="#item_RaiseError"><CODE>RaiseError</CODE></A> attribute) to discover if the <CODE>undef</CODE> returned was due to an
+error.</P>
+<P>Note that the same array reference will currently be returned for each
+fetch, so don't store the reference and then use it after a later fetch.</P>
+<DT><STRONG><A NAME="item_fetchrow_array"><CODE>fetchrow_array</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+ @ary = $sth-&gt;fetchrow_array;</PRE>
+<P>An alternative to <A HREF="#item_fetchrow_arrayref"><CODE>fetchrow_arrayref</CODE></A>. Fetches the next row of data
+and returns it as a list containing the field values.  Null fields
+are returned as <CODE>undef</CODE> values in the list.</P>
+<P>If there are no more rows or if an error occurs, then <A HREF="#item_fetchrow_array"><CODE>fetchrow_array</CODE></A>
+returns an empty list. You should check <CODE>$sth-</CODE>&gt;<A HREF="#item_err"><CODE>err</CODE></A> afterwards (or use
+the <A HREF="#item_RaiseError"><CODE>RaiseError</CODE></A> attribute) to discover if the empty list returned was
+due to an error.</P>
+<P>In a scalar context, <A HREF="#item_fetchrow_array"><CODE>fetchrow_array</CODE></A> returns the value of the first
+field. An <CODE>undef</CODE> is returned if there are no more rows or if an error
+occurred. Since that <CODE>undef</CODE> can't be distinguished from an <CODE>undef</CODE> returned
+because the first field value was NULL, you should exercise some
+caution if you use <A HREF="#item_fetchrow_array"><CODE>fetchrow_array</CODE></A> in a scalar context.</P>
+<DT><STRONG><A NAME="item_fetchrow_hashref"><CODE>fetchrow_hashref</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+ $hash_ref = $sth-&gt;fetchrow_hashref;
+ $hash_ref = $sth-&gt;fetchrow_hashref($name);</PRE>
+<P>An alternative to <A HREF="#item_fetchrow_arrayref"><CODE>fetchrow_arrayref</CODE></A>. Fetches the next row of data
+and returns it as a reference to a hash containing field name and field
+value pairs.  Null fields are returned as <CODE>undef</CODE> values in the hash.</P>
+<P>If there are no more rows or if an error occurs, then <A HREF="#item_fetchrow_hashref"><CODE>fetchrow_hashref</CODE></A>
+returns an <CODE>undef</CODE>. You should check <CODE>$sth-</CODE>&gt;<A HREF="#item_err"><CODE>err</CODE></A> afterwards (or use the
+<A HREF="#item_RaiseError"><CODE>RaiseError</CODE></A> attribute) to discover if the <CODE>undef</CODE> returned was due to an
+error.</P>
+<P>The optional <CODE>$name</CODE> parameter specifies the name of the statement handle
+attribute. For historical reasons it defaults to ``<A HREF="#item_NAME"><CODE>NAME</CODE></A>'', however using either
+``<A HREF="#item_NAME_lc"><CODE>NAME_lc</CODE></A>'' or ``<A HREF="#item_NAME_uc"><CODE>NAME_uc</CODE></A>'' is recomended for portability.</P>
+<P>The keys of the hash are the same names returned by <CODE>$sth-</CODE>&gt;<CODE>{$name}</CODE>. If
+more than one field has the same name, there will only be one entry in
+the returned hash for those fields.</P>
+<P>Because of the extra work <A HREF="#item_fetchrow_hashref"><CODE>fetchrow_hashref</CODE></A> and Perl have to perform, it
+is not as efficient as <A HREF="#item_fetchrow_arrayref"><CODE>fetchrow_arrayref</CODE></A> or <A HREF="#item_fetchrow_array"><CODE>fetchrow_array</CODE></A>.</P>
+<P>Currently, a new hash reference is returned for each row.  <EM>This will
+change</EM> in the future to return the same hash ref each time, so don't
+rely on the current behaviour.</P>
+<DT><STRONG><A NAME="item_fetchall_arrayref"><CODE>fetchall_arrayref</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $tbl_ary_ref = $sth-&gt;fetchall_arrayref;
+  $tbl_ary_ref = $sth-&gt;fetchall_arrayref( $slice_array_ref );
+  $tbl_ary_ref = $sth-&gt;fetchall_arrayref( $slice_hash_ref  );</PRE>
+<P>The <A HREF="#item_fetchall_arrayref"><CODE>fetchall_arrayref</CODE></A> method can be used to fetch all the data to be
+returned from a prepared and executed statement handle. It returns a
+reference to an array that contains one reference per row.</P>
+<P>If there are no rows to return, <A HREF="#item_fetchall_arrayref"><CODE>fetchall_arrayref</CODE></A> returns a reference
+to an empty array. If an error occurs, <A HREF="#item_fetchall_arrayref"><CODE>fetchall_arrayref</CODE></A> returns the
+data fetched thus far, which may be none.  You should check <CODE>$sth-</CODE>&gt;<A HREF="#item_err"><CODE>err</CODE></A>
+afterwards (or use the <A HREF="#item_RaiseError"><CODE>RaiseError</CODE></A> attribute) to discover if the data is
+complete or was truncated due to an error.</P>
+<P>When passed an array reference, <A HREF="#item_fetchall_arrayref"><CODE>fetchall_arrayref</CODE></A> uses <A HREF="#fetchrow_arrayref">fetchrow_arrayref</A>
+to fetch each row as an array ref. If the parameter array is not empty
+then it is used as a slice to select individual columns by index number.</P>
+<P>With no parameters, <A HREF="#item_fetchall_arrayref"><CODE>fetchall_arrayref</CODE></A> acts as if passed an empty array ref.</P>
+<P>When passed a hash reference, <A HREF="#item_fetchall_arrayref"><CODE>fetchall_arrayref</CODE></A> uses <A HREF="#fetchrow_hashref">fetchrow_hashref</A>
+to fetch each row as a hash reference. If the parameter hash is not empty,
+then it is used as a slice to select individual columns by name. The
+names should be lower case regardless of the letter case in <CODE>$sth-</CODE>&gt;<CODE>{NAME}</CODE>.
+The values of the hash should be set to 1.</P>
+<P>For example, to fetch just the first column of every row:</P>
+<PRE>
+  $tbl_ary_ref = $sth-&gt;fetchall_arrayref([0]);</PRE>
+<P>To fetch the second to last and last column of every row:</P>
+<PRE>
+  $tbl_ary_ref = $sth-&gt;fetchall_arrayref([-2,-1]);</PRE>
+<P>To fetch all fields of every row as a hash ref:</P>
+<PRE>
+  $tbl_ary_ref = $sth-&gt;fetchall_arrayref({});</PRE>
+<P>To fetch only the fields called ``foo'' and ``bar'' of every row as a hash ref:</P>
+<PRE>
+  $tbl_ary_ref = $sth-&gt;fetchall_arrayref({ foo=&gt;1, bar=&gt;1 });</PRE>
+<P>The first two examples return a reference to an array of array refs. The last
+returns a reference to an array of hash refs.</P>
+<DT><STRONG><A NAME="item_finish"><CODE>finish</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rc  = $sth-&gt;finish;</PRE>
+<P>Indicates that no more data will be fetched from this statement handle
+before it is either executed again or destroyed.  The <A HREF="#item_finish"><CODE>finish</CODE></A> method
+is rarely needed,
+but can sometimes be helpful in very specific situations to
+allow the server to free up resources (such as
+sort buffers).</P>
+<P>When all the data has been fetched from a <CODE>SELECT</CODE> statement, the driver
+should automatically call <A HREF="#item_finish"><CODE>finish</CODE></A> for you. So you should not normally
+need to call it explicitly.</P>
+<P>Consider a query like:</P>
+<PRE>
+  SELECT foo FROM table WHERE bar=? ORDER BY foo</PRE>
+<P>where you want to select just the first (smallest) ``foo'' value from a
+very large table. When executed, the database server will have to use
+temporary buffer space to store the sorted rows. If, after executing
+the handle and selecting one row, the handle won't be re-executed for
+some time and won't be destroyed, the <A HREF="#item_finish"><CODE>finish</CODE></A> method can be used to tell
+the server that the buffer space can be freed.</P>
+<P>Calling <A HREF="#item_finish"><CODE>finish</CODE></A> resets the <A HREF="#active">Active</A> attribute for the statement.  It
+may also make some statement handle attributes (such as <A HREF="#item_NAME"><CODE>NAME</CODE></A> and <A HREF="#item_TYPE"><CODE>TYPE</CODE></A>)
+unavailable if they have not already been accessed (and thus cached).</P>
+<P>The <A HREF="#item_finish"><CODE>finish</CODE></A> method does not affect the transaction status of the
+database connection.  It has nothing to do with transactions. It's mostly an
+internal ``housekeeping'' method that is rarely needed. There's no need
+to call <A HREF="#item_finish"><CODE>finish</CODE></A> if you're about to destroy or re-execute the statement
+handle.  See also <A HREF="#disconnect">disconnect</A> and the <A HREF="#active">Active</A> attribute.</P>
+<DT><STRONG><A NAME="item_rows"><CODE>rows</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rv = $sth-&gt;rows;</PRE>
+<P>Returns the number of rows affected by the last row affecting command,
+or -1 if the number of rows is not known or not available.</P>
+<P>Generally, you can only rely on a row count after a <EM>non</EM>-<CODE>SELECT</CODE>
+<A HREF="#item_execute"><CODE>execute</CODE></A> (for some specific operations like <CODE>UPDATE</CODE> and <CODE>DELETE</CODE>), or
+after fetching all the rows of a <CODE>SELECT</CODE> statement.</P>
+<P>For <CODE>SELECT</CODE> statements, it is generally not possible to know how many
+rows will be returned except by fetching them all.  Some drivers will
+return the number of rows the application has fetched so far, but
+others may return -1 until all rows have been fetched.  So use of the
+<A HREF="#item_rows"><CODE>rows</CODE></A> method or <A HREF="#item_%24DBI%3A%3Arows"><CODE>$DBI::rows</CODE></A> with <CODE>SELECT</CODE> statements is not
+recommended.</P>
+<P>One alternative method to get a row count for a <CODE>SELECT</CODE> is to execute a
+``SELECT <CODE>COUNT(*)</CODE> FROM ...'' SQL statement with the same ``...'' as your
+query and then fetch the row count from that.</P>
+<DT><STRONG><A NAME="item_bind_col"><CODE>bind_col</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rc = $sth-&gt;bind_col($column_number, \$var_to_bind);</PRE>
+<P>Binds an output column (field) of a <CODE>SELECT</CODE> statement to a Perl variable.
+See <A HREF="#item_bind_columns"><CODE>bind_columns</CODE></A> below for an example.  Note that column numbers count
+up from 1.</P>
+<P>Whenever a row is fetched from the database, the corresponding Perl
+variable is automatically updated. There is no need to fetch and assign
+the values manually.  The binding is performed at a very low level
+using Perl aliasing so there is no extra copying taking place.  This
+makes using bound variables very efficient.</P>
+<P>For maximum portability between drivers, <A HREF="#item_bind_col"><CODE>bind_col</CODE></A> should be called after
+<A HREF="#item_execute"><CODE>execute</CODE></A>. This restriction may be removed in a later version of the DBI.</P>
+<P>You do not need to bind output columns in order to fetch data, but it
+can be useful for some applications which need either maximum performance
+or greater clarity of code.  The <A HREF="#bind_param">bind_param</A> method
+performs a similar but opposite function for input variables.</P>
+<DT><STRONG><A NAME="item_bind_columns"><CODE>bind_columns</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rc = $sth-&gt;bind_columns(@list_of_refs_to_vars_to_bind);</PRE>
+<P>Calls <A HREF="#bind_col">bind_col</A> for each column of the <CODE>SELECT</CODE> statement.
+The <A HREF="#item_bind_columns"><CODE>bind_columns</CODE></A> method will die if the number of references does not
+match the number of fields.</P>
+<P>For maximum portability between drivers, <A HREF="#item_bind_columns"><CODE>bind_columns</CODE></A> should be called
+after <A HREF="#item_execute"><CODE>execute</CODE></A>.</P>
+<P>For example:</P>
+<PRE>
+  $dbh-&gt;{RaiseError} = 1; # do this, or check every call for errors
+  $sth = $dbh-&gt;prepare(q{ SELECT region, sales FROM sales_by_region });
+  $sth-&gt;execute;
+  my ($region, $sales);</PRE>
+<PRE>
+  # Bind Perl variables to columns:
+  $rv = $sth-&gt;bind_columns(\$region, \$sales);</PRE>
+<PRE>
+  # you can also use Perl's \(...) syntax (see perlref docs):
+  #     $sth-&gt;bind_columns(\($region, $sales));</PRE>
+<PRE>
+  # Column binding is the most efficient way to fetch data
+  while ($sth-&gt;fetch) {
+      print &quot;$region: $sales\n&quot;;
+  }</PRE>
+<P>For compatibility with old scripts, the first parameter will be
+ignored if it is <CODE>undef</CODE> or
+a hash reference.</P>
+<DT><STRONG><A NAME="item_dump_results"><CODE>dump_results</CODE></A></STRONG><BR>
+<DD>
+<PRE>
+  $rows = $sth-&gt;dump_results($maxlen, $lsep, $fsep, $fh);</PRE>
+<P>Fetches all the rows from <CODE>$sth</CODE>, calls <CODE>DBI::neat_list</CODE> for each row, and
+prints the results to <CODE>$fh</CODE> (defaults to <CODE>STDOUT</CODE>) separated by <CODE>$lsep</CODE>
+(default <CODE>&quot;\n&quot;</CODE>). <CODE>$fsep</CODE> defaults to <CODE>&quot;, &quot;</CODE> and <CODE>$maxlen</CODE> defaults to 35.</P>
+<P>This method is designed as a handy utility for prototyping and
+testing queries. Since it uses <A HREF="#neat_list">neat_list</A> to
+format and edit the string for reading by humans, it is not recomended
+for data transfer applications.</P>
+</DL>
+<P>
+<H2><A NAME="statement handle attributes">Statement Handle Attributes</A></H2>
+<P>This section describes attributes specific to statement handles. Most
+of these attributes are read-only.</P>
+<P>Changes to these statement handle attributes do not affect any other
+existing or future statement handles.</P>
+<P>Attempting to set or get the value of an unknown attribute is fatal,
+except for private driver specific attributes (which all have names
+starting with a lowercase letter).</P>
+<P>Example:</P>
+<PRE>
+  ... = $h-&gt;{NUM_OF_FIELDS};    # get/read</PRE>
+<P>Note that some drivers cannot provide valid values for some or all of
+these attributes until after <CODE>$sth-</CODE>&gt;<A HREF="#item_execute"><CODE>execute</CODE></A> has been called.</P>
+<P>See also <A HREF="#finish">finish</A> to learn more about the effect it 
+may have on some attributes.</P>
+<DL>
+<DT><STRONG><A NAME="item_NUM_OF_FIELDS"><CODE>NUM_OF_FIELDS</CODE>  (integer, read-only)</A></STRONG><BR>
+<DD>
+Number of fields (columns) the prepared statement will return. Non-<CODE>SELECT</CODE>
+statements will have <CODE>NUM_OF_FIELDS == 0</CODE>.
+<P></P>
+<DT><STRONG><A NAME="item_NUM_OF_PARAMS"><CODE>NUM_OF_PARAMS</CODE>  (integer, read-only)</A></STRONG><BR>
+<DD>
+The number of parameters (placeholders) in the prepared statement.
+See SUBSTITUTION VARIABLES below for more details.
+<P></P>
+<DT><STRONG><A NAME="item_NAME"><CODE>NAME</CODE>  (array-ref, read-only)</A></STRONG><BR>
+<DD>
+Returns a reference to an array of field names for each column. The
+names may contain spaces but should not be truncated or have any
+trailing space. Note that the names have the letter case (upper, lower
+or mixed) as returned by the driver being used. Portable applications
+should use <A HREF="#name_lc">NAME_lc</A> or <A HREF="#name_uc">NAME_uc</A>.
+<PRE>
+  print &quot;First column name: $sth-&gt;{NAME}-&gt;[0]\n&quot;;</PRE>
+<P></P>
+<DT><STRONG><A NAME="item_NAME_lc"><CODE>NAME_lc</CODE>  (array-ref, read-only)</A></STRONG><BR>
+<DD>
+Like <A HREF="#name">NAME</A> but always returns lowercase names.
+<P></P>
+<DT><STRONG><A NAME="item_NAME_uc"><CODE>NAME_uc</CODE>  (array-ref, read-only)</A></STRONG><BR>
+<DD>
+Like <A HREF="#name">NAME</A> but always returns uppercase names.
+<P></P>
+<DT><STRONG><A NAME="item_TYPE"><CODE>TYPE</CODE>  (array-ref, read-only) <EM>NEW</EM></A></STRONG><BR>
+<DD>
+Returns a reference to an array of integer values for each
+column. The value indicates the data type of the corresponding column.
+<P>The values correspond to the international standards (ANSI X3.135
+and ISO/IEC 9075) which, in general terms, means ODBC. Driver-specific
+types that don't exactly match standard types should generally return
+the same values as an ODBC driver supplied by the makers of the
+database. That might include private type numbers in ranges the vendor
+has officially registered. See:</P>
+<PRE>
+  <A HREF="ftp://jerry.ece.umassd.edu/isowg3/dbl/SQL_Registry">ftp://jerry.ece.umassd.edu/isowg3/dbl/SQL_Registry</A></PRE>
+<P>Where there's no vendor-supplied ODBC driver to be compatible with, the
+DBI driver can use type numbers in the range that is now officially reserved
+for use by the DBI: -9999 to -9000.</P>
+<P>All possible values for <A HREF="#item_TYPE"><CODE>TYPE</CODE></A> should have at least one entry in the
+output of the <CODE>type_info_all</CODE> method (see <A HREF="#type_info_all">type_info_all</A>).</P>
+<P></P>
+<DT><STRONG><A NAME="item_PRECISION"><CODE>PRECISION</CODE>  (array-ref, read-only) <EM>NEW</EM></A></STRONG><BR>
+<DD>
+Returns a reference to an array of integer values for each
+column.  For non-numeric columns, the value generally refers to either
+the maximum length or the defined length of the column.  For numeric
+columns, the value refers to the maximum number of significant digits
+used by the data type (without considering a sign character or decimal
+point).  Note that for floating point types (REAL, FLOAT, DOUBLE), the
+``display size'' can be up to 7 characters greater than the precision.
+(for the sign + decimal point + the letter E + a sign + 2 or 3 digits).
+<P></P>
+<DT><STRONG><A NAME="item_SCALE"><CODE>SCALE</CODE>  (array-ref, read-only) <EM>NEW</EM></A></STRONG><BR>
+<DD>
+Returns a reference to an array of integer values for each column.
+NULL (<CODE>undef</CODE>) values indicate columns where scale is not applicable.
+<P></P>
+<DT><STRONG><CODE>NULLABLE</CODE>  (array-ref, read-only)</STRONG><BR>
+<DD>
+Returns a reference to an array indicating the possibility of each
+column returning a null.  Possible values are <CODE>0</CODE> = no, <CODE>1</CODE> = yes, <CODE>2</CODE> = unknown.
+<PRE>
+  print &quot;First column may return NULL\n&quot; if $sth-&gt;{NULLABLE}-&gt;[0];</PRE>
+<P></P>
+<DT><STRONG><A NAME="item_CursorName"><CODE>CursorName</CODE>  (string, read-only)</A></STRONG><BR>
+<DD>
+Returns the name of the cursor associated with the statement handle, if
+available. If not available or if the database driver does not support the
+<CODE>&quot;where current of ...&quot;</CODE> SQL syntax, then it returns <CODE>undef</CODE>.
+<P></P>
+<DT><STRONG><A NAME="item_Statement"><CODE>Statement</CODE>  (string, read-only) <EM>NEW</EM></A></STRONG><BR>
+<DD>
+Returns the statement string passed to the <A HREF="#prepare">prepare</A> method.
+<P></P>
+<DT><STRONG><A NAME="item_RowsInCache"><CODE>RowsInCache</CODE>  (integer, read-only)</A></STRONG><BR>
+<DD>
+If the driver supports a local row cache for <CODE>SELECT</CODE> statements, then
+this attribute holds the number of un-fetched rows in the cache. If the
+driver doesn't, then it returns <CODE>undef</CODE>. Note that some drivers pre-fetch
+rows on execute, whereas others wait till the first fetch.
+<P>See also the <A HREF="#rowcachesize">RowCacheSize</A> database handle attribute.</P>
+<P></P></DL>
+<P>
+<HR>
+<H1><A NAME="further information">FURTHER INFORMATION</A></H1>
+<P>
+<H2><A NAME="transactions">Transactions</A></H2>
+<P>Transactions are a fundamental part of any robust database system. They
+protect against errors and database corruption by ensuring that sets of
+related changes to the database take place in atomic (indivisible,
+all-or-nothing) units.</P>
+<P>This section applies to databases that support transactions and where
+<A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A> is off.  See <A HREF="#autocommit">AutoCommit</A> for details of using <A HREF="#item_AutoCommit"><CODE>AutoCommit</CODE></A>
+with various types of databases.</P>
+<P>The recommended way to implement robust transactions in Perl
+applications is to use <A HREF="#item_RaiseError"><CODE>RaiseError</CODE></A> and <CODE>eval&nbsp;{&nbsp;...&nbsp;}</CODE>
+(which is very fast, unlike <CODE>eval&nbsp;&quot;...&quot;</CODE>). For example:</P>
+<PRE>
+  $dbh-&gt;{AutoCommit} = 0;  # enable transactions, if possible
+  $dbh-&gt;{RaiseError} = 1;
+  eval {
+      foo(...)        # do lots of work here
+      bar(...)        # including inserts
+      baz(...)        # and updates
+      $dbh-&gt;commit;   # commit the changes if we get this far
+  };
+  if ($@) {
+      warn &quot;Transaction aborted because $@&quot;;
+      $dbh-&gt;rollback; # undo the incomplete changes
+      # add other application on-error-clean-up code here
+  }</PRE>
+<P>If the <A HREF="#item_RaiseError"><CODE>RaiseError</CODE></A> attribute is not set, then DBI calls would need to be
+manually checked for errors, typically like this:</P>
+<PRE>
+  $h-&gt;method(@args) || die $h-&gt;errstr;</PRE>
+<P>With <A HREF="#item_RaiseError"><CODE>RaiseError</CODE></A> set, the DBI will automatically <CODE>die</CODE> if any DBI method
+call on that handle (or a child handle) fails, so you don't have to
+test the return value of each method call. See <A HREF="#raiseerror">RaiseError</A> for more
+details.</P>
+<P>A major advantage of the <CODE>eval</CODE> approach is that the transaction will be
+properly rolled back if <EM>any</EM> code (not just DBI calls) in the inner
+application dies for any reason. The major advantage of using the
+<CODE>$h-</CODE>&gt;<CODE>{RaiseError}</CODE> attribute is that all DBI calls will be checked
+automatically. Both techniques are strongly recommended.</P>
+<P>
+<H2><A NAME="handling blob / long / memo fields">Handling BLOB / LONG / Memo Fields</A></H2>
+<P>Many databases support ``blob'' (binary large objects), ``long'', or similar
+datatypes for holding very long strings or large amounts of binary
+data in a single field. Some databases support variable length long
+values over 2,000,000,000 bytes in length.</P>
+<P>Since values of that size can't usually be held in memory, and because
+databases can't usually know in advance the length of the longest long
+that will be returned from a <CODE>SELECT</CODE> statement (unlike other data
+types), some special handling is required.</P>
+<P>In this situation, the value of the <CODE>$h-</CODE>&gt;<CODE>{LongReadLen}</CODE> attribute is used
+to determine how much buffer space to allocate when fetching such
+fields.  The <CODE>$h-</CODE>&gt;<CODE>{LongTruncOk}</CODE> attribute is used to determine how to
+behave if a fetched value can't fit into the buffer.</P>
+<P>When trying to insert long or binary values, placeholders should be used
+since there are often limits on the maximum size of an <CODE>INSERT</CODE>
+statement and the <A HREF="#quote">quote</A> method generally can't cope with binary
+data.  See <A HREF="#placeholders and bind values">Placeholders and Bind Values</A>.</P>
+<P>
+<H2><A NAME="simple examples">Simple Examples</A></H2>
+<P>Here's a complete example program to select and fetch some data:</P>
+<PRE>
+  my $dbh = DBI-&gt;connect(&quot;dbi:DriverName:db_name&quot;, $user, $password)
+      || die &quot;Can't connect to $data_source: $DBI::errstr&quot;;</PRE>
+<PRE>
+  my $sth = $dbh-&gt;prepare( q{
+          SELECT name, phone
+          FROM mytelbook
+  }) || die &quot;Can't prepare statement: $DBI::errstr&quot;;</PRE>
+<PRE>
+  my $rc = $sth-&gt;execute
+      || die &quot;Can't execute statement: $DBI::errstr&quot;;</PRE>
+<PRE>
+  print &quot;Query will return $sth-&gt;{NUM_OF_FIELDS} fields.\n\n&quot;;
+  print &quot;Field names: @{ $sth-&gt;{NAME} }\n&quot;;</PRE>
+<PRE>
+  while (($name, $phone) = $sth-&gt;fetchrow_array) {
+      print &quot;$name: $phone\n&quot;;
+  }
+  # check for problems which may have terminated the fetch early
+  die $sth-&gt;errstr if $sth-&gt;err;</PRE>
+<PRE>
+  $dbh-&gt;disconnect;</PRE>
+<P>Here's a complete example program to insert some data from a file.
+(This example uses <A HREF="#item_RaiseError"><CODE>RaiseError</CODE></A> to avoid needing to check each call).</P>
+<PRE>
+  my $dbh = DBI-&gt;connect(&quot;dbi:DriverName:db_name&quot;, $user, $password, {
+      RaiseError =&gt; 1, AutoCommit =&gt; 0
+  });</PRE>
+<PRE>
+  my $sth = $dbh-&gt;prepare( q{
+      INSERT INTO table (name, phone) VALUES (?, ?)
+  });</PRE>
+<PRE>
+  open FH, &quot;&lt;phone.csv&quot; or die &quot;Unable to open phone.csv: $!&quot;;
+  while (&lt;FH&gt;) {
+      chop;
+      my ($name, $phone) = split /,/;
+      $sth-&gt;execute($name, $phone);
+  }
+  close FH;</PRE>
+<PRE>
+  $dbh-&gt;commit;
+  $dbh-&gt;disconnect;</PRE>
+<P>Here's how to convert fetched NULLs (undefined values) into empty strings:</P>
+<PRE>
+  while($row = $sth-&gt;fetchrow_arrayref) {
+    # this is a fast and simple way to deal with nulls:
+    foreach (@$row) { $_ = '' unless defined }
+    print &quot;@$row\n&quot;;
+  }</PRE>
+<P>The <CODE>q{...}</CODE> style quoting used in these examples avoids clashing with
+quotes that may be used in the SQL statement. Use the double-quote like
+<CODE>qq{...}</CODE> operator if you want to interpolate variables into the string.
+See <EM>perlop/``Quote and Quote-like Operators''</EM> for more details.</P>
+<P>
+<H2><A NAME="threads and thread safety">Threads and Thread Safety</A></H2>
+<P>Perl versions 5.004_50 and later include optional experimental support
+for multiple threads on many platforms.  If the DBI is built using a
+Perl that has threads enabled then it will use a per-driver mutex to
+ensure that only one thread is with a driver at any one time.
+Please note that support for threads in Perl is still experimental and
+is known to have some significant problems. It's use is not recommended.</P>
+<P>
+<H2><A NAME="signal handling and canceling operations">Signal Handling and Canceling Operations</A></H2>
+<P>The first thing to say is that signal handling in Perl is currently
+<EM>not</EM> safe. There is always a small risk of Perl crashing and/or
+core dumping when, or after, handling a signal.  (The risk was reduced
+with 5.004_04 but is still present.)</P>
+<P>The two most common uses of signals in relation to the DBI are for
+canceling operations when the user types Ctrl-C (interrupt), and for
+implementing a timeout using <CODE>alarm()</CODE> and <CODE>$SIG{ALRM}</CODE>.</P>
+<P>To assist in implementing these operations, the DBI provides a <CODE>cancel</CODE>
+method for statement handles. The <CODE>cancel</CODE> method should abort the current
+operation and is designed to be called from a signal handler.</P>
+<P>However, it must be stressed that: a) few drivers implement this at
+the moment (the DBI provides a default method that just returns <CODE>undef</CODE>);
+and b) even if implemented, there is still a possibility that the statement
+handle, and possibly the parent database handle, will not be usable
+afterwards.</P>
+<P>If <CODE>cancel</CODE> returns true, then it has successfully
+invoked the database engine's own cancel function.  If it returns false,
+then <CODE>cancel</CODE> failed. If it returns <CODE>undef</CODE>, then the database
+engine does not have cancel implemented.</P>
+<P>
+<HR>
+<H1><A NAME="debugging">DEBUGGING</A></H1>
+<P>In addition to the <A HREF="#trace">trace</A> method, you can enable the same trace
+information by setting the <CODE>DBI_TRACE</CODE> environment variable before
+starting Perl.</P>
+<P>On Unix-like systems using a Bourne-like shell, you can do this easily
+on the command line:</P>
+<PRE>
+  DBI_TRACE=2 perl your_test_script.pl</PRE>
+<P>If <CODE>DBI_TRACE</CODE> is set to a non-numeric value, then it is assumed to
+be a file name and the trace level will be set to 2 with all trace
+output appended to that file. If the name begins with a number
+followed by an equal sign (<CODE>=</CODE>), then the number and the equal sign are
+stripped off from the name, and the number is used to set the trace
+level. For example:</P>
+<PRE>
+  DBI_TRACE=1=dbitrace.log perl your_test_script.pl</PRE>
+<P>See also the <A HREF="#trace">trace</A> method.</P>
+<P>
+<HR>
+<H1><A NAME="warning and error messages">WARNING AND ERROR MESSAGES</A></H1>
+<P>
+<H2><A NAME="fatal errors">Fatal Errors</A></H2>
+<DL>
+<DT><STRONG><A NAME="item_Can%27t_call_method_%22prepare%22_without_a_packag">Can't call method ``prepare'' without a package or object reference</A></STRONG><BR>
+<DD>
+The <CODE>$dbh</CODE> handle you're using to call <A HREF="#item_prepare"><CODE>prepare</CODE></A> is probably undefined because
+the preceding <A HREF="#item_connect"><CODE>connect</CODE></A> failed. You should always check the return status of
+DBI methods, or use the <A HREF="#raiseerror">RaiseError</A> attribute.
+<P></P>
+<DT><STRONG><A NAME="item_Can%27t_call_method_%22execute%22_without_a_packag">Can't call method ``execute'' without a package or object reference</A></STRONG><BR>
+<DD>
+The <CODE>$sth</CODE> handle you're using to call <A HREF="#item_execute"><CODE>execute</CODE></A> is probably undefined because
+the preceeding <A HREF="#item_prepare"><CODE>prepare</CODE></A> failed. You should always check the return status of
+DBI methods, or use the <A HREF="#raiseerror">RaiseError</A> attribute.
+<P></P>
+<DT><STRONG><A NAME="item_DBI%2FDBD_internal_version_mismatch">DBI/DBD internal version mismatch</A></STRONG><BR>
+<DD>
+The DBD driver module was built with a different version of DBI than
+the one currently being used.  You should rebuild the DBD module under
+the current version of DBI.
+<P>(Some rare platforms require ``static linking''. On those platforms, there
+may be an old DBI or DBD driver version actually embedded in the Perl
+executable being used.)</P>
+<P></P>
+<DT><STRONG><A NAME="item_DBD_driver_has_not_implemented_the_AutoCommit_attr">DBD driver has not implemented the AutoCommit attribute</A></STRONG><BR>
+<DD>
+The DBD driver implementation is incomplete. Consult the author.
+<P></P>
+<DT><STRONG><A NAME="item_Can%27t_%5Bsg%5Det_%25s%2D%3E%7B%25s%7D%3A_unrecog">Can't [sg]et %s-&gt;{%s}: unrecognised attribute</A></STRONG><BR>
+<DD>
+You attempted to set or get an unknown attribute of a handle.  Make
+sure you have spelled the attribute name correctly; case is significant
+(e.g., ``Autocommit'' is not the same as ``AutoCommit'').
+<P></P></DL>
+<P>
+<H2><A NAME="warnings">Warnings</A></H2>
+<DL>
+<DT><STRONG><A NAME="item_Database_handle_destroyed_without_explicit_disconn">Database handle destroyed without explicit disconnect</A></STRONG><BR>
+<DD>
+A <CODE>$dbh</CODE> handle went out of scope or the program ended before the handle
+was disconnected from the database.  You should always explicitly call
+<A HREF="#item_disconnect"><CODE>disconnect</CODE></A> when you are finished using a database handle. If using
+transactions then you should also explicitly call <A HREF="#item_commit"><CODE>commit</CODE></A> or <A HREF="#item_rollback"><CODE>rollback</CODE></A>
+before <A HREF="#item_disconnect"><CODE>disconnect</CODE></A>.
+<P></P>
+<DT><STRONG><A NAME="item_DBI_Handle_cleared_whilst_still_holding_%25d_cache">DBI Handle cleared whilst still holding %d cached kids!</A></STRONG><BR>
+<DD>
+Most probably due to a DBI bug. Possibly a DBD driver bug. Please report it.
+<P></P>
+<DT><STRONG><A NAME="item_DBI_Handle_cleared_whilst_still_active%21">DBI Handle cleared whilst still active!</A></STRONG><BR>
+<DD>
+Most probably due to a DBI bug. Possibly a DBD driver bug. Please report it.
+<P></P>
+<DT><STRONG><A NAME="item_DBI_Handle_has_uncleared_implementors_data">DBI Handle has uncleared implementors data</A></STRONG><BR>
+<DD>
+Most probably a DBD driver bug. Please report it.
+<P></P>
+<DT><STRONG><A NAME="item_DBI_Handle_has_%25d_uncleared_child_handles">DBI Handle has %d uncleared child handles</A></STRONG><BR>
+<DD>
+Most probably due to a DBI bug. Possibly a DBD driver bug. Please report it.
+<P></P></DL>
+<P>
+<HR>
+<H1><A NAME="see also">SEE ALSO</A></H1>
+<P>
+<H2><A NAME="driver and database documentation">Driver and Database Documentation</A></H2>
+<P>Refer to the documentation for the DBD driver that you are using.</P>
+<P>Refer to the SQL Language Reference Manual for the database engine that you are using.</P>
+<P>
+<H2><A NAME="books and journals">Books and Journals</A></H2>
+<PRE>
+ Programming the Perl DBI, by Alligator Descartes and Tim Bunce.</PRE>
+<PRE>
+ Programming Perl 2nd Ed. by Larry Wall, Tom Christiansen &amp; Randal Schwartz.</PRE>
+<PRE>
+ Learning Perl by Randal Schwartz.</PRE>
+<PRE>
+ Dr Dobb's Journal, November 1996.</PRE>
+<PRE>
+ The Perl Journal, April 1997.</PRE>
+<P>
+<H2><A NAME="manual pages">Manual Pages</A></H2>
+<P><EM>perl(1)</EM>, <EM>perlmod(1)</EM>, <EM>perlbook(1)</EM></P>
+<P>
+<H2><A NAME="mailing list">Mailing List</A></H2>
+<P>The <EM>dbi-users</EM> mailing list is the primary means of communication among
+users of the DBI and its related modules. Subscribe and unsubscribe via:</P>
+<PRE>
+ <A HREF="http://www.isc.org/dbi-lists.html">http://www.isc.org/dbi-lists.html</A></PRE>
+<P>There are typically between 700 and 900 messages per month.  You have
+to subscribe in order to be able to post. However you can opt for a
+'post-only' subscription.</P>
+<P>Mailing list archives are held at:</P>
+<PRE>
+ <A HREF="http://www.xray.mpe.mpg.de/mailing-lists/dbi/">http://www.xray.mpe.mpg.de/mailing-lists/dbi/</A>
+ <A HREF="http://www.egroups.com/list/dbi-users/info.html">http://www.egroups.com/list/dbi-users/info.html</A>
+ <A HREF="http://www.bitmechanic.com/mail-archives/dbi-users/">http://www.bitmechanic.com/mail-archives/dbi-users/</A></PRE>
+<P>
+<H2><A NAME="assorted related www links">Assorted Related WWW Links</A></H2>
+<P>The DBI ``Home Page'':</P>
+<PRE>
+ <A HREF="http://www.symbolstone.org/technology/perl/DBI">http://www.symbolstone.org/technology/perl/DBI</A></PRE>
+<P>Other DBI related links:</P>
+<PRE>
+ <A HREF="http://tegan.deltanet.com/~phlip/DBUIdoc.html">http://tegan.deltanet.com/~phlip/DBUIdoc.html</A>
+ <A HREF="http://dc.pm.org/perl_db.html">http://dc.pm.org/perl_db.html</A>
+ <A HREF="http://wdvl.com/Authoring/DB/Intro/toc.html">http://wdvl.com/Authoring/DB/Intro/toc.html</A>
+ <A HREF="http://www.hotwired.com/webmonkey/backend/tutorials/tutorial1.html">http://www.hotwired.com/webmonkey/backend/tutorials/tutorial1.html</A>
+ <A HREF="http://bumppo.net/lists/macperl/1999/06/msg00197.html">http://bumppo.net/lists/macperl/1999/06/msg00197.html</A></PRE>
+<P>Other database related links:</P>
+<PRE>
+ <A HREF="http://www.jcc.com/sql_stnd.html">http://www.jcc.com/sql_stnd.html</A>
+ <A HREF="http://cuiwww.unige.ch/OSG/info/FreeDB/FreeDB.home.html">http://cuiwww.unige.ch/OSG/info/FreeDB/FreeDB.home.html</A></PRE>
+<P>Commercial and Data Warehouse Links</P>
+<PRE>
+ <A HREF="http://www.dwinfocenter.org">http://www.dwinfocenter.org</A>
+ <A HREF="http://www.datawarehouse.com">http://www.datawarehouse.com</A>
+ <A HREF="http://www.datamining.org">http://www.datamining.org</A>
+ <A HREF="http://www.olapcouncil.org">http://www.olapcouncil.org</A>
+ <A HREF="http://www.idwa.org">http://www.idwa.org</A>
+ <A HREF="http://www.knowledgecenters.org/dwcenter.asp">http://www.knowledgecenters.org/dwcenter.asp</A></PRE>
+<P>Recommended Perl Programming Links</P>
+<PRE>
+ <A HREF="http://language.perl.com/style/">http://language.perl.com/style/</A></PRE>
+<P>
+<H2><A NAME="faq">FAQ</A></H2>
+<P>Please also read the DBI FAQ which is installed as a DBI::FAQ module. 
+You can use <EM>perldoc</EM> to read it by executing the <CODE>perldoc DBI::FAQ</CODE> command.</P>
+<P>
+<HR>
+<H1><A NAME="authors">AUTHORS</A></H1>
+<P>DBI by Tim Bunce.  This pod text by Tim Bunce, J. Douglas Dunlop,
+Jonathan Leffler and others.  Perl by Larry Wall and the
+<CODE>perl5-porters</CODE>.</P>
+<P>
+<HR>
+<H1><A NAME="copyright">COPYRIGHT</A></H1>
+<P>The DBI module is Copyright (c) 1994-2000 Tim Bunce. England.
+All rights reserved.</P>
+<P>You may distribute under the terms of either the GNU General Public
+License or the Artistic License, as specified in the Perl README file.</P>
+<P>
+<HR>
+<H1><A NAME="acknowledgements">ACKNOWLEDGEMENTS</A></H1>
+<P>I would like to acknowledge the valuable contributions of the many
+people I have worked with on the DBI project, especially in the early
+years (1992-1994). In no particular order: Kevin Stock, Buzz Moschetti,
+Kurt Andersen, Ted Lemon, William Hails, Garth Kennedy, Michael Peppler,
+Neil S. Briscoe, Jeff Urlwin, David J. Hughes, Jeff Stander,
+Forrest D Whitcher, Larry Wall, Jeff Fried, Roy Johnson, Paul Hudson,
+Georg Rehfeld, Steve Sizemore, Ron Pool, Jon Meek, Tom Christiansen,
+Steve Baumgarten, Randal Schwartz, and a whole lot more.</P>
+<P>Then, of course, there are the poor souls who have struggled through
+untold and undocumented obstacles to actually implement DBI drivers.
+Among their ranks are Jochen Wiedmann, Alligator Descartes, Jonathan
+Leffler, Jeff Urlwin, Michael Peppler, Henrik Tougaard, Edwin Pratomo,
+Davide Migliavacca, Jan Pazdziora, Peter Haworth, Edmund Mergl, Steve
+Williams, Thomas Lowery, and Phlip Plumlee. Without them, the DBI would
+not be the practical reality it is today.  I'm also especially grateful
+to Alligator Descartes for starting work on the ``Programming the Perl
+DBI'' book and letting me jump on board.</P>
+<P>
+<HR>
+<H1><A NAME="translations">TRANSLATIONS</A></H1>
+<P>A German translation of this manual and other Perl module docs (all
+probably slightly out of date) is available, thanks to O'Reilly, at:</P>
+<PRE>
+  <A HREF="http://www.oreilly.de/catalog/perlmodger/">http://www.oreilly.de/catalog/perlmodger/</A></PRE>
+<P>Some other translations:</P>
+<PRE>
+ <A HREF="http://cronopio.net/perl/">http://cronopio.net/perl/</A>                              - Spanish
+ <A HREF="http://member.nifty.ne.jp/hippo2000/dbimemo.htm">http://member.nifty.ne.jp/hippo2000/dbimemo.htm</A>        - Japanese</PRE>
+<P>
+<HR>
+<H1><A NAME="support / warranty">SUPPORT / WARRANTY</A></H1>
+<P>The DBI is free software. IT COMES WITHOUT WARRANTY OF ANY KIND.</P>
+<P>Commercial support for Perl and the DBI, DBD::Oracle and
+Oraperl modules can be arranged via The Perl Clinic.
+For more details visit:</P>
+<PRE>
+  <A HREF="http://www.perlclinic.com">http://www.perlclinic.com</A></PRE>
+<P>
+<HR>
+<H1><A NAME="training">TRAINING</A></H1>
+<P>References to DBI related training resources. No recommendation implied.</P>
+<PRE>
+  <A HREF="http://www.treepax.co.uk/">http://www.treepax.co.uk/</A>
+  <A HREF="http://www.keller.com/dbweb/">http://www.keller.com/dbweb/</A></PRE>
+<P>
+<HR>
+<H1><A NAME="frequently asked questions">FREQUENTLY ASKED QUESTIONS</A></H1>
+<P>See the DBI FAQ for a more comprehensive list of FAQs. Use the
+<CODE>perldoc DBI::FAQ</CODE> command to read it.</P>
+<P>
+<H2><A NAME="how fast is the dbi">How fast is the DBI?</A></H2>
+<P>To measure the speed of the DBI and DBD::Oracle code, I modified
+DBD::Oracle so you can set an attribute that will cause the
+same row to be fetched from the row cache over and over again (without
+involving Oracle code but exercising *all* the DBI and DBD::Oracle code
+in the code path for a fetch).</P>
+<P>The results (on my lightly loaded old Sparc 10) fetching 50000 rows using:</P>
+<PRE>
+        1 while $csr-&gt;fetch;</PRE>
+<P><TABLE CELLSPACING=0 CELLPADDING=0><TR><TD>were:
+<TR><TD><TD>one field:   5300 fetches per cpu second (approx)
+<TR><TD><TD>ten fields:  4000 fetches per cpu second (approx)</TABLE></P>
+<P>Obviously results will vary between platforms (newer faster platforms
+can reach around 50000 fetches per second), but it does give a feel for
+the maximum performance: fast.  By way of comparison, using the code:</P>
+<PRE>
+        1 while @row = $csr-&gt;fetchrow_array;</PRE>
+<P>(<A HREF="#item_fetchrow_array"><CODE>fetchrow_array</CODE></A> is roughly the same as <CODE>ora_fetch</CODE>) gives:</P>
+<PRE>
+        one field:   3100 fetches per cpu second (approx)
+        ten fields:  1000 fetches per cpu second (approx)</PRE>
+<P>Notice the slowdown and the more dramatic impact of extra fields.
+(The fields were all one char long. The impact would be even bigger for
+longer strings.)</P>
+<P>Changing that slightly to represent actually doing something in Perl
+with the fetched data:</P>
+<PRE>
+    while(@row = $csr-&gt;fetchrow_array) {
+        $hash{++$i} = [ @row ];
+    }</PRE>
+<P>gives:	ten fields:  500 fetches per cpu second (approx)</P>
+<P>That simple addition has *halved* the performance.</P>
+<P>I therefore conclude that DBI and DBD::Oracle overheads are small
+compared with Perl language overheads (and probably database overheads).</P>
+<P>So, if you think the DBI or your driver is slow, try replacing your
+fetch loop with just:</P>
+<PRE>
+        1 while $csr-&gt;fetch;</PRE>
+<P>and time that. If that helps then point the finger at your own code. If
+that doesn't help much then point the finger at the database, the
+platform, the network etc. But think carefully before pointing it at
+the DBI or your driver.</P>
+<P>(Having said all that, if anyone can show me how to make the DBI or
+drivers even more efficient, I'm all ears.)</P>
+<P>
+<H2><A NAME="why doesn't my cgi script work right">Why doesn't my CGI script work right?</A></H2>
+<P>Read the information in the references below.  Please do <EM>not</EM> post
+CGI related questions to the <EM>dbi-users</EM> mailing list (or to me).</P>
+<PRE>
+ <A HREF="http://www.perl.com/cgi-bin/pace/pub/doc/FAQs/cgi/perl-cgi-faq.html">http://www.perl.com/cgi-bin/pace/pub/doc/FAQs/cgi/perl-cgi-faq.html</A>
+ <A HREF="http://www3.pair.com/webthing/docs/cgi/faqs/cgifaq.shtml">http://www3.pair.com/webthing/docs/cgi/faqs/cgifaq.shtml</A>
+ <A HREF="http://www-genome.wi.mit.edu/WWW/faqs/www-security-faq.html">http://www-genome.wi.mit.edu/WWW/faqs/www-security-faq.html</A>
+ <A HREF="http://www.boutell.com/faq/">http://www.boutell.com/faq/</A>
+ <A HREF="http://www.perl.com/perl/faq/">http://www.perl.com/perl/faq/</A></PRE>
+<P>General problems and good ideas:</P>
+<PRE>
+ Use the CGI::ErrorWrap module.
+ Remember that many env vars won't be set for CGI scripts.</PRE>
+<P>
+<H2><A NAME="how can i maintain a www connection to a database">How can I maintain a WWW connection to a database?</A></H2>
+<P>For information on the Apache httpd server and the <CODE>mod_perl</CODE> module see</P>
+<PRE>
+  <A HREF="http://perl.apache.org/">http://perl.apache.org/</A></PRE>
+<P>
+<H2><A NAME="what about odbc">What about ODBC?</A></H2>
+<P>A DBD::ODBC module is available.</P>
+<P>
+<H2><A NAME="does the dbi have a year 2000 problem">Does the DBI have a year 2000 problem?</A></H2>
+<P>No. The DBI has no knowledge or understanding of dates at all.</P>
+<P>Individual drivers (DBD::*) may have some date handling code but are
+unlikely to have year 2000 related problems within their code. However,
+your application code which <EM>uses</EM> the DBI and DBD drivers may have
+year 2000 related problems if it has not been designed and written well.</P>
+<P>See also the ``Does Perl have a year 2000 problem?'' section of the Perl FAQ:</P>
+<PRE>
+  <A HREF="http://www.perl.com/CPAN/doc/FAQs/FAQ/PerlFAQ.html">http://www.perl.com/CPAN/doc/FAQs/FAQ/PerlFAQ.html</A></PRE>
+<P>
+<HR>
+<H1><A NAME="other related work and perl modules">OTHER RELATED WORK AND PERL MODULES</A></H1>
+<DL>
+<DT><STRONG><A NAME="item_Apache%3A%3ADBI_by_E%2EMergl%40bawue%2Ede">Apache::DBI by <A HREF="mailto:E.Mergl@bawue.de">E.Mergl@bawue.de</A></A></STRONG><BR>
+<DD>
+To be used with the Apache daemon together with an embedded Perl
+interpreter like <CODE>mod_perl</CODE>. Establishes a database connection which
+remains open for the lifetime of the HTTP daemon. This way the CGI
+connect and disconnect for every database access becomes superfluous.
+<P></P>
+<DT><STRONG><A NAME="item_JDBC_Server_by_Stuart_%27Zen%27_Bishop_zen%40bf%2E">JDBC Server by Stuart 'Zen' Bishop <A HREF="mailto:zen@bf.rmit.edu.au">zen@bf.rmit.edu.au</A></A></STRONG><BR>
+<DD>
+The server is written in Perl. The client classes that talk to it are 
+of course in Java. Thus, a Java applet or application will be able to 
+comunicate via the JDBC API with any database that has a DBI driver installed.
+The URL used is in the form <CODE>jdbc:dbi://host.domain.etc:999/Driver/DBName</CODE>.
+It seems to be very similar to some commercial products, such as jdbcKona.
+<P></P>
+<DT><STRONG><A NAME="item_Remote_Proxy_DBD_support">Remote Proxy DBD support</A></STRONG><BR>
+<DD>
+As of DBI 1.02, a complete implementation of a DBD::Proxy driver and the
+DBI::ProxyServer are part of the DBI distribution.
+<P></P>
+<DT><STRONG><A NAME="item_SQL_Parser">SQL Parser</A></STRONG><BR>
+<DD>
+<PRE>
+        Hugo van der Sanden &lt;hv@crypt.compulink.co.uk&gt;
+        Stephen Zander &lt;stephen.zander@mckesson.com&gt;</PRE>
+<P>Based on the O'Reilly lex/yacc book examples and <CODE>byacc</CODE>.</P>
+<P>See also the SQL::Statement module, a very simple SQL parser and engine,
+base of the DBD::CSV driver.</P>
+</DL>
+
+
+</body>
+</html>

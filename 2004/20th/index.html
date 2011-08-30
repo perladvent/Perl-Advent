@@ -1,0 +1,242 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Filesys::Virtual</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 20th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Filesys::Virtual</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../19th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../21st/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><b>Filesys::Virtual</b> is an abstraction of a filesystem.  It allows you
+to program your own virtual filesystem that contains whatever you
+want.  As well as accessing the filesystem programmatically, several
+modules exist on CPAN that can act as servers for your virtual file
+system presenting it over FTP or WebDAV.</p>
+<p>Many existing Filesys::Virtual implementations exist, from the most
+basic from those that simply use an existing filesystem to the more
+complex that can present a remote filesystem over SSH or a Apple
+iTunes music share as a virtual filesystem.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Filesys::Virtual">[Read the documentation for Filesys::Virtual on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Let's look at the basics of using the most basic <b>Filesys::Virual</b>
+implementation, <b>Filesys::Virtual::Plain</b>.  This simple bases itself
+on a real file system (in this case a directory in the file
+system.</p>
+<pre>  # create a new filesystem that uses the current working
+  # directory as the root of the filesystem
+  my $filesys = Filesys::Virtual::Plain-&gt;new({
+    root_path =&gt; cwd,
+  });</pre>
+
+<pre>  # print all files on the "root" filesystem
+  print join ", ", $filesys-&gt;list('/'), "\n";</pre>
+
+<p>So we can now access the filesystem programmatically.  What we need is
+some way to to access this virtual filesystem from outside Perl.
+There's various options - we can view these filesystems as a FTP
+server or with a WebDAV server.</p>
+<p>Let's write some example code.  Firstly we start the script and then
+load all the modules:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on the safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load the modules
+  use Filesys::Virtual::Plain;
+  use Net::DAV::Server;
+  use HTTP::Daemon;
+  use Cwd qw(cwd);</pre>
+
+<p>We then create the new virtual filesystem as above:</p>
+<pre>  # create a new filesystem
+  my $filesys = Filesys::Virtual::Plain-&gt;new({
+    root_path =&gt; cwd,
+  });</pre>
+
+<p>Now let's create <b>Net::DAV::Server</b> that understands the WebDAV
+protocol and can return an appropriate response for each request for
+the file system we just created:</p>
+<pre>  # create a new WebDAV server that deals with this filesystem
+  my $webdav = Net::DAV::Server-&gt;new();
+  $webdav-&gt;filesys($filesys);</pre>
+
+<p>We then instantiate a <b>HTTP::Daemon</b> webserver that listens on port
+4242:</p>
+<pre>  my $server = HTTP::Daemon-&gt;new(
+    LocalAddr =&gt; 'localhost',
+    LocalPort =&gt; 4242,
+    ReuseAddr =&gt; 1
+  ) or die "Couldn't start server";</pre>
+
+<pre>  print "Please contact me at: ", $server-&gt;url, "\n";</pre>
+
+<p>We finally write some code that gets each request that comes to our
+webserver, hands it to our instance of <b>Net::DAV::Server</b> and sends
+the response it passes us back to the client:</p>
+<pre>  # keep accepting connections and then deal with them each time
+  while (my $connection = $server-&gt;accept)
+  {
+    # get each request for this connection
+    while (my $request = $connection-&gt;get_request)
+    {
+      # get the webdav server to look at the
+      # request for us and send the response
+      my $response = $webdav-&gt;run($request);
+      $connection-&gt;send_response($response);
+    }
+    $connection-&gt;close;
+    undef($connection);
+  }</pre>
+
+<p>This prints out the address:</p>
+<pre>  Please contact me at: http://localhost:4242/</pre>
+
+<p>We can access the virtual file system with a normal web browser and
+browse the files.  If we use a fully fledged client we can read and
+write to the file.</p>
+<h2>Other Virtual File Systems</h2>
+<p>Often I want to access files on remote servers as if they were on my
+local machine.  Luckily for me, Mac OS X can mount a remote FTP server
+as a local drive.  Hitting Command-K in the finder pops open a dialog
+where I can enter a filename which will be mounted inside <code>/Volumes</code>.
+I can then use any of my normal editors to access the files. I've been
+lead to believe that a GNU/Linux system properly configured can do the
+same kind of thing.</p>
+<p>The problem is that most of my servers don't have a FTP server on
+them.  All access is via SSH.  Luckily there's a <b>Filesys::Virtual</b>
+subclass <b>Filesys::Virtual::SSH</b> that can access files over SSH the
+same way that <b>Filesys::Virtual::Plain</b> can for local disks.</p>
+<pre>   use Filesys::Virtual::SSH;
+   my $fs = Filesys::Virtual::SSH-&gt;new({
+       host      =&gt; 'perladvent.org',
+       cwd       =&gt; '/virtual/perladvent.org/www/html/2004/',
+       root_path =&gt; '/',
+       home_path =&gt; '/home',
+   });
+   print join ", ", $fs-&gt;list('/virtual/perladvent.org/www/html/2004/')</pre>
+
+<p>This prints out all the files and directories on my remote server.</p>
+<pre>  ., .., 10th, 11th, 12th, 13th, 14th, 15th, 16th, 17th,
+  18th, 19th, 1st, 20th, 21st, 22nd, 23rd, 24th, 25th,
+  2nd, 3rd, 4th, 5th, 6th, 7th, 8th, 9th, index.html</pre>
+
+<p>We can make use of this filesystem with any of the servers that can
+use a <b>Filesys::Virtual</b> file system. So we can create a local FTP
+server for a remote SSH accessible server:</p>
+<pre>  # load the modules
+  use POE qw(Component::Server::FTP);
+  use Filesys::Virtual::SSH;</pre>
+
+<pre>  # define the server
+  POE::Component::Server::FTP-&gt;spawn(</pre>
+
+<pre>     ListenPort      =&gt; 2112,</pre>
+
+<pre>     FilesystemClass =&gt; 'Filesys::Virtual::SSH',
+     FilesystemArgs  =&gt; {
+       host      =&gt; 'perladvent.org',
+       cwd       =&gt; '/virtual/perladvent.org/www/html/2004/',
+       root_path =&gt; '/',
+       home_path =&gt; '/home',
+     },</pre>
+
+<pre>     LogLevel =&gt; 4,
+  );</pre>
+
+<pre>  # run the system
+  $poe_kernel-&gt;run();</pre>
+
+<p>Of course the Finder's not very efficent when it comes to dealing with
+the SSH connection and doesn't cache very well (if at all) meaning
+that it makes many many calls over SSH - meaning this is <b>very</b> slow.
+But it does work.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/perldoc?Filesys::Virtual::Plain">Filesys::Virtual::Plain</a></li>
+<li><a href="http://search.cpan.org/perldoc?Filesys::Virtual::SSH">Filesys::Virtual::SSH</a></li>
+<li><a href="http://search.cpan.org/perldoc?Filesys::Virtual::DAAP">Filesys::Virtual::DAAP</a></li>
+<li><a href="http://search.cpan.org/perldoc?HTTP::Daemon">HTTP::Daemon</a></li>
+<li><a href="http://search.cpan.org/perldoc?Net::DAV::Server">Net::DAV::Server</a></li>
+<li><a href="http://search.cpan.org/perldoc?POE::Component::Server::FTP">POE::Component::Server::FTP</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:59 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

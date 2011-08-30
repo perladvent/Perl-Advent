@@ -1,0 +1,270 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: PAR</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 25th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">PAR</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../24th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="/2004/1st/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>So, I've written about a hundred modules in my advent calendar.
+That's a lot of modules.  That's a lot of stuff to install.</p>
+<p>Even though I love modules - they're little bundles of prewritten
+goodness - it's a major pain installing them on all the machines I'm
+going to use, and remembering what modules are needed for what scripts
+need what modules.  It's even worse when you're handing scripts to
+other people to run, as they often have no clue either how to install
+modules and, if they do, what side effects installing the modules will
+have on their system.</p>
+<p>We're Perl programmers, and we believe being lazy is a virtue.  I
+can't be bothered to install a whole bunch of stuff every time I
+want to try out a new program just because it happens to be written
+in Perl.  What I want is something that I can double click.</p>
+<p>PAR is the tool to do that.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?PAR">[Read the documentation for PAR on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>If you're a Java programmer, then you know what a JAR file is.  It's a
+Java ARchive.  Basically it's a ZIP file that contains a bunch of
+compiled Java code (class files,) and you can use them with java
+like so:</p>
+<pre>  bash$ java -jar myjarfile.jar</pre>
+
+<p>And lo, since the jar contains everything you need to run the code it
+just works, without you having to install anything else.</p>
+<p>PAR files, Perl ARchive files, are much the same idea.  Except rather
+than bytecode PAR files contain Perl source code and binary code for
+any compiled C code that you're shipping with your module.  What this
+means that if you've got PAR installed and someone ships you a PAR
+file you can (assuming it's been designed this way) execute it like
+this:</p>
+<pre>  bash$ perl -MPAR myparfile.par</pre>
+
+<p>And that's it.  No more module installation.  No more worrying about
+dependencies.  Assuming the author of the PAR file has done their bit
+there should be everything you need inside the one zip file that the
+clever <b>PAR</b> module should be able to extract on it's own.</p>
+<h2>Installing PAR</h2>
+<p>On a Windows box, with the latest ActivePerl installation
+from ActiveState installing a copy of PAR is simple;  All you need
+do is use the PPM system which installs binary modules directly
+from the precompiled ActiveState repository</p>
+<pre>  C:\WINDOWS\DESKTOP&gt;ppm
+  ppm&gt; install PAR</pre>
+
+<p>No compiler, make, or any other tool required.</p>
+<p>On other platforms (that have such useful tools already) you can
+install the module just like any other, by using the <code>cpan</code> or
+<code>cpanp</code> commands to load the CPAN or CPANPLUS shells and typing
+<code>install PAR</code>.</p>
+<h2>Writing Your Own Par Bundles</h2>
+<p>Let's write a simple Tk program that has two boxes input and output,
+and a button that when pressed runs the input though HTML::Entities
+to encode all the characters in it that can be displayed in HTML
+and spit the resulting text to the output box:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features 
+  use strict;
+  use warnings;</pre>
+
+<pre>  # use our modules
+  use Tk;
+  use HTML::Entities;</pre>
+
+<pre>  # create the main window
+  my $mw = MainWindow-&gt;new;
+  $mw-&gt;title("HTML Converter");</pre>
+
+<pre>  # create the text boxes
+  my $input  = $mw-&gt;Text()-&gt;pack;
+  my $output = $mw-&gt;Text()-&gt;pack;</pre>
+
+<pre>  # connect the output to our private filehandle
+  tie *TT, ref $output, $output;</pre>
+
+<pre>  # button and code to execute when clicked
+  $mw-&gt;Button(-text =&gt; "Convert", -command =&gt; sub {</pre>
+
+<pre>    # get the text from the input box
+    my $input_text = $input-&gt;get("1.0", 'end');</pre>
+
+<pre>    # delete everything from the output
+    $output-&gt;delete("1.0", 'end'); </pre>
+
+<pre>    # run it though HTML::Entities;
+    print TT encode_entities($input_text);</pre>
+
+<pre>  })-&gt;pack;</pre>
+
+<pre>  # go into the main loop
+  MainLoop;</pre>
+
+<p>We save this script as ent.pl.  Making a bundle of all the
+dependencies this script needs can use is easy; We use the <code>pp</code>
+command line program:</p>
+<pre>  C:\WINDOWS\DESKTOP&gt; pp -p -o ent.par ent.pl</pre>
+
+<p>This creates <code>ent.par</code>.   If you decompress this bundle using WinZip
+(it's just a zip file) you'll see that it contains a few core modules,
+Tk, and some extra files:</p>
+<pre>  ent.pl
+  main.pl
+  Manifest
+  META.yml</pre>
+
+<p><code>ent.pl</code> is obviously your script.  <code>main.pl</code> is the script that
+is executed when the distribution is run from the command line (in this
+case it just calls <code>ent.pl</code>.)  <code>Manifest</code> is a straight list of all
+the things that are meant to be in the bundle (so you can tell if
+something's missing.)  And META.yml contains meta information about
+the distribution (what version of PAR created it, dependencies information,
+etc) in machine/human readable YAML format. </p>
+<p>One thing that we immediately notice is that this par file contains all
+the binary code that's needed to run Tk.  This is compiled for our
+version of perl on our platform.  If someone else has compiled a
+different perl for our machine this par archive code won't work.
+Likewise my par bundle with binary components won't function on a
+Linux box.  It <i>is</i> possible to have a par bundle that contains
+multiple versions of the binary code for separate machines and for par
+to do the right thing, but I'm not going to cover it here.  For now
+you need to remember that if you're using binary modules - things like
+Tk - it'll only work on the platform you developed it on.  Of course,
+if your code uses no binary modules, then the one archive will work
+anywhere.</p>
+<p>Anyway, you can now execute your bundle on any machine with a
+compatible Perl installed by doing:</p>
+<pre>  C:\WINDOWS\DESKTOP&gt; perl -MPAR ent.par</pre>
+
+<h2>Being Smart</h2>
+<p>PAR is smart when it comes to dependencies.  It works out what you
+need to bundle with your application by examining your source code and
+then using some careful heuristics to figure out exactly what you need.
+This means that if you're using a module that has dependences outside
+of Perl, then in all the common cases it'll include these in the
+bundle too.  Isn't it clever?  To do this it uses the
+<li><a href="http://search.cpan.org/dist/Module-ScanDeps/lib/Module/ScanDeps.pm">Module::ScanDeps</a></li>
+module, also available from CPAN.</p>
+<p>PAR is also intelligent enough to throw away any of the unneeded parts
+of the module, and by this I mean documentation.  If you look at any
+of the modules in the archive you'll see that they no longer contain
+any pod code.  This means for small distributions (where you're not
+passing the whole of Tk around) you can get very tiny par files.</p>
+<h2>Standalone Code</h2>
+<p>This is all very well - it's certainly removed the headache of
+installing things left right and centre.  But of course, there's still
+two problems.  Firstly, the target computer must have a copy of perl
+installed - and the right version of perl for your code - and secondly
+they must have a copy of PAR installed.  This is no good for the click
+and drool school; They'll never understand the "first go to
+ActiveState, download this particular perl, then type <code>ppm</code> at the
+prompt and then <code>install PAR</code> at the <code>ppm</code> prompt" bootstrapping
+process.  It's also no good if the people at the other end don't have
+access to the Internet, or don't have the necessary setup to install
+PPM.  If we're shipping people software on CD we can't make any
+assumptions about their computer beyond the operating system they're
+running.</p>
+<p>What we need to send them is a double clickable executable.  Never
+fear, PAR is more than capable of this task.  As well as creating
+a PAR file itself it can also use the same techniques to create one
+executable that contains all the things you'd normally put in a PAR
+file plus a copy of perl itself and the necessary code to run PAR
+related code.</p>
+<p>For example, to convert the above script into a completely independent
+executable, which bundles perl, the Template Toolkit, Tk, and, of course,
+PAR with it you need to do something like:</p>
+<pre>  C:\WINDOWS\DESKTOP&gt; pp -o ent.exe ent.pl</pre>
+
+<p>This doesn't actually recompile perl, but rather takes the existing
+installation and re-encodes it into a shippable state along with everything
+else.  This means you don't need a compiler on your computer (hooray)
+and also the whole process is much much quicker (It'd take about an hour
+to compile and test perl on the Windows box I'm currently using, where it
+takes about twenty seconds to make the executable with PAR)</p>
+<p>The resulting <code>ent.exe</code> executable can now be simple double clicked
+to be executed - it's a standard windows executable.  Of course, you
+don't have to make your own, you can download my copy <li><a href="ent.zip">here</a></li>
+(warning: 1.25MB)</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.activestate.com/Products/ActivePerl/">ActiveState's ActivePerl</a></li>
+<li><a href="http://search.cpan.org/dist/Module-ScanDeps/lib/Module/ScanDeps.pm">Module::ScanDeps</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:57 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

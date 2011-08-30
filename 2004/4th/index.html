@@ -1,0 +1,257 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: String::ShellQuote</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 4th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">String::ShellQuote</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../3rd/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../5th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>One of Perl's greatest strengths is the ease it can interact with
+other programs with the system, using when needed the powerful
+technique of calling out to the shell on that system giving you all
+the power of the command line from within Perl.</p>
+<p>Of course, with this power comes great risks.  The ability to use
+shell metacharacters to instruct the computer to perform complex tasks
+is handy, but if your code mistakenly passes unwanted metacharacters
+though to the shell then you have a slew of problems ranging from your
+code not functioning correctly to allowing a user to maliciously
+execute arbitrary commands though your code.</p>
+<p><b>String::ShellQuote</b> can help to prevent these risks with the minimum
+of fuss, escaping the unwanted metacharacters so the shell treats them
+literally.  Using it in the right place simply means that you have one
+less of the common gotchas to worry about.  Your code will be more
+reliable and more secure.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?String::ShellQuote">[Read the documentation for String::ShellQuote on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>When you're administrating a computer you'll often need to check the
+log files that the programs running on the computer create.  On a unix
+system from the shell we can get the last few lines of a logfile by
+using the <code>tail</code> utility:</p>
+<pre>  bash$ tail -n 10 thttpd.log</pre>
+
+<p>Our shell parses the command and then executes the <code>tail</code> utility,
+passing the three arguments that were separated by whitespace (the
+<code>-n</code> and the <code>10</code>, and the filename) to it.</p>
+<p>One of the things that systems administrators have been relying on for
+years is Perl's ability to easily call out to external programs just
+like you can from the shell.  To access the same <code>tail</code> utility from
+within perl we can use the <code>open</code> command with the <code>"-|"</code> (pipe
+from) mode.</p>
+<pre>  sub tail
+  {
+    my $filename = shift;
+    my $lines = shift || 5; </pre>
+
+<pre>    # run the tail program with the arguments
+    # we pass in a list, each in their own scalar
+    # (this form of open requires perl 5.6.1 or later)
+    open my $fh, "-|", "tail","-n", $lines, $filename
+      or die "Can't fork: $!";</pre>
+
+<pre>    # read the output in
+    my @output = &lt;$fh&gt;;</pre>
+
+<pre>    # close it, detecting further problems
+    close $fh
+      or die "Problem closing child: $!/$?";</pre>
+
+<pre>    # return the output
+    return @output;
+  }</pre>
+
+<pre>  print tail("thttpd.log", 10);</pre>
+
+<p>Note how when we called the utility with the shell we separated all
+the argument with spaces.  In the perl code we pass <code>open</code> the same
+arguments as a list, each argument in it's own scalar.  Of course, if
+we want we can just pass the arguments in as one string, building a
+string that looks just like the command we called from the shell:</p>
+<pre>    open my $fh, "-|", "tail -n $lines $filename"
+      or die "Can't fork: $!";</pre>
+
+<p>Seeing the spaces in the string perl will realise that you want the
+string split up, and actually runs a copy of the shell and pass it
+the string for it to parse and execute for perl.  This is slightly
+slower (it has to run the shell which runs your program rather that
+just running the program directly) but is a lot more powerful.  For
+example, if I wanted to get the last ten lines of all the log files in
+the directory from the shell I'd type this:</p>
+<pre>  bash$ tail -n 10 *.log</pre>
+
+<p>And I might go as far as telling it to throw away all the debug
+info it normally prints to STDERR (like not being able to open
+some files, etc):</p>
+<pre>  bash$ tail -n 10 *.log 2&gt;/dev/null</pre>
+
+<p>Since perl is calling the shell to run <code>tail</code> for it, we can get the
+same effect within Perl:</p>
+<pre>    open my $fh, "-|", "tail -n 10 *.log 2&gt;/dev/null"
+      or die "Can't fork: $!";</pre>
+
+<p>So rather than having to write the Perl code to find all the files
+that end in <code>.log</code> in the directory we just get the shell to do the
+work for us.</p>
+<h2>The Problem</h2>
+<p>While having Perl call though to the shell is powerful, if you don't
+use it with respect then all kinds of bad things can happen.  For
+example, if your filename has a space in it then you need to take
+extra care with the shell command:</p>
+<pre>  bash$ tail -n 5 '/var/log/My Site/error.log'</pre>
+
+<p>The file-path containing the <code>My Site</code> directory has to be put in
+single quotes to avoid the shell separating the argument on the space
+character and passing <code>/var/log/My</code> and &lt;Site/error.log&gt; as two
+separate arguments to <code>tail</code>.</p>
+<p>Of course the same need for escaping is true for Perl as that's just
+another way of calling the shell.  This means that this doesn't quite
+do what we might expect in all cases:</p>
+<pre>  # get the last ten lines from $filename, ignoring anything
+  # that's printed to STDERR
+  open my $fh, "-|", "tail -n 10 $filename 2&gt;/dev/null"
+    or die "Can't fork: $!";</pre>
+
+<p>If filename contains spaces, when <code>$filename</code> is interpolated bad
+things will happen as the unescaped spaces confuse the shell. You
+could be forgiven for thinking that we could have just written this
+(incorrect) code instead:</p>
+<pre>  # get the last ten lines from $filename, ignoring anything
+  # that's printed to STDERR
+  open my $fh, "-|", "tail -n 10 '$filename' 2&gt;/dev/null"
+    or die "Can't fork: $!";</pre>
+
+<p>Which works fine, until someone puts a <code>'</code> in <code>$filename</code>.  Worse
+than just our code not working, let us consider the implications what
+would happen if someone trying to be deliberately malicious sets the
+filename to something even odder by passing in more shell commands
+characters:</p>
+<pre>  $filename = "/etc/motd; rm -rf /";</pre>
+
+<p>This causes:</p>
+<pre>  open my $fh, "-|", "tail -n 10 $filename 2&gt;/dev/null"
+      or die "Can't fork: $!";</pre>
+
+<p>To become:</p>
+<pre>  open my $fh, "-|", "tail -n 10 /etc/motd; rm -rf / 2&gt;/dev/null"
+      or die "Can't fork: $!";</pre>
+
+<p>Which will, filesystem permissions allowing, delete everything on the
+system.  Eeek!</p>
+<h2>The Solution</h2>
+<p>What we need to do is use <b>String::ShellQuote</b> to escape the things
+we don't want to be interpreted as shell characters and want to be
+treated literally.  Using <b>String::ShellQuote</b> imports the
+<code>shell_quote</code> function that returns an escaped string built up out of
+the arguments you pass it.  Some example calls:</p>
+<pre>  use String::ShellQuote;
+  print shell_quote("this has many spaces"), "\n";
+  print shell_quote("evil; rm -rf /"), "\n";
+  print shell_quote("it's more complicated than that"), "\n";</pre>
+
+<p>Print:</p>
+<pre>  'this has many spaces'
+  'evil; rm -rf /'
+  'it'\''s more complicated than that'</pre>
+
+<p>So we can use this in our functions to make our lives easier:</p>
+<pre> sub tail
+  {
+    my $filename = shift;
+    my $lines    = shift || 5; </pre>
+
+<pre>    # protect the arguments
+    my $args = shell_quote("-n", $lines, $filename);</pre>
+
+<pre>    # open tail
+    open my $fh, "-|", "tail $args 2&gt;/dev/null";</pre>
+
+<pre>    # read the output in and return it
+    return &lt;$fh&gt;
+  }</pre>
+
+<p>It's quick and simple, but still gives us access to the shell features
+where we want them (like the ability to redirect STDERR) but doesn't
+allow one dodgy filename to bring down our script.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.perldoc.com/perl5.8.4/pod/func/open.html">The 'open' documentation</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:57 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

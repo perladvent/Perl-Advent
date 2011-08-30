@@ -1,0 +1,290 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: WWW::Mechanize</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 16th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">WWW::Mechanize</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../15th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../17th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Do you ever wish that you could program your web browser to do
+things automatically?  You know, things like clicking on a link,
+then filling in a form, then clicking on the first link of that
+page and then showing you that?</p>
+<p>Well, you know you can do that kind of thing in Perl with LWP.  LWP
+abstracts all away the difficult bits of dealing with HTTP and all
+that.  You don't have to worry about setting up and tearing down
+sockets.  You don't have to remember which headers to send to the
+server and how to decode the data.  Using the correct modules it's as
+simple as asking for a page and getting the page data back again.</p>
+<p>However, that's as far as it goes.  Though LWP ships with many
+modules for parsing the HTML it's up to you to tie them together in
+order to get the desired effect.  Or, alternatively, you can use
+<b>WWW::Mechanize</b> to make your life easier.  It's essentially a
+browser level interface built ontop of LWP that allows you to interact
+it the same way as you conceptually interface with a browser.</p>
+<p>This is great for little web scripts that you may want to write
+quickly, or for integrating other sites.  One of the other areas that
+I find it to be really useful is for testing of CGI applications - you
+can set up programs that test your CGIs live on the server.   It's a simple
+and quick technique - and therefore quite powerful.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?WWW::Mechanize">[Read the documentation for WWW::Mechanize on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Okay, let's write a script that deals with search CPAN.  First of all
+we need to go to the <li><a href="http://search.cpan.org/">front page</a></li>.  This can
+be written like so:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # work out the name of the module we're looking for
+  my $module_name = $ARGV[0]
+    or die "Must specify module name on command line";</pre>
+
+<pre>  # create a new browser
+  use WWW::Mechanize;
+  my $browser = WWW::Mechanize-&gt;new();</pre>
+
+<pre>  # tell it to get the main page
+  $browser-&gt;get("http://search.cpan.org/");</pre>
+
+<p>The above code will just download the main page.  Now we want to fill
+in the form and click on the submit button.  Looking at the source of
+the webpage we see that the name of the input field on the main page
+is called <code>query</code>.</p>
+<pre>  # okay, fill in the box with the name of the
+  # module we want to look up
+  $browser-&gt;form(1);
+  $browser-&gt;field("query", $module_name);
+  $browser-&gt;click();</pre>
+
+<p>So the above source fills in the <code>query</code> field in the first form and
+clicks on the submit button, taking us to the
+<li><a href="http://search.cpan.org/search?query=WWW%3A%3AMechanize&amp;mode=all">page</a></li>
+that lists all the found modules.  From this point on all calls to
+<code>$browser</code> will be from the point of view of the new page.  We want
+to click on the link that's on this new page that text contains the
+name of the module we were looking for.</p>
+<pre>  # click on the link that matches the module name
+  $browser-&gt;follow($module_name);</pre>
+
+<p>Now we can start pulling various things out of the web page that we're
+interested in.  For example, we can simply get the URL of the page
+we're currently at like so:</p>
+<pre>  my $url = $browser-&gt;{uri};</pre>
+
+<p>This is very useful when we're writing simple CGIs.  The above code
+could be rewritten so that it takes it's arguments from CGI and issues
+a HTTP redirect to the last link on the page.</p>
+<h2>Looking thought the contents</h2>
+<p>There's a plethora of modules on CPAN that can be used to work your
+way though a web page.  I already mentioned
+<b>HTML::TokeParser::Simple</b> when I was discussing <b>Image::Size</b>.  I
+also recommend having a look at modules such as <b>HTML::TreeBuilder</b>.</p>
+<p>Another module that I often use is <b>XML::LibXML</b>.  Even though it's
+designed to work with XML, it has a HTML mode that allows it to work
+with non well formed input. It will allow you to apply XPath
+expressions to a document to pick out the contents that you want.</p>
+<p>For example, let's try extracting a quote from an IMDB page.  First,
+just as before we fill in the search form.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # check arguments
+  my $film = join " ", @ARGV
+    or die "Must specify film name on command line";</pre>
+
+<pre>  use WWW::Mechanize;
+  my $browser = WWW::Mechanize-&gt;new();</pre>
+
+<pre>  # tell it to get the main page
+  $browser-&gt;get("http://www.imdb.com/");</pre>
+
+<pre>  # okay, fill in the box with the name of the
+  # module we want to look up
+  $browser-&gt;form(1);
+  $browser-&gt;field("for", $ARGV[0]);
+  $browser-&gt;click("Go");</pre>
+
+<p>Now IMDB normally goes straight though to the matching film page, but
+sometimes it can't work out what we mean and displays a collection of
+links to possible pages.  Since we don't really know what to do in
+this situation we click though on the first link we find on the page
+that links to a film page.</p>
+<p>To do this we need to inspect the links on the page.  These are stored
+in the <code>$browser-&gt;{links}</code> slot in the browser's hash as an array
+of arrayrefs.  Each of these arrayrefs has two elements - the link
+and the text in the link.  As we're interested in the link, we look in
+the first entry in each of the arrayrefs.</p>
+<pre>  # check the url to see if we got the title back (we might
+  # have got a page with a list of possible matches instead)
+  unless ($browser-&gt;{uri} =~ /Title/)
+  {
+    # get all the links on the current page that link
+    # to title pages
+    my @links = grep { $_-&gt;[0] =~ /Title/ } @{ $browser-&gt;{links} };</pre>
+
+<pre>    # go to the first one
+    $browser-&gt;get($links[0][0]);
+  }</pre>
+
+<p>Once we've reached the page for each film we simply click though to
+the quote page:</p>
+<pre>  # go to the quotes section
+  $browser-&gt;follow("memorable quotes");</pre>
+
+<p>Right, now we need to create a parser and parse the HTML into a
+internal XML tree.  This is fairly simple:</p>
+<pre>  # create a new parser
+  use XML::LibXML;
+  my $parser = XML::LibXML-&gt;new();</pre>
+
+<pre>  # parse the data
+  my $doc = $parser-&gt;parse_html_string($browser-&gt;{res}-&gt;content);</pre>
+
+<p>Now we can use XPath expressions to pull out various parts of the tree
+that we're interested in.  In our case we're looking for the internal
+link tagets that delimit the start and end of the comments.  The chunk
+of HTML we're hoping to extract looks something like this:</p>
+<pre>  &lt;a name="qt0011526"&gt;&lt;/a&gt;</pre>
+
+<pre>  &lt;b&gt;&lt;a href="/Name?Zuniga,%20Daphne"&gt;Alison Bradbury&lt;/a&gt;&lt;/b&gt;:
+  Eight o'clock? 
+  &lt;br&gt;</pre>
+
+<pre>  &lt;b&gt;&lt;a href="/Name?Cusack,%20John"&gt;Gib&lt;/a&gt;&lt;/b&gt;:
+  Mmm... sorry, that's when I rearrange my sock drawer.
+  &lt;br&gt;
+  &lt;hr width="30%"&gt;</pre>
+
+<p>And we can find the starting <code>&lt;a name="..."&gt;</code> tags with an XPath
+expression like so:</p>
+<pre>  # all the quotes start with '&lt;a name="...."&gt;' tags
+  my @nodes = $doc-&gt;findnodes('//a[@name]');</pre>
+
+<p>So we now have a list of nodes where each of the quotes start.  We
+want to process each of these nodes in turn and get the quotes that
+follow after them.  Each of the quotes ends whenever we find a <code>&lt;hr&gt;</code> or <code>&lt;p&gt;</code> tag, so we simply start at our starting nodes
+and keep turning following tags into text till we find the one of
+those stop tags</p>
+<pre>  # now for each one of those
+  my @quotes;
+  foreach my $node (@nodes)
+  {
+    my $string = "";</pre>
+
+<pre>    # process each node until we find a hr or a p
+    do
+    {
+      # make the node into text
+      $string .= $node-&gt;textContent();</pre>
+
+<pre>      # get the next node
+      $node = $node-&gt;nextSibling();
+    } 
+    while ($node-&gt;nodeName ne "hr" &amp;&amp;
+           $node-&gt;nodeName ne "p");
+	 
+    # remove excess whitespace
+    $string =~ s/\s+/ /g;  # multiple spaces to one space
+    $string =~ s/^\s+//;   # at start of line
+    $string =~ s/\s+$//;   # at end of line</pre>
+
+<pre>    # remember it
+    push @quotes, $string;
+  }</pre>
+
+<p>And that's it.  <code>@quotes</code> now contains all the quotes for the
+menitoned movie.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/author/SKUD/WWW-Automate/lib/WWW/Automate.pm">WWW::Automate - the inspiration for WWW::Mechanize</a></li>
+<li><a href="http://search.cpan.org/author/SIMONW/webchat/lib/WWW/Chat.pm">WWW::Chat - Module that can generate simple scripts for processing data</a></li>
+<li><a href="http://search.cpan.org/author/SIMONW/Inline-Webchat/WebChat.pm">Inline::Webchat - inline WWW::Chat scripts</a></li>
+<li><a href="http://search.cpan.org/author/GAAS/libwww-perl/lib/LWP.pm">LWP - basic web processing in Perl</a></li>
+<li><a href="http://search.cpan.org/author/PHISH/XML-LibXML/LibXML.pm">XML::LibXML</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:53 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

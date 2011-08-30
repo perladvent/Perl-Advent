@@ -1,0 +1,271 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Cache::Cache</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 16th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Cache::Cache</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../15th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../17th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>There are times that a traditional database isn't the best place
+to store some data.  The data stored in a relational database tends
+to be heavily structured, and the overhead of putting data in and
+pulling it out is high.</p>
+<p>Data pulled out of a database may take time to extract, or may change
+frequently, but in order to provide a useful web interface we may need
+to access this data over several web pages.  What we require is some
+way to cache the data we're currently looking at so we don't have to
+rely on the database each request.  Likewise we often need to save data
+in some intermediate form between requests until we're happy enough with
+it to store it permanently back in the main database.</p>
+<p><b>Cache::Cache</b> is a simple caching system that can be used between
+requests - or between any other processes - to store arbitrary Perl
+data in a simply in a structured manner.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Cache::Cache">[Read the documentation for Cache::Cache on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p><b>Cache::Cache</b> rather than being a cache itself is actually a
+framework for creating caches.  Various other modules are subclasses
+that do the actual caching, implementing the same interface as the
+parent class.  This means that you can easily seamlessly switch
+between cache types, choosing to cache to the filesystem, to shared
+memory, or any of the other numerous strategies.</p>
+<p>Picking a one of the fairly simple implementations,
+<b>Cache::FileCache</b> is a simple file based cache that stores the data
+you store in it to a file on disk.  First we need to 'connect' to the
+cache with a namespace that all scripts wanting to access the same
+cache use:</p>
+<pre>  my $cache = Cache::FileCache-&gt;new({ 
+    namespace =&gt; "foo", 
+  });</pre>
+
+<p>We can then save things with:</p>
+<pre>  $cache-&gt;set($key, $data);</pre>
+
+<p>And getting them back (later on, in another processes, whatever) is
+just as easy:</p>
+<pre>  my $data = $cache-&gt;get($key);</pre>
+
+<p>as long as you have some way of maintaining the key between requests
+(for example, it could be that user's username, or a userid in a
+cookie.)</p>
+<h2>An Example In Use</h2>
+<p>Let's write a little To-do List CGI script.  We start by loading a
+load of modules:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on the safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load our modules
+  use CGI;
+  use Cache::FileCache;
+  use Data::UUID;
+  use HTML::Entities;</pre>
+
+<p>We're going to be using a file based cache so we then create the
+instance of <b>Cache::FileCache</b>:</p>
+<pre>  # set up the cache
+  my $cache = Cache::FileCache-&gt;new({
+    namespace =&gt; "todo list",
+  });</pre>
+
+<p>Each user needs a unique id so that the various people using the todo
+list page get a different todo list (I don't want anyone else adding
+to my list - I've got enough on as it is.)  We create a new unique
+id for the user the first time they visit the page and store it
+in their cookies.  Each time they return to the todo list page
+we can access this id with the <code>cookie</code> function and use it to
+extract the saved data from the cache.</p>
+<pre>  # get the data from the cache if there's a key
+  # in the cookies, otherwise create a new unique cookie
+  my $data; 
+  my $cgi = CGI-&gt;new();
+  my $id = $cgi-&gt;cookie("id");
+  if ($id)
+    { $data = $cache-&gt;get($id) }
+  else
+    { $id = Data::UUID-&gt;new-&gt;create_str; }
+  
+  # if we didn't get any data back, create an empty data
+  # structure containing no items
+  $data ||= { last_transaction =&gt; "", list =&gt; [] };</pre>
+
+<pre>  # print the header with the cookie containing the
+  # uuid for this user
+  my $cookie = $cgi-&gt;cookie(-name    =&gt; "id",
+                            -value   =&gt; $id,
+                            -expires =&gt; '+1h');
+  print $cgi-&gt;header(-cookie =&gt; $cookie);</pre>
+
+<p>We now need to update the list we got back with any data that the user
+has submitted.  If the user submits the same data again by hitting the
+reload button on their browser we don't want to add the same data
+twice.  To avoid this when we submit any new data we also submit a
+unique transaction id, and if we see the same transaction again we
+don't do anything.</p>
+<pre>  # save the data if the user hasn't just accidentally
+  # hit refresh and sent the same data again
+  if ($cgi-&gt;param('val') &amp;&amp;
+        $cgi-&gt;param('transaction') ne $data-&gt;{last_transaction})
+  {
+    # remeber the new item
+    push @{ $data-&gt;{list} }, $cgi-&gt;param('val');</pre>
+
+<pre>    # remember we already processed this transaction
+    $data-&gt;{last_transaction} = $cgi-&gt;param('transaction');</pre>
+
+<pre>    # save the new list to disk
+    $cache-&gt;set($id,$data);
+  }</pre>
+
+<p>We can now (finally) print out the list of todo items</p>
+<pre>  # start the html
+  print "&lt;html&gt;&lt;body&gt;&lt;h1&gt;Todo List&lt;/h1&gt;";
+      
+  # print the todo list
+  print "&lt;ol&gt;";
+  print "&lt;li&gt;".encode_entities($_)."&lt;/li&gt;"
+    foreach (@{ $data-&gt;{list} });
+  print "&lt;/ol&gt;";</pre>
+
+<p>And print out the form that allows the user to submit new
+items.  As well as providing a text entry box, we add a
+hidden field that contains the unique transaction:</p>
+<pre>  # print out a new form
+  print "&lt;form&gt;";
+  my $trans = Data::UUID-&gt;new-&gt;create_str;
+  print qq{&lt;input type="hidden" name="transaction" value="$trans" /&gt;};
+  print qq{New Item: &lt;input type="text" name="val" /&gt;};
+  print qq{&lt;input type="submit" name="submit" value="Add"/&gt;};
+  print "&lt;/form&gt;";</pre>
+
+<pre>  # end the html 
+  print "&lt;/body&gt;&lt;/html&gt;";</pre>
+
+<h2>Item Expiry</h2>
+<p>Things that are put in the cache are currently stored in there
+forever.  This is a big problem, as eventually the disk will fill up
+with more and more data, and we won't be able to distinguish between
+old useless data and the current data to clean it out.  Worse, because
+our cookie will only be returned up to an hour after the last time the
+page was accessed, we'll end up with completely useless inaccessible
+data stored in the cache.</p>
+<p><b>Cache::Cache</b> allows us to set an expiry time for all data in the
+cache when we store it:</p>
+<pre>    # save the new list to disk, for up to an hour
+    $cache-&gt;set($cookie,$data, 3600);</pre>
+
+<p>Or we can use a more friendly string form rather than just a number of
+seconds:</p>
+<pre>    # save the new list to disk, for up to an hour
+    $cache-&gt;set($cookie,$data, "1 hours");</pre>
+
+<p>The cache will be cleaned when we call <code>purge</code>.  The most efficient
+time to do this is at the end of the request:</p>
+<pre>    # close STDOUT, meaning that the user will see the page
+    # as completely loaded
+    close STDOUT;</pre>
+
+<pre>    # purge the expired items from the cache.
+    $cache-&gt;purge();</pre>
+
+<p>If our code is complex and there's no clear point where this can
+be easily done we can set the module to automatically check for
+expired items every single time <code>get</code> and/or <code>set</code> is called.</p>
+<pre>    $cache-&gt;set_auto_purge_on_set(1);
+    $cache-&gt;set_auto_purge_on_get(1);</pre>
+
+<h2>What You Can And Can't Put In a Cache</h2>
+<p>You can put any combinations of hashes, arrays, scalars and references
+to any of these structure, blessed or not, into a <b>Cache::Cache</b>.  You
+can't put code references in, filehandles, or any object that relies
+on a C datastructure since Perl can't replicate that data in a separate
+process.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://perl-cache.sourceforge.net/">The Perl Cache homepage</a></li>
+<li><a href="http://search.cpan.org/perldoc?Cache::FileCache">Cache::FileCache</a></li>
+<li><a href="http://search.cpan.org/perldoc?Cache::SharedMemoryCache">Cache::SharedMemoryCache</a></li>
+<li><a href="http://search.cpan.org/perldoc?Cache::MemoryCache">Cache::MemoryCache</a></li>
+<li><a href="http://search.cpan.org/perldoc?Cache::FastMemoryCache">Cache::FastMemoryCache</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:59 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

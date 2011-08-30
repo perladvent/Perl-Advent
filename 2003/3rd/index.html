@@ -1,0 +1,256 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: Hook::LexWrap</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 3rd day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Hook::LexWrap</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../2nd/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../4th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Hook::LexWrap allows you to attach code to the start and end of
+subroutines that will be called every time that subroutine is run.
+While this has a multitude of uses, I use it mainly for debugging.</p>
+<p>Sometimes, just sometimes, we inherit a whole bunch of terrible code
+that resembles the metaphorical plateful of spaghetti, something
+with an execution path as hard to follow as the cabling mess
+stuffed behind the television. You simply can't tell what's calling
+what, and what calls what.</p>
+<p>The standard Perl approach to untangling this - short of actually
+breaking out the perl debugger - is to perforate the code with a
+smattering of print statements that print out "We're here" and "Now
+we're here" and maybe what values certain variables have at the time.
+This can be tedious and slow to develop, and can introduce as many bugs
+as you're trying to remove.  By placing this debugging code in Hook::LexWrap
+wrappers, you can easily debug your code and speed up your development
+process.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Hook::LexWrap">[Read the documentation for Hook::LexWrap on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>So let's pretend we've got a whole bunch of code, of which one of the methods
+looks like this:</p>
+<pre>  sub get_conf
+  {
+    my $self = shift;
+    my $var  = shift;</pre>
+
+<pre>    # check the user variables first
+    return $self-&gt;{user_conf}{ $var }
+      if exists $self-&gt;{user_conf}{ $var };
+    
+    # if there wasn't one, return the normal config
+    return $self-&gt;{conf}{ $var };
+  }</pre>
+
+<p>It's a simple chunk of code that checks first in one hash stored in
+our object for a value (the user_conf) and if it doesn't find a value
+in there, returns the value from the main conf hash.  This code is
+called from all over our code like so:</p>
+<pre>  my $filename = $obj-&gt;get_conf("filename");
+  my $vector = $obj-&gt;get_conf($direction);</pre>
+
+<p>As always when we write programs though, we don't get it right the
+very first time.  In this case we start noticing that some of the
+configuration variables don't have the values in we expect.  There's
+several reasons this could be - our program could be calling
+<code>get_conf</code> with the wrong name (for example <code>$direction</code> in the
+above example could have an unexpected value.)  Or our
+various configuration hashes could have the wrong values within them.</p>
+<p>One thing we could do is temporarily alter our code so that it
+prints out the package name and parameters whenever it's called.</p>
+<pre>  sub get_conf
+  {
+    print STDERR "get_conf called from ".caller.", var='$_[1]'\n;";
+    my $self = shift;
+    my $var  = shift;</pre>
+
+<p>We also could alter our code so that it prints out whatever it
+returns:</p>
+<pre>    # check the user variables first
+    if (exists $self-&gt;{user_conf}{ $var })
+    {
+      print STDERR "returning '$self-&gt;{user_conf}{ $var }'\n";
+      return $self-&gt;{user_conf}{ $var }
+    }
+     
+    # if there wasn't one, return the normal config
+    print STDERR "returning '$self-&gt;{conf}{ $var }'\n";
+    return $self-&gt;{conf}{ $var };
+  }</pre>
+
+<p>Note how we're printing to STDERR.  This has two advantages - firstly,
+it means we can use shell shenanigans to redirect this debug information
+to a separate file so it doesn't interfere with our main code output, and
+secondly it, unlike STDOUT, is automatically printed out immediately,
+without any buffering, as soon as the print statement is called.</p>
+<p>This technique will work - though it does have some disadvantages.
+The first two of these come from the fact that you're editing existing
+code.  There are situations where it might be very hard to do this; if
+you're debugging your interactions with an existing module the code
+for that module's methods could be located in a file you don't have
+write permissions for, or it could be locked away inside a PAR archive.
+Worryingly, when you change code like this you might forget to put it
+back again (I know I always do) and you'll end up with everyone on the
+entire system having debug information printing out for their code
+evermore.</p>
+<p>The second disadvantage we can see from the above example is that
+sometimes to put in debug statements we have to change the very logic
+of the code itself.  In the case of the first return statement we had
+to reorder the if statement.  And in both cases we had to copy the
+thing we were returning into the print statement.  It's very easy to
+make a mistake when doing this and alter the very thing we're trying
+to examine.  What we do not need in this situation is a chance for
+more bugs!</p>
+<h2>Enter Hook::LexWrap</h2>
+<p><b>Hook::LexWrap</b> allows you to attach subroutines to existing
+ones that will be run before or after (pre or post) the
+original subroutine being run.</p>
+<pre>  wrap "MyCode::get_conf",
+    pre =&gt; sub { 
+       print STDERR "get_conf called from ".caller.", var='$_[1]'\n";
+    },
+    post =&gt; sub {
+       print STDERR "returning $_[0]\n";
+    };</pre>
+
+<p>(Note that in this example get_conf was declared in the MyCode
+package).  This code completely replaces the modifications we made to
+the previous code, and can be declared in the script that calls
+MyCode::get_conf rather than in the MyCode module itself.</p>
+<p>It's a lot easier to write this code - which will be run <i>after</i> we return
+- than the debug statements in the modified <code>get_conf</code> routine; we
+don't have to worry about altering the flow of control and manually
+printing whatever we were just about to return - we simply let the
+original subroutine return normally and then print whatever is in the
+<code>@_</code> array passed to the <code>post</code> subroutine.</p>
+<h2>The Lex Part of Hook::LexWrap</h2>
+<p>One of the major advantages of the <b>Hook::LexWrap</b> module is that it can
+be used to wrap the code lexically if needed.  That is to say, when the
+current wrapping statement falls out of scope - you reach the next
+closing curly bracket or reach the end of the file - the wrapping
+stops, and the original subroutine is returned.</p>
+<p>In the altered version of <code>get_conf</code>, before we implemented the
+<b>Hook::LexWrap</b> wrappers, each and every single time <code>get_conf</code> was
+called it would print all the information.  If we have a hundred or
+so calls to this method then we'll have to dig all the way though
+these each time we run the program until we find the one we want.
+However, with the Hook::LexWrap mode we can turn on debugging for
+just sections of our code.</p>
+<p>Let's look at an example where we use our config module to get paths.
+We use the special lexical form of calling <code>wrap</code> where we assign it to a
+variable.  When this variable falls out of scope the wrapping is
+undone.</p>
+<pre>  sub get_system_paths
+  {
+    my $self = shift;</pre>
+
+<pre>    my $wrapping = wrap "get_conf",
+      pre =&gt; sub { 
+         print STDERR "get_conf called from ".caller.", var='$_[1]'\n";
+      },
+      post =&gt; sub {
+         print STDERR "returning $_[0]\n";
+      };</pre>
+
+<pre>     return $self-&gt;get_paths("system");
+  }</pre>
+
+<pre>  sub get_perl_paths
+  {
+    return $self-&gt;get_paths("perl");
+  }</pre>
+
+<pre>  sub get_paths
+  {
+     my $self = shift;
+     my $name = shift;
+     return $self-&gt;{obj}-&gt;get_conf($name . "_dir"),
+            $self-&gt;{obj}-&gt;get_conf($name . "_filename"),
+            $self-&gt;{obj}-&gt;get_conf($name . "_ext");
+  }</pre>
+
+<p>In this example, only when <code>get_conf</code> is called via
+<code>get_system_paths</code> will it print any debug info out at all - because
+when <code>get_perl_paths</code> is called after <code>get_system_paths</code> <code>$wrapper</code>
+will have fallen out of scope and the wrapping will be undone.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/dist/Sub-WrapPackages/lib/Sub/WrapPackages.pm">Sub::WrapPackages, a alternative interface with automatic wrapping capabilities</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:54 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

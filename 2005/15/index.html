@@ -1,0 +1,108 @@
+<html>
+<head>
+<title>YA Perl Advent Calendar 2005: SCALAR(0xdeadbeef)</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body>
+<h1><a href="../">YA Perl Advent Calendar</a> 2005-12-15</h1>
+Complicated perl data structures are built up with references. That's fine
+and dandy, easy to pass around etc. etc. But in the passing, what if you need
+to make changes? Generally modifying somebody else's data structure is not
+considered a nice thing to do. Well then, you could copy it. But being
+reference based you'd end up with a shallow copy i.e; all the internal
+references would be the same and you'd still by changing somebody else's data. 
+Well then, you could try to minimize the scope of what you touch with
+<tt>my</tt> or <tt>local</tt> but that can be really messy and error prone,
+especially if you don't know what you'll be touching or others didn't
+plan on you putting your grubby paws all over everything. So, what to do? Enter
+<a href="http://search.cpan.org/search?module=Data::COW">Data::COW</a>.
+MoooooOOO
+<p />
+COW stands for Copy On Write, and is implemented exactly how you would expect.
+In fact, the implementation is a lot like object inheritance. You give the COW
+a reference and it returns the favor. You then proceed to use this new
+reference in the same manner as you would have the original but are free to
+maul it at will, or not... PETA might get mad. To begin with, fetching data
+from the referenced data structure simply gets the value from the parent
+because the child doesn't "implement the method". When you store, or change,
+a value in the structure that change is only made to your child structure and
+these modifications will be used when fetching values in the future instead of
+accessing the parent. Perhaps an example will help...
+<pre class="c">
+$struct = {
+            'b1f' => 'I like meat!',
+            'fib' => [
+                       1,
+                       1,
+                       2,
+                       3
+                     ]
+          };
+Make changes here...
+$calf = {
+          'fib' => [
+                     '1',
+                     '1',
+                     '2',
+                     '3',
+                     '5',
+                     '8',
+                     '13'
+                   ],
+          'b1f' => 'I like meat!'
+        };
+$struct = {
+            'b1f' => 'I like meat!',
+            'fib' => [
+                       1,
+                       1,
+                       2,
+                       3
+                     ]
+          };
+$calf = {
+          'fib' => [
+                     '1',
+                     '1',
+                     '2',
+                     '3',
+                     '5',
+                     '8',
+                     '13'
+                   ],
+          'b1f' => 'I like meat!'
+        };
+Eat more chickin
+</pre>
+
+And now, on with the code!
+
+<h1><a href="mod15.pl">mod15.pl</a></h1>
+<hr />
+<pre>
+   1 <span class="k">use</span> <span class="w">Data::COW</span><span class="sc">;</span>
+   2 <span class="k">use</span> <span class="w">Data::Dumper</span><span class="sc">;</span> <span class="c">#No jokes about buffalo biscuits please</span>
+   3 
+   4 <span class="k">my</span> <span class="i">$struct</span> = <span class="s">{</span>
+   5 	      <span class="w">fib</span><span class="cm">=&gt;</span><span class="s">[</span><span class="n">1</span><span class="cm">,</span><span class="n">1</span><span class="cm">,</span><span class="n">2</span><span class="cm">,</span><span class="n">3</span><span class="s">]</span><span class="cm">,</span>	      
+   6 	      <span class="w">b1f</span><span class="cm">=&gt;</span><span class="q">'I like meat!'</span>
+   7 	     <span class="s">}</span><span class="sc">;</span>
+   8 
+   9 <span class="k">print</span> <span class="i">Data::Dumper</span><span class="i">-&gt;Dump</span><span class="s">(</span><span class="s">[</span><span class="i">$struct</span><span class="s">]</span><span class="cm">,</span> <span class="s">[</span><span class="q">'struct'</span><span class="s">]</span><span class="s">)</span><span class="sc">;</span>
+  10 
+  11 <span class="k">print</span> <span class="q">&quot;Make changes here...\n&quot;</span><span class="sc">;</span>
+  12 <span class="k">my</span> <span class="i">$calf</span> = <span class="w">make_cow_ref</span> <span class="i">$struct</span><span class="sc">;</span>
+  13 <span class="k">push</span> <span class="i">@</span>{<span class="i">$calf</span>-&gt;{<span class="w">fib</span>}}<span class="cm">,</span> <span class="n">5</span><span class="cm">,</span> <span class="n">8</span><span class="cm">,</span> <span class="n">13</span><span class="sc">;</span>
+  14 
+  15 <span class="k">print</span> <span class="i">Data::Dumper</span><span class="i">-&gt;Dump</span><span class="s">(</span><span class="s">[</span><span class="i">$calf</span><span class="s">]</span><span class="cm">,</span> <span class="s">[</span><span class="q">'calf'</span><span class="s">]</span><span class="s">)</span><span class="sc">;</span>
+  16 
+  17 
+  18 <span class="k">print</span> <span class="i">Data::Dumper</span><span class="i">-&gt;Dump</span><span class="s">(</span><span class="s">[</span><span class="i">$struct</span><span class="cm">,</span> <span class="i">$calf</span><span class="s">]</span><span class="cm">,</span> <span class="s">[</span><span class="q">qw'struct calf'</span><span class="s">]</span><span class="s">)</span><span class="sc">;</span>
+  19 
+  20 <span class="c">#Okay fine, but a deep copy would look the same...</span>
+  21 <span class="c">#...but references would be different, even for unmodified values</span>
+  22 <span class="k">print</span> <span class="q">&quot;Eat more chickin\n&quot;</span> <span class="k">if</span> <span class="i">$struct</span>-&gt;{<span class="w">b1f</span>} <span class="k">eq</span> <span class="i">$calf</span>-&gt;{<span class="w">b1f</span>}<span class="sc">;</span>
+</pre>
+<h1>See Also</h1>
+<a href="http://search.cpan.org/search?module=Clone">Clone</a>
+</body>
+</html>

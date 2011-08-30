@@ -1,0 +1,261 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: File::chdir</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 11th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">File::chdir</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../10th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../12th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>If there's one thing that we're taught as programmers it's the concept
+of encapsulation.  Don't mess with other people's stuff, and they
+won't mess with yours and we can hopefully work out who's doing what and
+be able to guarantee our code does what it says it will.</p>
+<p>As Perl programmers, we don't always follow the strict letter of the
+law when it comes to encapsulation and our language will let you break
+these rules (almost) whenever we want.  Sometimes it just makes more
+sense to define a method in someone else's class or access their
+variables directly.  However, no matter how we hate being forced into
+encapsulation when we program in languages like Java, there's one
+thing that we hate even more: being <i>forced</i> to give up encapsulation
+unnecessarily.</p>
+<p>Take changing directory for example.  When I change directory Perl it
+effects the directory for the whole program not just for the
+subroutine I'm in.  This means when I leave the subroutine, unless I
+want to screw up the rest of the program, I have to change the
+directory back.  If I forget, then all hell breaks loose.</p>
+<p>What we need is a way of <i>locally</i> changing the directory just for
+one subroutine or one block - just for the scope we're in.  And that's
+where <code>File::chdir</code> comes in.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?File::chdir">[Read the documentation for File::chdir on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>The standard way manipulate directories in Perl is to use the <code>chdir</code>
+command.  <code>chdir</code> returns true if it changes directory and false if it
+does not.</p>
+<pre>  use Cwd;
+  use IO::File;</pre>
+
+<pre>  sub get_config
+  {
+     # change to the home directory and remember where we are
+     my $old_directory = cwd;
+     chdir or die "Can't change directory: $!";</pre>
+
+<pre>     # read in the file
+     $/ = undef;
+     my $fh;
+     unless ($fh = IO::File-&gt;new(".config"))
+     {
+        chdir($old_directory);
+        die "Can't open config file: $!";
+     }
+     my $data = &lt;$fh&gt;;</pre>
+
+<pre>     # change back to the original directory
+     chdir($old_directory);</pre>
+
+<pre>     return $data;
+  }</pre>
+
+<p>The chdir changes the working directory for the entire program, so we
+make sure to be careful to set it back to whatever it was at the start
+of the subroutine.  To aid us in this we use the <code>cwd</code> function
+that's exported by the <b>Cwd</b> module to get the current directory we're
+in when we start and store it in <code>$old_directory</code>, and then we can
+<code>chdir</code> back again just before any point we exit the subroutine. </p>
+<p>This is all very, very tiring.  It's interfering with the flow of our
+program - we can't just return at any point we have to remember to
+clean up after ourselves first - So the simple task of throwing an
+exception when we can't access our file is much more complicated that
+I think it really should be.</p>
+<h2>Enter File::chdir</h2>
+<p>File::chdir creates a variable in your namespace called <code>$CWD</code>.
+Instead of using <code>chdir</code> and <code>cwd</code> the working directory can be set
+and got by writing to and reading from to this variable.  So the code
+above could be rewritten as:</p>
+<pre>  use File::chdir;
+  use IO::File;</pre>
+
+<pre>  sub get_config
+  {
+     # change to the home directory and remember where we are
+     my $old_directory = $CWD;
+     $CWD = $ENV{HOME};</pre>
+
+<pre>     # read in the file
+     $/ = undef;
+     my $fh;
+     unless ($fh = IO::File-&gt;new(".config"))
+     {
+        $CWD = $old_directory;
+        die "Can't open config file: $!";
+     }
+     my $data = &lt;$fh&gt;;</pre>
+
+<pre>     # change back to the original directory
+     $CWD = $old_directory;</pre>
+
+<pre>     return $data;
+  }</pre>
+
+<p>This really isn't any better than before.  But wait, Perl can use the
+<code>local</code> command.  <code>local</code> temporarily sets a variable to a new
+value, and restores the value to it's old value when you exit the
+current scope (in this case the end of the subroutine.)  Unlike <code>my</code>,
+<code>local</code> creates <i>dynamically scoped</i> variables, which means that for any
+subroutines we call from within that scope will see the new value,
+i.e. will be in the same directory.</p>
+<p>This wors fine with <code>$CWD</code> so we can use <code>local</code> to reset the
+variable, and hence the directory, back to it's original value when we
+get out of the subroutine.</p>
+<pre>  use File::chdir;
+  use IO::File;</pre>
+
+<pre>  sub get_config
+  {
+     local $CWD = $ENV{HOME};</pre>
+
+<pre>     # read in the file
+     $/ = undef;
+     my $fh = IO::File-&gt;new(".config")
+       or die "Can't open config file: $!";
+     my $data = &lt;$fh&gt;;</pre>
+
+<pre>     return $data;
+  }</pre>
+
+<p>Hooray! Look at all that lovely code that we no longer have to write.
+We now automatically return to the right directory whenever we exit
+the subroutine however we do it.</p>
+<h2>Cross platform directories</h2>
+<p>Of course, we can just set <code>$CWD</code> to a particular location in the
+file system.</p>
+<pre>  $CWD = "$CWD/bin";</pre>
+
+<p>This doesn't work too well if your platform doesn't use "/" for a path
+separator.  For example, if you're using Windows, you should use "\"
+and mac os 9 and lower users should uses ":".  The common way around
+this on is to use the <b>File::Spec::Functions</b> module.  This exports a
+list of functions that <i>do the right thing</i> on the platform you're
+using.  One such function <code>catdir</code> combines directories with the
+correct path separator.</p>
+<pre>  $CWD = catdir(rootdir, "home","mark", "perlmods");</pre>
+
+<p>The <b>File::chdir</b> makes your life easier than that however.  It lets
+you assign to the @CWD variable that contains the broken up path.</p>
+<pre>  # change to /home/mark/perlmods (or C:\home\mark\perlmods, etc)
+  use File::chdir;
+  @CWD = ("home", "mark", "perlmods");</pre>
+
+<p>The @CWD contains each of the 'bits' that make up your path and you
+can manipulate it like you can any other array.  To move up a
+directory:</p>
+<pre>  # remove the item at the end of the directory
+  pop @CWD;</pre>
+
+<p>And to move down a directory you just need to tack a directory onto the
+end of the list:</p>
+<pre>  push @CWD, "public_html";</pre>
+
+<p>This is a lot safer than using absolute paths (I mean, what's the
+chance that there's a "C:\home\mark\perlmods" directory on my
+Windows box?)   Importantly, you can easily find files relative to
+your script or module:</p>
+<pre>   # the "resources" directory in the same directory
+   # as your script
+   use FindBin;
+   local $CWD = $FindBin::Bin;
+   push @CWD, "resources"; </pre>
+
+<pre>   # the "resources" directory in the same directory
+   # as the Foo::Bar module that you've 'used'
+   use File::Basename;
+   local $CWD = dirname($INC{'Foo/Bar.pm'});
+   push @CWD, "resources";</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.perldoc.com/perl5.8.0/pod/func/chdir.html">chdir</a></li>
+<li><a href="http://search.cpan.org/~nwclark/perl-5.8.2/lib/FindBin.pm">FindBin</a></li>
+<li><a href="http://search.cpan.org/dist/File-Spec/lib/File/Spec/Functions.pm">File::Spec::Functions</a></li>
+<li><a href="http://search.cpan.org/~nwclark/perl-5.8.2/lib/File/Basename.pm">File::Basename</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:55 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,86 @@
+=pod
+
+=for advent_year 2008
+
+=for advent_day 19+20
+
+=for advent_title 'Tis the season to tie one on
+
+=for advent_author Jerrad Pierce
+
+=begin eds
+
+Three modules for the price of two, to make up for the lag.
+
+=end eds
+
+Santa's terrible with names and spelling, why do you think he keeps all those
+lists? Eventually even this saint grew impatient with his computer's inability
+to do what he meant, just because he added an extra S or left off a silent H
+in some kids name, so he tried some of the solutions on CPAN but none met his
+exacting standards; it's all black or white with this guy! Not afraid to
+(re)invent the wheel he rolled his own with three other helpful libraries from
+the respository, and created a simple tied hash that was forgiving of false
+figuration and fat finger syndrome.N<fxn>
+
+=head2 M<Tie::OneOff>
+
+M<Tie::OneOff> provides several mechanisms for implementing C<tie>-d interfaces
+without extraneous files or packages. All follow the same premise of the user
+providing an explicit hash(ref) for use as a variable accesor method dispatch
+table (lines 7&ndash;18), rather than class methods in another package.
+Something similar could be achieved through the use of C<AUTOLOAD> but if
+you're going to use syntactic sugar, why not go for as short and sweet as
+possible?
+
+=head2 M<Text::Metaphone>
+
+You may be familiar with Soundex, a nearly century-old method of comparing
+surnames. A simple and ready standby, Soundex maps a string into a space
+of 56_862 buckets denoted by a four-character string, resulting in a number
+of collisions. Metaphone on the other hand, offers an infinite digest space
+since its hashes are variable width. Both ignore vowels, but besides not
+truncating results, Metaphone also takes account of digraphs and trigraphs
+in its mapping. By default, this implementation deviates from the original
+and maps certain cases of I<SCH> to "sh" or I<X> so that the author's name
+is correctly encoded. Unfortunately some other cases are missed, so a common
+misspelling of Schmidt is encoded differently:
+
+=begin pre
+
+  % perl -MText::Metaphone -le 'print Metaphone($_) for qw/Schmidt Shmidt/'
+  SKMTT
+  XMTT
+
+=end pre
+
+=head2 M<String::Approx>
+
+In order to ensure that homophones such as Schmidt, Schmitt, Shmidt and Shmitt
+are not unnecessarily perceived as distinct, Santa made use of
+M<String::Approx>. With it, even though each has a different Metaphonic hash,
+
+=begin pre
+
+SKMTT
+SKMT
+XMTT
+XMT
+
+=end pre
+
+A<http://en.wikipedia.org/wiki/John_Jacob_Jingleheimer_Schmidt|John Jacob Jingleheimer>'ll
+get his Speak &amp; Spell&trade; no matter how his last name is spelled;
+as long as we relax the matching criteria from the default 10% difference
+on Line 14 to catch Shmitt.
+
+=sourcedcode mod19.pl
+
+=begin footnote fxn
+
+Rather than employ the Metaphone hash as the key in its private data store,
+Santa's code preserves keys and only seeks similar indexes if an exact match
+is not found. This approach reduces collisions (on assignment), and is most
+appropriate if the hash has been populated with an authoritative source.
+
+=end footnote

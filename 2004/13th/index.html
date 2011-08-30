@@ -1,0 +1,317 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Devel::Trace</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 13th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Devel::Trace</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../12th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../14th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Over the years I've talked about many modules that can help insert
+debugging output into your code - <b>Data::Dumper</b>,
+<b>Data::Dumper::Simple</b>, <b>Hook::LexWrap</b>, <b>YAML</b> and their friends.
+Modules that allow you to write commands to print out status messages
+at various points in the code's execution.</p>
+<p>The trouble with this is that it's a pain to go though and insert
+this debugging information by hand.  In the case of a simple script,
+or a small test script you've written to help you debug a particular
+chunk of code, you end up with more <code>print</code> statements than you
+did with original code.</p>
+<p>One option at this point would be to use The Perl Debugger, though a
+lot of people consider this too complicated, and in a lot of cases
+they'd be right.  Enter <b>Devel::Trace</b> a simple non-interactive
+'debugger' that simply prints out each line of code before it executes
+it.  No more writing lines of lines of <code>print "I got here\n"</code>
+statements, but equally no more having to carefully step though your
+program statement by statement.  Just a simple quick to use debugging
+tool, while not being the solve all, a great module to have in
+your debugging toolbox for when you need it.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Devel::Trace">[Read the documentation for Devel::Trace on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Using <b>Devel::Trace</b> couldn't be simpler.  You simply need to invoke
+it as the debugger for your code.  So where you'd normally type:</p>
+<pre>  perl hello_world.pl</pre>
+
+<p>You would instead write:</p>
+<pre>  perl -d:Trace hello_world.pl</pre>
+
+<p>This merrily goes off and runs our program for us, printing out each line
+as we go.  So for something as simple as:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  print "Hello World\n";</pre>
+
+<p>We get:</p>
+<pre>  &gt;&gt; test.pl:7: print "Hello World\n";
+  Hello World</pre>
+
+<p>Printed out.  The line with the <code>print</code> statement's the only one
+being executed.  Before the line is executed the filename and the
+linenumber are prepended to the code that makes up the line and the
+result is printed to STDERR.  Let's make the example a little more complicated
+by adding a loop:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  for (1..5)
+  {
+    print "Hello World\n";
+  }</pre>
+
+<p>When we run this under <b>Devel::Trace</b> we get the expected output,
+with line nine being printing out each time it's executed though the
+loop:</p>
+<pre>  bash$ perl -d:Trace test.pl     
+  &gt;&gt; test.pl:7: for (1..5)
+  &gt;&gt; test.pl:9:   print "Hello World\n";
+  Hello World
+  &gt;&gt; test.pl:9:   print "Hello World\n";
+  Hello World
+  &gt;&gt; test.pl:9:   print "Hello World\n";
+  Hello World
+  &gt;&gt; test.pl:9:   print "Hello World\n";
+  Hello World
+  &gt;&gt; test.pl:9:   print "Hello World\n";
+  Hello World
+  bash$</pre>
+
+<p>We try to expand our script to add time:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load our modules
+  use DateTime;</pre>
+
+<pre>  for (1..5)
+  {
+    my $now = DateTime-&gt;now;
+    print "Hello World at $now\n";
+  }</pre>
+
+<p>However when we run it though our simple debugger we get way
+way too much output out as <b>Devel::Trace</b> blindly follows the
+code into <b>DateTime</b>:</p>
+<pre>  &gt;&gt; test.pl:10: for (1..5)
+  &gt;&gt; test.pl:12:   my $now = DateTime-&gt;now;
+  &gt;&gt; /Library/Perl/5.8.1/darwin-thread-multi-2level/DateTime.pm:368: sub now { shift-&gt;from_epoch( epoch =&gt; (scalar time), @_ ) }
+  &gt;&gt; /Library/Perl/5.8.1/darwin-thread-multi-2level/DateTime.pm:337:     my $class = shift;
+  &gt;&gt; /Library/Perl/5.8.1/darwin-thread-multi-2level/DateTime.pm:338:     my %p = validate( @_,
+  &gt;&gt; /Library/Perl/5.8.1/darwin-thread-multi-2level/DateTime.pm:346:     my %args;
+  &gt;&gt; /Library/Perl/5.8.1/darwin-thread-multi-2level/DateTime.pm:349:     my $fraction = $p{epoch} - int( $p{epoch} );
+  &gt;&gt; /Library/Perl/5.8.1/darwin-thread-multi-2level/DateTime.pm:350:     $args{nanosecond} = int( $fraction * MAX_NANOSECONDS )
+  &gt;&gt; /Library/Perl/5.8.1/darwin-thread-multi-2level/DateTime.pm:355:     @args{ qw( second minute hour day month year ) } =
+  &gt;&gt; /Library/Perl/5.8.1/darwin-thread-multi-2level/DateTime.pm:357:     $args{year} += 1900;
+  &gt;&gt; /Library/Perl/5.8.1/darwin-thread-multi-2level/DateTime.pm:358:     $args{month}++;
+  &gt;&gt; /Library/Perl/5.8.1/darwin-thread-multi-2level/DateTime.pm:360:     my $self = $class-&gt;new( %p, %args, time_zone =&gt; 'UTC' );
+  &gt;&gt; /Library/Perl/5.8.1/darwin-thread-multi-2level/DateTime.pm:164:     my $class = shift;
+  ...</pre>
+
+<p>The simplest thing we could do in this situation is store the whole
+of the debug output in a text file that we can examine at our leisure
+in our editor:</p>
+<pre>  bash$ perl -d:Trace test.pl 2&gt;file</pre>
+
+<p>A slightly more ad-hoc way of dealing with this is to directly filter
+the output at the time we're creating it with another little Perl
+script to just print out the lines from the file we're interested in:</p>
+<pre>  bash$ perl -d:Trace test.pl 2&gt;&amp;1 \
+    | perl -ne 'print if (!/^&gt;&gt;/ || /^&gt;&gt; test.pl/)'
+  &gt;&gt; test.pl:10: for (1..5)
+  &gt;&gt; test.pl:12:   my $now = DateTime-&gt;now;
+  &gt;&gt; test.pl:13:   print "Hello World at $now\n";
+  &gt;&gt; test.pl:12:   my $now = DateTime-&gt;now;
+  &gt;&gt; test.pl:13:   print "Hello World at $now\n";
+  &gt;&gt; test.pl:12:   my $now = DateTime-&gt;now;
+  &gt;&gt; test.pl:13:   print "Hello World at $now\n";
+  &gt;&gt; test.pl:12:   my $now = DateTime-&gt;now;
+  &gt;&gt; test.pl:13:   print "Hello World at $now\n";
+  &gt;&gt; test.pl:12:   my $now = DateTime-&gt;now;
+  &gt;&gt; test.pl:13:   print "Hello World at $now\n";
+  Hello World at 2004-12-08T19:02:19
+  Hello World at 2004-12-08T19:02:19
+  Hello World at 2004-12-08T19:02:19
+  Hello World at 2004-12-08T19:02:19
+  Hello World at 2004-12-08T19:02:19</pre>
+
+<p>You'll notice that the lines being printed and the output are no
+longer properly interleaved; This is a side effect of the fact that by
+default perl buffers STDOUT to be more efficient, holding it back in a
+buffer, collecting a significant amount of output before printing a
+sizable chunk in one go.  On the other hand STDERR is printed right
+away, meaning the two get out of sync.  We can prevent that by making
+a slight alteration at the top of our script:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  $|++; # turn off the buffering</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load our modules
+  use DateTime;</pre>
+
+<pre>  for (1..5)
+  {
+    my $now = DateTime-&gt;now;
+    print "Hello World at $now\n";
+  }</pre>
+
+<p>Everything now works:</p>
+<pre>  travis:~ mark$ perl -d:Trace test.pl 2&gt;&amp;1 \
+    | perl -ne 'print if (!/^&gt;&gt;/ || /^&gt;&gt; test.pl/)'
+  &gt;&gt; test.pl:3: $|++; # turn off the buffering
+  &gt;&gt; test.pl:12: for (1..5)
+  &gt;&gt; test.pl:14:   my $now = DateTime-&gt;now;
+  &gt;&gt; test.pl:15:   print "Hello World at $now\n";
+  Hello World at 2004-12-08T19:05:12
+  &gt;&gt; test.pl:14:   my $now = DateTime-&gt;now;
+  &gt;&gt; test.pl:15:   print "Hello World at $now\n";
+  Hello World at 2004-12-08T19:05:12
+  &gt;&gt; test.pl:14:   my $now = DateTime-&gt;now;
+  &gt;&gt; test.pl:15:   print "Hello World at $now\n";
+  Hello World at 2004-12-08T19:05:12
+  &gt;&gt; test.pl:14:   my $now = DateTime-&gt;now;
+  &gt;&gt; test.pl:15:   print "Hello World at $now\n";
+  Hello World at 2004-12-08T19:05:12
+  &gt;&gt; test.pl:14:   my $now = DateTime-&gt;now;
+  &gt;&gt; test.pl:15:   print "Hello World at $now\n";
+  Hello World at 2004-12-08T19:05:12</pre>
+
+<p>Filtering on the command line is tremendously powerful, but doesn't
+give us the full flexibility we need.  What happens if for some reason
+we can't filter on command name - such as the large routines we
+don't want printed out being in the same file as the text we do
+want printed out?  At this stage we do have to resort to putting
+things in the code, using the special <code>$Devel::Trace::TRACE</code> variable
+to turn on and off output:</p>
+<pre> #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load our modules
+  use DateTime;</pre>
+
+<pre>  for (1..5)
+  {
+    $Devel::Trace::TRACE = 0;
+    my $now = DateTime-&gt;now;
+    $Devel::Trace::TRACE = 1;
+    print "Hello World at $now\n";
+  }</pre>
+
+<p>While this makes a terrible example in such a short script (we're back
+in the same situation we were before, putting so much debug code in
+our code) it's very useful in a much larger script where we may only
+care about printing out what's going on in a particular block.  If we
+turn off the output at the start of our code:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  $Devel::Trace::TRACE = 0;</pre>
+
+<p>And then use <code>local</code> to turn it on again when we want to see it:</p>
+<pre>  sub foo
+  {
+    local $Devel::Trace::TRACE = 1;
+    ...
+  }</pre>
+
+<p>It'll automatically turn off again when we exit the enclosing lexical
+block (i.e. it'll only stay on while we're in the foo subroutine or
+for any code we call from within foo.)  Meaning we'll get just the debug
+info we want.  Automatically, with no fuss.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://perldoc.perldrunks.org/perlrun.html#-n">The -n command line option</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:58 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

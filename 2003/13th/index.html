@@ -1,0 +1,244 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: only</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 13th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">only</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../12th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../14th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>One of the great things about CPAN is that there's so much great code
+out there that's being constantly updated and improved to make it
+better.  One of the problems about CPAN is that there's so much great
+code out there that's being constantly updated and improved.</p>
+<p>The trouble with improvements to code is that sometimes it changes the
+functionality or interface of existing code.  And, if you need the old
+functionality you can't upgrade to the latest version.  This situation
+gets really complicated when you have two projects running on the same
+computer, one of which requires the old module and one of which
+requires a later version.  It used to be the case that you'd need
+separate installs to get this to work or experiment with altering @INC
+from within your code, which is messy to say the least.</p>
+<p>What you want is to be able to <i>only</i> load a particular version of a
+module in one situation and <i>only</i> load another version on a
+different occasion.  <b>only</b> will allow you to do this - to have two
+(or more) septate installs of a module on your machine and determine
+from code which should be loaded when.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?only">[Read the documentation for only on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>The first step to using <b>only</b> is to install extra versions of
+modules with <b>only</b> that it'll be able to access when it needs a
+particular version of the code.  This places the module in a special
+versioned <b>only</b> only directory in your module tree where it won't
+interfere with other modules.</p>
+<p>To install a module so that <b>only</b> can use it you need to go though
+the standard extraction and test cycle, and then use the <b>only</b>
+module for the last step. </p>
+<p>Let's get the very old version of File::chdir that has an old
+interface that's no longer supported by the later versions - the
+ability to override the built-in <code>chdir</code> command - and install it with
+<b>only</b>.  This distribution is so old it isn't on CPAN anymore, so we
+have to go to BACKPAN to download it.  BACKPAN contains all the
+modules that have ever been released to CPAN and then removed by the
+authors because they're out of date and would be wasting space if they
+were left on the main CPAN which is mirrored across a great many
+servers.</p>
+<p>We download the distribution and test it as normal:</p>
+<pre>  bash-2.05b$ wget http://backpan.perl.org/modules/by-authors/\
+                     id/M/MS/MSCHWERN/File-chdir-0.02.tar.gz
+  bash-2.05b$ gunzip -c File-chdir-0.02.tar.gz | tar -xvf -
+  bash-2.05b$ cd File-chdir-0.02
+  bash-2.05b$ perl Makefile.PL 
+  bash-2.05b$ make
+  bash-2.05b$ make test</pre>
+
+<p>Now we've now got our module uncompressed and tested, all we
+need to do now is install it.  We'd normally just do:</p>
+<pre>  bash-2.05b$ sudo make install</pre>
+
+<p>to run the <code>make install</code> command as root that would install the
+module globally.  We don't want to do that though - that would break
+the nice new bug free version of <b>File::chdir</b> we installed
+yesterday.  Instead we want to install via <b>only</b>.  We can do this
+from the command line like so:</p>
+<pre>  bash-2.05b$ sudo perl -Monly=install
+  Password:
+  Installing /usr/local/share/perl/5.8.0/version-lib/0.02/File/chdir.pm
+  Installing /usr/local/share/perl/5.8.0/version-lib/0.02/File/chdir.yaml</pre>
+
+<p>You can see it's installed it into the special versioned location on
+the hard drive (you can also see I should update my Perl to 5.8.2, but
+that's another issue.)  You need to make sure that the perl you use to
+run this command is the same perl you ran when you did <code>perl
+Makefile.PL</code>, which you shouldn't have to worry about unless you've
+got multiple perls installed.</p>
+<p>The process is similar if you're using <b>Module::Build</b> to install
+your module, where you do everything but the <code>sudo ./Build install</code>,
+and insted use <code>sudo ./Build versioninstall</code>.</p>
+<h2>Only using the correct version</h2>
+<p>In our code we'd normally load our module like this (and indeed, we
+still can if we want the main version installed on the system.)</p>
+<pre>  use File::chdir;</pre>
+
+<p>If we want to load code installed by only we need to use the <b>only</b>
+module to load it instead:</p>
+<pre>  use only 'File::chdir' =&gt; 0.02;</pre>
+
+<p>This loads the old version of File::chdir.  This version exports a
+replacement <code>chdir</code> function - something the new API doesn't do.
+This means that this code will now function:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on the safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  use only 'File::chdir' =&gt; 0.02;
+  use IO::File;
+ 
+  my @dotfiles = dotfiles();</pre>
+
+<pre>  # create report in current directory
+  my $fh = IO::File-&gt;new("&gt;report.txt")
+     or die "Can't open report";</pre>
+
+<pre>  print $fh "There are ".@dotfiles." dotfiles:\n";
+  print $fh " * $_\n" foreach @dotfiles;</pre>
+
+<pre>  sub dotfiles
+  {
+     # return all the .dotfiles in the home dir
+     my $old_dir = chdir($ENV{HOME});
+     return grep { -f || -l } &lt;.*&gt;
+  }</pre>
+
+<p>If we'd used the latest version of <b>File::chdir</b> the <code>chdir</code>
+function wouldn't have worked like that.  It wouldn't have changed
+directory back when we left <code>dotfiles</code> and we'd have written
+<code>reports.txt</code> in the home directory.</p>
+<p><b>only</b> can be more flexible than this, so we can require that we
+have either version 0.01 or 0.02 installed:</p>
+<pre>  use only 'File::chdir' =&gt; '0.01-0.02';</pre>
+
+<p>Or, as there's no 0.001, we can say 'any version that's 0.02 or less'</p>
+<pre>  use only 'File::chdir' =&gt; '-0.02';</pre>
+
+<p>You can include as many of these blocks in the string as you want to
+get the right version separated by spaces.  You can also use an
+exclamation mark to block out a version that might otherwise be
+loaded.  All in all, you can have a whole plethora of versions of
+modules installed and use <b>only</b> to select the right one.  This is
+very handy if you're a module author and you want to check if code
+runs on older versions of libraries.</p>
+<h2>Passing arguments to modules</h2>
+<p>When loading modules normally it's common to pass arguments to them
+to tell them to export functions or perform other tasks.  If we'd
+installed <b>File::chdir</b> version 0.02 we'd be able to say</p>
+<pre>  use File::chdir ':EVERYWHERE';</pre>
+
+<p>to get it to replace <code>chdir</code> everywhere, for all code loaded.
+We can do the same thing with our <b>only</b> statement by writing</p>
+<pre>  use only 'File::chdir' =&gt; '0.01-0.02', ':EVERYWHERE';</pre>
+
+<p>The other thing we can do with all modules that export functions is
+call them in a way that prevent that from happening.  There's a
+special bit of Perl syntax that can be used to skip calling the
+'import' routine in a module when it's loaded so the symbols aren't
+exported:</p>
+<pre>  use File::chdir ();</pre>
+
+<p><b>only</b> emulates this syntax by allowing you to pass an empty arrayref
+to it:</p>
+<pre>  use only 'File::chdir' =&gt; '0.01-0.02', [];</pre>
+
+<h2>Further features</h2>
+<p><b>only</b> has a bunch of other features that are too numerous to
+provide examples of.  The ability to specify module arguments is
+present.  You can get it to install modules into other locations
+so you can have multiple <b>only</b> module repositories.   There's
+even an object orientated interface should you need it.  All these
+points are covered quite clearly in the documentation.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://backpan.cpan.org/">BACKPAN</a></li>
+<li><a href="http://www.perl.com/pub/a/2003/03/18/only.html">only article on perl.com</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:55 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

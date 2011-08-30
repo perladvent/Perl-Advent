@@ -1,0 +1,92 @@
+=for advent_year 2010
+
+=for advent_day 20
+
+=for advent_title Four Naughty Tweeting Birds 
+
+=for advent_author William 'n1vux' Ricker
+
+=for a_non_existent_target some value
+
+These days, D<Glug> the elf can mostly fill the Naughty by trolling D<FaceBook> and D<MySpace>. However, some sneaky naughties hide their naughty words elsewhere on-line.  To catch A<http://questionablecontent.net/view.php?comic=1818|naughty hipsters in Northampton> swearing and the like on their Twitter accounts, D<Glug> logs into his Twitter identity A<https://twitter.com/angrysantaelf|@AngrySantaElf> with his command-line twitter backup-archival tool, F<teewt.pl>. (He thinks spelling Tweet backwards for a backup script is hilarious.) 
+
+D<Glug> downloaded this useful little  backup script off some website site and hacked it a little to download other peoples tweets instead of one's own precious drivel. It used M<Net::Twitter::Lite>N<moose>which provides both D<OAuth> authentication for Twitter and Basic (insecure passwords) for Identi.ca, Laconi.ca, etc.  So the first time he runs it as a test, it requires he log into the web Twitter to get the authentication Pin for this app, which it stores in F<teewt.dat>.
+
+
+
+
+=begin pre
+
+$ perl teewt.pl last=angrysantaelf
+ Authorize this application at: http://twitter.com/oauth/authorize?oauth_token=LKzNrr...
+Then, enter the PIN# provided to continue: 
+123456
+
+$VAR1 = [
+          {
+            'source' => 'web',
+            'retweet_count' => 0,
+            'created_at' => 'Mon Dec 20 22:56:04 +0000 2010',
+            'text' => 'Turns out our Slinky Dogs are rabid, so open those Christmas gifts with great care and distance.',
+            'in_reply_to_user_id' => undef,
+            'user' => {
+                        'id' => 214624407,
+                        'screen_name' => 'angrysantaelf',
+...
+
+=end pre
+
+After that, D<Glug> grabs the last 500 tweets for each NoHo hipster
+
+=begin pre
+
+$ perl teewt.pl PAGES=5 user=hanneloreEC user=tai_fighter user=martenreed  user=marigoldfarmer user=fayewhitaker user=dorabianchi > noho.csv
+fetching page 1 ...
+... got 100 
+fetching page 2 ...
+... got 100 
+
+=end pre
+
+And then counts the officially sanctioned dirty wordsN<filthy> and average swears per tweet per person.N<censor> 
+
+=begin pre
+
+$ perl -I. -MRE_BadWords -F,  -lane '$c{$F[1]}++; $n{$F[1]}++ while $F[4] =~ m/$BadWords/g;' \
+>	-e 'END{printf "%d\t%d\t%.3f\t%s\n",$n{$_} , $c{$_}, $n{$_} / $c{$_}, $_  
+>		for sort keys %n }' noho.csv 
+6	210	0.029	dorabianchi
+16	250	0.064	fayewhitaker
+1	377	0.003	hanneloreEC
+7	118	0.059	marigoldfarmer
+10	200	0.050	martenreed
+10	136	0.074	tai_fighter
+
+=end pre
+
+D<Glug> sees four naughty tweeting birds over the 5% badword line, and gives them each a Naughty demerit. He also gives Hannelore a Nice check for being much much cleaner than her bad influence friends. (Dora will get a demerit too, when D<Glug> finds out what she's I<done> but that's not on-line.)
+
+=sourcedcode teewt.pl
+
+=begin footnote moose
+
+M<Net::Twitter> has more HTML and Error handling bells-and-whistles for those with the Moose in the house, worthwhile for Web-App use, but not needed for command-line/desktop use.
+
+=end footnote
+
+=begin footnote filthy
+
+A<http://en.wikipedia.org/wiki/Seven_dirty_words|George Carlin's Seven Filthy Words> 
+aka The Seven Words You Can't Say on the Radio as 
+A<http://en.wikisource.org/wiki/F.C.C._v._Pacifica_Foundation|heard by Supreme Court of the US>
+
+=end footnote
+
+=begin footnote censor
+
+In the interests of decency, we are ignoring the two worst potty-mouth twitters of the NoHo QC storyline. D<Glug> the Elf since doesn't believe in talking birds so skips Yelling Bird, and the subjects' pintsize robot friend, a known hentai smut linker, is not a natural fictional person so is ineligible. Neither even gets coal, so Glug doesn't search them. Well, maybe he does, but not for $DayJob.
+
+=end footnote
+
+=cut
+

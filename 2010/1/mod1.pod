@@ -1,0 +1,184 @@
+=pod
+
+=for advent_year 2010
+
+=for advent_day 01
+
+=for advent_title Tangled Tidings
+
+=for advent_author Jerrad Pierce
+
+We begin this year's calendar with a tool to help the adept Perl hacker
+cope with laziness, be it the laziness of selves past or someone else.
+M<YAPE::Regex::Explain> is a package in the
+<acronym title="Yet Another Parser/Extractor"><tt>YAPE&#8203;</tt></acronym>
+family which can untangle the Christmas lights of Perl&hellip; regular
+expressions. <tt>YAPEREE&#8203;</tt> turns line noise into English
+explanations. The unstyled output from:
+
+=begin pre
+
+% perl -MYAPE::Regex::Explain -e 'print YAPE::Regex::Explain-&gt;new(qr%&lt;([^\s&gt;]+)(?:\s+[^&gt;]*?)?(?:/|&gt;.*?&lt;/\1)&gt;%)-&gt;explain'
+
+=end pre
+
+looks like the following:
+
+=begin pre
+
+The regular expression:
+
+(?s-imx:&lt;([^\s&gt;]+)(?:\s+[^&gt;]*?)?(?:/|&gt;.*?&lt;/\1)&gt;)
+
+matches as follows:
+  
+NODE                     EXPLANATION
+----------------------------------------------------------------------
+(?s-imx:                 group, but do not capture (with . matching
+                         \n) (case-sensitive) (with ^ and $ matching
+                         normally) (matching whitespace and #
+                         normally):
+----------------------------------------------------------------------
+  &lt;                        '&lt;'
+----------------------------------------------------------------------
+  (                        group and capture to \1:
+----------------------------------------------------------------------
+    [^\s&gt;]+                  any character except: whitespace (\n,
+                             \r, \t, \f, and " "), '&gt;' (1 or more
+                             times (matching the most amount
+                             possible))
+----------------------------------------------------------------------
+  )                        end of \1
+----------------------------------------------------------------------
+  (?:                      group, but do not capture (optional
+                           (matching the most amount possible)):
+----------------------------------------------------------------------
+    \s+                      whitespace (\n, \r, \t, \f, and " ") (1
+                             or more times (matching the most amount
+                             possible))
+----------------------------------------------------------------------
+    [^&gt;]*?                   any character except: '&gt;' (0 or more
+                             times (matching the least amount
+                             possible))
+----------------------------------------------------------------------
+  )?                       end of grouping
+----------------------------------------------------------------------
+  (?:                      group, but do not capture:
+----------------------------------------------------------------------
+    /                        '/'
+----------------------------------------------------------------------
+   |                        OR
+----------------------------------------------------------------------
+    &gt;                        '&gt;'
+----------------------------------------------------------------------
+    .*?                      any character (0 or more times (matching
+                             the least amount possible))
+----------------------------------------------------------------------
+    &lt;/                       '&lt;/'
+----------------------------------------------------------------------
+    \1                       what was matched by capture \1
+----------------------------------------------------------------------
+  )                        end of grouping
+----------------------------------------------------------------------
+  &gt;                        '&gt;'
+----------------------------------------------------------------------
+)                        end of grouping
+----------------------------------------------------------------------
+
+=end pre
+
+Pretty nifty, but arguably a somewhat redundant and unfortunate default given
+the more useful I<regex> mode&mdash;no P!&mdash;which you can use to create a
+skeleton C</x>-style commented regexp like the one <a href="#RE">at the end of this document</a>.
+
+There's also a misleadingly named I<silent> mode, which is a sort of regular
+expression pretty printer:
+
+=begin pre
+
+% perl -MYAPE::Regex::Explain -e 'print YAPE::Regex::Explain-&gt;new(qr%&lt;([^\s&gt;]+)(?:\s+[^&gt;]*?)?(?:/|&gt;.*?&lt;/\1)&gt;%g)-&gt;explain'
+
+(?sx-im:
+
+  &lt;
+
+  (
+
+    [^\s&gt;]+
+
+  )
+
+  (?x:
+
+    \s+
+
+    [^&gt;]*?
+
+  )?
+
+  (?x:
+
+    /
+
+   |
+
+    &gt;
+
+    .*?
+
+    &lt;/
+
+    \1
+
+  )
+
+  &gt;
+
+)
+
+=end pre
+
+Although the POD notes that the module can parse some expressions passed
+as strings, this can fail, so you are better off passing everything through
+C<qr//> first. Perhaps the largest drawback to the current version of the
+module, for those who can read it's English output at least, is that it
+does not include support for syntax added since 5.6 e.g;
+
+<ul>
+<li>Named captures&mdash;<tt>(?&lt;yada&gt;&hellip;)</tt>&mdash;instead of counting parentheses</li>
+<li>P<2005-12-13|Regexp::Keep>&mdash;<tt>\K&hellip;</tt>&mdash;which is now core</li>
+<li>Recursive patterns&mdash;<tt>(?&#8470;&hellip;)</tt>&mdash;like back references, but for the pattern rather than the match; both might benefit from having the relevant pattern included in the explanatory comments instead of a simple <tt>\&#8470;</tt>
+</li>
+</ul>
+
+Thankfully, <tt>Explain</tt> is aware of the easily confused
+positive/negative look-ahead/behind e.g; <tt><a name="RE">/(?&lt;!foo)bar(?=quz)/</a></tt>
+
+=begin code
+
+(?x-ims:               # group, but do not capture (disregarding
+                       # whitespace and comments) (case-sensitive)
+                       # (with ^ and $ matching normally) (with . not
+                       # matching \n):
+
+  (?<!                   # look behind to see if there is not:
+
+    foo                    # 'foo'
+
+  )                      # end of look-behind
+
+  bar                    # 'bar'
+
+  (?=                    # look ahead to see if there is:
+
+    quz                    # 'quz'
+
+  )                      # end of look-ahead
+
+)                      # end of grouping
+
+=end code
+
+<a href="mod1.pl">More&raquo;</a>
+
+=cut

@@ -1,0 +1,310 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Params::Validate</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 10th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Params::Validate</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../9th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../11th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Perl is what's known as a weak typed language.  Rather than having
+separate data types for numbers, strings, and each types of object,
+there's just one type - a scalar - that can be used to hold a number,
+a string or a reference to an object.  This has great advantages as
+you can code your code to be a lot more flexible.  For example in Java
+you'd have to write a method for each of the possible arguments your
+method can be passed.  In Perl you could write one method that
+automatically fills in default values for the majority of the arguments
+and otherwise is complicit with the arguments - automatically converting
+one type of object into another as needed.</p>
+<p>It has a lot of disadvantages too.  If you can't trust code to pass
+your methods the right arguments (and if it's a public method then you
+really shouldn't) then you have to check the data that was passed 
+though your parameters is valid - that you haven't been passed a string
+where you expected a number, or an object of completely the wrong type.
+Strongly typed languages of course will do all of this for you.</p>
+<p>This kind of code is tedious for you to write, and it's the kind of
+thing where you can make simple errors that introduce subtle bugs into
+your code.  This is where <b>Params::Validate</b> can be of use.  It's an
+automated tool that can be used to do a lot of checking for you - in
+most cases enough.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Params::Validate">[Read the documentation for Params::Validate on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>For this example we're going to look at a hypothetical piece of code.
+As is a London.pm tradition, I'll use a Buffy The Vampire Slayer related
+example...</p>
+<pre>  use Slayer;
+  my $slayer = Slayer-&gt;new(name    =&gt; "Buffy Summers",
+                           skills  =&gt; ["Cheerleading",
+                                       "Shopping",
+                                       "Banter"],
+                           age     =&gt; 15,
+                           hair    =&gt; "blonde");</pre>
+
+<pre>  $slayer-&gt;stake( monster =&gt; $monster,
+                  with    =&gt; $broom);</pre>
+
+<p>One of the most common idioms for passing arguments to Perl methods is
+the named parameter passing trick.  This is where you shift off the
+class or object, and then assign the rest of the arguments to a hash.</p>
+<pre>  sub new
+  { 
+    my $self = bless {}, shift;
+    my %args = @_</pre>
+
+<pre>    print STDERR "Creating '$args{age}' year old '$args{name}'\n"
+     if DEBUG;
+    ...</pre>
+
+<pre>    return this;
+  }</pre>
+
+<pre>  sub stake
+  {
+    my $self = shift;
+    my %args = @_;</pre>
+
+<pre>    ...
+  }</pre>
+
+<p>Okay, let's see what we can do with <b>Params::Validate</b>.  For a start,
+we want to ensure that our constructor always has a name, some skills,
+and an age, and optionally they can pass in the hair colour they want.</p>
+<pre>  use Params::Validate qw(:all);</pre>
+
+<pre>  sub new
+  {
+    my $self = bless {}, shift;
+    my %args = 
+      validate(@_, { name   =&gt; 1,
+                     skills =&gt; 1,
+                     age    =&gt; 1,
+                     hair   =&gt; 0, });</pre>
+
+<pre>    ...</pre>
+
+<pre>    return $self;
+  }</pre>
+
+<p>We replace the <code>@_</code> with a call to the subroutine <code>validate</code> that we
+pass <code>@_</code> and a hashref that contains the specification that we want
+to validate <code>@_</code> against.  If validation fails, an exception will be
+thrown.  The above shows the most simple specification, where we
+specify that our new slayer must have all three attributes.  We can do
+a little better than this by specifying a list of types that the data
+must have by replacing the <code>1</code> with a specification hash for that
+parameter.  Pay attention to the fact that <code>SCALAR</code> and <code>ARRAYREF</code>
+in the following example aren't strings - they're constants exported by
+<code>Params::Validate</code>; Putting them in <code>""</code> won't work.</p>
+<pre>  sub new
+  {
+    my $self = bless {}, shift;
+    my %args = 
+      validate(@_, { name   =&gt; { type     =&gt; SCALAR   },
+                     skills =&gt; { type     =&gt; ARRAYREF },
+                     age    =&gt; { type     =&gt; SCALAR   },
+                     hair   =&gt; { type     =&gt; SCALAR,
+                                 optional =&gt; 1        },});</pre>
+
+<pre>    ...</pre>
+
+<pre>    return $self;
+  }</pre>
+
+<p>But wait, what if we don't want to have to specify skills for every
+new slayer?  It's pretty much a given that each new slayer will have
+the amazing ability to come up with crazy backchat during fights, so
+we want to assign the skill of Bantering as standard if no skills
+are passed.  We can do that with the default option:</p>
+<pre>  sub new
+  {
+    my $self = bless {}, shift;
+    my %args =
+      validate(@_, { name   =&gt; { type    =&gt; SCALAR     },
+                     skills =&gt; { type    =&gt; ARRAYREF,
+	                         default =&gt; ["Banter"] },
+                     age    =&gt; { type    =&gt; SCALAR     },
+                     hair   =&gt; { type     =&gt; SCALAR,
+                                 optional =&gt; 1         },});</pre>
+
+<pre>    ...</pre>
+
+<pre>    return $self;
+  }</pre>
+
+<p>Now the skills are optional and the default will be used if no
+argument is supplied. So now we can create a new slayer like so,
+without having to specify any skills:</p>
+<pre>  my $faith = Slayer-&gt;new(name =&gt; "Faith",
+                          age  =&gt; "17",);</pre>
+
+<p>Note that the default is only used when the parameters are omitted -
+if you supply something that isn't up to spec the default won't be
+used - an error will be thrown as usual.  Now let's turn our attention
+to the stake method.  It takes two parameters, who our slayer is
+staking, and what with.</p>
+<pre>   sub stake
+   {
+     my $this = shift;
+     my %args =
+       validate(@_, { monster =&gt; 1,
+                      with    =&gt; 1,}  </pre>
+
+<pre>     # call the stake's 'dust' method and up our kill counter
+     $args{with}-&gt;dust($args{monster});
+     $this-&gt;{killed}++
+   }</pre>
+
+<p>But wait!  We know Buffy can only stake Vampires.  We'd better check
+that <code>$vampire</code> was actually a <code>Vampire</code> object.  And we'd better
+check we're using a subclass of <code>Stake</code> (a <code>Stake</code> object, a
+<code>Stake::Broom</code>, a <code>Stake::Rake</code>, etc) to do it with.</p>
+<pre>   sub stake
+   {
+     my $this = shift;
+     my %args =
+       validate(@_, { monster =&gt; { isa =&gt; "Vampire" },
+                      with    =&gt; { isa =&gt; "Stake",  }});
+    
+     # call the stake's 'dust' method and up our kill counter
+     $args{with}-&gt;dust($args{monster});
+     $this-&gt;{killed}++
+   }</pre>
+
+<p>Hang on a moment though, Buffy can 'stake' Vampires with any old sharp
+bit of wood.  She can smash up chairs.  So they don't really have to
+be a subclass of Stake after all.  Essentially all we want is an
+object that supports the <code>dust</code> interface (i.e. any object that has a
+<code>dust</code> method.)  We can do that with the can test:</p>
+<pre>   sub stake
+   {
+     my $this = shift;
+     my %args =
+       validate(@_, { monster =&gt; { isa =&gt; "Vampire"   },
+                      with    =&gt; { can =&gt; [qw(dust)], }});
+    
+     # call the stake's 'dust' method and up our kill counter
+     $args{with}-&gt;dust($args{monster});
+     $this-&gt;{killed}++
+   }</pre>
+
+<p>So you can see all these validations offer us the chance to check our
+inputs with some inbuilt tests.  But what happens if there's not a
+test for our parameter?  What happens if we want to make sure that
+some fool hasn't written</p>
+<pre>   my $slayer-&gt;new(name =&gt; "Kendra",
+                   age  =&gt; "seventeen");</pre>
+
+<p>Well, <b>Param::Validate</b> allows us to write extension tests with
+callback facilities.  This allows you to define subroutines that will
+be called with the parameter that should return true if the parameter
+passes.</p>
+<pre>  sub new
+  {
+    my $self = bless {}, shift;
+    my %args = validate(@_, 
+     { name   =&gt; { type      =&gt; SCALAR     },
+       skills =&gt; { type      =&gt; ARRAYREF   ,
+	           default   =&gt; ["Banter"] },
+       age    =&gt; { type      =&gt; SCALAR,
+                   callbacks =&gt; {
+                     digits =&gt; sub { $_[0] =~ /^\d+$/; },
+                     teens  =&gt; sub { $_[0]&gt;12 &amp;&amp; $_[0]&lt;20 },
+                   }
+                 },
+       hair   =&gt; { type      =&gt; SCALAR,
+                   optional  =&gt; 1          },
+     });</pre>
+
+<pre>    ...</pre>
+
+<pre>    return $self;
+  }</pre>
+
+<p>And that's pretty much it.  Of course, <b>Params::Validate</b> has a
+whole section of code dedicated to dealing with positional rather than
+named parameters that I haven't covered in this mini-tutorial.  I'll leave
+it as an exercise for the reader.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/author/RAM/Getargs-Long/Long.pm">Getargs::Long - a similar kind of module</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:52 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

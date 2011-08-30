@@ -1,0 +1,433 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: SQL::Abstract</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 14th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">SQL::Abstract</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../13th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../15th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>A lot of what we do as programmers is manipulating data.  As such
+we often need to store that data in a database.</p>
+<p>We've looked at one solution - <b>Class::DBI</b> - for easy database
+access in the past.  Today we look at some of the problems associated
+with wrapping a database in an object model, and at one of the modules
+<b>SQL::Abstract</b> that can help us when we need to abandon that approach
+and create pure SQL directly.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?SQL::Abstract">[Read the documentation for SQL::Abstract on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Imagine you've got a large mysql database with the following table
+structure</p>
+<pre>  +=========+=======+======+=====+=========+=====+=========+=======+
+  | user_id | first | last | age | address | zip | country | email |
+  +---------+-------+------+-----+---------+-----+---------+-------+
+  |         |       |      |     |         |     |         |       |</pre>
+
+<p>Writing a Class::DBI wrapper for it would be simple:</p>
+<pre>  package Customer::DBI;
+  use base 'Class::DBI';
+  __PACKAGE__-&gt;connection('dbi:mysql:customer', 'root', 'god');</pre>
+
+<pre>  package Customer::User;
+  use base 'Customer::DBI';
+  __PACKAGE__-&gt;table('users');
+  __PACKAGE__-&gt;columns( All =&gt; qw(
+    user_id first last age address zip country email
+  ));</pre>
+
+<p>And then we could access the database like so:</p>
+<pre>  # meet the flintstones
+  my @users = Customer::User-&gt;search( last =&gt; "Flintstone" );</pre>
+
+<p>And we can add custom constructors that allow us to do more complex
+queries than simple matches</p>
+<pre>  # in Customer::User
+  __PACKAGE__-&gt;add_constructor(aged_over =&gt; 'age &gt;= ?');</pre>
+
+<pre>  # later, in the main code
+  # select all the adults
+  my @users = Customer::User-&gt;aged_over(18);
+  
+=head2 The Problem</pre>
+
+<p>The problem with this approach is that is <i>slow</i>.  It has to create a
+user object for every row in the database.  Let's consider the simple
+case where we need to extract the users that match from a query and
+write them out to a CSV file.  The dumb <b>Class::DBI</b> approach is
+incredibly slow (though very easy to code):</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  # load our support modules
+  use Customer::User;
+  use Text::CSV_XS;
+  use IO::File;</pre>
+
+<pre>  # create the csv file
+  my $fh = IO::File-&gt;new("adults.csv", "&gt;")
+    or die "Can't open adults: $!";</pre>
+
+<pre>  # create the writer object
+  my $csv = Text::CSV_XS-&gt;new();</pre>
+
+<pre>  # print out the column headers
+  $csv-&gt;print($fh, [qw(
+    user_id first last age address zip country email
+  )]);</pre>
+
+<pre>  # extract all the adults
+  my @users = Customer::User-&gt;aged_over(18);</pre>
+
+<pre>  # write out each object
+  foreach my $user (@users)
+  {
+    $csv-&gt;print($fh, [
+      $user-&gt;user_id,
+      $user-&gt;first,
+      $user-&gt;last,
+      $user-&gt;age,
+      $user-&gt;address,
+      $user-&gt;zip,
+      $user-&gt;country,
+      $user-&gt;email,
+    ]);
+  }</pre>
+
+<p>This is terrible!  We're slurping each and every user into
+memory at once (which is bad news if you've got a database with
+200,000 users in it) and creating an object for them, and then accessing
+each of the data elements with an accessor method.  This is total overkill
+for what we're trying to do.</p>
+<p>To be fair, <b>Class::DBI</b> isn't really this stupid.  Used properly we
+can improve the performance somewhat by not dragging each user into
+memory at once, replacing the fetch loop with an iterator:</p>
+<pre>  # extract all the adults, getting an iterator object
+  # back by calling our constructor in scalar context
+  my $users = Customer::User-&gt;aged_over(18);</pre>
+
+<pre>  # write out each object, calling next on the iterator
+  # which will finally return false when nothing is left
+  while (my $user = $users-&gt;next)
+  {
+    ...
+  }</pre>
+
+<p>Meaning that only one user is held in memory at one go.  We're still
+stuck with the overhead of pulling the data in, creating an object
+and then using that object's accessor to get at the data, when all
+we need to do is spit that data back out again.</p>
+<h2>The Pure DBI solution</h2>
+<p>We can revert back to the good old days of using pure DBI calls if
+we want to get the best speed out of the database.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  # load our support modules
+  use DBI;
+  use Text::CSV_XS;
+  use IO::File;</pre>
+
+<pre>  # create the csv file
+  my $fh = IO::File-&gt;new("adults.csv", "&gt;")
+    or die "Can't open adults: $!";</pre>
+
+<pre>  # create the writer object
+  my $csv = Text::CSV_XS-&gt;new();</pre>
+
+<pre>  # print out the column headers
+  $csv-&gt;print($fh, [qw(
+    user_id first last age address zip country email
+  )]);</pre>
+
+<pre>  # connect to the database
+  my $dbh = DBI-&gt;connect('dbi:mysql:customer', 'root', 'god')
+    or die "Can't connect to the database";</pre>
+
+<pre>  # prepare the query
+  my $sth = $dbh-&gt;prepare(q{
+   SELECT user_id, first, last, age, address, zip, country, email
+      FROM users WHERE age &gt;= ?
+  }) or die "Problem preparing";</pre>
+
+<pre>  # execute the query
+  $sth-&gt;execute(18)
+    or die "Problem executing";</pre>
+
+<pre>  # write out each row we get back 
+  while (my $data = $sth-&gt;fetchrow_arrayref())
+    { $csv-&gt;print($fh, $data) }  </pre>
+
+<p>Of course the problem with this is that it only works for the one
+solution we've got here.  We had to write the SQL ourselves.  What if
+we want to allow the user to specify something on the command line to
+configure a more complex search?  This is trivial with <b>Class::DBI</b>,
+as we can replace our constructor with a search</p>
+<pre>  # allow people to specify things like
+  #   ./script.pl country 'GB'
+  # to return all the people in the United Kingdom
+  my $users = Customer::User-&gt;search(@ARGV);</pre>
+
+<p><b>Class::DBI</b> will do the building of the SQL for us needed to extract
+the data behind the scenes.  But what are we to do in our fast
+version?</p>
+<h2>SQL::Abstract</h2>
+<p>It's obvious that what we need to do is programatically generate the
+SQL ourselves.  This isn't actually as easy as it might seem to do as
+we might think.  Quoting the right things can be a pain, as can be
+getting the correct spacing in.  You've got to remember to add a WHERE
+keyword if you're adding arguments and not if you're not.  Perl's a
+lot more forgiving that MySQL and will happily let you create lists
+with extra commas on the end - MySQL won't.  All in all it's a clear
+path for writing some very messy code that's hard to debug.</p>
+<p>Luckily, we're not the first people to face this issue and someone else
+has gone to the trouble of writing the messy code for us, and debugged
+it for us, and put it together in a module called <b>SQL::Abstract</b>.
+Thank you Nathan Wiger!</p>
+<p>Let's just have a quick look at how <b>SQL::Abstract</b> can be used.</p>
+<pre>  # create our SQL creation object
+  my $sa = SQL::Abstract-&gt;new();</pre>
+
+<pre>  my ($sql, @bind) = $sa-&gt;select(
+   
+    # the table
+    "users",</pre>
+
+<pre>    # what fields we want returned
+    [qw( user_id first last age address zip country email )],</pre>
+
+<pre>    # the where clause is a hashref of columns / values
+    # e.g. { first =&gt; 'fred', last =&gt; 'barney' }
+    { @ARGV },
+  );</pre>
+
+<p>If we print what we got back:</p>
+<pre>  use Data::Dumper::Simple;
+  print Dumper($sql,@bind);</pre>
+
+<p>We get what we might expect:</p>
+<pre>  $sql = 'SELECT user_id, first, last, age, address, 
+          zip, country, email FROM users WHERE ( country = ? )';
+  @bind = (
+            'GB'
+          );</pre>
+
+<p>Excellent.  Plumbing this into our code in our script at the right
+point makes the section looks like this:</p>
+<pre>  # connect to the database
+  my $dbh = DBI-&gt;connect('dbi:mysql:customer', 'root', 'god')
+    or die "Can't connect to the database";</pre>
+
+<pre>  # create the SQL and bind
+  my $sa = SQL::Abstract-&gt;new();
+  my ($sql, @bind) = $sa-&gt;select(
+    "users",
+    [qw( user_id first last age address zip country email )],
+    { @ARGV },
+  );  </pre>
+
+<pre>  # prepare and execute query
+  my $sth = $dbh-&gt;prepare($sql) or die "Problem preparing";
+  $sth-&gt;execute(@bind) or die "Problem executing";</pre>
+
+<pre>  # write out each row we get back 
+  while (my $data = $sth-&gt;fetchrow_arrayref())
+    { $csv-&gt;print($fh, $data) }  </pre>
+
+<h2>More Complex Queries</h2>
+<p>Alas, SQL isn't as simple as just looking for simple values.  We often
+want to create complicated SQL.  Luckily, we can create some pretty
+complex SQL with <b>SQL::Abstract</b> too.  If we don't want to use <code>=</code>
+in our where clause we can use the hash notation to provide our own
+operator:</p>
+<pre>  # maybe it's because I'm a Londoner...
+  my ($sql, @bind) = $sa-&gt;select(
+    "users", "*", {
+       address =&gt; { "LIKE" =&gt; '%London%' },
+       country =&gt; "GB",
+  });</pre>
+
+<p>Which produces the SQL:</p>
+<pre>  $sql = 'SELECT * FROM users WHERE ( address LIKE ? AND country = ? )';
+  @bind = (
+            '%London%',
+            'GB'
+          );</pre>
+
+<p>We can also do alternation with array refs:</p>
+<pre>  my ($sql, @bind) = $sa-&gt;select(
+    "users", "*", {
+     first =&gt; [qw( rod jane freddy )]
+  });</pre>
+
+<p>Which creates a SQL statement with a bunch of <code>OR</code> keywords in it
+to offer us the various possibilities</p>
+<pre>  $sql = 'SELECT * FROM users WHERE 
+          ( ( ( first = ? ) OR ( first = ? ) OR ( first = ? ) ) )';
+  @bind = (
+            'rod',
+            'jane',
+            'freddy'
+          );</pre>
+
+<p>Of course, the other methods such as <code>insert</code>, <code>delete</code> and
+<code>update</code> also work:</p>
+<pre>  # add new values
+  my ($sql, @bind) = $sa-&gt;insert(
+   "users", {
+     first =&gt; "mark",
+     last  =&gt; "fowler",
+     email =&gt; 'mark@twoshortplanks.com',
+     age   =&gt; "26",
+  });</pre>
+
+<pre>  # delete the kids
+  my ($sql, @bind) = $sa-&gt;delete("users", {
+     age =&gt; { "&lt;", 18 }
+  });</pre>
+
+<pre>  # happy birthday to me!
+  my ($sql, @bind) = $sa-&gt;update(
+   "users", {
+     age   =&gt; "27",
+  },
+  {
+     email =&gt; 'mark@twoshortplanks.com',
+  });</pre>
+
+<h2>Getting back to Class::DBI</h2>
+<p>As we can see, <b>SQL::Abstract</b> allows us to create some really quite
+complex SQL.  Sometimes we'd like the power of doing this directly
+from within Class::DBI.  Handily, <b>SQL::Abstract</b> has a simple
+<code>where</code> method that takes the same arguments as the <code>select</code> method
+but returns just the WHERE clause of the SQL statement, which then can
+be fed into the <code>add_constructor</code> as we demonstrated above.
+ 
+  ###
+  # in Customer::User</p>
+<pre>  # create our factory
+  my $sa = SQL::Abstract-&gt;new();</pre>
+
+<pre>  # make some sql
+  my ($where) = $sa-&gt;where(
+    age =&gt; { "&lt;=", "?" }
+  );</pre>
+
+<pre>  # create the constructor
+  __PACKAGE__-&gt;add_constructor( aged_over =&gt; $where );</pre>
+
+<h2>MySQL Optimisations To Be Aware Of</h2>
+<p>One of the things I've been glossing over in this example is the
+performance of MySQL.  In the pure DBI section above, and in the
+<b>Class::DBI</b> iterator example I assumed because I can get the
+database to give me one record back at a time that <b>DBI</b> was only
+fetching one record at a time from the database server.  This isn't
+true.</p>
+<p>Current implementations of MySQL by default drag every single result
+back from the database and store the results in the client before any
+results are returned to Perl (this is a MySQL limitation not a Perl
+one).  This means that if you're extracting 200,000 users from the
+database then you're going to have to have space to store those
+200,000 records in memory on your machine at once.</p>
+<p>There is a way around this.  You can tell mysql to give you back the
+data one record at a time:</p>
+<pre>  # do this before the execute
+  $sth-&gt;{'mysql_use_result'} = 1;</pre>
+
+<p>Of course, there is a price to pay for this.  If you do this then
+until you complete your run the table you're querying will be locked
+for updates - not a good thing if you're accessing the live database
+you're running your main web site off of, and what you're doing is
+going to be taking a couple of hours.</p>
+<p>There's another way around this, where you don't get the locking
+problem and you don't have the bringing it back into memory in one go
+problem, but it takes a lot of time to implement: Switch to a database
+that supports cursors (like PostgreSQL).  Of course, that's a lot more
+work.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/perldoc?Class::DBI">Class::DBI</a></li>
+<li><a href="http://search.cpan.org/perldoc?DBI">DBI</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:58 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

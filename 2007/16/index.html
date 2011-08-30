@@ -1,0 +1,114 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" 
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>2007 Perl Advent Calendar: Timely Flight Planning for a Sleigh</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body>
+<h1><a href="../">Perl Advent Calendar 2007-12</a>-16</h1>
+<h2 align="center">Timely Flight Planning for a Sleigh</h2>
+<h3 align="center">by Bill Ricker</h3>
+<p></p>
+<p></p>
+<p></p>
+<p></p>
+<blockquote style="padding: 1em; border: 2px ridge black; background-color:#eee">
+Please don't mind the gap here - your editors and our regular contributors all had outbreaks of real life. More <a href="../FAQ-submit.html">contributors welcome!</a></blockquote>
+<p>Santa's Sr Elf Flight Planner must arrange to visit every chimney in the time available, so the sequence is carefully optimized. (The computer that solves this Traveling Salesman Problem instance is leased from NSA for the night of their annual holiday party.)</p>
+<p>The Flight Planners use "divide and conquer" to create a simplifying assumption: Santa will do each timezone as a unit. This breaks the worldwide into a nearly trivial ordering of TZ's and a <tt><a href="http://en.wikipedia.org/wiki/Traveling_Salesman">Traveling Salesman problem</a></tt> within each timezone. There are many more than 24 timezones, what with some being offset by 0:30 or even 0:15, and being fragmented by local government DST options.</p>
+<p>It is little appreciated that Santa actually has more than 24 hours to do his deliveries, even if he's restricted to say midnight to 5am local. The TZs are spanning <tt><a href="http://en.wikipedia.org/wiki/UTC%2B14">UTC+14</a></tt> <sup><a href="#1">1</a></sup> to <tt><a href="http://en.wikipedia.org/wiki/UTC-12">UTC-12</a></tt> <sup><a href="#2">2</a></sup></p>
+<p>Using the <tt><a href="http://search.cpan.org/search?query=DateTime::TimeZone">DateTime::TimeZone</a></tt> module, the Elf Flight Planner can see how each timezone meshes with World Time (aka <tt><a href="http://en.wikipedia.org/wiki/UTC">UTC</a></tt>, GMT, Z):</p>
+<pre>
+        <span class="w">Pacific</span>/<span class="w">Kiritimati</span><span class="co">:</span><span class="s">(</span><span class="w">UTC</span>+<span class="n">14</span><span class="s">)</span>
+                     <span class="n">2007</span>-<span class="n">12</span>-<span class="n">24</span><span class="w">T10</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span>  <span class="n">00</span><span class="w">loc</span>
+                  <span class="w">to</span> <span class="n">2007</span>-<span class="n">12</span>-<span class="n">24</span><span class="w">T15</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span>   <span class="n">5</span><span class="w">am</span> 
+                <span class="s">(</span><span class="w">end</span> <span class="n">2007</span>-<span class="n">12</span>-<span class="n">25</span><span class="w">T10</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span> +<span class="n">24</span><span class="s">)</span>
+        <span class="w">Europe</span>/<span class="w">London</span><span class="co">:</span><span class="s">(</span><span class="w">UTC</span>+<span class="n">0</span><span class="s">)</span>
+                     <span class="n">2007</span>-<span class="n">12</span>-<span class="n">25</span><span class="w">T00</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span>  <span class="n">00</span><span class="w">loc</span>
+                  <span class="w">to</span> <span class="n">2007</span>-<span class="n">12</span>-<span class="n">25</span><span class="w">T05</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span>   <span class="n">5</span><span class="w">am</span> 
+                <span class="s">(</span><span class="w">end</span> <span class="n">2007</span>-<span class="n">12</span>-<span class="n">26</span><span class="w">T00</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span> +<span class="n">24</span><span class="s">)</span>
+        <span class="w">America</span>/<span class="w">New_York</span><span class="co">:</span><span class="s">(</span><span class="w">UTC</span>-<span class="n">5</span><span class="s">)</span>
+                     <span class="n">2007</span>-<span class="n">12</span>-<span class="n">25</span><span class="w">T05</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span>  <span class="n">00</span><span class="w">loc</span>
+                  <span class="w">to</span> <span class="n">2007</span>-<span class="n">12</span>-<span class="n">25</span><span class="w">T10</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span>   <span class="n">5</span><span class="w">am</span> 
+                <span class="s">(</span><span class="w">end</span> <span class="n">2007</span>-<span class="n">12</span>-<span class="n">26</span><span class="w">T05</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span> +<span class="n">24</span><span class="s">)</span>
+        <span class="w">US</span>/<span class="w">Samoa</span><span class="co">:</span><span class="s">(</span><span class="w">UTC</span>-<span class="n">11</span><span class="s">)</span>
+                     <span class="n">2007</span>-<span class="n">12</span>-<span class="n">25</span><span class="w">T11</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span>  <span class="n">00</span><span class="w">loc</span>
+                  <span class="w">to</span> <span class="n">2007</span>-<span class="n">12</span>-<span class="n">25</span><span class="w">T16</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span>   <span class="n">5</span><span class="w">am</span> 
+                <span class="s">(</span><span class="w">end</span> <span class="n">2007</span>-<span class="n">12</span>-<span class="n">26</span><span class="w">T11</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span> +<span class="n">24</span><span class="s">)</span>
+        
+        <span class="w">Deliveries</span>      <span class="w">from</span> <span class="n">2007</span>-<span class="n">12</span>-<span class="n">24</span><span class="w">T10</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span>
+                          <span class="w">to</span> <span class="n">2007</span>-<span class="n">12</span>-<span class="n">25</span><span class="w">T16</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span><span class="sc">;</span> 
+                        <span class="w">which</span> <span class="w">is</span>  <span class="n">1</span><span class="w">D06</span><span class="co">:</span><span class="n">00</span>
+        <span class="w">Xmas</span> <span class="w">somewhere</span> <span class="w">populated</span> 
+                        <span class="w">from</span> <span class="n">2007</span>-<span class="n">12</span>-<span class="n">24</span><span class="w">T10</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span> 
+                          <span class="w">to</span> <span class="n">2007</span>-<span class="n">12</span>-<span class="n">26</span><span class="w">T11</span><span class="co">:</span><span class="n">00</span><span class="co">:</span><span class="n">00</span><span class="w">Z</span><span class="sc">;</span> 
+                        <span class="w">which</span> <span class="w">is</span> <span class="n">2</span><span class="w">D01</span><span class="co">:</span><span class="n">00</span>
+</pre>
+<p>He can start deliveries at least as soon as the 25th starts at 12-24T1000Z on Christmas Island in UTC+14 Kiritimati.cx timezone and should end before sunrise, say 5am local to be safe, 12-25T1600Z in UTC-11 with Samoa (.ws and .as), .nu, .tk, and Midway Island; from there, there are only ships at sea in UTC-12, and maybe a few lightkeepers at (unpopulated) Baker Is and Howland Is which we can ignore as they're on the way back north up the International Date Line.</p>
+<p>That's 30 hours not counting flying time from North Pole to South Pacific and back, but since first and last time zones are sparsely populated, he can probably include the on-station legs in the first and last hour. If kids in UTC+14 bed down early or in UTC-11 sleep in well, he gets even longer. (And likewise anywhere populous timezones at one offset are adjacent to a group far less so.)</p>
+<p>Note that this means a given Date lasts 50 hours <sup><a href="#3">3</a></sup> - it's 12-25 somewhere from 12-24T1000Z (12-25T0000 in UTC+14 Christmas Island) to 12-26T1200Z (12-26T0000 in UTC-12 Howard &amp; Baker Islands).</p>
+<a name="mod16.pl"></a><h2><a href="mod16.pl">mod16.pl</a></h2><pre>
+   1 #! perl -wl
+   2 <span class="k">use</span> <span class="w">strict</span><span class="sc">;</span>
+   3 <span class="k">use</span> <span class="w">warnings</span><span class="sc">;</span>
+   4 <span class="k">use</span> <span class="w">DateTime</span><span class="sc">;</span>
+   5 <span class="k">use</span> <span class="w">DateTime::TimeZone</span><span class="sc">;</span>
+   6 
+   7 
+   8 <span class="k">my</span> <span class="i">$hour</span>=<span class="n">3600</span><span class="sc">;</span>
+   9 
+  10 
+  11 <span class="k">my</span> <span class="i">%Options</span>=<span class="s">(</span><span class="w">year</span><span class="cm">=&gt;</span><span class="n">2007</span><span class="cm">,</span>
+  12              <span class="w">month</span><span class="cm">=&gt;</span><span class="n">12</span><span class="cm">,</span>
+  13 	     <span class="w">day</span><span class="cm">=&gt;</span><span class="n">25</span><span class="cm">,</span>
+  14 	     <span class="w">hour</span><span class="cm">=&gt;</span><span class="n">00</span><span class="cm">,</span>
+  15 	     <span class="w">minute</span><span class="cm">=&gt;</span><span class="n">00</span><span class="cm">,</span>
+  16 	     <span class="w">second</span><span class="cm">=&gt;</span><span class="n">00</span><span class="cm">,</span>
+  17 	     <span class="c"># time_zone =&gt; &#39;Asia/Tapei&#39;,</span>
+  18 	     <span class="s">)</span><span class="sc">;</span>
+  19 <span class="k">my</span> <span class="i">@TZNames</span>=<span class="s">(</span>
+  20 	<span class="q">&#39;Pacific/Kiritimati&#39;</span><span class="cm">,</span> <span class="c"># GMT+14 start</span>
+  21 	<span class="q">&#39;Europe/London&#39;</span><span class="cm">,</span> <span class="c"># GMT+0 in winter</span>
+  22 	<span class="q">&#39;America/New_York&#39;</span><span class="cm">,</span>
+  23 	<span class="c"># GMT-11 ends the day </span>
+  24 	<span class="q">&#39;US/Samoa&#39;</span><span class="cm">,</span>  <span class="c"># aka &#39;Pacific/Apia&#39;, </span>
+  25 	<span class="c"># as only uninhabited islands and ships in GMT-12 lately	</span>
+  26 	<span class="c"># &#39;GMT-12&#39; </span>
+  27 	<span class="s">)</span><span class="sc">;</span>
+  28 
+  29 <span class="k">my</span> <span class="s">(</span><span class="i">$first</span><span class="cm">,</span><span class="i">$lastD</span><span class="cm">,</span><span class="i">$lastX</span><span class="s">)</span><span class="sc">;</span>
+  30 
+  31 <span class="k">foreach</span> <span class="k">my</span> <span class="i">$tzn</span> <span class="s">(</span><span class="i">@TZNames</span><span class="s">)</span> 
+  32 <span class="s">{</span>
+  33 	<span class="k">my</span> <span class="i">$xmas</span>= <span class="w">DateTime</span><span class="w">-&gt;new</span><span class="s">(</span><span class="i">%Options</span><span class="cm">,</span>  <span class="w">time_zone</span> <span class="cm">=&gt;</span> <span class="i">$tzn</span> <span class="cm">,</span><span class="s">)</span><span class="sc">;</span>
+  34 	<span class="k">my</span> <span class="i">$offset</span>=<span class="w">DateTime::TimeZone</span><span class="w">-&gt;new</span><span class="s">(</span><span class="w">name</span><span class="cm">=&gt;</span><span class="i">$tzn</span><span class="s">)</span>
+  35 			<span class="i">-&gt;offset_for_datetime</span><span class="s">(</span><span class="i">$xmas</span><span class="s">)</span>
+  36 				/ <span class="i">$hour</span><span class="sc">;</span>
+  37 	<span class="i">$xmas</span><span class="i">-&gt;set_time_zone</span><span class="s">(</span><span class="q">&#39;GMT&#39;</span><span class="s">)</span><span class="sc">;</span>
+  38 	<span class="i">$first</span> ||= <span class="i">$xmas</span><span class="sc">;</span>
+  39 	<span class="k">my</span> <span class="i">$dawn</span>= <span class="w">DateTime</span><span class="w">-&gt;new</span><span class="s">(</span><span class="i">%Options</span><span class="cm">,</span>  <span class="w">time_zone</span> <span class="cm">=&gt;</span> <span class="i">$tzn</span> <span class="cm">,</span>
+  40 			<span class="w">hour</span><span class="cm">=&gt;</span><span class="n">05</span><span class="s">)</span><span class="i">-&gt;set_time_zone</span><span class="s">(</span><span class="q">&#39;GMT&#39;</span><span class="s">)</span><span class="sc">;</span>
+  41 	<span class="k">my</span> <span class="i">$stst</span>= <span class="w">DateTime</span><span class="w">-&gt;new</span><span class="s">(</span><span class="i">%Options</span><span class="cm">,</span>  <span class="w">time_zone</span> <span class="cm">=&gt;</span> <span class="i">$tzn</span> <span class="cm">,</span>
+  42 			<span class="w">day</span><span class="cm">=&gt;</span><span class="n">26</span><span class="s">)</span><span class="i">-&gt;set_time_zone</span><span class="s">(</span><span class="q">&#39;GMT&#39;</span><span class="s">)</span><span class="sc">;</span>  <span class="c"># begins St.Stephens or Boxing day</span>
+  43 	<span class="i">$lastD</span>= <span class="i">$dawn</span><span class="sc">;</span>
+  44 	<span class="i">$lastX</span>= <span class="i">$stst</span><span class="sc">;</span>
+  45 	
+  46 	<span class="k">printf</span> <span class="q">&quot;\t%s:(UTC%+02d)\n\t\t     %sZ  00loc\n\t\t  to %sZ   5am \n\t\t(end %sZ +24)\n&quot;</span><span class="cm">,</span>
+  47 		<span class="i">$tzn</span><span class="cm">,</span> <span class="i">$offset</span><span class="cm">,</span> <span class="i">$xmas</span><span class="cm">,</span> <span class="i">$dawn</span><span class="cm">,</span> <span class="i">$stst</span><span class="sc">;</span>
+  48 <span class="s">}</span>
+  49 
+  50 <span class="k">printf</span> <span class="q">&quot;\n\tDeliveries \tfrom %sZ\n\t\t\t  to %sZ; \n\t\t\twhich is  %dD%02d:%02d\n&quot;</span><span class="cm">,</span>
+  51 	<span class="i">$first</span> <span class="cm">,</span> <span class="i">$lastD</span><span class="cm">,</span>
+  52 	<span class="s">(</span><span class="i">$lastD</span>-<span class="i">$first</span><span class="s">)</span><span class="i">-&gt;in_units</span><span class="s">(</span><span class="q">qw(days hours minutes	)</span><span class="s">)</span><span class="sc">;</span>
+  53 
+  54 <span class="k">printf</span> <span class="q">&quot;\tXmas somewhere populated \n\t\t\tfrom %sZ \n\t\t\t  to %sZ; \n\t\t\twhich is %dD%02d:%02d\n&quot;</span><span class="cm">,</span> 
+  55 	<span class="i">$first</span> <span class="cm">,</span> <span class="i">$lastX</span><span class="cm">,</span>
+  56 	<span class="s">(</span><span class="i">$lastX</span>-<span class="i">$first</span><span class="s">)</span><span class="i">-&gt;in_units</span><span class="s">(</span><span class="q">qw(days hours minutes	)</span><span class="s">)</span><span class="sc">;</span>
+</pre>
+<p><a name="1"></a>1. UTC+13,+14 are the bulge of the International Dateline in the South Pacific, where islands in UTC-11,-12 switched sides to be in the same day as other South Pacific islands rather than Hawaii and Alaska.</p>
+<p><a name="2"></a>2. UTC-12 currently has no population thus no DST definitions or named TZ, but is a nautical TZ.</p>
+<p><a name="3"></a>3. No wonder the Millenium New Years TV special coverage lasted so long!</p>
+<p><blockquote style="padding: 1em; border: 2px ridge black; background-color:#eee"> <P> Normally we wouldn't review a Phalanx 100 module, but <UL> <LI>Timezones are apropos this year and month for two reasons. <OL><LI>This was the year DST moved in the US for the first time since the birth of the web and ubiquitous computing [for which <a href="http://use.perl.org/~n1vux/journal/">I used Perl to diagnose system ZoneInfo/TZ compliance</a>], and <LI>Sunday December 9th, <tt><a href="http://news.bbc.co.uk/2/hi/americas/7138191.stm">Venezuela</a></tt> inaugurated a new timezone, <tt><a href="http://en.wikipedia.org/wiki/UTC-4:30">UTC-4:30</a></tt>, to let school children get up in daylight. </OL> <LI>All the other TimeZone modules I tried either couldn't access UTC+14 by name or I couldn't figure out how to do local=>GMT conversion reliably. Ideally I'd have liked to be able to access UTC+14 and UTC-12 by name as well as conversion, but ... </UL> <P>If you need to support Timezone redefinition in quasi-realtime faster than your Sysadmins can patch your OS, DateTime::TimeZone will give you control, as it has its own copy of the Olson/ZoneInfo TZ database, which follows latest ZoneInfo patches at least as quickly as OS vendors. (This would be useful if say a Web2.0 application knows about user home or destination TZs and has to track future changes when legislated for planning.) Otherwise, Perl follows the OS's TZ/DST definitions, and was unlikely to have Perl-specific DST bugs this last spring forward and fall back. For most purposes, the other TimeZone modules are fine. <P>For a different view of how Santa's Elves can deliver everything in 30 hours, see <tt><a href="http://www.wired.com/images/press/pdf/opxmax.pdf">Wired</a></tt>-- Bill </blockquote></p>
+
+</body>
+</html>

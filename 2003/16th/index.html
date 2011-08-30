@@ -1,0 +1,357 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: Math::BigInt</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 16th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Math::BigInt</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../15th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../17th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Scalars in Perl are highly magical things.  Unlike much more
+statically typed languages like C, they can contain many different
+types of information.  They can hold strings, integers, and floating
+point numbers and more.  You gets so used to them holding whatever
+you throw at them is can be a big shock when you reach the limitations
+of your platform.</p>
+<p>The problem comes when you run out of space to store the data in
+the slot.  This isn't so much a problem with a string, but when you're
+storing numbers, there's only so big a number you can store before you
+start losing accuracy - that is, unless you switch to using a Math::BigInt
+object.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Math::BigInt">[Read the documentation for Math::BigInt on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>The Devel::Peek module can be used to inspect the inside of Perl
+scalars.  For example:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load the 'Dump' routine
+  use Devel::Peek qw(Dump);</pre>
+
+<pre>  my $foo = 42;
+  print Dump($foo);</pre>
+
+<p>This prints out the rather cryptic looking thing</p>
+<pre>  SV = IV(0x8172b74) at 0x8170efc
+    REFCNT = 1
+    FLAGS = (PADBUSY,PADMY,IOK,pIOK)
+    IV = 42</pre>
+
+<p>The important bit in here is the IV, which contains the number stored
+within the scalar, and the IOK flag which indicates that that value is
+correct.  In a similar fashion, we can print out a non-integer like so:</p>
+<pre>  my $bar = 2/3;
+  print Dump($bar);</pre>
+
+<p>We get a slightly different type of output:</p>
+<pre>  SV = NV(0x817ddf8) at 0x8170efc
+    REFCNT = 1
+    FLAGS = (PADBUSY,PADMY,NOK,pNOK)
+    NV = 0.666666666666667</pre>
+
+<p>The IV type can no longer hold our result...this time the scalar's NV
+field has been used, and the NOK flag has been set to indicate that
+we're using that value instead.  So, we use IV for integer values and
+NV for floating point.  Let's try something a little more complicated:</p>
+<pre>  $foo = 42;
+  $foo = $foo + 0.4077;
+  print Dump($foo);</pre>
+
+<p>We take an integer and add a floating point number to it.  What
+we see is rather odd...</p>
+<pre>  SV = PVNV(0x81adb10) at 0x8170efc
+    REFCNT = 1
+    FLAGS = (PADBUSY,PADMY,NOK,pNOK)
+    IV = 42
+    NV = 42.4077
+    PV = 0</pre>
+
+<p>...unless you know how how to read this.  Now there's two values in
+here, the IV (integer value) and the NV (floating point.)  The
+important thing to read is that only the NOK flags is there - meaning
+that only the NV value is valid and should be used by the system (and
+anything else, like the old IV, should be ignored.)</p>
+<p>The same thing happens when you get a string and add something to it.
+A normal string like this:</p>
+<pre>  my $baz = "42";
+  print Dump($baz);</pre>
+
+<p>Looks like this:</p>
+<pre>  SV = PV(0x815de80) at 0x8170efc
+    REFCNT = 1
+    FLAGS = (PADBUSY,PADMY,POK,pPOK)
+    PV = 0x816db20 "42"\0
+    CUR = 2
+    LEN = 3</pre>
+
+<p>Note we've got a PV value now and a POK flag.  As soon as we try
+and do any maths on it:</p>
+<pre>  my $baz = "42";
+  $baz = $baz + 1;
+  print Dump($baz);</pre>
+
+<p>It loses it's POK flag and updates the IV flag.</p>
+<pre>  SV = PVIV(0x815e290) at 0x8170efc
+  REFCNT = 1
+  FLAGS = (PADBUSY,PADMY,IOK,pIOK)
+  IV = 43
+  PV = 0x816db20 "42"\0
+  CUR = 2
+  LEN = 3</pre>
+
+<h2>Fitting things in</h2>
+<p>Where, you ask, am I going with this?  Well besides giving you an
+insight into how Perl works I have a point to make about the size of
+data you can store in an IV and maintain accuracy.  Well we've seen
+how perl automatically updates it's scalars from an IV to a NV when it
+can't represent the number as an IV.  Let's look at some other cases where
+this happens:</p>
+<pre>  my $buzz = "100000000000000000";
+  $buzz = $buzz + 0;
+  print Dump($buzz);</pre>
+
+<p>This prints the confusing hodge podge that is:</p>
+<pre>  SV = PVNV(0x81adb08) at 0x8170efc
+    REFCNT = 1
+    FLAGS = (PADBUSY,PADMY,NOK,pNOK)
+    IV = -1
+    NV = 1e+17
+    PV = 0x816de10 "100000000000000000"\0
+    CUR = 18
+    LEN = 19</pre>
+
+<p>What we can see here is that the string has been converted into a
+number, but that number was too big to fit inside an IV on my
+platform.  The biggest number you can fit in an IV depends on your
+platform and the version of perl you're running (With perl 5.8.X and a
+64 bit platform it's quite big indeed, but with my lowly 32 bit system
+it's quite small.) Once a number is bigger than the number of bits
+that your system has available to represent an integer, the only field
+that can hold the number is the NV.  However this stores it as 1 plus
+ten to the power of 17 rather than counting each number one by one.
+The trouble is the representation of the number is approximate.  For
+example, if we do this:</p>
+<pre>  my $buzz = "100000000000000001";
+  $buzz = $buzz + 0;
+  print $buzz;</pre>
+
+<p>We get "1e+17" printed out because the floating point number is unable
+to accurately store 1.00000000000000001e+17 in it in much the same way
+as the figure was unable to be stored in the IV value.</p>
+<p>This disturbing approximation means that this program, which we think
+should go on for ever, actually does terminate:</p>
+<pre>  my $c = 0;
+  $c++ while ($c+1 &gt; $c);
+  print "$c\n";</pre>
+
+<p>On my computer this eventually will terminate and print</p>
+<pre>  9.00719925474099e+15</pre>
+
+<p>(Of course, it will take it about two hundred and thirty years to
+do so)</p>
+<p>So the question is, if we need to use really big numbers, how do we
+maintain precision?</p>
+<h2>Math::BigInt</h2>
+<p>The solution, as often is the case, is to use a module.  In this case
+it's the <b>Math::BigInt</b> module that creates objects that represent
+numbers that can be arbitrary sized scalars.  Because of the wonders of
+overloading these objects can be manipulated with the standard
+mathematical operators</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load the extension library
+  use Math::BigInt;</pre>
+
+<pre>  # create some numbers
+  my $op = Math::BigInt-&gt;new(4);
+  my $aj = Math::BigInt-&gt;new(3);</pre>
+
+<pre>  # work out the hypotenuse
+  my $hy = sqrt($op**2 + $aj**2);
+  print "hy: $hy\n";</pre>
+
+<p>The snazzy thing about Math::BigInt is that you can use numbers as
+large as you want for calculations</p>
+<pre>  my $x = Math::BigInt-&gt;new("100_000_000_000_000_000";);
+  my $y = Math::BigInt-&gt;new("1");
+  print $x+$y;</pre>
+
+<p>This correctly prints:</p>
+<pre>  100000000000000001</pre>
+
+<p>And it it hasn't lost the precision.  Isn't <b>Math::BigInt</b> wonderfully
+simple to use?  Of course, the price you pay for all this extra
+precision is speed.  We can attempt to benchmark the comparative speed
+of running normal increment and using increment on a Math::BigInt
+object:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  use Benchmark qw(:all);
+  use Math::BigInt;</pre>
+
+<pre>  cmpthese(10, {
+    'native' =&gt; q{my $c = 1;
+                  $c++ while $c&lt;10000;
+                  print "$c\n"},
+    'bigint' =&gt; q{my $c = Math::BigInt-&gt;new("1");
+                  $c++ while $c&lt;10000;
+                  print "$c\n"}
+  });</pre>
+
+<p>This completely fails to produce any meaningful results.  We simply
+get this out the other end:</p>
+<pre>              (warning: too few iterations for a reliable count)
+           s/iter bigint native
+  bigint     3.15     --  -100%
+  native 4.00e-03 78700%     --</pre>
+
+<p>Which indicates that either the native version of the code is so
+fast compared to the Math::BigInt code that it's impossible to
+do a meaningful comparison.  The other worrying thing is the memory
+requirements to store a Math::BigInt number compared to a normal
+scalar:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load the extensions
+  use Devel::Size qw(total_size);
+  use Math::BigInt;</pre>
+
+<pre>  # output
+  print "native is ".total_size(3)."\n";
+  print "bigint is ".total_size(Math::BigInt-&gt;new("3"))."\n";</pre>
+
+<p>This prints:</p>
+<pre>  native is 16
+  bigint is 271</pre>
+
+<p>Meaning that <b>Math::BigInt</b> objects are 16 times bigger than normal
+numbers on my system.</p>
+<h2>Other Math::Big classes</h2>
+<p>If you want even more precision, and by this I mean floating point
+numbers, then you can use <b>Math::BigFloat</b> instead.  This creates
+objects that are like <b>Math::BigInt</b> numbers but instead these
+numbers can hold floating point numbers:</p>
+<pre>  use Math::BigFloat;
+  my $x = Math::BigFloat-&gt;new("0.000000000000000001");
+  my $y = Math::BigFloat-&gt;new("0.0000000000000000001");
+  print $x + $y;</pre>
+
+<p>This, rather predictably, prints out </p>
+<pre>  0.0000000000000000011</pre>
+
+<p>Of course, this extra precision comes again at the code of yet another
+speed hit and <b>Math::BigFloat</b>'s even slower to use that <b>Math::BigInt</b>.</p>
+<p>One thing you can do to make your code more efficient is to use the
+<b>Math::BigInt::Lite</b> class.  This class uses less storage than a
+<b>Math::BigInt</b> but can only hold values that an IV would normally
+hold.  The cunning thing is that the <b>Math::BigInt::Lite</b> object will
+auto-promote itself to a proper <b>Math::BigInt</b> (in much the same way an IV will to a NV) when the
+object runs out of space.</p>
+<pre>  use Math::BigInt::Lite;
+  my $num = Math::BigInt::Lite-&gt;new("10");
+  print "num, '$num' isa ".ref($num)."\n";
+  $num = $num**100;
+  print "num, '$num' isa ".ref($num)."\n";</pre>
+
+<h2>Conclusion</h2>
+<p>You can see it's possible to do some very smart things with large numbers
+very easily with Perl, but only if you're willing to take the massive
+speed an memory hits.  There's no such thing as a free lunch.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/dist/Math-BigInt/lib/Math/BigFloat.pm">Math::BigFloat</a></li>
+<li><a href="http://search.cpan.org/dist/Math-BigInt-Lite/lib/Math/BigInt/Lite.pm">Math::BigInt::Lite</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:56 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

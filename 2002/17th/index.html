@@ -1,0 +1,173 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Acme::Intraweb</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 17th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Acme::Intraweb</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../16th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../18th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>I've been very serious this year, and I haven't chosen one Acme module
+yet for the calendar.  Well, it's time to change that.</p>
+<p>As you may already know, Acme modules represent the sillier side of
+Perl, the area of CPAN that's put aside for people to do odd things.
+The Acme namespace gives module authors a chance to show what can be
+done with new language concepts without being necessarily constrained
+by the actual rigours of trying to produce a genuinely useful module.
+It's the playground of Perl - and we all know how playing is an
+important part of learning.</p>
+<p>Because playing is so important, I'm glad to present <b>Acme::Intraweb</b>,
+a module that will let you install whatever modules you need to run
+your script automatically.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Acme::Intraweb">[Read the documentation for Acme::Intraweb on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>There's not much to the description for today's entry.  Using it
+is simplicity itself.  All you need to do is use <b>Acme::Intraweb</b>
+before you use any module.</p>
+<p>Let's demonstrate it's use with the <b>File::Slurp</b> module.  On previous
+days I've been writing this code this to read in a whole file:</p>
+<pre>  use IO::File;
+  my $fh = IO::File-&gt;new("filename","&lt;")
+    or die "Can't open 'filename': $!";
+  my $data;
+  {
+    local $/;         # set it to slurp the whole file
+    $data = &lt;$fh&gt;;    # slurp!
+  }</pre>
+
+<p>Now if I have <code>File::Slurp</code> installed I can use one of the handy
+shortcut functions that it exports to do all that in one for me:</p>
+<pre>   use File::Slurp;
+   my $data = read_file("filename");</pre>
+
+<p>The only trouble is that I can't guarantee it to be installed.
+However, if I install <b>Acme::Intraweb</b> then it'll all be installed
+automatically from the CPAN for me if it's not.  Handy.</p>
+<pre>  use Acme::Intraweb;
+  use File::Slurp;     # I haven't installed this yet </pre>
+
+<pre>  my $data = read_file("filename");</pre>
+
+<p>So when I execute the above and it runs the <code>use File::Slurp</code> and
+consequently realises that I don't have <b>File::Slurp</b> installed
+rather than dieing with an error it will attempt to install the
+<b>File::Slurp</b> module for me automatically.  Excellent.  However, on my
+system at least this will fail as as a normal user I don't have the
+rights on my system to install modules.  I need to be running as root
+to do that.</p>
+<p>One solution to this is to simply run the script as root.  This is
+fine on my own box where if the code that I'm playing with goes awry
+and destroys some vital system files it's just me that's going to end
+up doing the reinstall.  It's less good if I do it on a development
+box at work where my boss will be annoyed with me.  </p>
+<p>Rather than running the code What we really want to do is to tell Perl
+to just check the code as root.</p>
+<pre>  [root@gan] perl -c script.pl</pre>
+
+<p>The <code>-c</code> option tells perl that it should go though the compiling
+stage and detect any syntax errors in your code without actually
+running it.  This is useful when debugging code in general - I can't
+tell you how many times running this on a CGI from the command line
+has caught a missing semicolon.  In this particular case it's really
+useful to use the switch as in order to check for those syntax errors
+perl needs to load the modules that the script uses.  As loading the
+modules triggers the automatic installation, simply running perl with
+the <code>-c</code> flag as root should be enough to automatically install the
+modules for you on most scripts.  This technique may have some
+problems with scripts that load modules dynamically with require or
+string eval, but it should work on most scripts flawlessly.</p>
+<p>While we're talking about command line switches, I should point out
+the <code>-M</code> switch that can be used from the command line to load a
+module before the main script is run.  For example, we can use it to
+load the strict pragma on a script</p>
+<pre>  [mark@gan] perl -w -T -Mstrict myscript.pl</pre>
+
+<p>Using it with <b>Acme::Intraweb</b> means that we can run any script
+unaltered and have it automatically install the modules it requires.</p>
+<pre>  [root@gan] perl -MAcme::Intraweb -c anyscript.pl</pre>
+
+<p>Now that is convenient.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/author/MUIR/File-Slurp/lib/File/Slurp.pm">File::Slurp</a></li>
+<li><a href="http://www.astray.com/acme_modules/">The Acme::* Modules - Leon's YAPC::Europe talk</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:53 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

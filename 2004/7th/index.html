@@ -1,0 +1,310 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Term::ProgressBar</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 7th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Term::ProgressBar</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../6th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../8th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Some things take a long time - no matter how fast our computers get
+there's just no escaping the fact that sometimes things take more than
+a few seconds to get done.  When this happens it's nice to give the
+user some kind of feedback about how long the program will take to
+complete the task - if the task is progressing at all.</p>
+<p><b>Term::ProgressBar</b>, as the name implies, can be used to draw a
+progress bar in your terminal.  It will also handily handle the maths
+involved in updating the bar - which while not complicated, means that
+it's trivial to use...meaning that there's no excuse for not adding one
+to a long running process.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Term::ProgressBar">[Read the documentation for Term::ProgressBar on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Let's look at the simple case of downloading a collection of pages from
+the web.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load the modules I need to know
+  use Term::ProgressBar;
+  use LWP::Simple qw(mirror);</pre>
+
+<pre>  # work out what pages we're getting
+  my @users = qw( 2shortplanks acme pudge torgox mschwern );</pre>
+
+<pre>  # create a new progress bar
+  my $no_pages = @users;
+  my $progress = Term::ProgressBar-&gt;new({count =&gt; $no_pages});</pre>
+
+<pre>  # get all the pages
+  my $got = 0;
+  foreach my $user (@users)
+  {
+    # work out the url
+    my $url = "http://use.perl.org/~".$user."/journal/rss";</pre>
+
+<pre>    # download the url and save it to disk
+    mirror( $url, "${user}.rss" );</pre>
+
+<pre>    # update the progress bar
+    $progress-&gt;update(++$got);
+  }</pre>
+
+<p>This creates a bar on the terminal that looks like this:</p>
+<pre>    0% [                                                            ]</pre>
+
+<p>Which slowly updates</p>
+<pre>   60% [====================================                        ]</pre>
+
+<p>Until it's done</p>
+<pre>  100% [============================================================]</pre>
+
+<p>By passing extra options to the constructor we can ask it to estimate
+how long is left in the process based on how long the previous stages
+took:</p>
+<pre>  my $progress = Term::ProgressBar-&gt;new({
+    count =&gt; $no_pages,
+    ETA   =&gt; "linear", 
+  });</pre>
+
+<p>This gives us a much more useful progress bar:</p>
+<pre>   40% [===================                               ]0m07s Left</pre>
+
+<p>We can also name our progress bars:</p>
+<pre>  my $progress = Term::ProgressBar-&gt;new({
+    count =&gt; $no_pages,
+    ETA   =&gt; "linear",
+    name  =&gt; "downloading",
+  });</pre>
+
+<p>This places a name next to the progress bar on the left</p>
+<pre>  downloading:  40% [===============                      ]0m07s Left</pre>
+
+<h2>Printing Messages</h2>
+<p>If we want to provide more info to the screen, we might try printing
+out the url that we're currently downloading:</p>
+<pre>  # get all the pages
+  my $got = 0;
+  foreach my $user (@users)
+  {
+    # work out the url, print it out
+    my $url = "http://use.perl.org/~".$user."/journal/rss";
+    print "fetching $url\n";</pre>
+
+<pre>    # download the url and save it to disk
+    mirror( $url, "${user}.rss" );</pre>
+
+<pre>    # update the progress bar
+    $progress-&gt;update(++$got);
+  }</pre>
+
+<p>However, there's a problem with this.  Whenever the progress bar needs
+to be updated <b>Terminal::ProgressBar</b> has to sent control characters
+to the terminal to move the cursor back to the left of the screen so
+the new progress bar it's printing out covers up the old terminal bar.
+If we print anything out this causes the terminal to scroll and the
+old progress bar moves up the terminal:</p>
+<pre>  downloading:   0% [                                      ]
+  fetching http://use.perl.org/~2shortplanks/journal/rss
+  downloading:  20% [=======                               ]0m12s Left
+  fetching http://use.perl.org/~acme/journal/rss
+  downloading:  40% [===============                       ]0m08s Left
+  fetching http://use.perl.org/~pudge/journal/rss
+  downloading:  60% [======================                ]0m05s Left
+  fetching http://use.perl.org/~torgox/journal/rss
+  downloading:  80% [==============================        ]0m02s Left
+  fetching http://use.perl.org/~mschwern/journal/rss
+  downloading: 100% [======================================]-- DONE --</pre>
+
+<p>How ugly! (Actually, it's even worse than that - the line wraps don't
+happen nearly as nicely as I've put above.) For this reason
+<b>Terminal::ProgressBar</b> provides the <code>message</code> function that can be
+used in place of printing output to the terminal:</p>
+<pre>  # get all the pages
+  my $got = 0;
+  foreach my $user (@users)
+  {
+    # work out the url, print it out
+    my $url = "http://use.perl.org/~".$user."/journal/rss";
+    $progress-&gt;message("fetching $url\n");</pre>
+
+<pre>    # download the url and save it to disk
+    mirror( $url, "${user}.rss" );</pre>
+
+<pre>    # update the progress bar
+    $progress-&gt;update(++$got);
+  }</pre>
+
+<p><code>message</code> removes the old progress bar, prints the message, and then
+redraws the progress bar again.  This has the effect of slowly
+printing the debug text while leaving the progress bar as the last
+thing on the display:</p>
+<pre>  fetching http://use.perl.org/~2shortplanks/journal/rss              
+  fetching http://use.perl.org/~acme/journal/rss                      
+  fetching http://use.perl.org/~pudge/journal/rss                     
+  downloading:  40% [===============                       ]0m07s Left</pre>
+
+<h2>Frequently Updating Terminals</h2>
+<p>Printing things out to terminals is fast - but not that fast.  If
+we're connected to the terminal over a slow link (for example, sshed
+in over a GPRS modem) then the time taken to print to the terminal may
+start being a significant time of the run.  Even the fast terminals on
+our whizzy laptops may not be able to keep up if the time taken to run
+something is quick.</p>
+<p>Let's write an example that runs though a thousand iterations without
+doing anything time consuming.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  use Term::ProgressBar;</pre>
+
+<pre>  my $progress = Term::ProgressBar-&gt;new({
+    count =&gt; 10_000,
+    name  =&gt; "test",
+  });</pre>
+
+<pre>  my $got = 0;
+  for (1..10_000)
+  {
+    ++$got;
+    $progress-&gt;update($got);
+  }</pre>
+
+<p>Running this on my laptop takes about nine seconds:</p>
+<pre>  bash$ time perl doit
+  test: 100% [=======================================================]
+  real    0m9.448s
+  user    0m3.860s
+  sys     0m0.200s
+  bash$</pre>
+
+<p>Commenting out the update statement:</p>
+<pre>  my $got = 0;
+  for (1..10_000)
+  {
+    ++$got;
+    # $progress-&gt;update($got);
+  }</pre>
+
+<p>And running it again gives very different results:</p>
+<pre>  bash$ time perl doit
+  test:   0% [*                                            ]
+  real    0m0.243s
+  user    0m0.170s
+  sys     0m0.030s
+  bash$</pre>
+
+<p>So, what can we do to improve the situation?  Well, we really only
+need to update the progress bar when it's time to draw the next <code>=</code>
+on the screen.  Since the progress bar object knows how wide the
+terminal is (68 chars in the examples above), and how many steps there
+are in total (ten thousand) it can work out at what point after the
+current update an update to the screen is actually needed.  It returns
+that number from the &lt;update&gt; method so we can modify the code to only
+call <code>update</code> again when you reach that number:</p>
+<pre>  my $got = 0;
+  my $needed = 0;
+  for (1..10_000)
+  {
+    ++$got;
+    $needed = $progress-&gt;update($got)
+       if $got &gt;= $needed;
+  }</pre>
+
+<p>Which is much quicker:</p>
+<pre>  bash$ time perl doit
+  test: 100% [=======================================================]
+  real    0m4.686s
+  user    0m1.310s
+  sys     0m0.070s
+  bash$ </pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/perldoc?LWP::Simple">LWP::Simple</a></li>
+<li><a href="http://search.cpan.org/perldoc?LWP::Parallel">LWP::Parallel - download much more efficiently than explained above</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:58 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

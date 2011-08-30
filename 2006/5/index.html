@@ -1,0 +1,206 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" 
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>2006 Perl Advent Calendar: wACKet auf!</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body>
+<h1><a href="../">Perl Advent Calendar 2006-12</a>-05</h1>
+<h2 align="center">W<em>ack</em>et auf!</h2>
+<h3 align="center">by Shlomi Fish</h3>
+
+<p>
+First off, a confession: I spent so much time today trying to integrate
+the subject of this feature with <a href="http://www.vim.org/">Vim</a>, I
+decided to write about it here. I was initailly unsuccessful due to a bug in
+present in my relatively old version, since fixed on CPAN. That's what you get
+for being an "early adopter".
+</p>
+
+<p>
+Andy 'petdance' Lester recently released the useful command line utility
+<tt><a href="http://petdance.com/ack/">ack</a></tt>. It is similar to the
+venerable <tt>grep</tt>, and primarily intended for scanning trees of code,
+especially such trees that contain code in many different languages.
+<tt>ack</tt> command lines  tend to be much shorter than the equivalent
+<tt>grep -r</tt> or <tt>find</tt> command lines. <tt>ack</tt>'s only non-core
+requirement is Andy's <a href="http://search.cpan.org/search?module=File::Next">File::Next</a>, which is similar to <a href="../2/">File::Find::Object</a>
+</p>
+
+<h2>Let's start... searching!</h2>
+
+<p>
+Our corpus for this example is the 
+<a href="http://www.parrotcode.org/">parrot source tree</a>, which is about as
+heterogenous as a source tree as you can get. For the terminally curious: we
+grabbed a copy from the subversion repository, and then installed ack from
+CPAN in the customary manner like so:
+</p>
+
+<pre>
+$ svn co -r 15920 http://svn.perl.org/parrot/trunk
+<span class="c">#Command output omitted.</span>
+$ perl -MCPAN -e "install App::Ack"
+<span class="c">#Command output omitted.</span>
+</pre>
+
+<p>
+Now we can <tt>cd</tt> into the parrot trunk and start playing with it, and
+note that it marks up its output with color on ANSI capable terminals.
+
+<pre style="color: #ccc; background: black; font-name: fixedsys, lucida console, terminal, vga, monospace; line-height: 1; letter-spacing: 0;">
+$ ack 'fprintf.*Bad expr' .
+<span style="color: #0f0">languages/m4/src/eval.c</span>
+291:      <span style="color:#ff0">fprintf( stderr, "Bad expr</span>ession in eval (missing right parenthesis): %s",
+296:      <span style="color:#ff0">fprintf( stderr, "Bad expr</span>ession in eval: %s", expr);
+300:      <span style="color:#ff0">fprintf( stderr, "Bad expr</span>ession in eval (bad input): %s", expr);
+304:      <span style="color:#ff0">fprintf( stderr, "Bad expr</span>ession in eval (excess input): %s", expr);
+</pre>
+
+<p>
+<tt>ack</tt> accepts a perl regular expression as its first argument. The other
+arguments are path names. We specified "." (the current directory) and as we 
+can see <tt>ack</tt> proceeded to recurse the branch, which it does by default.
+The first thing you probably notice is that the user-friendly output format. However, it will produce a more machine readable, colorless grep-like
+format (<tt>${filename}:${line_num}:${line}</tt>) if its output is piped to
+another program:
+</p>
+
+<pre>
+$ ack 'fprintf.*Bad expr' . | cat<span class="c">
+languages/m4/src/eval.c:291:      fprintf( stderr, "Bad expression in eval (missing right parenthesis): %s",
+languages/m4/src/eval.c:296:      fprintf( stderr, "Bad expression in eval: %s", expr);
+languages/m4/src/eval.c:300:      fprintf( stderr, "Bad expression in eval (bad input): %s", expr);
+languages/m4/src/eval.c:304:      fprintf( stderr, "Bad expression in eval (excess input): %s", expr);</span>
+</pre>
+
+<p>
+This allows it to be used as a drop-in replacement  for grep in text editors
+and other tools. Something else you might notice is that despite the fact that
+it operated on a Subversion working copy, it didn't display results from the
+copies of the files inside the <tt>.svn</tt> directories. This is more than we
+can say for a simple <tt>grep -r</tt>:
+</p>
+
+<pre>
+$ grep -rn 'fprintf.*Bad expr' .<span class="c">
+./languages/m4/src/.svn/text-base/eval.c.svn-base:291:      fprintf( stderr, "Bad expression in eval (missing right parenthesis): %s",
+./languages/m4/src/.svn/text-base/eval.c.svn-base:296:      fprintf( stderr, "Bad expression in eval: %s", expr);
+./languages/m4/src/.svn/text-base/eval.c.svn-base:300:      fprintf( stderr, "Bad expression in eval (bad input): %s", expr);
+./languages/m4/src/.svn/text-base/eval.c.svn-base:304:      fprintf( stderr, "Bad expression in eval (excess input): %s", expr);
+./languages/m4/src/eval.c:291:      fprintf( stderr, "Bad expression in eval (missing right parenthesis): %s",
+./languages/m4/src/eval.c:296:      fprintf( stderr, "Bad expression in eval: %s", expr);
+./languages/m4/src/eval.c:300:      fprintf( stderr, "Bad expression in eval (bad input): %s", expr);
+./languages/m4/src/eval.c:304:      fprintf( stderr, "Bad expression in eval (excess input): %s", expr);</span>
+</pre>
+
+<p>
+In typical DWIM fashion, <tt>ack</tt> does not descend into such directories
+as <tt>.svn</tt>, <tt>blib</tt>, <tt>CVS</tt>, because they obscure the useful
+results.</p>
+
+<h2>Irregular Expressions</h2>
+
+<p>
+As you're probably aware, there are many regular expression dialects in common
+use. Since <tt>ack</tt> is written in perl, it makes the full power of perl
+regular expressions available to you. So for example we can say:
+</p>
+
+<pre>$ ack '\b\$pattern\s*' .</pre>
+
+<p>This is much more convenient and less confusing than the myriad flavors
+of <tt>grep</tt> out there, including those with PCRE syntax which is
+<a href="http://www.slabihoud.de/spampal/pcrecompat.html">not fully
+compatible</a> with perl's regular expressions. As an aside, note that PCRE
+support is not even available in
+<a href="https://launchpad.net/distros/ubuntu/+source/grep/+bug/15051">all
+modern builds</a> of GNU grep.</p>
+
+<h2>Filetype Identification</h2>
+
+<p>
+<tt>ack</tt> has options to search specific file types.
+For example we can say:
+</p>
+
+<pre style="color: #ccc; background: black; font-name: fixedsys, lucida console, terminal, vga, monospace; line-height: 1; letter-spacing: 0;">
+$ ack --perl fprintf .
+<span style="color:#0f0">tools/build/pbc2c.pl</span>
+266:            <span style="color:#ff0">fprintf</span>(stderr, "\t" INTVAL_FMT ": %s\n", i, argv[i]);
+
+<span style="color:#0f0">tools/dev/lib_deps.pl</span>
+410:<span style="color:#ff0">fprintf</span>     stdio.h
+619:v<span style="color:#ff0">fprintf</span>    stdio.h
+</pre>
+
+<p>
+To look for occurences of "fprintf" in Perl files. Note that <tt>--perl</tt>
+will search several popular extensions for Perl files, but also files whose
+shebang-lines point to perl. We can even specify more than one file type,
+or there longopt <tt>--no$lang</tt> counterpart.
+</p>
+
+
+<h2>Integration with Editors</h2>
+
+<h3>Integrating ack with Vim</h3>
+
+<p>
+A naive way to see ack results in vim's quickfix buffer would be to use the 
+<a href="http://vimdoc.sourceforge.net/htmldoc/quickfix.html#:cexpr">cexpr 
+command</a>:
+</p>
+
+<pre>:cexpr system('ack --perl map .')</pre>
+
+<p>
+An alternative would be to set the 
+<a href="http://vimdoc.sourceforge.net/htmldoc/quickfix.html#:grep">:grep 
+command</a> to use ack instead of grep:
+</p>
+
+<pre>:set grepprg=ack</pre>
+
+<p>
+Then one can write <tt>:grep [ack arguments]</tt> to search using ack. However
+this prevents the use of <tt>grep</tt> itself, which may or may not be an issue
+for you. A better solution can be had by adding the following lines to one's
+<tt>.vimrc</tt> file:</p>
+
+<pre>
+function! Ack_Search(command)
+    cexpr system("ack " . a:command)
+endfunction
+
+command! -nargs=+ -complete=file Ack call Ack_Search(&lt;q-args&gt;)
+</pre>
+
+<p>
+This snippet defines a new Ex command called ":Ack" that searches using ack
+and displays the results. Whereby one might issue:
+</p>
+
+<pre>:Ack --perl map .</pre>
+
+<h3>Integrating ack with Emacs</h3>
+
+<p>
+To integrate ack with XEmacs, include <a href="emacs-ack.el">this code</a>
+in <tt>~/.xemacs/custom.el</tt>. It will provide access via "M-x ack".</p>
+
+<em>This code was only tested in XEmacs and may require some adaptation for GNU Emacs.</em>
+
+<h2>And then?</h2>
+<p>
+<tt>ack</tt> has <a href="http://use.perl.org/~petdance/journal/31763">many
+other nifty features</a>, and like any piece of software still under
+development it
+<a href="http://rt.cpan.org/Public/Dist/Display.html?Name=ack">has some
+bugs</a> too. So grab a copy and <tt>grep^Wack</tt> away, submitting patches
+along the way.
+</p>
+
+</body>
+</html>

@@ -1,0 +1,315 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Class::Accessor::Chained</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 3rd day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Class::Accessor::Chained</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../2nd/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../4th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>One of the most dreary jobs when writing objects is creating accessor
+methods.  These are the methods that people can use to simply get
+the current value and set new values for data  stored in your object.
+They're often trivial to write, taking no more than six or so lines of
+code and consist of nothing more than storing and retrieving the values
+from the hash.</p>
+<p>Of course, this being Perl, you can do without accessors if you want
+and directly access the elements inside the object hash.  This is a
+bad idea however, as it totally busts your abstraction layer.  If at a
+later date you want to put some code in to check that people are only
+setting values to a valid value, or you want to instead of storing the
+data directly in the hash in one field you want to compute it from
+several sources, you're stuffed.  You really want the flexibility of
+accessors</p>
+<p>So, we want the accessors, but we don't want to go though the hassle
+of writing, potentially debugging, and maintaining them.  What we need
+is some way to automatically create the simple accessors
+programatically.  This is where <b>Class::Accessor</b> and
+<b>Class::Accessor::Chained</b> comes in.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Class::Accessor::Chained">[Read the documentation for Class::Accessor::Chained on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Let's consider a simple user object.  The user has a firstname, a surname,
+and a date of birth (dob.)  The simplest way to start coding it is like
+this:</p>
+<pre>  package User;</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # a simple constructor</pre>
+
+<pre>  sub new
+  {
+    my $class = shift;
+    my $self  = bless {}, $class;
+    return $self;
+  }</pre>
+
+<p>Then we have to code a whole bunch of accessor methods for the
+firstname, surname and dob.  We're going to be defining "get/set"
+methods - methods that return the value if you call them without any
+arguments, but if called with arguments instead set the value. Note
+that all three methods are exactly the same, they're just using
+different keys on the object hash.</p>
+<pre>  sub first
+  {
+     my $self = shift;
+     $self-&gt;{first} = shift if @_;
+     return $self-&gt;{first};
+  }</pre>
+
+<pre>  sub surname
+  {
+     my $self = shift;
+     $self-&gt;{surname} = shift if @_;
+     return $self-&gt;{surname};
+  }</pre>
+
+<pre>  sub dob
+  {
+     my $self = shift;
+     $self-&gt;{dob} = shift if @_;
+     return $self-&gt;{dob};
+  }</pre>
+
+<p>To end this file we simply need to add a statement that returns a true
+value so Perl knows that it loaded the file okay when it uses the module.</p>
+<pre>  # return true
+  1;</pre>
+
+<p>We can now get down to using this module in another class as we
+normally would, creating a new instance with the constructor...</p>
+<pre>  use User;
+  my $user = User-&gt;new();</pre>
+
+<p>...and then use those accessor methods first to set values...</p>
+<pre>  # set their name
+  $user-&gt;first("Jesus");
+  $user-&gt;surname("Christ");</pre>
+
+<pre>  # and their date of birth
+  $user-&gt;dob( DateTime-&gt;new(
+    year  =&gt; 1,
+    month =&gt; 12,
+    day   =&gt; 25,
+  ));</pre>
+
+<p>...and then get the values back by calling the same methods with no
+arguments:</p>
+<pre>  print $user-&gt;first, " was born on ",
+        $user-&gt;dob-&gt;ymd, "\n";</pre>
+
+<h2>Improving Things with Class::Accessor</h2>
+<p>Though that approach worked we had to write a very large quantity of
+code to do what is a simple thing.  Matters would be much worse if we
+had ten, twenty or fifty accessors.  They'd be pages on pages of these
+accessor methods defined, each one potentially a place where we could
+make a typo (using the wrong key on the object hash for example) and
+introduce bugs.</p>
+<p>What we need to do is have these simple methods automatically
+generated for us so we don't have to do any work.  We could do this
+with a macro in our editor, but we've got Perl at our fingertips - why
+not just get it to do it for us?</p>
+<p>By using
+<b>Class::Accessor</b> as a base class for our module we inherit the
+<code>mk_accessors</code> class method.  When called this creates simple
+get/set methods in the class.  The following code completely replaces
+the long drawn out code from above:</p>
+<pre>  package User;
+  use base qw(Class::Accessor);</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # define our accessors
+  __PACKAGE__-&gt;mk_accessors(qw( first surname dob ));</pre>
+
+<pre>  # return true;
+  1;</pre>
+
+<p>You'll notice we've also done away with the constructor too.
+<b>Class::Accessor</b> defines a <code>new</code> method that simply returns
+a blessed hash reference of the passed class - and since we're
+inheriting from it we get that simple constructor for free.</p>
+<p>Of course, just by using <b>Class::Accessor</b> we're not forced to define
+<i>all</i> our accessors with <b>Class::Accessor</b>.  For example, if we
+wanted to rewrite our <code>dob</code> accessor to check that it was being
+passed a <b>DateTime</b> object, we could easily do that:</p>
+<pre>  package User;
+  use base qw(Class::Accessor);</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  use Scalar::Util qw(blessed);</pre>
+
+<pre>  # define our accessors
+  __PACKAGE__-&gt;mk_accessors(qw( first surname ));</pre>
+
+<pre>  sub dob
+  {
+    my $self = shift;</pre>
+
+<pre>    # return the current value if no new value passed
+    return $self-&gt;{dob} unless @_;</pre>
+
+<pre>    # check we've been passed a DateTime
+    my $dt = shift;
+    die "Argument to dob method must be a DateTime"
+      unless blessed($dt) &amp;&amp; $dt-&gt;isa("DateTime");</pre>
+
+<pre>    $self-&gt;{dob} = $dt;
+  }</pre>
+
+<pre>  # return true;
+  1;</pre>
+
+<p>It just means for the simple accessors, we no longer have to write the
+code.  Less effort all round, more time that the programmer can spend
+in the pub rather than increasing their RSI.</p>
+<h2>Chained Accessors</h2>
+<p>Let's consider for a moment the problem of object initialisation.  We
+want to create a new object:</p>
+<pre>  my $mark = User-&gt;new();
+  $mark-&gt;first("Mark");
+  $mark-&gt;surname("Fowler");
+  $mark-&gt;dob(DateTime-&gt;new( year =&gt; 1978, month =&gt; 3, day =&gt; 4 ));</pre>
+
+<p>Note how we repeat <code>$mark</code> each time.  It's a lot of fiddly code to
+write, and can get really tiresome.  The worst thing is when I copy
+and paste that code to create my second object (as I often do when I'm
+writing test cases), I have to search and replace all the <code>$mark</code> for
+<code>$dave</code>.  What a pain.  What we really want to do is write code to
+eliminate that.</p>
+<p>One thing we can do is make our accessors <i>chained</i>.  This means that
+when we set a new value for our accessor we return the object.  An example
+method that does this looks something like this:</p>
+<pre>  sub first
+  {
+    my $self = shift;
+    return $self-&gt;{first} unless @_;
+    $self-&gt;{first} = shift;
+    return $self;
+  }</pre>
+
+<p>The advantage of this is that each time we set a value we get returned
+something that we can call another method on.  So we can rewrite our
+code to look like this:</p>
+<pre>  # create object
+  my $mark = User-&gt;new();</pre>
+
+<pre>  # set up object
+  $mark-&gt;first("Mark")
+       -&gt;surname("Fowler")
+       -&gt;dob(DateTime-&gt;new( year =&gt; 1978, month =&gt; 3, day =&gt; 4 ));</pre>
+
+<p>Or, since the last accessor in the chain <b>also</b> returns the object
+we can do the construction and initilisation in one step</p>
+<pre>  # create object
+  my $mark = User-&gt;new()
+                 -&gt;first("Mark")
+                 -&gt;surname("Fowler")
+                 -&gt;dob(DateTime-&gt;new( year =&gt; 1978, month =&gt; 3, day =&gt; 4 ));</pre>
+
+<p>Creating chained methods automatically instead of normal get/set methods
+is trivial - instead of inheriting from <b>Class::Accessor</b> we inherit
+from <b>Class::Accessor::Chained</b>.  That's all there is to it:</p>
+<pre>  package User;
+  use base qw(Class::Accessor::Chained);</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # define our accessors
+  __PACKAGE__-&gt;mk_accessors(qw( first surname dob ));</pre>
+
+<pre>  # return true;
+  1;</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/perldoc?Class::Accessor">Class::Accessor</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:57 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,268 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: File::Find::Rule</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 11th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">File::Find::Rule</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../10th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../12th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>One of the core modules distributed with perl, <b>File::Find</b>, allows
+you to find files by recursively searching though directory paths on
+your hard drive.  This is good example of when to use a module, as
+although the task may sound simple to write yourself it's possible to
+get into all kinds of trouble in some special cases.</p>
+<p>The trouble with <b>File::Find</b> is that it's quite hard to use, and not
+something beginners can easily get to grips with.  It uses a callback
+interface similar to that I
+<li><a href="http://www.perladvent.org/2002/1st">described</a></li> for <b>URI::Find</b>.  As
+well as being confusing this isn't the most convenient interface to
+use most of the time.</p>
+<p>Enter <b>File::Find::Rule</b> a module that does nothing but provide a new,
+simpler, interface for <b>File::Find</b>.  </p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?File::Find::Rule">[Read the documentation for File::Find::Rule on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>So, I was pondering to myself, if I actually buy myself an mp3 player,
+then what mp3s have I got on my laptop <i>right now</i> that I could install
+onto it?</p>
+<pre>  # lookup all the files below /home/mark/mp3
+  @files = File::Find::Rule-&gt;file
+                           -&gt;in("/home/mark/mp3");</pre>
+
+<p>This populates @files with a list of the countless mp3s I carry around
+with me on my laptops.  They're all fully qualified paths like so:</p>
+<pre>  '/home/mark/mp3/madness/It_Must_Be_Love.mp3'</pre>
+
+<p>If I'd specified a relative path to <b>File::Find::Rule</b>. I'd have got
+a relative path back again.  For example this code:</p>
+<pre>  # change to my home dir
+  chdir("/home/mark");</pre>
+
+<pre>  # find all the files in the 'mp3' dir in there
+  @files = File::Find::Rule-&gt;file()
+                           -&gt;in("mp3");</pre>
+
+<p>populates <code>@files</code> with a list of mp3s that look like:</p>
+<pre>  'mp3/madness/It_Must_Be_Love.mp3'</pre>
+
+<p>You can easily convert between relative paths and absolute paths
+whenever you need to by using the <b>File::Spec</b> module.</p>
+<pre>  # use the functional form of File::Spec where it'll export
+  # 'abs2rel' and 'rel2abs' into our namespace.
+  use File::Spec::Functions qw(:ALL);</pre>
+
+<pre>  # convert the absolute path to one relative to "/home/mark"
+  print abs2rel("/home/mark/mp3/madness/It_Must_Be_Love.mp3",
+                "/home/mark") . "\n";</pre>
+
+<pre>  # convert the relative path to an absolute, assuming it
+  # starts from "/home/mark"
+  print rel2abs("mp3/madness/It_Must_Be_Love.mp3",
+                "/home/mark") . "\n";</pre>
+
+<p>Omitting the second parameter (the <code>"/home/mark"</code>) will cause
+<code>File::Spec</code> to just use the current working directory as it's base -
+probably what we wanted anyway.</p>
+<p>Back in our situation, I've suddenly realised that when I rip my music
+from CDs rather than downloading it from the web, I use the ogg
+format which I store in my mp3 dir as they're pretty much the same
+thing.  However, since the mp3 player I'm looking at doesn't yet support
+oggs I'm not interested in those (oops, I sense much re-encoding in my
+future.)  How do I just find the mp3 files?</p>
+<pre>  my @files = File::Find::Rule-&gt;file
+                              -&gt;name('*.mp3')
+                              -&gt;in("/home/mark/mp3");</pre>
+
+<p>So you can see we're chaining rules together.  First we say that the
+file must be a file (we could have used the <code>directory</code> method to
+get a list of directories back.)  You can also see that the <code>name</code>
+method takes a standard unix file glob - you can use a standard perl
+regular expression in it's place if you want, by using the <code>qr</code>
+operator.</p>
+<pre>  my @files = File::Find::Rule-&gt;file
+                              -&gt;name( qr{\.mp3$} )
+                              -&gt;in("/home/mark/mp3");</pre>
+
+<p>I get another thought.  What about all the mp3s of sound effects
+I've downloaded?  Better not count any of them, so better disregard
+all files smaller than two hundred kilobytes.</p>
+<pre>    my @files = File::Find::Rule-&gt;file
+                                -&gt;name('*.mp3')
+                                -&gt;size("&gt;=200K")
+                                -&gt;in("/home/mark/mp3");</pre>
+
+<p>And all the music I downloaded in the last week may or may not be
+any good, so we'd better not count that either.</p>
+<pre>    my $last_week = time()-(7*24*60*60);
+    my @files = File::Find::Rule-&gt;file
+                                -&gt;name('*.mp3')
+                                -&gt;size("&gt;=200K")
+                                -&gt;mtime("&lt;$last_week")
+                                -&gt;in("/home/mark/mp3");</pre>
+
+<h2>Combining and negating rules</h2>
+<p>You can set up negative rules with the not clause.  You simply need
+create another rule that hasn't been executed with an in clause.</p>
+<pre>   my $backup = File::Find::Rule-&gt;file
+                                -&gt;name("*~","*.bak","#*#");</pre>
+
+<pre>   # find large documents
+   my @files = File::Find::Rule-&gt;file
+                               -&gt;size("&gt;30K")
+                               -&gt;not( $backup )
+                               -&gt;in("/home/mark/docs");</pre>
+
+<p>Rules that haven't been executed with <code>in</code> can be happily combined.
+For example, finding files that are bigger than they should be:</p>
+<pre>   my $mp3 = File::Find::Rule-&gt;file
+                             -&gt;named('*.mp3')
+                             -&gt;size("&gt;4MB");</pre>
+
+<pre>   my $jpg = File::Find::Rule-&gt;file
+                             -&gt;named('*.')
+                             -&gt;size("&gt;350KB");</pre>
+
+<pre>   my @files = File::Find::Rule-&gt;or($mp3, $jpg)
+                               -&gt;in("/home/mark");</pre>
+
+<p>As this <code>or</code> is a kind of lazy evaluation it can be used to help your
+code not search in particular directories.  As way of an example
+consider the subversion version control system, and how keeps a
+'backup' copy of many files in your current directory in a directory
+inside it called <code>.svn</code>.  Say we want to find all of the <code>.pm</code> files
+in a directory, but don't want to find those pesky backup files:</p>
+<pre>    # look for '.svn' and fail
+    my $svn = File::Find::Rule-&gt;directory
+                              -&gt;name(".svn")
+                              -&gt;prune          # don't go into it
+                              -&gt;discard;       # don't report it</pre>
+
+<pre>    my $pm = File::Find::Rule-&gt;file
+                             -&gt;name("*.pm");</pre>
+
+<pre>    my @files = File::Find::Rule-&gt;or( $svn, $pm )
+                                -&gt;in("/home/mark/svn/advent/code");</pre>
+
+<p>As the <code>$svn</code> rule is checked first (it's the first statement in the
+<code>or</code>) it gets to decide that the rule should both not search inside
+the <code>.svn</code> directories (the <code>prune</code> command) and that the other rule
+in the <code>or</code> should not even be consulted (the <code>discard</code> command)
+about if the file can pass the rule.</p>
+<h2>File::Find::Rule Extension Modules</h2>
+<p><b>File::Find::Rule</b> has numerous extension modules.  One such instance
+is the <b>File::Find::Rule::MMagic</b> module that provides an interface
+for checking the mime type of a file.  For example, with this I can
+ignore spurious data (in my case normally oggs) that have been
+accidentally named with an mp3 extension:</p>
+<pre>    use File::Find::Rule::MMagic;</pre>
+
+<pre>    my @files = File::Find::Rule-&gt;file
+                                -&gt;name("*.mp3")
+	                        -&gt;magic('audio/mpeg')
+                                -&gt;in("/home/mark/mp3");</pre>
+
+<p>I can use the <b>File::Find::Rule::MP3Info</b> to look for tracks
+that are by a particular artist:</p>
+<pre>    use File::Find::Rule::MMagic;
+    use File::Find::Rule::MP3Info;</pre>
+
+<pre>    my @files = File::Find::Rule-&gt;file
+                                -&gt;name("*.mp3")
+	                        -&gt;magic('audio/mpeg')
+                                -&gt;mp3info( ARTIST =&gt; "Green Day")
+                                -&gt;in("/home/mark/mp3");</pre>
+
+<p>Note how I can load more than one extension module and they 'stack' -
+I get the ability to use rules from either module.</p>
+<h2>Legal Note</h2>
+<p>All mp3 files mentioned in this tutorial downloaded legally though
+licensed agents of the copyright holders.  All ogg files mention in
+this tutorial extracted from my personal CD collection for my own
+personal use only.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/author/JHI/perl-5.8.0/lib/File/Find.pm">File::Find</a></li>
+<li><a href="http://search.cpan.org/author/RCLAMP/File-Find-Rule/Extending.pod">Guide to Extending File::Find::Rule</a></li>
+<li><a href="http://search.cpan.org/author/RCLAMP/File-Find-Rule-MMagic/MMagic.pm">File::Find::Rule::MMagic</a></li>
+<li><a href="http://search.cpan.org/author/RCLAMP/File-Find-Rule-ImageSize/ImageSize.pm">File::Find::Rule::ImageSize</a></li>
+<li><a href="http://search.cpan.org/author/KAKE/File-Find-Rule-MP3Info/MP3Info.pm">File::Find::Rule::MP3Info</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:52 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

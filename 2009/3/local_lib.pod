@@ -1,0 +1,232 @@
+=pod
+
+=for advent_year 2009
+
+=for advent_day 03
+
+=for advent_title Support your local libraries!
+
+=for advent_author Stephen R. Scaffidi
+
+=pod
+
+M<local::lib> is a great tool for saving time and effort!
+
+Best practices these days suggest that you should do your best to avoid 
+installing CPAN modules as root, especially to the system's perl! Another
+best practice is to keep the modules for unrelated applications separate,
+lest an upgrade for one app break another. Furthermore, what if you want to
+experiment with the latest version of something but do not want to risk the
+stability of your system and apps? M<local::lib> can help with all of this!
+
+The two most common solutions for these scenarios?
+
+=pod
+
+Option 1: Build and install your own perl under your home directory and use nothing but that. Do it again for each application and experiment.
+
+=pod
+
+Option 2: Use the system perl, but install all the modules you need in a directory under your home dir. Make more directories as needed.
+
+=pod
+
+M<local::lib> is quite good at helping you manage option #2.
+
+=head2 Installing M<local::lib>
+
+B<Before you proceed, make sure your F<~/.cpan> dir is fully owned
+and writable by your user and that your cpan config (should be 
+F<~/.cpan/CPAN/MyConfig.pm>) is set up properly for building as a non-root
+user!>N<cpan_config> [I<assuming one is a CPAN shell user - ed.>]
+
+
+You want it available for everyone? Install in the usual way. Otherwise...
+if you either don't have root access or don't want to install M<local::lib>
+globally, there's another solution: Bootstrapping.
+
+There are detailed instructions for bootstrapping in M<local::lib>'s
+documentation but here's a condensed version:
+
+=begin pre
+
+  user@host:~$ cpan
+  cpan[1]> look local::lib
+  user@host:~/.cpan/build/local-lib-1...$ perl Makefile.PL --bootstrap=~/perl5
+  user@host:~/.cpan/build/local-lib-1...$ make && make test && make install
+  user@host:~/.cpan/build/local-lib-1...$ exit
+  cpan[2]> exit
+
+=end pre
+
+[I<or the equivalent with manual tarball build, just add that F<--bootstrap=~/perl5>
+to the Makefile.PL command. -ed.>]
+
+=pod
+
+Now, you'll want to update your shell config to make your new local lib
+available automagically. For example, if you use bash, do this:
+
+=begin pre
+
+  echo 'eval $(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib)' >>~/.bashrc
+  . ~/.bashrc
+
+=end pre
+
+=pod
+
+You can do something similar with other shells, like cshN<csh>
+
+=head2 Putting M<local::lib> to use:
+
+So, now that you have cpan configured and M<local::lib> installed, give it a
+whirl! Try installing something you don't already have, logged in as an 
+unprivileged user...
+
+=begin pre
+
+cpan TL1ng # I doubt any of you have (or need) this.
+
+=end pre
+
+=pod
+
+When it's done, you will be able to find those modules under your F<~/perl5>
+directory. Go ahead, install more. So far, everything I have tried installing
+using M<local::lib> has worked! (if it fails, it will almost certainly fail 
+being installed as root, too)
+
+While you have added a command to your shell rc file, you may want this
+functionality in your code, to make it clear what you want in your F<@INC>.
+
+To do so, just add this in your code:
+
+=begin code
+
+use local::lib q(~/perl5);
+
+=end code
+
+=pod
+
+It's that easy!
+
+Oh and one more thing... the directory F<~/perl5> is the default if you don't
+specify anything. Same goes for the F<--bootstrap> option for the
+F<Makefile.PL>! You can change it to anything you want, of course!
+
+=head2 Wrapping up...
+
+I find myself using M<local::lib> for all sorts of things these days. For
+example, I keep my F<~/perl5> dir under version control. If I mess something up,
+I can roll back at any time! Also, I now keep nearly all modules installed via
+CPAN there, and only use debian packaged modules for the system perl. My
+employer's website is now running out of a M<local::lib> because it turns out 
+the latest version of a certain CPAN module breaks things pretty bad!
+
+M<local::lib> may not be your cup of tea, or you may not need it now... but 
+when you finally do it's a great little hidden gem of the CPAN.
+
+=begin eds
+
+I will likely use F<perl -Mlocal::lib=$HOME/advent/lib> as it
+looks highly useful to keep stuff segregated, although M<inc> is a tool that pulls in a per-directory dotfile that modifies C<@INC> . - Eds
+
+=end eds
+
+=head2 Footnotes:
+
+=begin footnote cpan_config
+
+B<Take ownership of your F<~/.cpan> dir and config!>
+
+First thing you'll want is to make sure your CPAN client is configured
+correctly for building as yourself. So many people simply run C<sudo cpan>
+that this really is worth mentioning! If that's what you have done, chances
+are your F<~/.cpan> directory is actually owned by root! Furthermore, your 
+config may be directing cpan to write to other places outside your home
+directory!
+
+=pod
+
+So, we should fix all that...
+
+=pod
+
+Step 1, Permissions: you can either
+
+=pod
+
+- take ownership of your F<~/.cpan> dir:
+
+=begin pre
+
+sudo chown -R `getent passwd $USER | cut -d':' -f3,4` ~/.cpan
+
+=end pre
+
+- delete your F<~/.cpan> and start over:
+
+=begin pre
+
+sudo rm -rf ~/.cpan
+
+=end pre
+
+=pod
+
+Step 2, CPAN client config:
+
+=pod
+
+- create the config file if necessary:
+
+=begin pre
+
+mkdir -p ~/.cpan/CPAN && touch ~/.cpan/CPAN/MyConfig.pm
+
+=end pre
+
+- edit to contain at least the following:
+
+
+=begin code
+
+  $CPAN::Config = {
+    'cpan_home'         => qq[$ENV{HOME}/.cpan],
+    'build_dir'         => qq[$ENV{HOME}/.cpan/build],
+    'histfile'          => qq[$ENV{HOME}/.cpan/histfile],
+    'keep_source_where' => qq[$ENV{HOME}/.cpan/sources],
+    'prefs_dir'         => qq[$ENV{HOME}/.cpan/prefs],
+  };
+  1;
+
+=end code
+
+=pod
+
+Windows users, please note: you should use F<HOMEDIR> instead of F<HOME>.
+
+And that's it! If you blew away your F<~/.cpan> you may now want to run cpan (as
+yourself!) and let it auto-configure everything else and then select your 
+mirrors. Issue the F<o conf init> command if it doesn't ask to configure things
+on it's own.
+
+=end footnote
+
+=begin footnote csh
+
+B<csh recipe>
+
+=begin pre
+
+
+  perl -I$HOME/perl5/lib/perl5 -Mlocal::lib >> ~/.cshrc
+
+  source ~/.cshrc
+
+=end pre
+
+=end footnote
+

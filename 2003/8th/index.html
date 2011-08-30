@@ -1,0 +1,404 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: CGI::Application</title>
+</head>
+<style>
+
+
+
+.box {
+  background-color: white;
+  border-width: 2px; border-color: black; border-style: solid;
+  padding: 0.25em;
+  margin-top: 1em; margin-bottom: 1em;
+  margin-left: 2em; margin-right: 2em;
+}
+
+.camelimage {
+  border-width: 3px; border-color: black; border-style: solid;
+  width : 556;
+}
+
+body 	{ font:       Verdana, Geneva, Arial, Helvetica, sans-serif
+          color:      black;
+	}
+
+.doc         {  font: 90%       Verdana, Geneva, Arial, Helvetica, sans-serif; }
+.mylink      {  font: 90%       Verdana, Geneva, Arial, Helvetica, sans-serif; text-align: center; }
+
+.copyright   {  font: 60%       Verdana, Geneva, Arial, Helvetica, sans-serif; text-align: center; }
+.onthe       {  font: 60%       Verdana, Geneva, Arial, Helvetica, sans-serif; text-align: center; }
+.externalnav {  font: 60%       Verdana, Geneva, Arial, Helvetica, sans-serif; text-align: center; }
+.internalnav {  font: 60%       Verdana, Geneva, Arial, Helvetica, sans-serif; }
+.disablednav {  font: 60%       Verdana, Geneva, Arial, Helvetica, sans-serif; color: #aaaaaa }
+
+
+.hugeheading {  font: bold 250% Verdana, Geneva, Arial, Helvetica, sans-serif; text-align: center; }
+.bigheading  {  font: bold 180% Verdana, Geneva, Arial, Helvetica, sans-serif; text-align: center; }
+.modtitle    {  font: bold 130% Verdana, Geneva, Arial, Helvetica, sans-serif; text-align: center; }
+
+}
+
+dt,dd     { font:      90%  Verdana, Geneva, Arial, Helvetica, sans-serif }
+pre  	  { font:     100%  Monaco, ProFont, Courier, monospace; }
+
+a         { text-decoration: underline; }
+
+a:link	  { color: #1e2d39; }
+a:visited { color: #1e2d39; }
+\
+a:hover   {
+  color: red; 
+  text-decoration: underline;
+}
+
+a:active  { color: red; }
+
+img { display: block; }
+
+
+</style>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="/about">[about]</a> | <a href="/news">[news]</a> | <a href="/rss">[rss]</a> | <a href="/mirrors">[mirrors]</a> | <a href="http://www.perl.org/">[links]</a><br /><a href="/2000">[2000]</a> | <a href="/2001">[2001]</a> | <a href="/2002">[2002]</a> | <a href="/2003">[2003]</a> | <a href="/2004">[2004]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 8th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">CGI::Application</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="/2003/7th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="/2003/">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="/2003/9th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Writing a CGI script is a fairly simple task.  All you need
+to do is pull in some data and print out a correctly formatted
+data, and the <b>CGI</b> module can handle most of the nitty gritty
+details of this, like extracting parameters, or printing properly
+formatted headers, with ease.</p>
+<p>So why do most CGI scripts end up as tangled mess?  People start off
+simple, and sooner than they can say 'lickedy split' they've added a
+feature here, a special case there, and what was a simple linear
+script is now a complicated nest of conditionals and programing
+constructs.</p>
+<p>The solution is to turn your CGI script into a module.  This has
+numerous advantages, from streamlining your code into easily handled
+subroutines to allowing you to easily reuse code.  It has one major
+disadvantage though - your CGI routine will now need some flow of
+control mechanism to decide what method to call on the object to
+get the output that matches your input.</p>
+<p>This is where <b>CGI::Application</b> comes in.  I'm tempted to call it a
+framework for doing this kind of thing, but the term sounds too big
+and scary.  <b>CGI::Application</b> is simple - real simple - but just
+powerful enough to do the simple task of calling the right method in
+your class at the right time.  It's the kind of tool I like, something
+that can aid you in making that quick script just that little bit less
+ad-hoc and prone to bugs with hardly any more effort.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?CGI::Application">[Read the documentation for CGI::Application on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>The idea behind a CGI::Application package is that you subclass the
+<b>CGI::Applicaiton</b> package and define a set of extra methods in that
+package, each of which should return different HTML in different
+situation.  You then setup the application in such a way that based on
+the value of a certain CGI parameter - your <i>mode</i> parameter -
+different methods are called each time the module's <code>run</code> method is
+called.</p>
+<p>Let's write a quick <b>CGI::Application</b> application to convert colour
+names into triplets as means of demonstration of how this works.  A
+working version of this script is running <li><a href="http://fry.perladvent.org/colour/html.cgi">here</a></li>.</p>
+<p>We start off by creating a package that inherits from <b>CGI::Applicaiton</b>
+and turns on the language's safety features:</p>
+<pre>  package MarksColourApp;
+  use base qw(CGI::Application);</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<p>We then need to do a little setup for the <b>CGI::Application</b> by
+overriding the default <code>setup</code> method with one that sets up the
+application how we want it:</p>
+<pre>  sub setup
+  {
+     my $self = shift;</pre>
+
+<pre>     # set the mode we're going to use if no mode is passed 
+     # (i.e. it's the first time the script is called
+     $self-&gt;start_mode('name');</pre>
+
+<pre>     # set the name of the CGI parameter we're going to use
+     # to declare what mode we're in
+     $self-&gt;mode_param('mode');</pre>
+
+<pre>     # list all the run modes and what methods should be called
+     # for each mode.
+     $self-&gt;run_modes(
+       'name'  =&gt; 'name_mode',
+       'show'  =&gt; 'show_mode',
+     );
+  }</pre>
+
+<p>So we've named two methods <code>name_mode</code> and <code>show_mode</code> that will be
+called depending on what the <code>mode</code> cgi parameter is set to.  We
+still need to write these, but before we do, we create a little
+utility routine that wraps whatever we pass it in HTML markup and
+returns it:</p>
+<pre>  use HTML::Entities;</pre>
+
+<pre>  sub wrap_in_html
+  {
+    my $self  = shift;
+    my $title = encode_entities(shift);
+    my $body  = shift;</pre>
+
+<pre>    # wrap the body and return it
+    return &lt;&lt;"."
+  &lt;html&gt;
+   &lt;head&gt;&lt;title&gt;$title&lt;/title&gt;&lt;/head&gt;
+   &lt;body&gt;$body&lt;/body&gt;
+  &lt;/html&gt;
+  .
+  }</pre>
+
+<p>We've not got to create our modes.  It doesn't matter which order we
+write these as they're just methods that are called upon our objects
+and hence we can define them in any order.  Each of these methods
+should return our output (after passing it through <code>wrap_in_html</code>)
+rather than printing it out directly.  This is because the
+<b>CGI::Application</b> must have the chance to print out other things
+before the output we've just handed back to it is printed, such as the
+CGI header.  Let's start with <code>run_mode</code>, which just has to print
+out a form asking for the name of a colour:</p>
+<pre>  sub name_mode
+  {
+     my $self = shift;
+     return $self-&gt;wrap_in_html("Enter Colour",&lt;&lt;".");
+  &lt;h1&gt;Enter Colour&lt;h1&gt;
+  &lt;form&gt;
+   &lt;input type="hidden" name="mode"   value="show" /&gt;
+   &lt;input type="text"   name="colour" /&gt;
+   &lt;input type="submit" name="submit" value="Submit" /&gt;
+  &lt;/from&gt;
+  .
+  }</pre>
+
+<p>We then need to write our show mode.  This does the logical processing
+and decides what subroutine to call to display the correct HTML
+depending on if it recognised the colour or not.</p>
+<pre>  sub show_mode
+  {
+     my $self = shift;
+ 
+     # get the CGI object
+     my $cgi = $self-&gt;query;</pre>
+
+<pre>     # work out what colour name we've been passed.
+     my $colour_name = $cgi-&gt;param('colour');</pre>
+
+<pre>     # if we didn't get a colour, just show the name_mode again
+     unless ($colour_name)
+      { return $self-&gt;name_mode() }</pre>
+
+<pre>     # get the colour for that name, and if we didn't get a
+     # colour hex return an error
+     my $hex = $self-&gt;colour_name_to_hex($colour_name);
+     unless ($hex)
+      { return $self-&gt;no_such_colour_html($colour_name) }</pre>
+
+<pre>     # just show the normal html for that colour
+     return $self-&gt;hex_colour_html($colour_name, $hex)
+  }
+  
+  sub no_such_colour_html
+  {
+    my $self        = shift;
+    my $colour_name = encode_entities(shift);</pre>
+
+<pre>    return $self-&gt;wrap_in_html("No Such Colour", &lt;&lt;".");
+  &lt;h1&gt;No Such Colour&lt;/h1&gt;
+  &lt;p&gt;No colour '$colour_name' found.&lt;/p&gt;
+  &lt;p&gt;&lt;a href="?mode=name"&gt;re-enter&lt;/a&gt;&lt;/p&gt;
+  .
+  }</pre>
+
+<pre>  sub hex_colour_html
+  {
+    my $self        = shift;
+    my $colour_name = encode_entities(shift);
+    my $hex         = shift;</pre>
+
+<pre>    return $self-&gt;wrap_in_html("No Such Colour", &lt;&lt;".");
+  &lt;h1&gt;Colour Hex&lt;/h1&gt;
+  Colour '$colour_name' is:
+  &lt;table&gt;
+   &lt;tr&gt;
+    &lt;td bgcolor="#$hex"&gt;&lt;font color="white"&gt;#$hex&lt;/font&gt;&lt;/td&gt;
+    &lt;td bgcolor="#$hex"&gt;&lt;font color="black"&gt;#$hex&lt;/font&gt;&lt;/td&gt;
+   &lt;/tr&gt;
+  &lt;/table&gt;
+  &lt;p&gt;&lt;a href="?mode=name"&gt;re-enter&lt;/a&gt;&lt;/p&gt;
+  .
+  }</pre>
+
+<p>You can see one of the major advantages of using an application where
+all stages of the processes are methods straight away in this above
+code.  If <code>show_mode</code> gets called without a colour being filled in at
+all then we simply return the results of calling <code>name_mode</code>,
+reshowing the form to give the person another chance to enter.  The
+ability to change our execution path midflow makes error cases much
+easier to write without making the code too difficult to read.</p>
+<p>The above code used a utility method called <code>colour_name_to_hex</code> to
+get the hex values for the colour.  In this implementation we use the
+<b>Graphics::ColorNames</b> module to do our dirty work for us.</p>
+<pre>  use Graphics::ColorNames;</pre>
+
+<pre>  {
+    # create a hash that has mappings for colour names to hex
+    # values that only colour_name_to_hex can access (as it's
+    # the only routine inside these brackets)
+    my %NameTable;
+    tie %NameTable, 'Graphics::ColorNames', 'HTML';</pre>
+
+<pre>    sub colour_name_to_hex
+    {
+       my $self        = shift;
+       my $colour_name = shift;
+       return $NameTable{ $colour_name };
+    }
+  }</pre>
+
+<p>As all Perl modules the module should end in a true value to indicate
+to perl that it's been loaded okay</p>
+<pre>  # keep perl happy
+  1;</pre>
+
+<p>After all this is written all that is left to do is write the CGI script
+itself.  All this code has to to do is load and execute the module we've
+just written.</p>
+<pre>  #!/usr/bin/perl
+  
+  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load, instantiate, and execute our application.
+  use MarksColourApp;
+  my $cgiapp = MarksColourApp-&gt;new();
+  $cgiapp-&gt;run;</pre>
+
+<h2>Extending the Application</h2>
+<p>Because what we've just written is a module we can create alternate
+versions of the program by inheriting from the module and overriding
+methods.  For example, in the above code we only recognise the 16 or so
+HTML colours defined in the CSS spec.  If we want to recognise all of the
+standard 650ish colour names that are commonly used by XWindows we can
+override the code for the translation routine.</p>
+<pre>  package MarksXColourApp;
+  use base qw(MarksColourApp);</pre>
+
+<pre>  {
+    my %NameTable;
+    tie %NameTable, 'Graphics::ColorNames', 'X'; # use all X</pre>
+
+<pre>    sub colour_name_to_hex
+    {
+       my $self        = shift;
+       my $colour_name = shift;
+       return $NameTable{ $colour_name };
+    }
+  }</pre>
+
+<pre>  # return true to keep perl happy
+  1;</pre>
+
+<p>We obviously have to change the CGI script to load this new module
+instead of the old one:</p>
+<pre>  #!/usr/bin/perl
+  
+  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load, instantiate, and execute our application.
+  use MarksXColourApp;
+  my $cgiapp = MarksXColourApp-&gt;new();
+  $cgiapp-&gt;run;</pre>
+
+<p>This code can be seen running <li><a href="http://fry.perladvent.org/colour/x.cgi">here</a></li>, and you can enter values like
+'LimeGreen' which the HTML version will not recognise</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.perl.com/pub/a/2001/06/05/cgi.html">Using CGI::Application article on perl.com</a></li>
+<li><a href="http://search.cpan.org/dist/Graphics-ColorNames/ColorNames.pm">Graphics::ColorNames</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:55 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="http://2shortplanks.com/contact/">webmaster</a>
+</div>
+
+</body>
+</html>

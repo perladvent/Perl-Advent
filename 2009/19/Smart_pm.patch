@@ -1,0 +1,197 @@
+--- /usr/lib/perl5/site_perl/5.8.8/Match/Smart.pm	2004-02-03 22:26:34.000000000 -0500
++++ lib/Match/Smart.pm	2009-12-20 04:18:07.000000000 -0500
+@@ -11,11 +11,11 @@
+ 
+ our @ISA = qw(Exporter);
+ 
+-our %EXPORT_TAGS = ( 'all' => [ qw( smart_match) ] );
++our %EXPORT_TAGS = ( 'all' => [ qw(smart_match given when default) ] );
+ 
+ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
+ 
+-our $VERSION = '0.02';
++our $VERSION = '1.01';
+ 
+ ## initialize match look-up constants
+ 
+@@ -51,22 +51,29 @@
+ 
+ my @match_subs;
+ 
+-$match_subs[ARRAY ][ARRAY ] = sub {
++$match_subs[ARRAY ][ARRAY ] = sub { 
++  my $count = scalar @{$_[0]};
++  return 0 unless $count == scalar @{$_[1]};
++
++  for(my $i=0; $i<$count; $i++){
++    return 0 unless _smart_match($_[0][$i], $_[1][$i], $_[2]);
++  }
++  return 1;
++};
++#Based on perlsyn it's unclear whether this should be grep or short-circuiting
++$match_subs[ARRAY ][CODE  ] = sub { !grep { !$_[1]->($_) } @$_[0] };
++$match_subs[ARRAY ][HASH  ] = sub {
+    for my $v (@{$_[0]}) {
+-      for my $t (@{$_[1]}) {
+-         return 1 if _smart_match($v, $t, $_[2]);
+-      }
++      return 1 if exists $_[1]->{$v}
+    }
+    return;
+ };
+-$match_subs[ARRAY ][CODE  ] = sub { $_[1]->(@{$_[0]}) };
+-$match_subs[ARRAY ][HASH  ] = sub {
++$match_subs[ARRAY ][NUMBER] = sub {
+    for my $v (@{$_[0]}) {
+-      return 1 if $_[1]->{$v}
++      return 1 if _smart_match($v, $_[1], $_[2]);
+    }
+    return;
+ };
+-$match_subs[ARRAY ][NUMBER] = sub { $_[0]->[$_[1]] };
+ $match_subs[ARRAY ][OBJECT] = sub {
+    for my $v (@{$_[0]}) {
+       return 1 if _smart_match($v, $_[1], $_[2]);
+@@ -94,8 +101,10 @@
+    return;
+ };
+ 
+-$match_subs[CODE  ][CODE  ] = sub { $_[0]->(&{$_[1]}) };
+-$match_subs[CODE  ][HASH  ] = sub { $_[0]->(%{$_[1]}) };
++#Swapped order of code-code to match 5.10 perlsyn && dox
++$match_subs[CODE  ][CODE  ] = sub { $_[1]->(&{$_[0]}) };
++#Based on perlsyn it's unclear whether this should be grep or short-circuiting
++$match_subs[CODE  ][HASH  ] = sub { !grep { !$_[0]->($_) } keys %{$_[1]} };
+ $match_subs[CODE  ][NUMBER] = sub { $_[0]->($_[1]) };
+ $match_subs[CODE  ][OBJECT] = sub { $_[0]->($_[1]) };
+ $match_subs[CODE  ][REF   ] = sub { _smart_match($_[0], ${$_[1]}, $_[2]) };
+@@ -105,10 +114,7 @@
+ $match_subs[CODE  ][UNDEF ] = sub { $_[0]->($_[1]) };
+ 
+ $match_subs[HASH  ][HASH  ] = sub {
+-   for my $v (keys %{$_[1]}) {
+-      return 1 if exists $_[0]->{$v};
+-   }
+-   return;
++  "@{[sort keys %{$_[0]}]}" eq "@{[sort keys %{$_[1]}]}";
+ };
+ $match_subs[HASH  ][NUMBER] = sub { $_[0]->{$_[1]} };
+ $match_subs[HASH  ][OBJECT] = undef;
+@@ -244,6 +250,20 @@
+ 
+ }
+ 
++sub given($&) {
++  local $_ = $_[0];
++  eval{ $_[1]->() };
++  return @{$@}
++}
++
++sub when($&) {
++  die([$_[1]->()]) if smart_match($_, $_[0]);
++}
++
++sub default(&) {
++  die([$_[0]->()]);
++}
++
+ 1;
+ __END__
+ =head1 NAME
+@@ -262,19 +282,29 @@
+       print "$amount is less than 10\n";
+    }
+ 
++
++   use Match::Smart qw/ :all /;
++
++   given $fruit => sub {
++      when [qw/Honeycrisp Jonagold Braeburn/] => sub{ print "apple\n" };
++      when [qw/Concord Red_Flame/] => sub{ print "grape\n" };
++      default { print "Unknown fruit: $_\n" };
++   }
++
+ =head1 DESCRIPTION
+ 
+-C<Match::Smart> provides a easy means of testing whether two scalars match.  A
+-best guess on how they should be compared is made, based on the types of the
+-two scalars.
++C<Match::Smart> provides a easy means of testing whether two variables match
++based upon a set of rules derived from the syntax of Perl 5.10 & Apocalypse 4.
+ 
+-The means of matching is based heavily on the Apocalypse 4, Perl 6 document by
+-Larry Wall.
++It also provides an analog for Perl 5.10's version of a switch statement.
+ 
+ =head1 EXPORT
+ 
+-Nothing is exported by default. The C<smart_match()> subroutine can be exported
+-if desired.
++Nothing is exported by default.
++
++The C<smart_match()> subroutine can be exported if desired.
++
++The I<:all> tag will provide the necessary routines for switching.
+ 
+ =head1 FUNCTIONS
+ 
+@@ -303,10 +333,11 @@
+    $val1    $val2    true if ...
+    =====    =====    ===========
+ 
+-   ARRAY    ARRAY    any in @{$val1} smart_match any in @{$val2}
+-   ARRAY    CODE     $val2->(@{$val1})
+-   ARRAY    HASH     grep { $val2->{$_} } @{$val1}
+-   ARRAY    NUMBER   $val1->[$val2]
++   ARRAY    ARRAY    smart_match($val1->[$_], $val2->[$_]) for 0 .. $#$val1
++                            && $#$val1 == $#$val2
++   ARRAY    CODE     !grep { !$val2->($_) } @{$val1}
++   ARRAY    HASH     grep { exists $val2->{$_} } @{$val1}
++   ARRAY    NUMBER   smart_match($_, $val2) for @$val1
+    ARRAY    OBJECT   grep { smart_match($_, $val2)    } @{$val1}
+    ARRAY    REF      grep { smart_match($_, ${$val2}) } @{$val1}
+    ARRAY    REGEXP   grep { smart_match($_, $val2)    } @{$val1}
+@@ -314,8 +345,8 @@
+    ARRAY    STRING   grep { smart_match($_, $val2)    } @{$val1}
+    ARRAY    UNDEF    grep { smart_match($_, $val2)    } @{$val1}
+ 
+-   CODE     CODE     $val1->(&{$val2})
+-   CODE     HASH     $val1->(%{$val2})
++   CODE     CODE     $val2->(&{$val1})
++   CODE     HASH     !grep { !$val1->($_) } keys %{$val2}
+    CODE     NUMBER   $val1->($val2)
+    CODE     OBJECT   $val1->($val2)
+    CODE     REF      smart_match($val1, ${$val2})
+@@ -324,7 +355,7 @@
+    CODE     STRING   $val1->($val2)
+    CODE     UNDEF    $val1->($val2)
+ 
+-   HASH     HASH     grep { exists $val1->{$_} } keys %{$val2}
++   HASH     HASH     smart_match(keys %{$val1}, keys %{$val2})
+    HASH     NUMBER   $val1->{$val2}
+    HASH     OBJECT   -
+    HASH     REF      smart_match($val1, ${$val2})
+@@ -374,6 +405,8 @@
+ 
+ =over 4
+ 
++=item - test against perl 5.10.1 t/op/smartmatch.t
++
+ =item - handle GLOB and LVALUE ref types
+ 
+ =item - provide a means of registering comparisons for specific Object types
+@@ -387,10 +420,14 @@
+ 
+ Apocalypse 4: http://www.perl.com/pub/a/2002/01/15/apo4.html?page=2
+ 
++Perl 5.10 syntax: http://perldoc.perl.org/perlsyn.html#Smart-matching-in-detail
++
+ =head1 AUTHOR
+ 
+ Daniel B. Boorstein, E<lt>danboo@cpan.orgE<gt>
+ 
++With contributions from Jerrad Pierce.
++
+ =head1 COPYRIGHT AND LICENSE
+ 
+ Copyright 2004 by Daniel B. Boorstein

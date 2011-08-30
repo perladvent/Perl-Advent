@@ -1,0 +1,86 @@
+=pod
+
+=for advent_year 2010
+
+=for advent_day 10+any(1,0)
+
+=for advent_title karp bo&#x17c;onarodzenie OR Dear Santa, Please REPL
+
+=for advent_author Jerrad Pierce
+
+As you might imagine, Santa has a lot of large, long-running scripts which
+develop the occasional Heisenbug. As a result conventional debuggers can be
+a bit of a bear to work with. Fortunately there's M<Carp::REPL> which drops
+the program into a read-eval-print loop once it starts bucking for a stocking
+full of virtual coal; some of the scripts up north are sufficiently magical
+to be sentient.
+
+=begin pre 
+
+% perl -MCarp::REPL naughty.pl
+Died at naughty.pl line 1225.
+
+Trace begun at naughty.pl line 1225
+$ <span style="text-decoration: blink">&#x258b;</span>
+
+=end pre
+
+While M<Carp::REPL>'s not a proper debugger, you do get a number of
+specialized commands for manipulating the stack or listing lexicals and
+lines of code. On top of that, you have the full power of Perl at your
+disposal. So, if you happen to load the core module M<Dumpvalue> you can
+get an expansive view of the script's environment e.g;
+
+=begin pre encode_entities
+
+$ use Dumpvalue; #or load via -M
+$ Dumpvalue->new(globPrint => 1)->dumpValue(\*::);
+-> *main::main::
+      %{*main::main::} = (
+         "\cA" => *main::
+               ${*main::^A} = ''
+         "\cD" => *main::
+               ${*main::^D} = 0
+         "\cENCODING" => *main::NCODING
+         "\cH" => *main::
+               ${*main::^H} = 256
+         "\cI" => *main::
+         "\cL" => *main::
+...
+         'File::' => *main::File::
+               %{*main::File::} = (
+                  'Basename::' => *File::Basename::
+                        %{*File::Basename::} = (
+                           'BEGIN' => *File::Basename::BEGIN
+                           'EXPORT' => *File::Basename::EXPORT
+                                 @{*File::Basename::EXPORT} = (
+
+                                    0  'fileparse'
+                                    1  'fileparse_set_fstype'
+                                    2  'basename'
+                                    3  'dirname'
+                                 )
+...
+         'STDERR' => *main::STDERR
+               FileHandle({*main::STDERR}) => fileno(2)
+         'STDIN' => *main::STDIN
+               FileHandle({*main::STDIN}) => fileno(0)
+         'STDOUT' => *main::STDOUT
+               FileHandle({*main::STDOUT}) => fileno(1)
+...
+         '|' => *main::|
+               ${*main::|} = 0
+         '~' => *main::~
+               ${*main::~} = 'STDOUT'
+
+=end pre
+
+Setting I<globPrint> allows M<Dumpvalue> to act like <tt>Data::Dumper</tt>
+on steroids, and recurse into namespaces specified by the supplied glob.
+If you do dump a glob, you might want to restrict the output to a particular
+namespace, or ensure you have a large scrollback buffer. The standard Perl
+environment, plus dependencies of M<Carp::REPL> result in 24_465 lines/1.6Mb
+of output.
+
+M<Dumpvalue> has other super powers of course, like the ability to specify
+which variables you'd like dumped by C<dumpvars> with regular expressions.

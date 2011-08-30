@@ -1,0 +1,262 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Test::Builder</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 4th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Test::Builder</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../3rd/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../5th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Okay, I'll admit it, I'm a bit of a testing freak.  I like to test my
+code extensively to make sure it works properly before I ship it.</p>
+<p>Last year I talked about using <li><a href="http://www.perladvent.org/2001/10th/">Test::More</a></li> to test your code, which
+is a simple library that you can use to do basic tests like checking
+if something is the same as something else, or if it's an object of a
+particular class, or many other basic tests.  It's a great module since
+it prints out nice debugging information to show you what output you
+actually got, and hence why (and where) the test fails.  This is
+almost as important as knowing that your code works - knowing how to
+fix your code when it's broken greatly speeds up development.</p>
+<p>The trouble simply using <b>Test::More</b> is that often this debugging
+information isn't enough, or it's too much.  Checking individual
+strings are equal or that simple tests pass doesn't give you enough
+information, or it prints so much information to your screen that
+it's hard to see what's going on.  What you need to do is code your
+own little routines that check the data themselves and print out
+more useful debugging information for the project you're working on.</p>
+<p>This is where <b>Test::Builder</b> comes in.  <b>Test::Builder</b> is the
+underlying library that <b>Test::More</b> uses to produce it's output, and
+it's cunningly designed so that you can write your own test suites
+with it that always print out the right kind of debugging information.
+The best thing about these modules is that they're designed to <i>play
+nice</i> with other <b>Test::Builder</b> based modules.  You can use as many
+of these modules together as you want and they're work together to
+ensure that things like the numbers that your tests print don't get
+screwed up.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Test::Builder">[Read the documentation for Test::Builder on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Okay, let's build our own example testing module.  In this example
+we're going to test something pretty useless - if a string equals
+"Buffy" or not.  In a real world example the test would do something
+much more complicated, but for illustrative purposes, we'll keep it
+simple.</p>
+<p>We start the testing module just like any other - by declaring a
+package, turning on strict, and declaring the package variables we're
+going to use.  Note that testing modules traditionally work on very old
+perls, so it's common for them to use things like <code>use vars</code> instead
+of using the <code>our</code> keyword for globals to ensure backwards
+comparability.</p>
+<pre>  package Acme::Test::Buffy;</pre>
+
+<pre>  use strict;
+  use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);</pre>
+
+<pre>  $VERSION = 0.01;</pre>
+
+<p>Now we create a <b>Test::Builder</b> object that we can use in each of the
+methods in our class.  <b>Test::Builder</b> objects are what are known as
+'singletons'.  This means that there's only one existence ever - each
+call to <code>new</code> simply returns the same object each and every time.
+This is how <b>Test::Builder</b> can keep track of numbers for you and
+emit the right numbers for each test - every module has it's own copy
+of the same Test::Builder object that it uses for all of it's output.</p>
+<pre>  use Test::Builder;
+  my $Tester = Test::Builder-&gt;new();</pre>
+
+<p>Since we want to allow people to run the tests with the minimum of
+fuss we're going to export our function into the caller's namespace.
+That means that when someone does a <code>use Acme::Test::Buffy</code> in their
+code that they'll get the ability to <code>is_buffy</code> in script as if they'd
+written it in place - just like <b>Test::More</b> does with <code>is</code>, <code>ok</code>,
+etc.</p>
+<pre>  use Exporter;                   # load the class
+  @ISA         = qw(Exporter);    # set it as the base class
+  @EXPORT      = qw(is_buffy);    # want to export 'is_buffy'
+  @EXPORT_OK   = qw();            # no other optional functions
+  %EXPORT_TAGS = qw();            # no groups of functions</pre>
+
+<p>Now all that's left to do is write our <code>is_buffy</code> function itself.
+The function is designed to be called like so:</p>
+<pre>  is_buffy($foo, "Is foo buffy?");</pre>
+
+<p>So without further ado:</p>
+<pre> sub is_buffy($;$)
+ {
+   # get the args
+   my ($maybe_buffy, $text) = @_;</pre>
+
+<pre>   # set a default test name
+   $text ||= "is buffy";</pre>
+
+<pre>   # do the test
+   if ($maybe_buffy eq "Buffy")
+   {
+     # print okay with the right text
+     $Tester-&gt;ok(1,$text);</pre>
+
+<pre>     return 1; # and return true
+   }
+   else
+   {
+     # print not okay with the right text
+     $Tester-&gt;ok(0,$text);</pre>
+
+<pre>     # print why it failed
+     $Tester-&gt;diag("Expected 'Buffy' but got '$maybe_buffy' instead\n");</pre>
+
+<pre>     return 0; # and return false
+   }
+ }</pre>
+
+<p>Okay, quite a lot to explain here.  First I should point out the
+function prototype (the <code>($;$)</code>).  This tells Perl how people can
+call our module - essentially it allows people to be a lot less fussy
+about having to write brackets.  In fact it means that now people can
+simply write</p>
+<pre>  is_buffy $foo;</pre>
+
+<p>And it'll still work.</p>
+<p>The real meat of the testing function is the <code>$maybe_buffy eq "Buffy"</code>
+section.  This is a simple test, but this could be as complicated as
+you want.  It decides what functions we should call on our <b>Test::Builder</b>
+object to produce the output.  We either call <code>ok(1,$text)</code> saying
+that everything is okay and we should print out <code>ok 1 - text</code>, or we
+call <code>ok(0,$text)</code> to say that everything isn't okay, and that we
+should print out <code>not ok - 1 text</code> instead, and go onto use the 
+diag function to print out the exact reason the test failed.</p>
+<p>Though it might be tempting to try and print out some of the <code>ok</code> or
+diagnostic messages ourselves we really shouldn't - as by printing
+everything out via <b>Test::Builder</b> we ensure the mutual cooperation
+between all the testing modules, meaning we can do something like</p>
+<pre>  use Test::More tests =&gt; 2;
+  use Acme::Test::Buffy;</pre>
+
+<pre>  # test our re works
+  my ($buffy, $angel) = split /:/, "Buffy:Angel";</pre>
+
+<pre>  is_buffy($buffy);     # an Acme::Test::Buffy test
+  is($angel, "Angel");  # a Test::More test</pre>
+
+<h2>A Note On Calling Functions</h2>
+<p>One of the great things about Test::Builder is that it always reports
+the line number of the failing test.  It is possible to confuse it
+however, as all it really does is print out where the function that
+called <b>Test::Builder</b>'s <code>ok</code> method was called from.  So in this situation</p>
+<pre>  # simply call the private method instead
+  sub is_buffy { _isnt_robot_buffy(@_) }</pre>
+
+<pre>  # private method not exported from the package
+  sub _isnt_robot_buffy
+  {
+    $Tester-&gt;ok(0);
+  }</pre>
+
+<p>The diagnostic error for the failing test will be reported inside the
+<code>is_buffy</code> function as that's the function that called <code>ok</code>, not
+from the code that called the <code>is_buffy</code> test where it was meant to
+be.  Nasty!</p>
+<p>To solve this problem we simply increase the <code>$Test::Builder::Level</code>
+variable to indicate we'd like the <b>Test::Builder</b> to look one level
+higher when reporting errors for the duration of <code>_isnt_robot_buffy</code>.
+Luckily for us, Perl has a keyword to do just that.  <code>local</code> can give
+a variable a new value that will remain in effect until the end of that
+block, i.e. till the end of the subroutine, including in all the calls
+to other routines such as to <b>Test::Builder</b>'s <code>ok</code>.</p>
+<pre>  # simply call the private method instead
+  sub is_buffy { isnt_robot_buffy(@_) }</pre>
+
+<pre>  # private method not exported from the package
+  sub _isnt_robot_buffy
+  {
+    # increase the level
+    local $Test::Builder::Level = $Test::Builder::Level + 1;</pre>
+
+<pre>    $Tester-&gt;ok(0);
+  }</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/src/MARKF/Acme-Test-Buffy-0.01/lib/Acme/Test/Buffy.pm">Acme::Test::Buffy full source code</a></li>
+<li><a href="http://search.cpan.org/author/MARKF/Acme-Test-Buffy/">Acme::Test::Buffy distribution, including tests</a></li>
+<li><a href="http://magnonel.guild.net/~schwern/talks/Writing_A_Test_Library/">Schwern's "Writing A Test Library" Talk</a></li>
+<li><a href="http://search.cpan.org/author/MARKF/Test-Builder-Tester/lib/Test/Builder/Tester.pm">Test::Builder::Tester (testing modules built with Test::Builder)</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:52 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

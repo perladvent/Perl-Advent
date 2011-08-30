@@ -1,0 +1,171 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>2006 Perl Advent Calendar: Santa makes a list and checks it twice...</title>
+<link rel="stylesheet" href="../style.css" type="text/css" />
+</head>
+
+<body>
+<h1><a href="../">Perl Advent Calendar 2006-12</a>-12</h1>
+<h2 align="center">Santa makes a list, and checks it twice&hellip; but he only makes one list.</p>
+</h2>
+<h3 align="center">by Jeff Lavallee</h3>
+
+<p>How many times have you seen (or written) a perl script that was well 
+documented with POD, but also had a <code>usage()</code> function which
+duplicated  some of the information contained in the POD? Every time you
+add an  option, you need to remember to document it in both. What if you
+want to display a detailed description of the options to the user? Things 
+only get messier. <tt>Pod::Usage</tt></p>
+
+<p><a href="http://search.cpan.org/search?query=Pod::Usage">Pod::Usage</a>
+allows you to make portions of your POD available to the user as help.
+<tt>Pod::Usage</tt> provides the <tt>pod2usage</tt> subroutine, which accepts
+a number of options. The most commonly needed are <code>-message</code> (the
+initial line of the usage message e.g; brief description of the program) and
+<code>-verbose</code> (control how detailed the help output is).
+<code>-exitval</code> can be used to control the exit value returned to the
+shell, most commonly to exit with a non-zero status if invalid arguments were
+provided.</p>
+
+<p>Using <tt>Pod::Usage</tt> to handle our usage information for us, we've
+managed to completely prevent any documentation duplication (say that three
+times fast) in our sample code. Let's take a look at in action:</p>
+
+<pre>
+santa@northpole:~/ $ ./mod12.pl 
+<span class="c"> --filename required
+Usage:
+     my_script.pl [-v] -f &lt;filename&gt;
+
+Options:
+    -f or --file &lt;filename&gt; (required)
+            The filename to be used as input. Required.
+
+    -h or --help
+            Print a brief help message and exits.
+
+    -v or --verbose
+            Print verbose output as the script runs. Can be used more than
+            once to increase the verbosity.</span></pre>
+
+<p>Oops, we didn't supply a required parameter. <tt>pod2usage</tt> helpfully
+prints the script's usage information along with the error. Of course, had we
+checked the syntax the first time <tt>--help</tt> would have given us briefer
+but clear directions:</p>
+
+<pre>
+santa@northpole:~/ $ ./mod12.pl --help
+<span class="c">Usage:
+     my_script.pl [-v] -f &lt;filename&gt;</span></pre>
+
+<p>If we'd really wanted the verbose help we could have gotten that too:</p>
+
+<pre>
+santa@northpole:~/ $ ./mod12.pl --help --verbose
+<span class="c">Usage:
+     my_script.pl [-v] -f &lt;filename&gt;
+
+Options:
+    -f or --file &lt;filename&gt; (required)
+            The filename to be used as input. Required.
+
+    -h or --help
+            Print a brief help message and exits.
+
+    -v or --verbose
+            Print verbose output as the script runs. Can be used more than
+            once to increase the verbosity.</span></pre>
+
+<p>Using the verbose option more than once displays the full man page
+(probably better provided with a <tt>--man</tt> option):</p>
+
+<pre>
+santa@workshop:~ $ ./mod12.pl --help -v -v<span class="c">
+MOD12(1)              User Contributed Perl Documentation             MOD12(1)
+NAME<br/>
+ my_script.pl
+
+SYNOPSIS
+ my_script.pl [<strong>-v</strong>] <strong>-f</strong> &lt;filename&gt;
+
+OPTIONS
+ <strong>-f</strong> or <strong>--file</strong> &lt;filename&gt; (required)
+     The filename to be used as input.  Required.
+ <strong>-h</strong> or <strong>--help</strong>
+     Print a brief help message and exits.
+ <strong>-v</strong> or <strong>--verbose</strong>
+     Print verbose output as the script runs.  Can be used more than
+     once to increase the verbosity.
+
+BUGS
+        None known at this time
+ 
+perl v5.8.6                       2006-12-12                          MOD12(1)
+</span></pre>
+
+<p>Our POD can now be used to display help for our script based on the command 
+line options provided, and all the documentation is now in one place. We do 
+still have to keep the documentation in sync with the call to
+<tt>GetOptions</tt>, however. Is there a way we can prevent even that
+duplication? <a href="indexB.html">Yes</a>.</p>
+
+<h1><a href="mod12.pl">mod12.pl</a></h1>
+<hr />
+<pre>  
+  1 <span class="c">#!/usr/bin/perl</span>
+  2
+  3 =head1 NAME 
+  4 
+  5 my_script.pl
+  6 
+  7 =head1 SYNOPSIS
+  8 
+  9  my_script.pl [-v] -f <filename>
+ 10 
+ 11 =head1 OPTIONS
+ 12 
+ 13 =over 8
+ 14 
+ 15 =item B<-f> or B<--file> <filename> (required)
+ 16 
+ 17 The filename to be used as input.  Required.
+ 18 
+ 19 =item B<-h> or B<--help>
+ 20 
+ 21 Print a brief help message and exits.
+ 22 
+ 23 =item B<-v> or B<--verbose>
+ 24 
+ 25 Print verbose output as the script runs. 
+ 26 Can be used more than once to increase the verbosity.
+ 27 
+ 28 =back
+ 29 
+ 30 =head1 BUGS
+ 31 
+ 32 None known at this time
+ 33 
+ 34 =cut
+ 35
+ 36 <span class="k">use</span> <span class="w"><tt>Pod::Usage</tt></span> <span class="q">qw/ pod2usage /</span><span class="sc">;</span>
+ 37 <span class="k">use</span> <span class="w"><tt>Getopt::Long</tt></span> <span class="q">qw/ GetOptions /</span><span class="sc">;</span>
+ 38 
+ 39 <span class="i">GetOptions</span><span class="s">(</span> <span class="q">&#39;file=s&#39;</span>   <span class="cm">=&gt;</span> \<span class="s">(</span><span class="k">my</span> <span class="i">$file</span><span class="s">)</span><span class="cm">,</span>
+ 40             <span class="q">&#39;verbose+&#39;</span> <span class="cm">=&gt;</span> \<span class="s">(</span><span class="k">my</span> <span class="i">$verbose</span><span class="s">)</span><span class="cm">,</span>
+ 41             <span class="q">&#39;help&#39;</span>     <span class="cm">=&gt;</span> \<span class="s">(</span><span class="k">my</span> <span class="i">$help</span><span class="s">)</span><span class="cm">,</span>
+ 42           <span class="s">)</span><span class="sc">;</span>
+ 43 
+ 44 <span class="i">pod2usage</span><span class="s">(</span>-<span class="w">verbose</span> <span class="cm">=&gt;</span> <span class="i">$verbose</span><span class="s">)</span> <span class="k">if</span> <span class="i">$help</span><span class="sc">;</span>
+ 45 <span class="i">pod2usage</span><span class="s">(</span> -<span class="w">message</span> <span class="cm">=&gt;</span> <span class="q">&#39;--filename required&#39;</span><span class="cm">,</span>
+ 46            -<span class="w">exitval</span> <span class="cm">=&gt;</span> <span class="n">1</span><span class="cm">,</span>
+ 47            -<span class="w">verbose</span> <span class="cm">=&gt;</span> <span class="i">$verbose</span><span class="cm">,</span>
+ 48 <span class="s">)</span> <span class="k">unless</span> <span class="k">defined</span> <span class="i">$file</span><span class="sc">;</span>
+ 49 
+ 50 
+ 51 
+ 52 <span class="k">print</span> <span class="q">&quot;I got the following options:</span>
+ 53 <span class="q">file:    $file</span>
+ 54 <span class="q">verbose: $verbose</span>
+ 55 <span class="q">&quot;</span> <span class="k">if</span> <span class="i">$verbose</span><span class="sc">;</span>
+</pre>

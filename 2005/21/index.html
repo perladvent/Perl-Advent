@@ -1,0 +1,108 @@
+<html>
+<head>
+<title>YA Perl Advent Calendar 2005: All I want for christmas...</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body>
+<h1><a href="../">YA Perl Advent Calendar</a> 2005-12-21</h1>
+... is a list, no wait a tuple, noooo whatever you want to get me is fine. As
+its POD succinctly puts it, <a href="http://search.cpan.org/search?module=Want">Want</a>
+is a generalization of <tt>wantarray</tt>. This means, if you are so inclined,
+that instead of being limited to list/hash or scalar returns without the caller
+explicitly telling you what it wants in <tt>@_</tt> you can now offer a
+smorgasborg of possibilities by relying upon that old perlish standby: context.
+<p />
+Want appears to have several advantages over wantarray beyond the variety of
+contexts you can detect; I say appears because I'm not wholly familiar with
+perl's guts or some of the features I'm about to relate. In particular:
+<dl>
+<dt>You can niftily determine the <em>number</em> of return values required
+<dd>Thus avoiding any unnecessary copying of large data structures, or allowing
+you a novel/contextual manner to specify a limit for depth of recursion to
+something like an implementation of the Fibonacci sequence.
+<dt>lvalues
+<dd>Among other things perlsub has the following to say about lvalues:
+<pre class="pd">
+         You can't use the return keyword, you must pass out the
+         value before falling out of subroutine scope. (see
+         comment in example above).  This is usually not a
+         problem, but it disallows an explicit return out of a
+         deeply nested loop, which is sometimes a nice way out.
+</pre>
+Want actually gives you a return for use within lvalue subs, of course it's
+spelled differently...
+</dl>
+Actually, speaking of lvalues the documentation says you'll get "Can't modify
+non-lvalue subroutine call in lvalue subroutine return." if you have a lvalue
+sub without an explicit return at the end. I actually see "Can't modify logical
+and (&&) in lvalue subroutine return at want.pl line 30, near '}'" under perl
+5.8.0 and unless my weary eyes deceive me I may have seen another one
+altogether as well. So be careful of that. You're also supposed to use
+<tt>rreturn</tt> for rvalue contexts with lvalued subs but it seems
+<tt>return</tt> may work too under some circumstances.
+<p />
+A few final observations before I leave you with some sample code. First, note
+that the current implementation interface is not stable; it is only 0.09, even
+if it has taken 4 years to get there. Second, it's <tt>want('LIST')</tt> and
+not <tt>want('ARRAY')</tt>. And finally, order apparently matters: do your
+lvalue check first.
+<h1><a href="mod21.pl">mod21.pl</a></h1>
+<hr />
+<pre>
+   1 <span class="k">use</span> <span class="w">Want</span><span class="sc">;</span>
+   2 <span class="k">use</span> <span class="w">Lingua::EN::Numbers::Ordinate</span><span class="sc">;</span>
+   3 
+   4 <span class="k">my</span> <span class="i">@days</span> = <span class="q">&lt;DATA&gt;</span><span class="sc">;</span>
+   5 
+<a name="days-"></a>   6 <span class="k">sub </span><span class="m">days</span> <span class="co">:</span><span class="w">lvalue</span> <span class="s">{</span>
+   7   <span class="k">if</span><span class="s">(</span> <span class="i">want</span><span class="s">(</span><span class="q">'LVALUE'</span><span class="cm">,</span> <span class="q">'ASSIGN'</span><span class="s">)</span> <span class="s">)</span><span class="s">{</span>
+   8     <span class="k">my</span> <span class="i">$n</span> = <span class="k">shift</span><span class="sc">;</span>
+   9     <span class="i">$days</span>[<span class="i">$n</span>] = <span class="i">want</span><span class="s">(</span><span class="q">'ASSIGN'</span><span class="s">)</span><span class="sc">;</span>
+  10     <span class="w">lnoreturn</span><span class="sc">;</span>
+  11   <span class="s">}</span>
+  12   <span class="k">if</span><span class="s">(</span> <span class="i">want</span><span class="s">(</span><span class="q">'SCALAR'</span><span class="s">)</span> <span class="s">)</span><span class="s">{</span>
+  13     <span class="k">my</span> <span class="i">$str</span> = <span class="q">''</span><span class="sc">;</span>
+  14     <span class="k">foreach</span><span class="s">(</span> <span class="n">1</span>..<span class="n">12</span> <span class="s">)</span><span class="s">{</span>
+  15       <span class="i">$str</span> .= <span class="k">sprintf</span> <span class="i">$days</span>[<span class="n">0</span>]<span class="cm">,</span> <span class="i">ordinate</span><span class="s">(</span><span class="i">$_</span><span class="s">)</span><span class="sc">;</span>
+  16       <span class="i">$str</span> .= <span class="k">join</span> <span class="q">''</span><span class="cm">,</span> <span class="k">reverse</span><span class="s">(</span><span class="i">@days</span>[<span class="n">1</span>..<span class="i">$_</span>]<span class="s">)</span><span class="cm">,</span> <span class="q">&quot;\n&quot;</span><span class="sc">;</span>
+  17     <span class="s">}</span>
+  18     <span class="w">rreturn</span> <span class="i">$str</span><span class="sc">;</span>
+  19   <span class="s">}</span>
+  20   <span class="k">if</span><span class="s">(</span> <span class="i">want</span><span class="s">(</span><span class="q">'LIST'</span><span class="s">)</span> <span class="s">)</span><span class="s">{</span>
+  21     <span class="k">my</span> <span class="i">$n</span> = <span class="k">shift</span> || <span class="i">want</span><span class="s">(</span><span class="q">'COUNT'</span><span class="s">)</span><span class="sc">;</span>
+  22     <span class="k">if</span><span class="s">(</span> <span class="i">$n</span> <span class="s">)</span><span class="s">{</span>
+  23       <span class="w">rreturn</span> <span class="i">@days</span>[<span class="n">1</span>..<span class="i">$n</span>]<span class="sc">;</span>
+  24     <span class="s">}</span>
+  25     <span class="k">else</span><span class="s">{</span>
+  26       <span class="w">rreturn</span> <span class="i">@days</span><span class="sc">;</span>
+  27     <span class="s">}</span>
+  28   <span class="s">}</span>
+  29   <span class="k">return</span><span class="sc">;</span>
+  30 <span class="s">}</span>
+  31 
+  32 <span class="c">#Rewrite the lyrics</span>
+  33 <span class="i">days</span><span class="s">(</span><span class="n">5</span><span class="s">)</span> = <span class="q">&quot;Five onion rings!\n&quot;</span><span class="sc">;</span>
+  34 
+  35 <span class="c">#Stringified</span>
+  36 <span class="k">print</span> <span class="k">scalar</span> <span class="i">days</span><span class="sc">;</span>
+  37 
+  38 <span class="c">#Equivalent subsets</span>
+  39 <span class="k">my</span> <span class="i">@gifts</span> = <span class="i">days</span><span class="s">(</span><span class="n">3</span><span class="s">)</span><span class="sc">;</span>
+  40 <span class="k">my</span><span class="s">(</span><span class="i">$gift1</span><span class="cm">,</span> <span class="i">$gift2</span><span class="cm">,</span> <span class="i">$gift3</span><span class="s">)</span> = <span class="w">gifts</span><span class="sc">;</span>
+  41 <span class="s">(</span><span class="i">days</span><span class="s">)</span>[<span class="n">1</span>..<span class="n">3</span>]<span class="sc">;</span>
+  42 
+<a name="__DATA__-"></a>  43 <span class="k">__DATA__</span>
+  44 <span class="q">On the %s day of Christmas, my true love gave to me</span>
+  45 <span class="q">A partridge in a pear tree.</span>
+  46 <span class="q">Two turtle doves</span>
+  47 <span class="q">Three French hens</span>
+  48 <span class="q">Four calling birds</span>
+  49 <span class="q">Five golden rings.</span>
+  50 <span class="q">Six geese a-laying,</span>
+  51 <span class="q">Seven swans a-swimming</span>
+  52 <span class="q">Eight maids a-milking</span>
+  53 <span class="q">Nine ladies dancing</span>
+  54 <span class="q">Ten lords a-leaping</span>
+  55 <span class="q">Eleven pipers piping</span>
+  56 <span class="q">Twelve drummers drumming</span>
+</pre>
+</body></html>

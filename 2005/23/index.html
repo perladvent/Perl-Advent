@@ -1,0 +1,298 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!--last modified on Friday, December 23, 2005 07:59 PM -->
+<HTML>
+
+<HEAD>
+	<META HTTP-EQUIV="Content-Type" CONTENT="text/html;CHARSET=iso-8859-1">
+	<META NAME="Author" Content="Bill Ricker, n1vux">
+	<TITLE>YA Perl Advent Calendar 2005: Sorting things out... </TITLE>
+	<LINK REL="stylesheet" TYPE="text/css" HREF="../style.css">
+</HEAD>
+
+<BODY>
+
+<H1><A HREF="../">YA Perl Advent Calendar</A> 2005-12-23</H1>
+
+<BLOCKQUOTE STYLE="padding : 1em ; border : 2px ridge black ; Background-Color : #EEEEEE">
+	<P>Today's column is by William 'N1VUX' Ricker, of Boston.PM, who has requested today's door and prepared this
+	review as a holiday gift for Uri.
+</BLOCKQUOTE>
+
+<P>So you've got this utility that counts connections by source, maybe it's scanning<TT> <B>netstat -a</B> </TT>in
+realtime to colorize a network diagram, or the Apache logs weekly (or hourly). Usually you'd sort by Domain Name
+or TLD, or by count or by port, but this time the boss wants it sorted by source IP subnet, since that's how the
+datacenter network is organized. So the desired report will look something like</P>
+<PRE class="c">0.0.0.0     	 3  reallylong.sillyname.foobar.<FONT COLOR="red">do</FONT> 
+10.32.125.101	62 	laxweb1.firewall.foobar.dom 
+10.32.125.119	98	laxweb2.firewall.foobar.dom 
+10.37.136.119	45	bosweb1.firewall.foobar.dom
+10.37.136.120	73	bosweb2.firewall.foobar.dom
+10.21.53.103	 1	monitor.foobar.dom 
+10.21.192.232	 2	ops.foobar.dom 
+10.45.16.89 	 1	lanserver02.bos.foobar.dom 
+10.45.183.222	 2	desktop9483.bosfoobar.dom 
+10.46.120.197	 3	10.46.120.197 
+10.47.156.24	 1	lanserver031.lax.foobar.dom 
+10.47.156.26	 1	desktop051.lax.foobar.dom 
+10.47.156.34	 2	desktop003.lax.foobar.dom 
+10.47.156.40	 2	desktop031.lax.foobar.dom 
+127.0.0.1   	48	localhost.localdomain 
+172.24.26.77	 1	qa07.foobar.dom 
+172.24.101.207	 1	qa92.foobar.dom 
+172.24.101.208	 6	qa93.foobar.dom 
+172.24.101.251	 1	qa05.foobar.dom </PRE>
+<P>but lots longer, so you need this to run fast.</P>
+<P>Sorting with a simple comparison block would require way too much slicing and dicing on each of the <B>O(N*logN)</B>
+comparisons, so you have to do something efficient -- keep the O(N*logN) steps fast and the slow steps only in
+O(N). The classical Schwartzian Transform shows the structure of a compound key nicely,</P>
+<PRE>   1 <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">@sorted</SPAN> =
+   2         <SPAN CLASS="k">map</SPAN> <SPAN CLASS="s">{</SPAN> <SPAN CLASS="i">$_</SPAN>-&gt;[<SPAN CLASS="n">0</SPAN>] <SPAN
+CLASS="s">}</SPAN>
+   3                 <SPAN CLASS="k">sort</SPAN> <SPAN CLASS="s">{</SPAN>
+   4                         <SPAN CLASS="i">$a</SPAN>-&gt;[<SPAN CLASS="n">1</SPAN>] &lt;=&gt; <SPAN CLASS="i">$b</SPAN>-&gt;[<SPAN
+CLASS="n">1</SPAN>]
+   5                                 ||
+   6                         <SPAN CLASS="i">$a</SPAN>-&gt;[<SPAN CLASS="n">2</SPAN>] &lt;=&gt; <SPAN CLASS="i">$b</SPAN>-&gt;[<SPAN
+CLASS="n">2</SPAN>]
+   7                                 ||
+   8                         <SPAN CLASS="i">$a</SPAN>-&gt;[<SPAN CLASS="n">3</SPAN>] &lt;=&gt; <SPAN CLASS="i">$b</SPAN>-&gt;[<SPAN
+CLASS="n">3</SPAN>]
+   9                                 ||
+  10                         <SPAN CLASS="i">$a</SPAN>-&gt;[<SPAN CLASS="n">4</SPAN>] &lt;=&gt; <SPAN CLASS="i">$b</SPAN>-&gt;[<SPAN
+CLASS="n">4</SPAN>]
+  11                         <SPAN CLASS="s">}</SPAN>
+  12                          <SPAN CLASS="k">map</SPAN> <SPAN CLASS="s">{</SPAN> <SPAN CLASS="s">[</SPAN> <SPAN
+CLASS="i">$_</SPAN><SPAN CLASS="cm">,</SPAN> <SPAN CLASS="k">split</SPAN> <SPAN CLASS="q">/[. ]/</SPAN> <SPAN CLASS="s">]</SPAN> <SPAN
+CLASS="s">}</SPAN>
+  13                                 <SPAN CLASS="i">@unsorted</SPAN><SPAN CLASS="sc">;</SPAN></PRE>
+<P>but it will call back to the coded-in-Perl decision block from the built-in-C Perl runtime for each comparison
+O(N*logN times), so it still has a speed penalty:</P>
+<H2>The GRT</H2>
+<P>The Guttman-Rosler Transform is a special case of the Schwartzian transform that makes strings, not array-refs;
+the strings contain null-delimited keys in sequence followed by (typically) the original record # and the contents
+of the record or index into a hash or array. This allows it to be sorted natively, so the <B>O(N*logN) </B>step
+is the built-in native C implementation of <B>sort</B>, which acts like <B>sort {$a cmp $b}</B> only much faster.</P>
+<P>In the great Internet sorting debate between the Schwartzian Transform and the Guttman-Rosler Transform, Merlyn
+admitted</P>
+
+<BLOCKQUOTE>
+	<P>&laquo;Yes. The ST can sort any multilevel complex sort, and is &quot;programmer efficient&quot;. When the GRT
+	<I>can</I> be used, and the programmer is willing to invest time to compute the &quot;transform to and from a single
+	string&quot; functions, the GRT <I>may</I> be faster.&raquo;
+</BLOCKQUOTE>
+
+<P>Uri Guttman will regularly reply that in a multilevel sort, GRT will <I>always</I> be faster (barring really
+odd cases and data sets so small as to be ignored), since <TT><B>sort @array</B></TT><B> </B>is faster than <TT><B>sort
+{anyblock} @array</B></TT><B>,</B> no matter how simple the block: sort with no written-in-Perl callback is Perl
+core compiled C speed. It all depends on the balance between programmer time and computer time. (If efficiency
+was the primary objective, and we wanted to still use Perl, we should consider PDL or something similar.)</P>
+<H2>The Module</H2>
+<P>But Uri's a fair but balanced guy, so his <A HREF="http://search.cpan.org/search?module=Sort::Maker">Sort::Maker</A>
+module gives you both ST and GRT, and also <A HREF="http://isbn.nu/0201419750">Joseph Hall's &quot;orcish&quot;</A>
+maneuver from and good old plain sorting, and builds and compiles the sort idiom for you. Uri's, he gives you all
+three options, and tools to generate and benchmark them.</P>
+<!--
+<P>Uri Guttman's <A HREF="http://search.cpan.org/search?module=Sort::Maker">Sort::Maker</A> installs easy ...</P>
+<PRE>$ wget http://search.cpan.org/CPAN/authors/id/U/UR/URI/Sort-Maker-0.04.tar.gz
+$ uncompress Sort-Maker-0.04.tar.gz
+$ tar xvf  Sort-Maker-0.04.tar
+$ cd Sort-Maker-0.04
+$ perl Makefile.PL
+$ make
+$ make test
+$ # make install if you have root ...</PRE>
+-->
+
+<P><!--However-->Alas, there's a problem with Sort::Maker's POD: it doesn't match the implementation. The POD claims we can use
+an array ref or a hash for an index's sub arguments, and that we can omit the <TT><B>=&gt;1</B></TT> for boolean
+arguments. But it doesn't work. The bold <B>[]</B> on lines 28 and 31 have to be <B>{} </B>and that requires <TT><B>=&gt;1</B></TT>
+on booleans too. The following sample is straight from the POD, with the addition of off-screen scaffolding 1..25
+and line 35 error output:</P>
+<PRE>  26         <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$sorter</SPAN> = <SPAN CLASS="i">make_sorter</SPAN><SPAN
+CLASS="s">(</SPAN><!-- contents of filename: uri.pl -->
+  27                 <SPAN CLASS="q">qw( plain )</SPAN><SPAN CLASS="cm">,</SPAN>
+  28                 <SPAN CLASS="w">number</SPAN> <SPAN CLASS="cm">=&gt;</SPAN> <SPAN CLASS="s"><B>[</B></SPAN>   
+  29                         <SPAN CLASS="w">code</SPAN> <SPAN CLASS="cm">=&gt;</SPAN> <SPAN CLASS="q">'/(\d+)/'</SPAN><SPAN
+CLASS="cm">,</SPAN>
+  30                         <SPAN CLASS="q">'descending'</SPAN><SPAN CLASS="cm">,</SPAN>
+  31                 <SPAN CLASS="s"><B>]</B></SPAN><SPAN CLASS="cm">,</SPAN>
+  32         <SPAN CLASS="s">)</SPAN> <SPAN CLASS="sc">;</SPAN>
+  33 
+  34 
+  <FONT COLOR="red">35</FONT>  	<SPAN CLASS="w">carp</SPAN> <SPAN CLASS="q">&quot;no sort $@&quot;</SPAN> <SPAN
+CLASS="k">unless</SPAN> <SPAN CLASS="i">$sorter</SPAN><SPAN CLASS="sc">;</SPAN>
+  36 
+  37 
+  38 	<SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">@sorted</SPAN> = <SPAN CLASS="i">$sorter</SPAN>-&gt;<SPAN CLASS="s">(</SPAN> <SPAN
+CLASS="i">@unsorted</SPAN> <SPAN CLASS="s">)</SPAN> <SPAN CLASS="sc">;</SPAN></PRE>
+<PRE class="c">$ perl uri.pl
+no sort make_sorter: Unknown attribute '/(\d+)/' at uri.pl line 35
+Use of uninitialized value in subroutine entry at uri.pl line 38.
+Can't use string (&quot;&quot;) as a subroutine ref while &quot;strict refs&quot; in use at uri.pl line 38.</PRE>
+<P>
+<H2>Always read the warning label.</H2>
+
+<UL>
+	<LI><B>Sort::Maker</B>'s <B>GRT</B> option is not applicable if a multi-level key not the last is of varying length
+	with unknown maximum length
+	<LI>GRT is also not applicable if any subkey (even the last) has varying length and may contain embedded <TT><B>\00</B></TT>
+	bytes.
+	<LI><TT>make_sorter()</TT>'s errors go to <TT><B>$@</B></TT>, so you must use the <TT><B>or croak &quot;no sort
+	$@</B>&quot;</TT><B> </B>catch, or equivalent &quot;unless&quot;. <BR>
+	Yes, that's the seldom seen <TT><B>$@</B></TT>, aka <A HREF="http://perldoc.perl.org/perlvar.html#%24EVAL_ERROR">$EVAL_ERROR</A>
+	<LI>See above for not trusting POD.
+	<LI><B>Never </B>fetch an array result from DBI or other real database only to sort the data in Perl: Let the DB
+	query do it. Not only is this in the same class as &quot;don't do client-side joins&quot;, a wise man said that
+	any SQL Query without an <TT><B>Order By</B></TT> clause is broken because your code has a hidden dependency on
+	DB internals that may change. (Alternatively, never do SQL without an <TT><B>Order By</B></TT> unless you trust-and-verify
+	that <TT>Number of Records = 1</TT>.)
+	<LI><B>Damian Conway</B>'s <A HREF="http://www.oreilly.com/catalog/perlbp/"><B>Perl Best Practices</B></A> in Ch.8,
+	not only recommends &quot;building your sorting routines with Sort::Maker&quot;, which achieves Damian's coveted
+	&quot;highly recommended&quot; rating, but Damian also cautions one should pass code fragments for callbacks such
+	as this as &quot;subroutines via anonymous closures not String Evals&quot;.
+	<LI>Do not mix with alcohol or driving.
+</UL>
+
+<H2>References</H2>
+
+<UL>
+	<LI>Uri's <A HREF="http://stemsystems.com/sort/slides/slides/index.html">SortMakerSlides</A>.
+	<li><a href="http://www.sysarch.com/Perl/sort_paper.html">A Fresh Look at Perl Sorting</a></li>
+	<LI><A HREF="http://search.cpan.org/search?module=Sort::Maker">Sort::Maker</A> CPAN
+	<LI>Q&amp;A
+	<UL>
+		<LI><A HREF="http://answers.tveasy.co.uk/c.l.p.misc/Dsi-chronological-o.htm">http://answers.tveasy.co.uk/c.l.p.misc/Dsi-chronological-o.htm</A>
+		<LI><A HREF="http://www.google.com/search?hl=en&lr=&q=Sort::Maker++site:london.pm.org+Uri-Guttman">http://www.google.com/search?hl=en&amp;lr=&amp;q=Sort::Maker++site:london.pm.org+Uri-Guttman</A>
+		<LI><A HREF="http://www.perlmonks.org/?node=282607">http://www.perlmonks.org/?node=282607</A>
+		<LI><A HREF="http://www.issociate.de/board/goto/506563/sorting_with_Swartz_Transform.html">http://www.issociate.de/board/goto/506563/sorting_with_Swartz_Transform.html</A>
+	</UL>
+	<LI>Damian Conway's <A HREF="http://www.oreilly.com/catalog/perlbp/">Perl Best Practices</A> from O'Reilly <A HREF="http://isbn.nu/0596001738">0596001738</A>.
+</UL>
+
+<H2>Features</H2>
+<P>Amongst its diverse weapons of inquisition, Sort::Maker can do
+
+<OL>
+	<LI>plain no-caching sort,
+	<LI>Orcish maneuver sort;
+	<LI>Schwartzian Transform Sort;
+	<LI>GRT sort, either whole or of indices -- order preserving!
+	<LI>Ability to use module self-tests to benchmark itself;
+	<LI>Ability to sort case (in)sensitive, ascending or descending;
+	<LI>Can return the subroutine reference or install it into namespace of your choice.
+	<LI>Ability to sort unsigned, signed numbers, floats, and fixed and varying strings in the GRT style.
+	<LI>Ability to use PBP recommended anonymous subs (yes!) or eval strings (just say no) for key-extraction callbacks.
+</OL>
+
+<P>Enjoy!
+<H1><A HREF="mod23.pl">mod23.pl</A></H1>
+<P>
+<HR ALIGN="CENTER" />
+<PRE>   1 #! perl -l -w
+   2 
+   3 <SPAN CLASS="k">use</SPAN> <SPAN CLASS="w">strict</SPAN><SPAN CLASS="sc">;</SPAN>
+   4 <SPAN CLASS="k">use</SPAN> <SPAN CLASS="w">warnings</SPAN><SPAN CLASS="sc">;</SPAN>
+   5 <SPAN CLASS="k">use</SPAN> <SPAN CLASS="w">Carp</SPAN><SPAN CLASS="sc">;</SPAN>
+   6 <SPAN CLASS="k">use</SPAN> <SPAN CLASS="w">Sort::Maker</SPAN><SPAN CLASS="sc">;</SPAN>
+   7 
+   8  <SPAN CLASS="k">open</SPAN> <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$NETSTAT</SPAN><SPAN CLASS="cm">,</SPAN> <SPAN
+CLASS="q">&quot;netstat -a|&quot;</SPAN>
+   9   <SPAN CLASS="k">or</SPAN> <SPAN CLASS="k">die</SPAN> <SPAN CLASS="q">&quot;Netstat fails $@ &quot;</SPAN><SPAN
+CLASS="sc">;</SPAN>
+  10 
+  11 <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">%Connections</SPAN><SPAN CLASS="sc">;</SPAN>
+  12 
+  13 <SPAN CLASS="k">while</SPAN> <SPAN CLASS="s">(</SPAN><SPAN CLASS="q">&lt;$NETSTAT&gt;</SPAN><SPAN CLASS="s">)</SPAN> <SPAN
+CLASS="s">{</SPAN>
+  14   <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">@F</SPAN>=<SPAN CLASS="k">split</SPAN> <SPAN CLASS="q">/\s+/</SPAN><SPAN
+CLASS="cm">,</SPAN> <SPAN CLASS="i">$_</SPAN><SPAN CLASS="sc">;</SPAN>
+  15   <SPAN CLASS="k">next</SPAN> <SPAN CLASS="k">unless</SPAN> <SPAN CLASS="i">$F</SPAN>[<SPAN CLASS="n">-1</SPAN>] <SPAN
+CLASS="k">eq</SPAN> <SPAN CLASS="q">'ESTABLISHED'</SPAN><SPAN CLASS="sc">;</SPAN>
+  16   <SPAN CLASS="k">my</SPAN> <SPAN CLASS="s">(</SPAN><SPAN CLASS="i">$local</SPAN><SPAN CLASS="cm">,</SPAN> <SPAN
+CLASS="i">$remote</SPAN><SPAN CLASS="s">)</SPAN>=<SPAN CLASS="i">@F</SPAN>[<SPAN CLASS="n">3</SPAN>..<SPAN CLASS="n">4</SPAN>]<SPAN
+CLASS="sc">;</SPAN> <SPAN CLASS="c"># Slice!</SPAN>
+  17 
+  18   <SPAN CLASS="k">next</SPAN> <SPAN CLASS="k">if</SPAN> <SPAN CLASS="i">$local</SPAN> =~ <SPAN CLASS="q">/[.:][*]/</SPAN> <SPAN
+CLASS="k">or</SPAN> <SPAN CLASS="i">$remote</SPAN> =~ <SPAN CLASS="q">/[*]/</SPAN><SPAN CLASS="sc">;</SPAN>
+  19   <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">@L</SPAN>=<SPAN CLASS="k">split</SPAN> <SPAN CLASS="q">/[.:]/</SPAN><SPAN
+CLASS="cm">,</SPAN> <SPAN CLASS="i">$local</SPAN><SPAN CLASS="sc">;</SPAN>
+  20   <SPAN CLASS="i">$remote</SPAN>=~ <SPAN CLASS="q">s/[.:][^.:]+$//</SPAN><SPAN CLASS="sc">;</SPAN>
+  21 
+  22   <SPAN CLASS="i">$Connections</SPAN>{<SPAN CLASS="i">$remote</SPAN>}-&gt;{<SPAN CLASS="w">count</SPAN>}++<SPAN
+CLASS="sc">;</SPAN>
+  23 
+  24 
+  25 
+  26 <SPAN CLASS="s">}</SPAN>
+  27 
+<A NAME="package-utility-"></A>  28 <SPAN CLASS="k">package </SPAN><SPAN CLASS="i">utility</SPAN><SPAN CLASS="sc">;</SPAN>
+  29    <SPAN CLASS="s">{</SPAN> <SPAN CLASS="c">## Scope for private  var</SPAN>
+  30    <SPAN CLASS="k">use</SPAN> <SPAN CLASS="w">Socket</SPAN><SPAN CLASS="sc">;</SPAN> <SPAN CLASS="c"># for AF_INET, inet_aton</SPAN>
+  31    <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$Zeroes</SPAN>=<SPAN CLASS="i">inet_aton</SPAN><SPAN CLASS="s">(</SPAN><SPAN
+CLASS="q">&quot;0.0.0.0&quot;</SPAN><SPAN CLASS="s">)</SPAN><SPAN CLASS="sc">;</SPAN>
+  32 
+<A NAME="key_of-"></A>  33 <SPAN CLASS="k">sub </SPAN><SPAN CLASS="m">key_of</SPAN> <SPAN CLASS="s">{</SPAN>
+  34   <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$addr</SPAN>=<SPAN CLASS="k">shift</SPAN><SPAN CLASS="sc">;</SPAN>
+  35   <SPAN CLASS="k">return</SPAN> <SPAN CLASS="i">inet_aton</SPAN><SPAN CLASS="s">(</SPAN><SPAN CLASS="q">&quot;0.0.0.0&quot;</SPAN><SPAN
+CLASS="s">)</SPAN> <SPAN CLASS="k">unless</SPAN> <SPAN CLASS="k">defined</SPAN> <SPAN CLASS="i">$addr</SPAN> <SPAN
+CLASS="k">and</SPAN> <SPAN CLASS="i">$addr</SPAN><SPAN CLASS="sc">;</SPAN>
+  36   <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$is_numeric</SPAN> =  <SPAN CLASS="i">$addr</SPAN> =~ <SPAN CLASS="q">/^ ([.\d]+) $/</SPAN><SPAN
+CLASS="sc">;</SPAN>
+  37 
+  38   <SPAN CLASS="k">if</SPAN> <SPAN CLASS="s">(</SPAN><SPAN CLASS="i">$is_numeric</SPAN><SPAN CLASS="s">)</SPAN>  <SPAN
+CLASS="s">{</SPAN>
+  39     <SPAN CLASS="c"># my $name = (gethostbyaddr($addr,AF_INET))[0];</SPAN>
+  40     <SPAN CLASS="k">return</SPAN> <SPAN CLASS="i">inet_ntoa</SPAN><SPAN CLASS="s">(</SPAN><SPAN CLASS="i">$addr</SPAN><SPAN
+CLASS="s">)</SPAN><SPAN CLASS="sc">;</SPAN>
+  41   <SPAN CLASS="s">}</SPAN>
+  42   <SPAN CLASS="k">else</SPAN> <SPAN CLASS="s">{</SPAN>
+  43     <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$num</SPAN>=<SPAN CLASS="s">(</SPAN><SPAN CLASS="k">gethostbyname</SPAN><SPAN
+CLASS="s">(</SPAN><SPAN CLASS="i">$addr</SPAN><SPAN CLASS="s">))</SPAN>[<SPAN CLASS="n">4</SPAN>]<SPAN CLASS="sc">;</SPAN>
+  44     <SPAN CLASS="k">return</SPAN> <SPAN CLASS="i">$Zeroes</SPAN> <SPAN CLASS="k">unless</SPAN> <SPAN CLASS="i">$num</SPAN><SPAN
+CLASS="sc">;</SPAN>
+  45     <SPAN CLASS="k">return</SPAN> <SPAN CLASS="i">$num</SPAN><SPAN CLASS="sc">;</SPAN>
+  46   <SPAN CLASS="s">}</SPAN>
+  47 
+  48 <SPAN CLASS="s">}</SPAN>
+  49 
+  50 <SPAN CLASS="s">}</SPAN> <SPAN CLASS="c"># end  scope block</SPAN>
+  51 
+<A NAME="package-main-"></A>  52 <SPAN CLASS="k">package </SPAN><SPAN CLASS="i">main</SPAN><SPAN CLASS="sc">;</SPAN>
+  53 <SPAN CLASS="k">use</SPAN> <SPAN CLASS="w">Socket</SPAN><SPAN CLASS="sc">;</SPAN> <SPAN CLASS="c"># for inet_ntoa;</SPAN>
+  54 
+  55   <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$sort_func</SPAN> = 
+  56   <SPAN CLASS="i">make_sorter</SPAN><SPAN CLASS="s">(</SPAN>
+  57                            <SPAN CLASS="w">plain</SPAN><SPAN CLASS="cm">=&gt;</SPAN><SPAN CLASS="n">1</SPAN> <SPAN
+CLASS="cm">,</SPAN>
+  58                             <SPAN CLASS="c"># name=&gt; 'main::sort_func',</SPAN>
+  59                             <SPAN CLASS="w">string</SPAN> <SPAN CLASS="cm">=&gt;</SPAN> <SPAN CLASS="s">{</SPAN>
+  60                                       <SPAN CLASS="w">ascending</SPAN><SPAN CLASS="cm">=&gt;</SPAN><SPAN CLASS="n">1</SPAN><SPAN
+CLASS="cm">,</SPAN>
+  61                                          <SPAN CLASS="w">unsigned</SPAN><SPAN CLASS="cm">=&gt;</SPAN><SPAN
+CLASS="n">1</SPAN><SPAN CLASS="cm">,</SPAN>
+  62                                       <SPAN CLASS="w">code</SPAN> <SPAN CLASS="cm">=&gt;</SPAN> <SPAN CLASS="k">sub</SPAN> <SPAN
+CLASS="s">{</SPAN> <SPAN CLASS="i">utility::key_of</SPAN> <SPAN CLASS="i">$_</SPAN> <SPAN CLASS="sc">;</SPAN>
+  63 <SPAN CLASS="s">}</SPAN> <SPAN CLASS="cm">,</SPAN>
+  64                                      <SPAN CLASS="s">}</SPAN><SPAN CLASS="cm">,</SPAN>
+  65                           <SPAN CLASS="s">)</SPAN>
+  66 
+  67   <SPAN CLASS="k">or</SPAN> <SPAN CLASS="w">croak</SPAN> <SPAN CLASS="q">&quot;no sort: $@&quot;</SPAN><SPAN
+CLASS="sc">;</SPAN>
+  68 
+  69 
+  70   <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$name</SPAN><SPAN CLASS="sc">;</SPAN>
+  71   <SPAN CLASS="k">for</SPAN> <SPAN CLASS="i">$name</SPAN> <SPAN CLASS="s">(</SPAN><SPAN CLASS="i">$sort_func</SPAN>-&gt;<SPAN
+CLASS="s">(</SPAN><SPAN CLASS="k">keys</SPAN> <SPAN CLASS="i">%Connections</SPAN><SPAN CLASS="s">))</SPAN> <SPAN
+CLASS="s">{</SPAN>
+  72     <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$addr</SPAN>=<SPAN CLASS="i">inet_ntoa</SPAN><SPAN CLASS="s">(</SPAN><SPAN
+CLASS="i">utility::key_of</SPAN> <SPAN CLASS="s">(</SPAN><SPAN CLASS="i">$name</SPAN><SPAN CLASS="s">))</SPAN><SPAN
+CLASS="sc">;</SPAN>
+  73     <SPAN CLASS="k">print</SPAN> <SPAN CLASS="q">&quot;$Connections{$name}-&gt;{count}\t$name\t$addr&quot;</SPAN><SPAN
+CLASS="sc">;</SPAN>
+  74 
+  75   <SPAN CLASS="s">}</SPAN>
+<A NAME="EOF-"></A></PRE>
+
+</BODY>
+
+</HTML>

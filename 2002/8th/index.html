@@ -1,0 +1,248 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: XML::Handler::AxPoint</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 8th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">XML::Handler::AxPoint</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../7th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../9th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>AxPoint is a Perl module - a Perl application - that can take XML
+presentations and convert them into a PDF presentation that can be
+viewed with Adobe's Acrobat reader or xpdf (amongst many other tools).
+As well as producing an open, cross platform, output file, it looks
+nice too.  It's what I used this year to give my talk at YAPC::Europe,
+and I was very pleased with the results.</p>
+<p>In my eyes however, AxPoint's biggest advantage has nothing to do with
+the output format that it uses - it's the input format.  First of all
+it's very simple to write.  It's just text, so I can use my editor, and
+I can quickly jot down what I want to say without worry too much about
+the actual presentation at that point.  And since it's in text I can also
+email it to people and they can send me diffs back again, allowing
+colaberation on presentations very easily.</p>
+<p>Of course, the real power of XML is that it's really easy to manipulate
+the presentation programatically - with Perl, or indeed with any other
+langage with an XML processing toolkit.  This means it's really easy to
+extend the AxPoint langauge to add your own tags and extensions, as
+I'll demonstate below.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?XML::Handler::AxPoint">[Read the documentation for XML::Handler::AxPoint on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>AxPoint presentations are pretty simple to write.  Here's a really
+simple one:</p>
+<pre>  &lt;?xml version="1.0"?&gt;</pre>
+
+<pre>  &lt;slideshow&gt;</pre>
+
+<pre>    &lt;metadata&gt;
+      &lt;speaker&gt;Mark Fowler&lt;/speaker&gt;
+      &lt;email&gt;mark@twoshortplanks.com&lt;/email&gt;
+      &lt;organisation&gt;London Perl Mongers&lt;/organisation&gt;
+      &lt;background&gt;bg2.png&lt;/background&gt;
+    &lt;/metadata&gt;</pre>
+
+<pre>    &lt;title&gt;An Example Slideshow&lt;/title&gt;</pre>
+
+<pre>    &lt;slide&gt;
+      &lt;title&gt;My Slide&lt;/title&gt;
+      &lt;point&gt;This is my slide&lt;/point&gt;
+      &lt;point level="2"&gt;There are many like it&lt;/subpoint&gt;
+      &lt;point level="2"&gt;But this is mine&lt;/subpoint&gt;
+      &lt;point&gt;I'd like to put it on a CD:&lt;/point&gt;
+      &lt;image&gt;cd.png&lt;/image&gt;
+    &lt;/slide&gt;</pre>
+
+<pre>  &lt;/slideshow&gt;</pre>
+
+<p>And this is what it looks like <li><a href="presentation.pdf">Download Example Presentaion (41K)</a></li></p>
+<p>There a lots more features (you can have sections, inlcude source
+code, include SVG graphics, tables to layout your text, and much more)
+all of which is covered at length <li><a href="http://search.cpan.org/author/MSERGEANT/XML-Handler-AxPoint/lib/XML/Handler/AxPoint.pm">in the documentation</a></li>
+or in <li><a href="http://xml.com/pub/a/2002/06/19/perl-xml.html">Kip's XML.com article</a></li>.</p>
+<h2>Extending AxPoint</h2>
+<p>As AxPoint presentations are nothing more than XML then there's
+nothing to stop you processing them before they get as far as the
+XML::Handler for AxPoint - as far as AxPoint is concerned as long as
+it gets XML in the correct format then everything is fine by it.</p>
+<p>Say - for example - you don't like the way that AxPoint forces you to
+write <code>&lt;point level="2"&gt;</code> and you'd be happier with something
+that simply called <code>&lt;subpoint&gt;</code>.  Well, all you need to do
+is make a SAX filter that converts all <code>subpoint&gt;</code> tags into <code>&lt;point level="2"</code> tags automatically.</p>
+<pre>  package XML::Filter::SubPoint;</pre>
+
+<pre>  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # use the XML::SAX::Base class so that unhandled events
+  # are just passed straight though
+  use base qw(XML::SAX::Base);</pre>
+
+<pre>  # simple constuctor method
+  sub new
+  {
+    my $class = shift;
+    my %options = @_;
+    return bless \%options, $class;
+  }</pre>
+
+<pre>  # implement a method that catches any start tags
+  sub start_element
+  {
+    my $self = shift; # the sax processor
+    my $tag  = shift; # the tag itself</pre>
+
+<pre>    # is this a subpoint tag?
+    if ($tag-&gt;{Name} eq "subpoint")
+    {
+      # rename it 'point' instead of 'subpoint'
+      $tag-&gt;{Name} = "point";             # qualified name
+      $tag-&gt;{LocalName} = $tag-&gt;{Name};   # unqualified name</pre>
+
+<pre>      # add an attribute for the level and set the properties
+      $tag-&gt;{Attributes}{'{}level'} = {
+				       LocalName =&gt; 'level',
+				       Prefix =&gt; '',
+				       Value =&gt; '2',
+		  		       Name =&gt; 'level',
+	  			       NamespaceURI =&gt; ''
+                                      };
+    }</pre>
+
+<pre>    # return the tag (following pipeline conventions)
+    return $self-&gt;SUPER::start_element($tag);
+  }</pre>
+
+<pre>  # and a simliar one that catches end tags
+  sub end_element
+  {
+    my $self = shift; # the sax processor
+    my $tag  = shift; # the tag itself</pre>
+
+<pre>    # is this a subpoint tag?
+    if ($tag-&gt;{Name} eq "subpoint")
+    {
+      # rename it 'point' instead of 'subpoint'
+      $tag-&gt;{Name} = "point";             # qualified name
+      $tag-&gt;{LocalName} = $tag-&gt;{Name};   # unqualified name
+    }</pre>
+
+<pre>    # return the tag (following pipeline conventions)
+    return $self-&gt;SUPER::end_element($tag);
+  }</pre>
+
+<pre>  1; # all perl modules need to return "true"     </pre>
+
+<p>This filter can then be placed in a <b>XML::SAX::Pipeline</b> with
+a script like this:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load machines, including the Pipeline functiion
+  use XML::SAX::Machines qw(:all);</pre>
+
+<pre>  # set up a xml pipeline to run the xml though
+  my $machine = Pipeline(
+   "XML::Filter::SubPoint",  # first through our code
+   "XML::Handler::AxPoint",  # then though axpoint, out to STDOUT
+  );</pre>
+
+<pre>  # check we got the correct command line arguments
+  die "didn't specify a xml file to parse" unless @ARGV;</pre>
+
+<pre>  # parse the url (probably just the file) we were
+  # passed on the command line
+  $machine-&gt;parse_uri($ARGV[0]);</pre>
+
+<p>And voila! There we have it an extension to AxPoint.  Now this is a
+simple example, but there's nothing to stop you going further with
+your preprocesssing.  For example, you could have something that
+automatically extended entities into full blown text.  You could have
+something that inserted source files.  If you're really trying you
+could create a SVG graph from a table of figures.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://xml.com/pub/a/2002/06/19/perl-xml.html">PDF Presentations Using AxPoint article on xml.com</a></li>
+<li><a href="http://search.cpan.org/search?query=XML%3A%3ASAXMachines&mode=module">XML::SAXMachines</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:52 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

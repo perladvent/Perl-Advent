@@ -1,0 +1,99 @@
+=pod
+
+=for advent_year 2009
+
+=for advent_day 17
+
+=for advent_title  Merry DBIx::Class!
+
+=for advent_author Yanick Champoux
+
+
+Gluggag&aelig;gir, P<2008-12-13|let us recall>, is an IT elf who moved into Q&A
+after last season, a decision that right now make him very sad. You see,
+the project he's been put on is P<2008-12-5|Santa's ChildrenDB application>
+which&mdash;I'm ashamed to report&mdash;has gotten quite bad.
+
+For one the application's interface to the database is a mess.
+An ugly quagmire, a pathetic excuse of an API. Its guts are bloated,
+convoluted and impossible to read. Truly the type of coding horror that
+makes baby seals cry.
+
+Worse still, it runs on a costly database system mandated by the hefty load
+of the app in production. But did Glugg get a second copy for testing?
+Of course not! Marketing gets leather chairs and unicorn barbeques,
+but he's stuck working on a popcorn string budget.
+
+But wait! Glugg remembered that North Pole Mongers presentation about all
+things M<DBIx::Class>. Inspired, he plopped on his chair and began to type
+real fast:
+
+=begin code
+
+use DBIx::Class::Schema::Loader qw/ make_schema_at /;
+
+make_schema_at(
+    'ChildrenDB::Schema',
+    { debug => 1, dump_directory => './lib' },
+    [ 'dbi:HoHoHoracle:ChildrenDB,'santa','c00k13s' ],
+);
+
+=end code
+
+Et voil&agrave;! In a flash he has generated Dozens of modules&mdash;one for each
+table. Blissfully, he can now play with the database using code that would
+be simple, sweet and palatable.
+
+But an interface, as splendid as it might be, is all but useless if there is
+no database to connect to. So Glugg decided to create a duplicate testing db,
+which brings us to script number two:
+
+=begin code
+
+use lib qw/ lib /;
+use ChildrenDB::Schema;
+
+my $schema = ChildrenDB::Schema->connect( 
+                'dbi:SQLite:dbname=childrendb.sqlite' );
+
+$schema->deploy;
+
+=end code
+    
+Huzzah! Glugg was now the proud owner of a clone of ChildrenDB. One that
+would run as long as the slope isn't too steep. Still 'twas better than
+nothing (and almost as cheap).
+
+Already a fairly happy hacker since his mission was no longer doomed to
+be a flop, inspiration struck again and he saw how to add a cherry on top:
+
+=begin code
+
+use lib qw/ lib /;
+use ChildrenDB::Schema;
+use SQL::Translator;
+
+my $schema = ChildrenDB::Schema->connect( 
+    'dbi:SQLite:dbname=childrendb.sqlite',
+);
+
+SQL::Translator->new(
+    parser => 'SQL::Translator::Parser::DBIx::Class',
+    parser_args => { package => $schema },
+
+    to => 'GraphViz',
+    producer_args => { out_file => 'childrendb.png' },
+)->translate;
+
+=end code
+
+With those lines was produced a nice diagram of all the db's tables and keys.
+A true treasure map, a gold mine of insight that would save Glugg from many a
+pitfall!
+
+This is where our story reaches its happy ending.
+Glugg still has work to do, but for now we'll leave it at that.
+Let's just give three cheers to the li'l elf who built an API,
+a database and a diagram in five minutes flat!
+
+=cut

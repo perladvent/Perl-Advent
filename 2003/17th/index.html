@@ -1,0 +1,242 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: diagnostics</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 17th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">diagnostics</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../16th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../18th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Trying to work out why your code has gone wrong is one of the most
+time consuming tasks that consume a programmer's daily grind.  It's
+also the most frustrating.</p>
+<p>There's nothing worse when you're trying to solve a problem than not
+understanding an error message that a script is spitting out.  Perl
+has to draw the line somewhere between explaining what the error it's
+printing out really means and printing out so much info that you get
+swamped.  But sometimes you find it's drawn the line on the wrong
+side of the sand.</p>
+<p><b>diagnostics</b> can help explain what's going on by printing out
+explanations of each of the error messages as they occur in a
+overly verbose fashion.  These explanations are taken from perldiag,
+and have been carefully crafted to answer the 'why is it complaining
+about that' question that you'll often find yourself asking.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?diagnostics">[Read the documentation for diagnostics on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Diagnostics can be enabled at the start of your script in the same
+way that you might turn warnings and strict on:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # turn on extra debug info
+  use diagnostics;</pre>
+
+<pre>  # do something naughty ($foo not declared yet)
+  $foo = "bar";</pre>
+
+<p>This prints out a fully descriptive lump of text that's explaining
+what's exactly going on:</p>
+<pre>  Global symbol "$foo" requires explicit package name at - line 11.
+  Execution of - aborted due to compilation errors (#1)
+   
+      (F) You've said "use strict vars", which indicates that all
+      variables must either be lexically scoped (using "my"),
+      declared beforehand using "our", or explicitly qualified to
+      say which package the global variable is in (using "::").</pre>
+
+<p>Horay! I now understand.  These error messages are extracted from the
+handy 'what does that mean' page that is the
+<li><a href="http://www.perldoc.com/perl5.8.0/pod/perldiag.html">perldiag</a></li>
+manpage.</p>
+<p><b>diagnostics</b> prints out useful information for warnings too</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # turn on extra debug info
+  use diagnostics;</pre>
+
+<pre>  # do something naughty ($foo undef)
+  my $foo;
+  my $bar = $foo . $foo;</pre>
+
+<p>Which prints:</p>
+<pre>  Use of uninitialized value in concatenation (.) or string
+  at - line 12 (#1)
+  (W uninitialized) An undefined value was used as if it were
+    already defined.  It was interpreted as a "" or a 0, but
+    maybe it was a mistake. To suppress this warning assign a
+    defined value to your variables.
+    
+    To help you figure out what was undefined, perl tells you
+    what operation you used the undefined value in.  Note,
+    however, that perl optimizes your program and the operation
+    displayed in the warning may not necessarily appear
+    literally in your program.  For example, "that $foo" is
+    usually optimized into "that " . $foo, and the warning will
+    refer to the concatenation (.) operator, even though there 
+    is no . in your program.</pre>
+
+<p>This is fine, until you get about a million of these in your program.
+Since warnings aren't fatal you can quickly amass screenfuls and
+screenfuls of text One solution is to turn warnings on for just a
+little bit of your code:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # turn on extra debug info
+  use diagnostics;
+  disable diagnostics;
+ 
+  # do something naughty ($foo undef)
+  my $foo;
+  my $bar = $foo . $foo;   #  no diagnostics</pre>
+
+<pre>  enable diagnostics;
+  $bar .= gmtime . "fred";  # prints out warning</pre>
+
+<p>This prints out the long and helpful warning:</p>
+<pre>  Warning: Use of "gmtime" without parentheses is ambiguous
+  at - line 16 (#1)
+    (S ambiguous) You wrote a unary operator followed by 
+    something that looks like a binary operator that could
+    also have been interpreted as a term or unary operator.
+    For instance, if you know that the rand function has a 
+    default argument of 1.0, and you write
+    
+        rand + 5;
+    
+    you may THINK you wrote the same thing as
+    
+        rand() + 5;
+    
+    but in actual fact, you got
+    
+        rand(+5);
+    
+    So put in parentheses to say what you really mean.</pre>
+
+<p>But we didn't get any diagnostics about the concatenation.  Nice.</p>
+<p>Another possibility, one I use a lot, is have my program grind
+to a halt as soon as it sees a warning.  This can be done by installing
+a signal handler that dies when it finds a problem:</p>
+<pre>  use diagnostics;
+  BEGIN { $SIG{'__WARN__'} = sub { die $_[0] }; }</pre>
+
+<h2>splain</h2>
+<p><b>splain</b> is a little program that allows you to create diagnostics
+for code that's already been executed.  It works by taking the error
+output from our code's and reprocessing it into more useful output.
+Let's remove diagnostics from our previous example:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;
+ 
+  # do somethings naughty
+  my $foo;
+  my $bar = $foo . $foo;
+  $bar .= gmtime . "fred";</pre>
+
+<p>And capture the warnings to a file (This is the syntax for bash,
+you'll have to work out how to redirect STDERR on your system
+yourself.)</p>
+<pre>   bash-2.05b$ perl script 2&gt;mystderr</pre>
+
+<p>And now at any point in the future I can run <b>splain</b> over that
+output and it'll print out handy debug messages for me:</p>
+<pre>   bash-2.05b$ splain mystderr</pre>
+
+<p>Which spits out the same errors as above.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.perldoc.com/perl5.8.0/pod/perldiag.html">perldiag</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:56 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

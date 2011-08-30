@@ -1,0 +1,50 @@
+
+=for advent_year 2007
+
+=for advent_day 17
+
+=for advent_title Subclassing all the way!
+
+=for advent_author David Westbrook
+
+These Perl Advent Calendar submissions have specific formatting guidelines,N<1>
+which need to be adhered to by the authors, or done by the editors in time-comsuming second passes.  Using M<Pod::Simple>N<2> and following the guidelines in the M<Pod::Simple::Subclassing> documentation, a simple text format in A<http://perldoc.perl.org/perlpod.html|POD> can be defined for authors.N<3>
+
+The first items we want to address and make easy are the use of F<&lt;tt&gt;> for file, module, and program names, the use of F<perltidy -nnn -html> for code samples, and the whole header section, including title, author, and css.N<4>
+
+The easiest is the POD F<F&lt;&gt;> tag, where we use the C<_handle_element_start()> and C<_handle_element_end()> methods to simply insert F<&lt;tt&gt;> and F<&lt;/tt&gt;> tags, respectively, for the C<$element_name eq 'F'> case (lines 43-44, 88-89). Implementing the F<I&lt;&gt;> and F<B&lt;&gt;> codes follows the exact same model (lines 45-46, 90-91).
+
+Now, module names are a step more, because we want them to be hyperlinked to thier CPAN search results. For this, we define our code custom POD code of F<M&lt;&gt;> with the C<accept_codes()> method (line 21). We have this behave the same as F<F&lt;&gt;>, with the addition of a case in the C<_handle_text()> method that changes the string from just the text to a HTML hyperlink (lines 125-126).
+
+Any I<verbatim> (indented) text in POD we want to treat as code, and have automatically follow the F<perltidy> guideline. For this, we have a case in the C<_handle_text()> method for C<$element_name eq 'Verbatim'> that passes the text through M<Perl::Tidy>F<::perltidy> with the C<-html -pre> options (lines 99-107).
+
+The tricky ones are setting the title and author fields.  This is because they can't simply be written out in the order they are found in the POD source; e.g. the title appears twice -- once in the F<&lt;title&gt;> tag and once in a F<&lt;h1&gt;> tag, and both of those, and the author name, comprise the whole HTML header (lines 65-76) along with some static markup such as the F<&lt;html&gt;>, F<&lt;head&gt;>, F<&lt;body&gt;>, and F<&lt;style&gt;> tags.
+
+So the approach is to use the C<accept_targets_as_text()> method (line 22) to declare several C<=for advent_KEY VALUE> tags to use for setting the various pieces of information.  We note via a C<$section> package variable whenever we come upon one of these in the C<_handle_element_start()> method (lines 47-48).  Then the next C<_handle_text()> run for C<$element_name eq 'Para'> will use the text to set C<$data{$section}> instead of appending it to the output (lines 118-120).  So this will populate a data hash as the source is processed.
+
+What then ties everything together and does the actual output is the C<$element_name eq 'Document'> case in the C<_handle_element_end()> method (lines 58-78).
+
+  use mod17a;
+  my $advent = mod17a->new;
+  $advent->parse_file( \*STDIN );
+
+=sourcedcode mod17a.pm
+
+<a name="1"></a>1.
+See the A<http://perladvent.pm.org/2007/FAQ-submit.html|submission FAQ>
+
+<a name="2"></a>2.
+"Normally we'd say something on Phalanx 100 (or core) was too well
+known;  but a self-referential piece on a non obvious usage is within
+house style twice." -Bill
+
+<a name="3"></a>3.
+Full examples can be seen for days
+A<../1|1>/A<../mod1.pod|.pod>,
+A<../8|8>/A<../mod8.pod|.pod>,
+A<../16|16>/A<../mod16.pod|.pod>,
+and this (17) entry's A<mod17.pod|.pod>.
+
+<a name="4"></a>4.
+Watch for M<Pod::Advent> to be released on CPAN with a fuller feature set, documentation, and a F<pod2advent> script.
+

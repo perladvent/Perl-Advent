@@ -1,0 +1,235 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Encode</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 11th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Encode</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../10th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../12th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>It's a wide world out there, and the one hundred and twenty characters
+in ASCII just doesn't cut it anymore.  In a global marketplace - or
+whenever we want to talk to those Paris Perl Mongueurs - we need to
+use a bigger range of characters.  The funny Es with acute signs on
+them, weird greek characters, and things that just look like
+squiggles.  We need them all.</p>
+<p>Whenever we want to tell the terminal to print these characters to a
+terminal or save them to a file we need to encode them in an character
+encoding so they can be represented in bytes.  Whenever we read these
+characters in we need to decode the byte sequences.</p>
+<p>Encode can do this for us.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Encode">[Read the documentation for Encode on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Since Perl 5.6, perl has been able to store Unicode characters in
+strings. Consider the Unicode character <code>&#937;</code> (omega) with
+Unicode code point 937 (i.e. it's the 938th Unicode character, but we
+start counting from 0 not 1) and would typically be used like this in
+a mathematical formula:</p>
+<pre>  a &#937; b</pre>
+
+<p>This could be simply be entered as a Perl string by using the <code>chr</code>
+function to convert from the code point to a character.</p>
+<pre> my $string = "a " . chr(937) . " b";</pre>
+
+<p>Or by using the <code>\x</code> escape string inside a string with the
+hexadecimal code for 937:</p>
+<pre> my $string = "a \x{03A9} b"</pre>
+
+<p>Or by using the <code>\N</code> escape string inside a string with the Unicode
+name for the character:</p>
+<pre> # load the character names into our script
+ use charnames ":full";</pre>
+
+<pre> my $string = "a \N{GREEK CAPITAL LETTER OMEGA} b";</pre>
+
+<p>Or by using a Unicode aware text editor, the <code>use utf8</code> pragma and
+getting your editor to save the script using the utf8 byte sequence
+encoding, meaning you can just type the sequence with your keyboard.</p>
+<pre> # declare everything after this command will
+ # be represented on disk by utf8 bytes
+ use utf8;</pre>
+
+<pre> my $string = "a &#937; b";</pre>
+
+<h2>Rendering the string</h2>
+<p>All of these approaches work - Perl now has a five character string in
+memory that contains the correct character.  For example, if we write
+something to print out the code point of each character we get the right
+thing:</p>
+<pre> foreach my $index (0..(length($string)-1)
+ {
+   # get the character
+   my $char = substr($string, $index, 1); </pre>
+
+<pre>   # work out then print the code points
+   my $codepoint = ord($char);
+   print "$codepoint\n"
+ }</pre>
+
+<p>Prints</p>
+<pre> 97
+ 32
+ 937
+ 32
+ 98</pre>
+
+<p>For the <code>a</code>, the space, the omega, the second space and the <code>b</code>.</p>
+<p>The trouble comes when you want to print out the characters
+themselves.  The question is of course "how do you send the character
+out to the terminal?"  Printing the <code>a</code> out is trivial; Just sending
+the byte <code>97</code> to the terminal will cause it to render a letter a on
+the screen. However, there isn't a single byte that represents omega.
+It depends on the encoding that the terminal you're using is using at
+the time.  You need to know the correct byte (or bytes) to send to the
+terminal in the encoding scheme that it's using to get it to display
+the letter you want.</p>
+<p>For example, if you set your terminal to use "iso-8859-7" then sending
+byte <code>217</code> to will cause it to print an omega (where if you have it
+set to latin-1 as normal it'll just print a <code>&#217;</code>.)  If you
+have a utf8 terminal then you'll be needing to send it the multi-byte
+sequence of <code>206</code> and <code>169</code>.  The byte sequence you're using is
+purely arbitrary - it's what's defined in the form of encoding you're
+using.</p>
+<p>So how do you work out what to send?</p>
+<h2>Using Encode to do the Character Translation</h2>
+<p>The <code>Encode</code> module that ships with perl 5.8 can be used to encode
+string that perl holds in memory into byte representations (and,
+in fact go the other way and decode byte representations and make perl
+strings.)  For example, converting our string into "iso-8859-7".</p>
+<pre>  use Encode;
+  my $bytes = Encode::encode("iso-8859-7", $string);</pre>
+
+<p>The scalar <b>$bytes</b> now contains the bytes that represent $string in
+the encoding we passed.  Printing out one byte per line like we did
+for the characters above gives us:</p>
+<pre>  97
+  32
+  217
+  32
+  98</pre>
+
+<p>Most of the numbers are the same - because the byte that represents them
+in iso-8859-7 is the same as the Unicode character number.  Only 937 has
+changed to 217.  Printing this scalar to our iso-8859-7 terminal causes it
+to display the right characters.</p>
+<pre>  a &#937; b</pre>
+
+<h2>Automatic Translation</h2>
+<p>Whenever you print something out with Perl it has to work out which
+bytes to send for each character.  By default (in latin-1 locales at
+least) it does no translation on the characters it's printing out
+mapping the character code point directly to the byte it prints out
+(this also means that when you print scalars that contain binary data
+or already encoded byte sequences then thankfully no extra encoding
+happens.)</p>
+<p>It's possible to tell perl to automatically translate the string into
+the correct format when print it out.  For example, to write a file as
+iso-8859-7 you can use a PerlIO layer to do the translation for you:</p>
+<pre>  open my $fh, "&gt;:encoding(iso-8859-7)", "file"
+    or die "Can't write to file: $!";</pre>
+
+<pre>  print $fh $string;</pre>
+
+<p>Anything printed to <code>$fh</code> will automatically be encoded into
+iso-8859-7.  <code>binmode</code> can be used on an already existing file
+handle:</p>
+<pre>  bimode STDOUT, "encoding(iso-8859-7)";</pre>
+
+<h2>Decoding</h2>
+<p>Decoding a string of bytes works pretty much the same way as encoding
+one - just in reverse.  We can read a file that's encoded in a
+particular encoding automatically:</p>
+<pre>  open my $fh, "&lt;:encoding(iso-8859-7)", "file"
+    or die "Can't read from file: $!";</pre>
+
+<pre>  my $string = &lt;$fh&gt;;</pre>
+
+<p>Or, if we've already got a bunch of bytes in a string, we can decode
+it with <code>Encode::decode</code>;</p>
+<pre>  use Encode;
+  my $string = Encode::decode("iso-8859-7", $bytes);</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.perldoc.com/perl5.8.4/pod/perlunicode.html">perlunicode</a></li>
+<li><a href="http://search.cpan.org/perldoc?Encode::PerlIO">Encode::PerlIO</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:58 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

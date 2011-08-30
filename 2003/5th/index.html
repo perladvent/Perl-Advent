@@ -1,0 +1,237 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: Template::Extract</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 5th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Template::Extract</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../4th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../6th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><b>Template::Extract</b> is a way of extracted data from an unstructured
+data source without having to write any regular expressions.</p>
+<p>As a perversion of the Template Toolkit grammar, it allows you to
+simply copy and paste chunks of webpages that you want to extract
+data from into a template file and name the bits you want to keep
+and throw away the bits that change between pages that you want to
+ignore.</p>
+<p>While there are better parsing tools for extracting things from HTML
+there are very few that are so quick and easy to use, and I've got to
+admit that this module has become one of my regular tools for simply
+quickly getting the job.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Template::Extract">[Read the documentation for Template::Extract on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>The <li><a href="http://www.timeanddate.com/worldclock/">time and date.com Worldclock</a></li> 
+is a website that shows the times for cities around the world.  This
+information is actually quite hard to work out on your local computer
+- especially when things like Sydney changing timezones because
+they're hosting the Olympics happen.  What we'd like to do is extract
+this programmatically so that anytime we want to look up the time in a
+city from the command line we can.</p>
+<p>When we look at the source of the page, we see that each of the cities
+look like this:</p>
+<pre> &lt;a href="city.html?n=51"&gt;Buenos Aires&lt;/a&gt;
+ &lt;/td&gt;&lt;td class=r&gt;Wed 8:57 PM&lt;/td&gt;</pre>
+
+<p>This will form the basis of our extraction template.  What we need to
+do first is replace all the sections in the code that we want to
+capture by a TT variable:</p>
+<pre> &lt;a href="city.html?n=51"&gt;[% city %]&lt;/a&gt;
+ &lt;/td&gt;&lt;td class=r&gt;[% time %]&lt;/td&gt;</pre>
+
+<p>And we need to replace all the bits that could change with the special
+'it doesn't matter' tag <code>[% ... %]</code>.</p>
+<pre> &lt;a href="city.html?n=[% ... %]"&gt;[% city %]&lt;/a&gt;
+ &lt;/td&gt;&lt;td class=r&gt;[% time %]&lt;/td&gt;</pre>
+
+<p>We then build this into a simple program that goes and gets the data:</p>
+<pre>  #!/usr/bin/perl
+  
+  # turn on perl's safety features
+  use strict;
+  use warnings;
+  
+  # create a new template extractor
+  use Template::Extract;
+  my $extract = Template::Extract-&gt;new();</pre>
+
+<pre>  # get the source of the page
+  use LWP::Simple qw(get);
+  my $document = get "http://www.timeanddate.com/worldclock/"
+    or die "Can't get page";</pre>
+
+<pre>  # define the template
+  my $template = &lt;&lt; '.';
+  &lt;a href="city.html?n=[% ... %]"&gt;[% city %]
+  &lt;/a&gt;&lt;/td&gt;&lt;td class=r&gt;[% time %]&lt;/td&gt;
+  .</pre>
+
+<pre>  # extract the data
+  my $data = $extract-&gt;extract($template, $document);</pre>
+
+<pre>  # print it out so we can see we've got what we want to
+  use Data::Dumper;
+  print Dumper $data;</pre>
+
+<p>And when we run it it prints out the first city on the list:</p>
+<pre>  $VAR1 = {
+            'city' =&gt; 'Addis Ababa',
+            'time' =&gt; 'Thu 3:18 AM'
+          };</pre>
+
+<p>We now need to modify the code so that it extracts all the values for
+all days.  We modify it to use the <code>FOREACH</code> directive.</p>
+<pre>  my $template = &lt;&lt; '.';
+  [% FOREACH place %]
+  [% ... %]
+  &lt;a href="city.html?n=[% ... %]"&gt;[% city %]&lt;/a&gt;
+  &lt;/td&gt;&lt;td class=r&gt;[% time %]&lt;/td&gt;
+  [% END %]
+  .</pre>
+
+<p>Now when we run this it this prints out a deeper data structure:</p>
+<pre>  $VAR1 = {
+            'place' =&gt; [
+                         {
+                           'city' =&gt; 'Addis Ababa',
+                           'time' =&gt; 'Thu 3:23 AM'
+                         },
+                         {
+                           'city' =&gt; 'Hanoi',
+                           'time' =&gt; 'Thu 7:23 AM'
+                         },
+                         {
+                           'city' =&gt; 'New York',
+                           'time' =&gt; 'Wed 7:23 PM'
+                         },</pre>
+
+<p>And so on.  So we've managed to extract the data we needed without
+having to think about using a single regular expression.  But hang on,
+what's this?  One of our entries doesn't look right:</p>
+<pre>  {
+     'city' =&gt; 'Adelaide&lt;/a&gt; *&lt;/td&gt;&lt;td class=r&gt;Thu 10:53 AM&lt;
+  /td&gt;&lt;td&gt;&lt;a href="city.html?n=96"&gt;Harare',
+     'time' =&gt; 'Thu 2:23 AM'
+  },</pre>
+
+<p>Some of the entries on that page have an asterix next to them to
+indicate that they're using daylight saving time.  This is an
+inherent problem with using an unstructured parsing system - it's
+just not that flexible and doesn't understand that we wanted whatever
+was inside the A tags, unlike, say, if we'd tried breaking it up with
+a proper HTML/XML parser.  This said, it doesn't take that long to fix:</p>
+<pre>  my $template = &lt;&lt; '.';
+  [% FOREACH place %]
+  [% ... %]
+  &lt;a href="city.html?n=[% ... %]"&gt;[% city %]&lt;/a&gt;
+  [% ... %]&lt;/td&gt;&lt;td class=r&gt;[% time %]&lt;/td&gt;
+  [% END %]
+  .</pre>
+
+<p>And now all that's left to do now is simply print out whichever city matched</p>
+<pre>  # work out what city people were looking for
+  my $city = join ' ', map { lc($_) } @ARGV;</pre>
+
+<pre>  # check each of the cities in turn
+  foreach my $entry (@{ $data-&gt;{place} })
+  {
+    # is this the city we were looking for?
+    if (lc($entry-&gt;{city}) eq $city)
+    {
+       print "$entry-&gt;{time}\n";
+       exit;
+    }
+  }
+ 
+  # if we got this far then we didn't find the city
+  print "No city called '$city' found\n";
+  exit 1;</pre>
+
+<h2>Copyright</h2>
+<p>I draw your attention to the <li><a href="http://www.timeanddate.com/information/copyright.html">copyright notice</a></li> for Time and Date.com</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.oreillynet.com/pub/a/javascript/excerpt/spiderhacks_chap01/index.html">Painless RSS with Template::Extract, excert from Spidering Hacks published by O'Reilly</a></li> 
+<li><a href="http://www.timeanddate.com/">Time and Date.com</a></li>
+<li><a href="http://www.perladvent.org/2002/22nd/">Using XML::LibXML to extract data</a></li>
+<li><a href="http://www.oreilly.com/catalog/perllwp/">Perl &amp; LWP, published by O'Reilly</a></li>
+<li><a href="http://www.manning.com/cross/">Data Munging With Perl, published by Manning</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:55 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

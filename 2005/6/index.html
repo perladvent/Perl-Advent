@@ -1,0 +1,116 @@
+<html>
+<head>
+<title>YA Perl Advent Calendar 2005: On the ordinate(6) day of X-Mas</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body>
+<h1><a href="../">YA Perl Advent Calendar</a> 2005-12-06</h1>
+Today I bring you a little chunk code of originally created by everybody's
+favorite octopus-keeping infinite number of monkeys&mdash;MJD.
+The module, known simply as
+<a href="http://search.cpan.org/search?module=Interpolation">Interpolation</a>,
+has been embraced and extended by the current maintiner&mdash;Jenda.
+<p>
+Loosely speaking you could think of Interpolation as providing a smattering
+of predefined and customizable overloaded quoting. It's not of course, it
+instead relies upon abuse of <tt>tie</tt>. The premise is that you index into
+a hash and the key is formatted and interpolated into your string. As the pod
+says
+<pre>
+   i <span class="k">use</span> <span class="w">Interpolation</span> <span class="w">name</span> <span class="cm">=&gt;</span> \<span class="i">&amp;function</span><span class="cm">,</span> ...<span class="sc">;</span>
+  ii <span class="k">print</span> <span class="q">&quot;la la la la $name{blah blah blah}&quot;</span><span class="sc">;</span>
+ iii 
+  iv <span class="c"># This is like doing:</span>
+   v <span class="i">$VAR</span> = <span class="i">&amp;function</span><span class="s">(</span><span class="w">blah</span> <span class="w">blah</span> <span class="w">blah</span><span class="s">)</span><span class="sc">;</span>
+  vi <span class="k">print</span> <span class="q">&quot;la la la la $VAR&quot;</span><span class="sc">;</span>
+</pre>
+<p>
+A deceptively simple and powerful piece of syntactic NutraSweet.
+<p>
+Below is a code listing with some examples of my testing various module
+features. All in all it's pretty nifty and I might begin including it in my
+repertoire however I strongly urge you to heed the Caveats, especially
+<a href="http://search.cpan.org/~jenda/Interpolation-0.70.1/Interpolation.pm#Trap_1.">Trap 1</a>
+because you'll surely run into this if you try anything fancy. I experienced a
+similar problem with the <tt>ucwords</tt> example and had resort to non-interpolating
+quotes for the key. Finally the <tt>sqlescape</tt> function seems rather goofy, the
+suggested binding to <tt>%'</tt> is cute&ndash;giving the appearance of being
+enclosed in <tt>'</tt>uotes !! Not to be confused with the perfomance penalty
+inducing <tt>$'</tt>&ndash; but the Microsoft-esque escaping is ugly.
+<p>
+<b>ADDENDUM</b>: <tt>eval</tt> is a bit of a misnomer for <tt>identity</tt>/<tt>null</tt>. None of the
+names are quite right since it returns the result of the EXPR provided as the
+key, so it's not identity. This is not the same thing as eval because it limits
+you to a single statement. And
+
+<pre>
+     <span class="i">$_</span> = <span class="i">$eval</span>{<span class="q">'use int; 22/7'</span>}<span class="sc">;</span>
+</pre>
+
+is pass through unaltered; the outer quotes are needed to prevent perl from
+misparsing the embedded semi-colon. I imagine null is supposed to be read
+"noop", which isn't exactly true either. In any event an actual eval would be
+useful and you can implement it yourself with the following:
+<p>
+<pre>
+     <span class="k">use</span> <span class="w">Interpolation</span> <span class="w">eval</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span> <span class="k">eval</span> <span class="k">shift</span> <span class="s">}</span><span class="sc">;</span>
+</pre>
+
+<a name="-top-"></a>
+<h1><a href="mod6.pl">mod6.pl</a></h1>
+<hr />
+<pre>
+   1 <span class="k">use</span> <span class="w">Interpolation</span> <span class="w">ucwords</span><span class="cm">=&gt;</span><span class="w">ucwords</span><span class="cm">,</span> <span class="q">&quot;'&quot;</span><span class="cm">=&gt;</span><span class="w">sqlescape</span><span class="cm">,</span> <span class="w">round</span><span class="cm">=&gt;</span><span class="w">round</span><span class="cm">,</span> <span class="w">eval</span><span class="cm">=&gt;</span><span class="q">'eval'</span><span class="cm">,</span>
+   2   <span class="w">title</span><span class="cm">=&gt;</span>\<span class="i">&amp;titleCase</span><span class="sc">;</span>
+   3 <span class="k">use</span> <span class="w">constant</span> <span class="i">PI</span> <span class="cm">=&gt;</span> <span class="n">4</span> * <span class="k">atan2</span><span class="s">(</span><span class="n">1</span><span class="cm">,</span> <span class="n">1</span><span class="s">)</span><span class="sc">;</span>
+   4 
+   5 <span class="c">#Let's checkout round and eval</span>
+   6 <span class="s">{</span>
+   7   <span class="c">#Note the syntax when calling round to force PI to be seen as an expression</span>
+   8   <span class="k">print</span> <span class="q">&quot;Urban Legend: AL tried to define Pi as $round{+PI}\n&quot;</span><span class="cm">,</span>
+   9     <span class="q">&quot;To this day a unit circle in Hunstsville has an area of $eval{1**2*PI}\n&quot;</span><span class="sc">;</span>
+  10   
+  11   <span class="c">#=Urban Legend: AL tried to define Pi as 3</span>
+  12   <span class="c">#=To this day a unit circle in Hunstsville has an area of 3.14159265358979</span>
+  13 <span class="s">}</span>
+  14 
+  15 <span class="c">#ucwords</span>
+  16 <span class="s">{</span>
+  17   <span class="c">#You can even use it without Interpolation</span>
+  18   <span class="c">#Is this starting to sound a little like a <a href="http://search.cpan.org/search?module=Regexp::Common">former featured module</a>?</span>
+  19   <span class="k">print</span> <span class="i">$ucwords</span>{<span class="q">'an easy interface akin to the hard to remember sequences: \u\L and \l\U'</span>}<span class="cm">,</span> <span class="q">&quot;\n&quot;</span><span class="sc">;</span>
+  20 
+  21   <span class="c">#=An Easy Interface Akin To The Hard To Remember Sequences: \U\L And \L\U</span>
+  22   <span class="c">#...and it works on every word too</span>
+  23 <span class="s">}</span>
+  24 
+  25 <span class="c">#sqlescape</span>
+  26 <span class="s">{</span>
+  27   <span class="c">#Can't be bothered with placeholders?</span>
+<a name="Select-"></a>  28   <span class="k">my</span> <span class="i">$lastname</span> = <span class="q">q(O'Reilly)</span><span class="sc">;</span> <span class="k">sub </span><span class="m">Select</span><span class="sc">;</span>
+  29 
+  30   <span class="i">Select</span> <span class="q">&quot;firstname From ACCOUNTS Where lastname=$'{$lastname}'&quot;</span><span class="sc">;</span>
+  31   <span class="c">#=Selecting... q&lt;firstname From ACCOUNTS Where lastname='O''Reilly'&gt;</span>
+  32 <span class="s">}</span>
+  33 
+  34 <span class="c">#custom titleCase</span>
+  35 <span class="s">{</span>
+<a name="titleCase-"></a>  36   <span class="k">sub </span><span class="m">titleCase</span><span class="s">{</span>
+  37     <span class="k">my</span> <span class="i">@F</span> = <span class="k">split</span> <span class="q">/\b/</span><span class="cm">,</span> <span class="i">$_</span>[<span class="n">0</span>]<span class="sc">;</span>
+  38 
+  39     <span class="c">#This is the kind of nonsense this module is intended to avoid</span>
+  40     <span class="k">join</span> <span class="q">''</span><span class="cm">,</span> <span class="q">&quot;\u\L@{[shift @F]}&quot;</span><span class="cm">,</span>
+  41       <span class="k">map</span> <span class="s">{</span> <span class="q">/^(?:a|the|in|at|on|near|over|an)$/i</span> ? <span class="k">lc</span> <span class="i">$_</span> <span class="co">:</span> <span class="q">&quot;\u\L$_&quot;</span> <span class="s">}</span> <span class="i">@F</span><span class="sc">;</span>
+  42   <span class="s">}</span>
+  43   <span class="k">print</span> <span class="i">$title</span>{<span class="q">'HORTON hears A who'</span>}<span class="cm">,</span> <span class="q">&quot;\n&quot;</span><span class="sc">;</span>
+  44   <span class="c">#=Horton Hears a Who</span>
+  45   <span class="k">print</span> <span class="i">$title</span>{<span class="q">'The bridge on the River Kwai'</span>}<span class="cm">,</span> <span class="q">&quot;\n&quot;</span><span class="sc">;</span>
+  46   <span class="c">#=The Bridge on the River Kwai</span>
+  47 <span class="s">}</span>
+  48 
+  49 
+  50 <span class="c">#Pay no attention to the man behind the curtain</span>
+<a name="Select-1-"></a>  51 <span class="k">sub </span><span class="m">Select</span><span class="s">{</span>
+  52   <span class="k">print</span> <span class="q">&quot;Selecting... q&lt;$_[0]&gt;\n&quot;</span><span class="sc">;</span>
+  53 <span class="s">}</span>
+</pre>
+</body></html>

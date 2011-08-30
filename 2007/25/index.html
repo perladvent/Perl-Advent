@@ -1,0 +1,141 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3c.org/TR/1999/REC-html401-19991224/loose.dtd">
+<HTML xmlns="http://www.w3.org/1999/xhtml">
+<HEAD><TITLE>2007 Perl Advent Calendar: I can hardly wait</TITLE>
+<META http-equiv=Content-Type content="text/html; charset=iso-8859-1">
+<LINK href="../style.css" type=text/css rel=stylesheet></HEAD>
+
+<BODY>
+<H1><A href="http://www.perladvent.org/2007/">Perl Advent Calendar 
+2007-12</A>-25</H1>
+<H2 align=center>I can hardly wait</H2>
+<H3 align=center>by Jerrad Pierce</H3>
+
+<P>This kids were so excited I had to build a countdown clock to stop the
+ceaseless, "Is it Christmas yet? Is it Christmas yet?" Unfortunately,
+<TT><A href="http://search.cpan.org/search?module=Time::Out">Time::Out</A></TT>,
+which annoyingly fails to auto-export its sole routine, cannot help with this
+even though it provides timers of a sort. It's very easy to forget that the
+module does not execute your code for a prescribed amount of time, but instead
+interrupts running code after the requested period has elapsed. I find this
+confusion to be exacerbated by the module's interface. If we had some of the
+more versatile lvalue handling schemes proposed for Perl 6 it'd be possible to
+implement a slightly saner syntax:</p>
+<pre>
+timeout {
+         ... #Block
+	} @opts = $econds;
+</pre>
+
+<P>with a natural idiom for explicit provision of (optional) parameters instead
+of that on line 29. Failing that, the following (after <a href="mod25.patch">
+this patch</a>) is not a bad approximation, particular as the use of arrayref
+isn't strictly necessary:
+</P>
+
+<pre>
+timeout {
+         ... #Block
+	} [@opts] => $econds;
+</pre>
+
+<P>
+So what are the merits of the module? Well, if you've ever used <tt>alarm</tt>
+you may have struggled with the annoyance of only being able to set a single
+alarm at any time. <tt>Time::Out</tt> works a little magic behind the scenes
+to offer multiple concurrent alarms. An example system employing this facility
+is the game described here:
+</P>
+
+<ul>
+<li>60 seconds to provide as many words as possible, each beginning with a different letter of the alphabet.</li>
+<li>3 seconds to enter any given word.</li>
+<li>The longer the word, the more it is worth.</li>
+<li>A word's value increases in fold for each instance of the initial character.</li>
+<li>The values of words not found in the system dictionary are deducted from your total score.</li>
+</ul>
+
+<H1><A href="mod25.pl">mod25.pl</A></H1>
+<HR>
+<PRE>
+   1 <span class="c">#This game is not playable on Win32 due to blocking I/O</span>
+   2 <span class="k">INIT</span><span class="s">{</span> <span class="i">$|</span> = <span class="n">1</span> <span class="s">}</span>
+   3 
+   4 <span class="k">use</span> <span class="w">Time::Out</span> <span class="q">'timeout'</span><span class="sc">;</span>
+   5 <span class="k">use</span> <span class="w">Search::Dict</span><span class="sc">;</span>
+   6 
+   7 <span class="c">#Time to play, time per word</span>
+   8 <span class="k">my</span><span class="s">(</span><span class="i">$tt</span><span class="cm">,</span> <span class="i">$tw</span><span class="cm">,</span> <span class="i">%words</span><span class="cm">,</span> <span class="i">%yet</span><span class="s">)</span> = <span class="s">(</span><span class="n">60</span><span class="cm">,</span> <span class="n">3</span><span class="s">)</span><span class="sc">;</span>
+   9 <span class="c">#Word list</span>
+  10 <span class="k">my</span> <span class="i">$dict</span> = <span class="q">'/usr/share/dict/words'</span><span class="sc">;</span>
+  11 
+  12 <span class="c">#Isolate sleep from alarm for cheesy async timer</span>
+  13 <span class="k">if</span><span class="s">(</span> <span class="k">fork</span> <span class="s">)</span><span class="s">{</span>
+  14     <span class="i">&amp;timer</span><span class="sc">;</span>
+  15 <span class="s">}</span>
+  16 <span class="k">else</span><span class="s">{</span>
+  17     <span class="i">%yet</span> = <span class="k">map</span><span class="s">{</span> <span class="i">$_</span><span class="cm">=&gt;</span><span class="n">0</span> <span class="s">}</span> <span class="w">a</span>..<span class="w">z</span><span class="sc">;</span>
+  18     <span class="w">timeout</span> <span class="i">$tt</span> <span class="cm">=&gt;</span> \<span class="i">&amp;wrapper</span><span class="sc">;</span>
+  19     <span class="k">printf</span> <span class="q">&quot;\n\nTotal score, %i\n&quot;</span><span class="cm">,</span> <span class="i">score</span><span class="s">(</span><span class="s">)</span><span class="sc">;</span>
+  20 <span class="s">}</span>
+  21 
+<a name="wrapper-"></a>  22 <span class="k">sub </span><span class="m">wrapper</span><span class="s">{</span>
+  23     <span class="k">for</span><span class="s">(</span><span class="k">my</span> <span class="i">$i</span>=<span class="n">0</span><span class="sc">;</span> <span class="i">$i</span>&lt;<span class="n">26</span><span class="sc">;</span> <span class="i">$i</span>++<span class="s">)</span><span class="s">{</span>
+  24 	<span class="k">printf</span> <span class="q">&quot;\nletter? [%s]&quot;</span><span class="cm">,</span> <span class="k">join</span><span class="s">(</span><span class="q">''</span><span class="cm">,</span> <span class="k">sort</span> <span class="k">keys</span> <span class="i">%yet</span><span class="s">)</span><span class="sc">;</span>
+  25 
+  26 	<span class="k">my</span> <span class="i">$l</span> = <span class="k">substr</span><span class="s">(</span><span class="k">lc</span><span class="s">(</span><span class="q">&lt;STDIN&gt;</span><span class="s">)</span><span class="cm">,</span> <span class="n">0</span><span class="cm">,</span> <span class="n">1</span><span class="s">)</span><span class="sc">;</span>
+  27 
+  28 	<span class="c">#Funky syntax if you want to pass args</span>
+  29 	<span class="i">timeout</span><span class="s">(</span><span class="i">$tw</span> <span class="cm">=&gt;</span> <span class="i">$l</span><span class="cm">,</span> \<span class="i">&amp;word</span><span class="s">)</span> <span class="k">if</span>
+  30 	    <span class="c">#Alpha only, no retries</span>
+  31 	    <span class="i">$l</span> =~ <span class="q">/\w/</span> &amp;&amp; <span class="k">exists</span><span class="s">(</span><span class="i">$yet</span>{<span class="i">$l</span>}<span class="s">)</span><span class="sc">;</span>
+  32     <span class="s">}</span>
+  33 <span class="s">}</span>
+  34 
+<a name="word-"></a>  35 <span class="k">sub </span><span class="m">word</span><span class="s">{</span>
+  36     <span class="k">my</span> <span class="i">$l</span> = <span class="k">shift</span><span class="sc">;</span>
+  37 
+  38     <span class="k">print</span> <span class="q">&quot;word? &quot;</span><span class="sc">;</span>
+  39     <span class="k">chomp</span><span class="s">(</span> <span class="k">my</span> <span class="i">$w</span> = <span class="q">&lt;STDIN&gt;</span> <span class="s">)</span><span class="sc">;</span>
+  40 
+  41     <span class="k">return</span> <span class="k">unless</span> <span class="k">substr</span><span class="s">(</span><span class="i">$w</span><span class="cm">,</span> <span class="n">0</span><span class="cm">,</span> <span class="n">1</span><span class="s">)</span> <span class="k">eq</span> <span class="i">$l</span><span class="sc">;</span>
+  42     <span class="i">$words</span>{<span class="i">$l</span>} = <span class="i">$w</span><span class="sc">;</span>	
+  43     <span class="k">delete</span><span class="s">(</span><span class="i">$yet</span>{<span class="i">$l</span>}<span class="s">)</span><span class="sc">;</span>
+  44 <span class="s">}</span>
+  45 
+  46 
+  47 <span class="c">#Supporting routines</span>
+<a name="timer-"></a>  48 <span class="k">sub </span><span class="m">timer</span><span class="s">{</span>
+  49     <span class="k">return</span> <span class="k">unless</span> <span class="i">$tt</span><span class="sc">;</span>
+  50     <span class="k">printf</span> <span class="q">&quot;\r%s%02i &quot;</span><span class="cm">,</span> <span class="q">&quot;\t&quot;</span><span class="n">x5</span><span class="cm">,</span> --<span class="i">$tt</span><span class="sc">;</span>
+  51     <span class="k">sleep</span> <span class="n">1</span><span class="sc">;</span>
+  52     <span class="i">&amp;timer</span><span class="sc">;</span>
+  53 <span class="s">}</span>
+  54 
+<a name="score-"></a>  55 <span class="k">sub </span><span class="m">score</span><span class="s">{</span>
+  56     <span class="k">my</span> <span class="i">$ts</span> = <span class="n">0</span><span class="sc">;</span>
+  57     <span class="k">open</span><span class="s">(</span><span class="k">my</span> <span class="i">$dict</span><span class="cm">,</span> <span class="i">$dict</span><span class="s">)</span><span class="sc">;</span>
+  58 
+  59     <span class="k">print</span> <span class="q">&quot;\n&quot;</span><span class="sc">;</span>
+  60 
+  61     <span class="k">while</span><span class="s">(</span> <span class="k">my</span><span class="s">(</span><span class="i">$k</span><span class="cm">,</span> <span class="i">$v</span><span class="s">)</span> = <span class="k">each</span> <span class="i">%words</span> <span class="s">)</span><span class="s">{</span>
+  62 	<span class="k">print</span> <span class="q">&quot;\n$v... &quot;</span><span class="sc">;</span>
+  63 
+  64 	<span class="k">my</span><span class="s">(</span><span class="i">$ws</span><span class="cm">,</span> <span class="i">$bogus</span><span class="s">)</span> = <span class="s">(</span><span class="n">0</span><span class="cm">,</span> <span class="n">0</span><span class="s">)</span><span class="sc">;</span>
+  65 	<span class="i">$ws</span> = <span class="k">length</span> <span class="i">$v</span><span class="sc">;</span>
+  66 	<span class="i">$ws</span> *= <span class="k">eval</span> <span class="q">&quot;$v =~ y/$k//&quot;</span><span class="sc">;</span>
+  67 
+  68 	<span class="i">$bogus</span> = <span class="i">look</span><span class="s">(</span><span class="i">$dict</span><span class="cm">,</span> <span class="i">$v</span><span class="cm">,</span> <span class="n">1</span><span class="cm">,</span> <span class="n">1</span><span class="s">)</span> &lt; <span class="n">0</span> ? <span class="n">1</span> <span class="co">:</span>
+  69 	    <span class="s">(</span><span class="k">chomp</span><span class="s">(</span><span class="i">$_</span>=<span class="k">readline</span><span class="s">(</span><span class="i">$dict</span><span class="s">)</span><span class="s">)</span><span class="cm">,</span> <span class="i">$_</span><span class="s">)</span> <span class="k">ne</span> <span class="i">$v</span><span class="sc">;</span>
+  70 
+  71 	<span class="k">if</span><span class="s">(</span> <span class="i">$bogus</span> <span class="s">)</span><span class="s">{</span>
+  72 	    <span class="k">print</span> <span class="i">STDERR</span> <span class="q">&quot;not found, deducting $ws&quot;</span><span class="sc">;</span>
+  73 	    <span class="i">$ws</span> *= <span class="n">-1</span><span class="sc">;</span>
+  74 	<span class="s">}</span>
+  75 	<span class="k">else</span><span class="s">{</span>
+  76 	    <span class="k">print</span> <span class="i">STDERR</span> <span class="q">&quot;is valid, awarding $ws&quot;</span><span class="sc">;</span>
+  77 	<span class="s">}</span>
+  78 	<span class="i">$ts</span> += <span class="i">$ws</span><span class="sc">;</span>
+  79     <span class="s">}</span>
+  80     <span class="k">return</span> <span class="i">$ts</span><span class="sc">;</span>
+  81 <span class="s">}</span>
+</PRE></BODY></HTML>

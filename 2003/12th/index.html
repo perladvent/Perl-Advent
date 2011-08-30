@@ -1,0 +1,253 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: Class::ISA</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 12th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Class::ISA</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../11th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../13th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Sometimes, even the simplest of modules prove the most handy.</p>
+<p>Have you ever been in the situation where you're digging through
+someone else's code and they call a method that you've never
+heard of before?  It's not in the code you're using - it's inherited
+somehow - but what class does the method come from?  And how do
+we work this out?</p>
+<p>Inheritance is complicated in Perl - unlike many other languages it
+allows you to have multiple inheritance, meaning that you can get
+methods from one or more classes, and deciding which method is called
+in preference to which method.</p>
+<p>All we really need is way of getting what a module inherits from, what
+those modules inherit from, and what modules those modules inherit
+from, and so on, in a big list so we can tell what module's method
+gets called first.  And this is what <b>Class::ISA</b> does</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Class::ISA">[Read the documentation for Class::ISA on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>The usual way that you declare a base class in Perl is to use
+the <code>use base</code> directive.</p>
+<pre>  package Flintstone::Fred;
+  use base qw(Flintstone Person);</pre>
+
+<p>This declares that <b>Flintstone::Fred</b> is a class that inherits from
+two base classes ('superclasses') <b>Person</b> and <b>Flintstone</b> - unlike
+languages like Java in Perl you can inherit from as many classes as
+you want.  Perl looks though each of it's superclasses in order to
+find subroutines that implement methods and it uses the first it
+finds.  This means that if you call a method on <b>Flinstone::Fred</b>
+it'll look in the subroutine in <b>Flintsone::Fred</b>, then in
+<b>Flintstone</b> and then in <b>Person</b>.</p>
+<p>The situation gets more complicated if Flintstone is itself a subclass
+of another superclass (or several superclasses) itself.  Perl uses a
+depth first search algorithm which means that it'll look in all of
+<b>Flintstone</b>'s superclasses for subroutines (and their superclasses
+and so on) before looking in <b>Person</b>'s</p>
+<p>Like most people, at this point my head is beginning to spin.  What we
+need is a diagram.  Luckily, the <b>Graphviz</b> extension
+<b>Graphviz::ISA::Multi</b> is able to create nice graphs for us.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # get the name of the class
+  my $class = shift
+    or die "usage: $0 &lt;classname&gt;\n";</pre>
+
+<pre>  # create the graph
+  use GraphViz::ISA::Multi;
+  my $graph = GraphViz::ISA::Multi-&gt;new();
+  $graph-&gt;add($class);</pre>
+
+<pre>  # open the file
+  my $filename = $class;
+  $filename =~ s/::/-/g;
+  use IO::File;
+  my $fh = IO::File-&gt;new("&gt; $filename.png")
+    or die "Can't open '$filename.png': $!";</pre>
+
+<pre>  # write it out as a png
+  print $fh $graph-&gt;as_png;</pre>
+
+<p>So for our module, we get this nice graph like so:</p>
+<center><img src="Flintstone-Fred.png" /></center>
+
+<h2>Using Class::ISA</h2>
+<p><b>Class::ISA</b> is ridicously easy to use.  Although it doesn't export
+subroutines, all you have to do to work out a module's superclass is
+directly is call the <code>Class::ISA::super_path</code> subroutine explicitly
+with the name of the module.</p>
+<pre>   #!/usr/bin/perl</pre>
+
+<pre>   # turn on the safety features
+   use strict;
+   use warnings;</pre>
+
+<pre>   # load the modules
+   use Class::ISA;
+   use Flintstone::Fred; </pre>
+
+<pre>   # print out the module search order
+   foreach my $class (Class::ISA::super_path('Flintstone::Fred'))
+     { print "$class\n" }</pre>
+
+<p>This prints out</p>
+<pre>  Flintstone
+  Cartoon
+  Entity
+  Person</pre>
+
+<p>Note that <b>Entity</b> is only listed once in the list, the first time
+it's inherited from by Cartoon.  Obviously if the methods weren't in
+it the first time, they won't be in it the second!  There's no need
+for it to be kept in the method search list.</p>
+<p>So let's move onto the problem of finding out methods.  What we have
+to do is search though each of the classes looking for the method
+subroutine.  We need to use <code>(Class::ISA::self_and_super_path</code>
+because we should obviously start looking in the bottom class itself
+for the method before checking it's superclasses.  We also need to
+take care to add the <code>UNIVERSAL</code> class onto the list, as all classes
+'inherit' from this class if they specify it or not if the class
+search list is exhausted.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on the safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load the support modules
+  use Class::ISA;  </pre>
+
+<pre>  # check the arguments
+  unless (@ARGV == 2)
+    { die "usage: $0 &lt;modulename&gt; &lt;methodname&gt;\n"; }</pre>
+
+<pre>  # work out what the module we're loading and load it
+  my $module = shift;
+  eval "use $module";
+  if ($@) { die "Can't load module '$module': $@" }</pre>
+
+<pre>  # get the methodname
+  my $methodname = shift;</pre>
+
+<pre>  # look through each of the routines for our method
+  my @classes = (Class::ISA::self_and_super_path($module),
+	         "UNIVERSAL");
+  
+  # first look for the method
+  foreach my $class (@classes)
+  {
+    if (defined(&amp;{"${class}::${methodname}"}))
+    {
+      print "${module}-&gt;${methodname} = ${class}::${methodname}\n";
+      exit 0;
+    }
+  }</pre>
+
+<pre>  # failing that look for an AUTOLOAD
+  foreach my $class (@classes)
+  {
+    if (defined(&amp;{"${class}::AUTOLOAD"}))
+    {
+      print "${module}-&gt;${methodname} = ${class}::AUTOLOAD\n";
+      exit 0;
+    }
+  }</pre>
+
+<pre>  # give up
+  print "${module}-&gt;${methodname} not found\n";
+  exit 1;</pre>
+
+<p>And it works.  We have a nice simple tool we can use from the command
+line now:</p>
+<pre>  bash-2.05b$ ./find_method Flintstone::Fred name
+  Flintstone::Fred-&gt;name = Flintstone::name</pre>
+
+<pre>  bash-2.05b$ ./find_method Flintstone::Fred wibble
+  Flintstone::Fred-&gt;wibble = Person::AUTOLOAD</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/~nwclark/perl-5.8.2/lib/base.pm">base</a></li>
+<li><a href="http://search.cpan.org/dist/GraphViz-ISA-Multi/lib/GraphViz/ISA/Multi.pm">GraphViz::ISA::Multi</a></li>
+<li><a href="http://search.cpan.org/dist/GraphViz/lib/GraphViz.pm">GraphViz</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:55 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,285 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Term::ANSIColor</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 2nd day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Term::ANSIColor</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../1st/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../3rd/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>When your code is producing a large quantity of output to a terminal
+window it can be very hard to quickly tell what's going on just by
+glancing at the screen - especially if the terminal is producing so
+much text that things start to scroll off the top of the screen before
+you can complete reading them.</p>
+<p><b>Term::ANSIColor</b> allows you to send control codes to the terminal
+telling it to display your text in different colours or with different
+features (bold, underlining, etc) turned on.  This enables you to
+much better format your output allowing you to break up fast flowing
+text visually, and provide a mechanism that you can use to show
+someone that very prominently something is wrong.  It allows the user
+presented with scrolling text to simplify the question they have to
+ask - not, "What does this say...should I pause it and check for
+errors", to rather "Does this contain red text?".</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Term::ANSIColor">[Read the documentation for Term::ANSIColor on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Term::ANSIColor can be made to export a number of routines that return
+the escape codes that if sent to your terminal cause it to change
+colour.  for example:</p>
+<pre>  use Term::ANSIColor qw(:constants);</pre>
+
+<pre>  print RED, "This text is in red\n", RESET;
+  print "This text is normal again.</pre>
+
+<p>Prints</p>
+<pre>  <span style="color: red">This text is in red</span>
+  This text is normal again</pre>
+
+<p>Unlike HTML there isn't a start and end tag - you turn on the features that you
+want and they stay on until you call <code>RESET</code> or get replaced with another
+competing feature.  So, you can flip colours without having to turn the
+previous colours off like so:</p>
+<pre>  print RED, "red means stop, ",
+        YELLOW, " yellow means wait, ",
+        GREEN, "green means go!".
+        RESET, "\n";</pre>
+
+<pre>  <span style="color: red">red means stop, </span><span style="color: yellow">yellow means wait, </span><span style="color: green">green means go!</span></pre>
+
+<p>You can also make text bold and underlined</p>
+<pre>  print UNDERLINE, "Chapter 14", RESET, "\n\n";
+  print "It was then, and ", BOLD, "only ", RESET, "then that...";</pre>
+
+<pre>  <u>Chapter 14</u></pre>
+
+<pre>  It was then, and <b>only</b> then that...</pre>
+
+<p>And you can also change the background colour</p>
+<pre>  print ON_RED, "Hello", RESET, "\n";</pre>
+
+<pre>  <span style="background: red">Hello</span></pre>
+
+<p>And non-competing features can be combined</p>
+<pre>  print "We can make things look really ",
+        BOLD, UNDERLINE, YELLOW, ON_GREEN, "ugly", RESET, "\n";
+ 
+  We can make things look really <b><u><span style="color: yellow"><span style="background: green">ugly</span></span></u></b></pre>
+
+<p>Different, more advanced, terminals may also support additional
+features - see the manual for a description of features like <code>dark</code>,
+<code>blink</code>, <code>reverse</code> and <code>concealed</code> that you can also use.</p>
+<h2>Example 1: Separating Dumper Output</h2>
+<p>One good technique for debugging a problem is to generate debug output
+all over your code.  You'll often see temporary code in my modules
+like this when I'm first testing my objects:</p>
+<pre>  sub foo
+  {
+    my $self = shift;</pre>
+
+<pre>    print STDERR "Got to foo\";
+    print STDERR Dumper($self);</pre>
+
+<pre>    ...</pre>
+
+<p>This produces copious output that allows me to track what methods are
+being called on my object, and the state of the object when said
+method is called.  The problem with copious output is that it's often
+all to easy to drown yourself with so much debug info that it's
+impossible to tell the output from one Data::Dumper ends and another
+starts (especially when they flow over several screens) and if you're
+not careful you'll accidentally page down from one output to another,
+totally confusing yourself.</p>
+<p>When this starts happening, I either reduce the number of Dumper
+statements I'm calling, or if I need them all to work out what's going
+on, I bring <b>Term::ANSIColor</b> to the rescue and colour code each
+method's debug output separately:</p>
+<pre>  sub foo
+  {
+    my $self = shift;</pre>
+
+<pre>    print STDERR RED;
+    print STDERR "Got to foo\";
+    print STDERR Dumper($self);
+    print STDERR RESET;</pre>
+
+<pre>    ...</pre>
+
+<h2>Example 2: Site checker</h2>
+<p>This is a simple script that I wrote to check that a bunch of URLs
+were working as expected.  Rather than cluttering up the display with
+a bunch of status messages I use <b>Term::ANSIColor</b> to change the
+colour of the URLs depending on if they are reachable or not.  This
+way I can tell if there's a problem simply by glancing at the terminal
+the script is running in rather than having to actually read any of
+the output.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load a lot of stuff
+  use LWP::Simple qw(get);
+  use Time::HiRes qw(gettimeofday tv_interval);
+  use Term::ANSIColor qw(:constants);</pre>
+
+<pre>  # define how long before we should get a warning about
+  # things
+  use constant MAX_ALLOWED_SECONDS =&gt; 5;</pre>
+
+<pre>  # test some pages
+  test_url("http://2shortplanks.com");
+  test_url("http://use.perl.org/");
+  test_url("http://www.cpan.org/modules/01modules.index.html");
+  test_url("http://2shortplanks.com/doesntexist");</pre>
+
+<pre>  sub test_url
+  {
+    my $url = shift;</pre>
+
+<pre>    # what time is it now *exactly*
+    my $t0 = [gettimeofday];</pre>
+
+<pre>    # download the page
+    my $result = get $url;</pre>
+
+<pre>    # work out what color we should print in
+    #   on red background  if couldn't load
+    #   red                if took too long to load
+    #   green              if okay
+    if (!defined($result))
+      { print ON_RED }
+    elsif (tv_interval($t0) &gt; MAX_ALLOWED_SECONDS)
+      { print RED }
+    else
+      { print GREEN }</pre>
+
+<pre>    print $url;
+    print RESET, "\n";
+  }</pre>
+
+<p>When this is run it produces this output:</p>
+<pre>  <span style="color: green">http://2shortplanks.com</span>
+  <span style="color: green">http://use.perl.org/</span>
+  <span style="color: red">http://www.cpan.org/modules/01modules.index.html</span>
+  <span style="background: red">http://2shortplanks.com/doesntexist</span></pre>
+
+<p>Showing us that though http://2shortplanks.com and http://use.perl.org
+are fine, the list of all modules takes more than five seconds to
+download and http://2shortplanks.com/doesntexist has, unsurprisingly,
+errors.</p>
+<h2>Example 3: Test::Builder::Tester</h2>
+<p><b>Test::Builder::Tester</b> is an example of where I use
+<b>Term::ANSIColor</b> in a module on CPAN.  It compares the output of
+testing functions with the expected output, and complains if they
+differ.  However, when <b>Test::Builder::Tester</b> complains that two
+test outputs differ it can be very hard to spot by eye where exactly
+the two sections of text are different, especially if they differ in
+invisible characters (for example, one string has an extra space on
+the end.)  To help with this I provide options to turn on coloured
+output to highlight the differing text in red.</p>
+<pre>  1..5
+  ok 1 - use Acme::Test::Buffy;
+  ok 2 - function 'is_buffy' exported
+  ok 3 - works when correct
+  ok 4 - works when correct with default text
+  not ok 5 - works when incorrect
+  #     Failed test (t/01basic.t at line 85)
+  # STDERR is:
+  # <span style="background: green">#     Failed test (t/01basic.t at line 81)</span>
+  # <span style="background: green"># Expected 'Buffy' but got </span><span style="background: red">'buffy' instead</span>
+  # 
+  # not:
+  # <span style="background: green">#     Failed test (t/01basic.t at line 81)</span>
+  # <span style="background: green"># Expected 'Buffy' but got </span><span style="background: red">text 'buffy' instead</span>
+  # 
+  # as expected</pre>
+
+<p>This is an example of using <b>Term::ANSIColor</b> to show information that
+I otherwise couldn't provide - there's no other way to straight
+forwardly indicate where the text differs without inserting something
+in the text itself.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/perldoc?Term::Cap">http://search.cpan.org/perldoc?Term::Cap</a></li>
+<li><a href="http://search.cpan.org/perldoc?Acme::Colour">http://search.cpan.org/perldoc?Acme::Colour</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:57 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

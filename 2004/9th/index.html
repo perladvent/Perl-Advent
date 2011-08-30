@@ -1,0 +1,312 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Proc::Daemon</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 9th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Proc::Daemon</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../8th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../10th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Sometimes we want to run a script forever.  We want it to monitor
+what's going on, or perform some action periodically, and we don't
+want it to go away when we log out.</p>
+<p><b>Proc::Daemon</b> is a handy little utility class that can handle all
+the complicated operating system related tasks that are involved in
+making the script completely fork into the background.  With one
+simple command your script will can be detached from the terminal
+login session you're using.  Along with <b>Proc::PID::File</b> you can
+manage background tasks with the smallest amount of effort.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Proc::Daemon">[Read the documentation for Proc::Daemon on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>One of the more common ways of tackling spam is to is maintaining a
+whitelist of addresses of people you trust that you're willing to
+always accept mail from (or at the very least, trust <i>more</i> than
+other addresses) and blacklists of people we don't ever want to hear
+from again.</p>
+<p>The hard thing about maintaining the whitelist and blacklist is
+providing a mechanism for updating the lists.  The solution I came up
+with was a special mailbox on my mailserver that if I put a message in
+it would be added to the correct list and then moved back into my
+inbox or spam folder.  This means I'm able to update my
+whitelist/blacklists using any of the mail clients I normally use
+(Apple Mail, pine and Squirrel Mail) over IMAP without any problem.</p>
+<p>The script that runs on the server that updates the blacklist is
+fairly simple.  I keep my mail in maildir format meaning that any mail
+I've put for blacklisting will be in the <code>.blacklist</code> folder.  Let's
+start by writing the part of the script that finds that file:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on my message
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load my collection of modules
+  use File::Copy;
+  use File::Find::Rule;
+  use Email::Simple;
+  use Email::Address;</pre>
+
+<pre>  # find all messages in the blacklist folder
+  my @files = (
+     File::Find::Rule
+       -&gt;file
+       -&gt;in("/home/mark/Maildir/.blacklist/cur"),
+     File::Find::Rule
+       -&gt;file
+       -&gt;in("/home/mark/Maildir/.blacklist/new"),
+  );</pre>
+
+<pre>  # stop here unless we found any mails
+  exit unless @files;</pre>
+
+<p>We then need to open the blacklist file for appending - we're
+hopefully going to add some addresses to the end.</p>
+<pre>  # open the file we're updating
+  open my $list_fh,"&gt;&gt;", "/home/mark/.my_blacklist"
+   or die "Can't open the blacklist: $!";</pre>
+
+<p>And then start a loop that works though each of the files we found and
+loads them one by one into memory, works out what the from address
+was, and prints it out to <code>$list_fh</code>.</p>
+<pre>  # read in each of the messages
+  foreach my $file (@files)
+  {
+    print "Looking at '$file'\n";</pre>
+
+<pre>    # read in the file
+    open my $in_fh,"&lt;", $file
+      or next;  # can't read it?  Skip it
+    my $message_text = join '', &lt;$in_fh&gt;;
+    close $in_fh;</pre>
+
+<pre>    # make it an email simple object
+    my $email = Email::Simple-&gt;new($message_text);</pre>
+
+<pre>    # get the email addresses and store them in the blacklist
+    eval
+    {
+      my $header = $email-&gt;header("From")
+        or die "No From";
+      my @address = Email::Address-&gt;parse($header)
+        or die "No addresses parsed";
+      foreach my $address (@address)
+      {
+        my $from = $address-&gt;address
+          or next;
+        print "...Found address '$from'\n";
+        print $list_fh "$from\n";
+      }</pre>
+
+<pre>      # move the mail to my spambox
+      move($file, "/home/mark/Maildir/.spam.blacklisted/cur");</pre>
+
+<pre>    };  # ignore all errors
+  }</pre>
+
+<h2>Running The Script Forever</h2>
+<p>Making this script run forever is pretty simple...we just need to
+wrap the whole code in a while loop with a sleep command so that it
+waits five seconds between runs and doesn't overload the server:</p>
+<pre>  # run forever
+  while (1)
+  {
+    sleep(5);
+    eval
+    {
+       ...rest of code from the script...
+    };
+  }</pre>
+
+<p>Note the use of <code>eval</code> so that if we get die from any errors then the
+whole run isn't aborted - we just wait five seconds and try again.
+Along these lines we also need to change the script to not exit if
+there are new mails and rather go back to waiting again.  Changing:</p>
+<pre>  # stop here unless we found any mails
+  exit unless @files;</pre>
+
+<p>To:</p>
+<pre>  # stop here unless we found any mails
+  die "not this time" unless @files;</pre>
+
+<p>causes it to skip to the end of the loop and start the next sleep.</p>
+<h2>Running The Script In The Background</h2>
+<p>If we run the script from the shell then this runs forever</p>
+<pre>  bash$ perl blacklist.pl &amp;</pre>
+
+<p>Well...at least until we log out and close the shell.</p>
+<pre>  bash$ exit
+  [1]+  Done                    perl blacklist.pl
+  Connection to perladvent.org closed.
+  bash$ </pre>
+
+<p>At which point the script is killed because it's parent is killed.
+What we need to do is reparent the process to a higher process
+(normally <code>init</code>) and free up all other resources it's using (like
+closing STDIN, STDOUT and STDERR and moving to another directory) This
+is actually quite complicated to get right.  Luckily, <b>Proc::Daemon</b>
+does all this for us.  We simply just have to insert at the top
+of the script the code:</p>
+<pre>  # make this run in the background.
+  use Proc::Daemon;
+  Proc::Daemon::Init;</pre>
+
+<p>And magically it'll all fork into the background for us.  And that's
+all there is to it!  Told you this was easy.</p>
+<h2>Controlling The Forked Process</h2>
+<p>It's be nice if we could control the forked process, to tell it to
+stop running when we want for example.  This is actually quite
+complicated.  Let's walk though what needs to be done.</p>
+<p>Firstly, we need to keep track of if the process is running or not,
+and what process it's running as.  To do this we use a <i>PID file</i>, a
+file that is stored somewhere on disk that has simply the process id of
+the process that's running.  To do this we use <b>Proc::PID::File</b>.  This
+module has one routine that we want to use:</p>
+<pre>  use Proc::PID::File;
+  my $pid = Proc::PID::File-&gt;running(name =&gt; "foo");</pre>
+
+<p>The <code>running</code> routine returns the pid contained in the file if one
+existed (i.e. another process is already running) or returns <code>undef</code>
+if one wasn't and writes to the file with the current pid of the process
+we're currently using.  Crucially, when the current process exits it
+deletes the pid file.</p>
+<p>We can start to adapt the script like so:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on the safety features</pre>
+
+<pre>  use Proc::Daemon;
+  use Proc::PID::File;</pre>
+
+<pre>  # did we get a stop command?
+  if (@ARGV &amp;&amp; $ARGV[0] eq "stop")
+  {
+    # we need to send a signal to the running process to tell it
+    # to quit</pre>
+
+<pre>    # get the pid file (in /var/run by default)
+    my $pid = Proc::PID::File-&gt;running(name =&gt; "blacklist");
+    unless ($pid)
+     { die "Not already running!" }</pre>
+
+<pre>    # and send a signal to that process
+    kill(2,$pid);  # you may need a different signal for your system
+    print "Stop signal sent!\n";
+    exit;
+  }</pre>
+
+<pre>  # fork into the background
+  # do this first because our process id will change
+  Proc::Daemon::Init;</pre>
+
+<pre>  # write the pid file, exiting if there's one there already.
+  # this pid file will automatically be deleted when this script
+  # exits.
+  if (Proc::PID::File-&gt;running(name =&gt; "blacklist"))
+   { die "Already running!" }</pre>
+
+<p>The second problem that remains is that we're killing the process
+straight out without giving it a chance to do anything else.  This
+isn't a good idea - it might be in the middle of something important
+like processing a mail and removing it might cause corruption.
+What we need to do is add a signal handler which catches the kill
+signal and logs that it's been received and then when it's safe to
+exit it'll check the flag and exit then .  At the top of the file we
+add:</p>
+<pre>  # when we get a INT signal, set the exit flag
+  $SIG{INT} = sub { $::exit = 1 }</pre>
+
+<p>Then in our while loop we write:</p>
+<pre>  while (1)
+  {
+    exit if $::exit;
+    sleep(5);
+    exit if $::exit;
+    ...
+  }</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/perldoc?Proc::PID::File">Proc::PID::File</a></li>
+<li><a href="http://search.cpan.org/perldoc?Email::Simple">Email::Simple</a></li>
+<li><a href="http://search.cpan.org/perldoc?Email::Address">Email::Address</a></li>
+<li><a href="http://search.cpan.org/perldoc?File::Copy">File::Copy</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:58 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

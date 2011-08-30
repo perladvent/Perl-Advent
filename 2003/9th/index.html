@@ -1,0 +1,294 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: Data::Dimensions</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 9th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Data::Dimensions</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../8th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../10th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Does anyone remember when the <li><a href="http://www.cnn.com/TECH/space/9909/30/mars.metric/">Mars Orbiter Crashed</a></li> because
+one group of scientists were using metric and another were using
+imperial measurements.  Wasn't that funny?</p>
+<p>Well, of course it's funny.  It gives us a warm feeling inside to know
+that even the most intelligent people around - literately rocket scientists
+- make the same mistakes we do.  You bet however it wasn't funny for the
+scientists who lost $125 million dollars worth of hardware, and set back
+the space programme.</p>
+<p>However, when we - as programmers - have to do the same kind of work we won't
+be laughing.  Or will we?  I will.  I've got <b>Data::Dimensions</b> handy
+and it does all my unit conversion and unit checking for me, so I
+don't have these problems.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Data::Dimensions">[Read the documentation for Data::Dimensions on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>I live in the UK.  We use the metric system for most things (which is
+why it gets my goat when people refer to imperial measurement as
+English measurements.)  So I can tell you the size of a room in
+meters, I weigh things in kilograms, I measure what I eat in
+kilocalories and my Sprite comes in litres.  It's the way my brain
+works.</p>
+<p>Of course, that's not strictly true.  I measure how tall and how heavy
+people are in feet and stone, long distances in miles and speed in
+miles per hour, and (of course) beer in (uk) pints.</p>
+<p>This isn't much of a problem until I need to convert one to the other.
+For example, when I'm trying to work out how far away the pub is.  For
+this I need to use Perl.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety feature
+  use strict;
+  use warnings;</pre>
+
+<pre>  # conversion utility
+  use Math::Units qw(convert);</pre>
+
+<pre>  # it's about 200m to the bus stop from my house
+  my $distance = 200;</pre>
+
+<pre>  # it's one and a half miles into town
+  $distance += convert(1.5,"miles","m");</pre>
+
+<pre>  # it's another twenty paces to the pub
+  $distance += convert(20,"yd","m");</pre>
+
+<pre>  # now how many miles is that?
+  $distance = convert($distance,"m","miles");</pre>
+
+<pre>  printf "It's %0.2f miles to the pub\n",$distance;</pre>
+
+<p>This prints out</p>
+<pre>  bash-2.05b$ perl ~/to_the_pub
+  It's 1.64 miles to the pub</pre>
+
+<p>Excellent.  I keep all the figures in SI units by converting immedialty
+to meters, and only convert to miles (the format I use for long distances)
+ at the very last minute.  So we now know how far away the pub is.
+Maybe I'll just pop to my local instead.</p>
+<p>Though this code works, The problem is that I'm just storing a single
+value in my variables, and doing it this way it's easy to make a
+mistake.  How about if I don't like the pub when I get there and I want
+to go another thirty meters onto the next pub.  Let's add that onto the
+bottom of the script.</p>
+<pre>  # it's another thirty meters to the next pub (I like London)
+  $distance += 30;</pre>
+
+<pre>  printf "It's %0.2f miles to the 2nd pub\n",$distance;</pre>
+
+<p>Whoops!  What did I do wrong here.  Oh yes, I'd converted distance to
+miles already.  It's certainly not 31.64 miles to the pub.  I'd die of
+thirst first.</p>
+<h2>Data::Dimensions</h2>
+<p>What we need to do is store the metadata - what units we're using - in
+with the figures themselves so that the units themselves can take care
+on any conversion that needs doing.  This is where <b>Data::Dimensions</b>
+comes in.  It exports a function <code>units</code> that allows us to create
+unit objects by passing two arguments.  The first argument is a hash
+of types this unit uses, and the second argument is the value for that
+unit.  For example:</p>
+<pre>  # distance, 10 feet
+  my $distance = units({ feet =&gt; 1 }, 10)
+  
+  # speed, 30 miles per hour.
+  my $speed = units({ mile =&gt; 1, hour =&gt; -1 }, 30);</pre>
+
+<p>Things are combined by using the set keyword and normal mathematical
+functions.  Things that are in different units (like meters and feet)
+are automatically converted.</p>
+<pre> # increase the distance
+ set $distance = $distance + units({ meter =&gt; 1 }, 10);</pre>
+
+<pre> # work out how fast we're accelerating
+ my $time = units({ second =&gt; 10 }, 10);
+ my $accl = units({ meter =&gt; 1, second =&gt; -1});
+ set $accl = $speed / $time;</pre>
+
+<p>The units have to match on one side of the equation to the other - for
+example, you can't add speed and time together as it makes no sense.</p>
+<pre> # meters per second per second != meters per second + seconds
+ set $accl = $speed + time;</pre>
+
+<p>And you can't mix up your units either.</p>
+<pre> # meters per second per second != meters
+ set $accl = $speed * $time;</pre>
+
+<p>In both these situations <b>Data::Dimensions</b> will throw an exception
+at you.  This is a good thing (tm).  It tends to point out in testing
+something that you can easily overlook.  Mistakes need to be big and
+loud so you can spot them, not silent and hard to find.</p>
+<p>So without further ado, we convert our above script to use
+<b>Data::Dimensions</b>.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety feature
+  use strict;
+  use warnings;</pre>
+
+<pre>  use Data::Dimensions qw(&amp;units extended);</pre>
+
+<pre>  # declare that we're measuring distances to our destination
+  # in miles
+  my $distance = units({ mile =&gt; 1 }, 0);</pre>
+
+<pre>  # two hundred meters to the bus stop
+  set $distance = $distance + units({ meter =&gt; 1 }, 200);</pre>
+
+<pre>  # it's one and a half miles into town
+  set $distance = $distance + units({ mile =&gt; 1 }, 1.5);</pre>
+
+<pre>  # it's another twenty paces to the pub
+  set $distance = $distance + units({ yd =&gt; 1 }, 20);</pre>
+
+<pre>  printf "It's %0.2f miles to the pub\n", $distance;</pre>
+
+<pre>  # it's another thirty meters to the next pub (I like London)
+  $distance = $distance + units({ meter =&gt; 1 }, 30);</pre>
+
+<pre>  printf "It's %0.2f miles to the 2nd pub\n", $distance;</pre>
+
+<p>This prints out:</p>
+<pre>  bash-2.05b$ perl ~/to_pub_dd
+  It's 1.64 miles to the pub
+  It's 1.65 miles to the 2nd pub</pre>
+
+<p>Note how in this version we don't have to worry about converting our
+distance into miles.  It's <b>always</b> in miles no matter what operation
+we perform on it, as that's what it's defined as at the top of the
+program.  And because of this, we can't make the same mistake we did
+previously.</p>
+<h2>Defining Your Own Units</h2>
+<p>Firstly, you don't have do anything to <i>simply</i> define your own
+units.  It's quite possible for you to make up new units on the fly,
+and as long as you don't ever need to convert this unit into another
+format <b>Data::Dimensions</b> will do the right thing.</p>
+<pre>  use Data::Dimensions qw(&amp;units extended);</pre>
+
+<pre>  # new units
+  my $camels = units( { camels =&gt; 1 }, 20  );
+  my $money  = units( { pounds =&gt; 1 }, 400 );</pre>
+
+<pre>  # how much?
+  my $price = units({ camels =&gt; 1, pounds =&gt; -1 });
+  set $price = $camels / $money;</pre>
+
+<pre>  # throws an error, can't mix snakes with camels
+  set $camels = $camels + units({ snake =&gt; 1 }, 3);</pre>
+
+<p>All the units that <b>Data::Dimensions</b> understands are located in the
+<li><a href="http://search.cpan.org/src/AJGOUGH/Data-Dimensions-0.04/lib/Data/Dimensions/Map.pm">Data::Dimensions::Map</a></li>
+module.  Defining your own units is just a matter of altering the %units
+hash in this module.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety feature
+  use strict;
+  use warnings;</pre>
+
+<pre>  use Data::Dimensions qw(&amp;units extended);</pre>
+
+<pre>  # define S.A. units (standard armadillo)
+  # based on 'Dasypus novemcinctus' nine banded armadillo</pre>
+
+<pre>  # 1 S.A. length is 573mm, maximum length of the species
+  $Data::Dimensions::Map::units{armadillo_length}
+    = [ 0.573, { m =&gt; 1 }];</pre>
+
+<pre>  # 1 S.A. mass is 10kg, maximum mass of the species
+  $Data::Dimensions::Map::units{armadillo_mass}
+    = [ 10, { kg =&gt; 1 }];</pre>
+
+<pre>  # 1 S.A. time is 9 years, estimated wild lifespan
+  $Data::Dimensions::Map::units{armadillo_time}
+    = [ 9*365*24*60*60, { s =&gt; 1 }];</pre>
+
+<pre>  # what's 30 miles per hour in armadillo_length per armadillo_time?
+  my $speed = units({ armadillo_length =&gt; 1, 
+	              armadillo_time   =&gt; -1 });
+  set $speed = units({ mile =&gt; 1, hour =&gt; -1 }, 30);
+  print "30mph is $speed armadillo_length per armadillo_time\n";</pre>
+
+<p>The units you use to define your new units must be those in the
+<code>%SI_base</code> hash in the <b>Data::Dimensions::Map</b> class.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/src/AJGOUGH/Data-Dimensions-0.04/lib/Data/Dimensions/Map.pm">Data::Dimensions::Map</a></li>
+<li><a href="http://search.cpan.org/dist/Math-Units/Units.pm">Math::Units</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:55 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

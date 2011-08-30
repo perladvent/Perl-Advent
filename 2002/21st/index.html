@@ -1,0 +1,260 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Tie::File</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 21st day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Tie::File</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../20th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../22nd/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Have you ever wanted to use Perl to change a line in the middle of a
+data file?  While this may sound like a trivial thing for a human to do (or
+for a text editor) it's actually quite hard to do programattically.</p>
+<p>While you and I think of a text file as many separate lines of data,
+as far as the computer is concerned the file is just a big collection
+of characters, one after the other.  Perl can read in lines at a time
+by scanning for the special delimiting return characters, but changing
+it another story - one that involves much copying of data to make
+space for the data you're adding in or to remove the space the data you
+took out was taking up.</p>
+<p>What we need is a module that takes away the pain of dealing with a file
+and understands that if we want to insert a line, then it should silently
+do all the copying and manipulating and all the other complex stuff we
+don't want to think of ourselves for us.</p>
+<p>This is where <b>Tie::File</b> is useful.  It lets us treat a file just as
+if it was a big array of lines that we can manipulate at will.
+Suddenly, editing files becomes trivial and we don't have to worry
+about all the things that suddenly seemed so hard before.  Isn't this
+what Perl modules are all about?</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Tie::File">[Read the documentation for Tie::File on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p><b>Tie::File</b> uses Perl's tie interface.  This means that we 'tie' an
+object to a data structure - in this case an array.  Every time we do
+something to the array rather than manipulating a real array it calls
+methods on the object.  In the case of <b>Tie::File</b> this object
+manipulates the underlying file that we're editing.</p>
+<p>Each entry in the array represents a single line of the file, so
+removing or adding lines removes or adds lines to the file, and
+changing lines changes the corresponding line in the file.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # tie the file 'file' to the array '@file'.  From this point
+  # on the lines of 'file' are the entries in @file and vice versa
+  use Tie::File;
+  tie my @file, "Tie::File", "file";</pre>
+
+<pre>  # add a line to the end of the file
+  push @file, "Program starting at: ".time</pre>
+
+<p>Note how we don't bother ending the string we're pushing onto the
+array with a new line character - there's no need, each line is a new
+line in itself.  However having said that, ending the line with a
+'superfluous' newline is also perfectly acceptable - it'll just be
+silently removed.  So:</p>
+<pre>  # add a line to the end of the file
+  push @file, "Program starting at: ". time . "\n";</pre>
+
+<p>Would have be equally okay.  We can also read in lines as you
+might expect:</p>
+<pre>   print "The last line of the file is: $file[-1]\n";</pre>
+
+<p>While adding a line to the end of a file isn't that complicated
+consider adding data to the start of a file.  With <b>Tie::File</b> it's
+this simple:</p>
+<pre>  # add a line to the start of the file
+  unshift @file, "Program Log";</pre>
+
+<p>This is a much harder operation to code in straight Perl.  If you want
+to add data to the start of the file the simplest way to do this is to
+create a new file, write the line to it, copy the whole contents of
+the old file onto the end of the new file, then rename it to be the
+same name as the original file.  The code to do that is:</p>
+<pre> use IO::AtomicFile;
+ use IO::File;</pre>
+
+<pre> # open the files one for reading and one for writing
+ my $original = IO::File-&gt;new("file")
+   or die "Can't write to 'file': $!";
+ my $changed  = IO::AtomicFile-&gt;new("file","&gt;")
+   or die "Can't write to 'file.TMP': $!";</pre>
+
+<pre> # add the line
+ print {$changed} "Program Log\n";</pre>
+
+<pre> # copy the rest of the data
+ print {$changed} $_ while (&lt;$original&gt;);</pre>
+
+<p>And that's with <b>IO::AtomicFile</b> doing the renaming of the file when
+we're done writing it for us!  You can can see how much easier
+<b>Tie::File</b> is making our life already.  Changing lines in the middle
+of files can be even more problematic, however with <b>Tie::File</b> we can
+simply rewrite individual lines by changing the contents of the array
+for that line:</p>
+<pre>  # change the 13th line to say it's unlucky
+  $file[12] = "I'm unlucky, oh woe is me";</pre>
+
+<pre>  # change every mention of Christmas to Xmas in the 10th line
+  $file[9] =~ s/Christmas/Xmas/gi;</pre>
+
+<p>In the last line of the above example we see a substitution showing
+that we can read data in and write new data out and <b>Tie::Hash</b> deals
+with all the complexities for us.  Even better that this, we can make
+use of some little known but very useful feature of Perl's <code>foreach</code>
+loop to do the same kind of substitution over the entire file:</p>
+<pre>  # run over '@file' making '$_' the current line each loop
+  foreach my $line (@file)
+  {
+    print "Old line was: $line\n";
+ 
+    # change the line
+    $line =~ s/Christmas/Xmas/gi;</pre>
+
+<pre>    print "New line is: $line\n";
+  }</pre>
+
+<p>Because <code>$line</code> isn't assigned the value of the element of <code>@file</code>
+we're dealing with - it <i>is</i> the line - it's an <i>implicit alias</i>,
+changing <code>$line</code> will actually change the original element in
+<code>@file</code> which in reality will change the line in the file.</p>
+<p>Adding lines and deleting lines in the middle of the file with
+<code>Tie::File</code> is a little harder than simply editing them - mostly
+because we get to use the oft misunderstood <code>splice</code> operator on the
+array (though it's a lot easier than trying to read it in and write it
+out again.)  To remove lines with splice we simply need to state the
+array, the index of what we want to remove and how many lines we want
+to remove.</p>
+<pre>  # remove the 10th line from the file
+  splice @file, 9, 1;</pre>
+
+<pre>  # remove the 12th, 13th and 14th line from the file
+  splice @file, 11, 3;</pre>
+
+<p>To replace lines from the file we simply add in replacement lines
+at the end of the splice operation.</p>
+<pre>  # remove the 12th, 13th and 13th line from the file
+  # and replace the three of them with two new lines
+  splice @file, 11, 3, "First Replacement Line",
+                       "Second Replacement Line";</pre>
+
+<p>To just insert lines instead of replacing them all we need to do is
+set the third argument to <code>splice</code> - the number of lines to be
+removed - to zero.</p>
+<pre>  # insert two lines after the 11th line before the 12th
+  splice @file, 11, 0, "First Replacement Line",
+                       "Second Replacement Line";</pre>
+
+<h2>Under The Hood</h2>
+<p>Of course, <b>Tie::File</b> actually has to manipulate the file itself
+somewhat like we described in the long winded example above.  In order
+to do this with some semblance of efficiency it will attempt to cache
+a little (but not too much) of the file in memory.  You can control
+how much memory it will use when you tie the file:</p>
+<pre> # use lots and lots of memory
+ tie @file, 'Tie::File', $file, memory =&gt; 20_000_000;</pre>
+
+<p>One trick that you might want to employ if you've got multiple programs
+running at the same time is to turn off all this caching.  This will cause
+the program to read the file every time you read from the array - vital
+if another program may have written to it and cached data might be wrong
+by now.</p>
+<pre> # don't cache - other programs may be writing to 
+ # the file so our cached data might be wrong!
+ tie @file, 'Tie::File', $file, memory =&gt; 0;</pre>
+
+<p>If you're interested in having multiple files access the file you should
+take a look at <b>Tie::File</b>'s <code>flock</code> method.</p>
+<p>There's lots of other good features that <b>Tie::File</b> offers.  One
+wonderful feature is deferred writing, where changes aren't written to
+disk immediately.  This is useful if you're editing the same parts of
+the file over and over (so the changes only have to be written once)
+but of course raises issues like what happens if your program crashes
+before the write cache is flushed.  More details on this and other features
+are in the wonderful manual page.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://perl.plover.com/yak/tiefile/">MJD's Tie::File Talk Slides</a></li>
+<li><a href="http://www.perldoc.com/perl5.8.0/pod/perltie.html">perltie documentation</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:54 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

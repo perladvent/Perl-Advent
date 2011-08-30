@@ -1,0 +1,148 @@
+=pod
+
+=for advent_year 2008
+
+=for advent_day 18
+
+=for advent_title The Toy-O-Matic (3000X!)
+
+=for advent_author Steve Scaffidi &amp; Jerrad Pierce
+
+Elves are a creative bunch. Really, they're I<constantly> tweaking, updating, 
+and adding features and options to the Toy-O-Matic (3000X!). What, you've
+never I<heard> of the B<Toy-O-Matic>? (3000X!) Well let me tell you about
+it! It slices, it dices, it can build just about any toy you can  dream up!
+Sound complicated? You betcha! But elves are good engineers and the whole
+thing is driven by simple, elf-readable configuration files. In the beginning
+though, was the Doll-O-Matic. It accepted only a few parameters:
+
+=begin pre
+
+  gender=male
+  jacket=red
+  pants=green # just like an elf!
+
+=end pre
+
+But that was enough that the elves could offer dozens of custom dolls to suit
+most sensible requests. Better yet, because they were using M<Config::General>,
+only a few changes to the code were necessary to allow each elf to edit the
+configs as they wanted&mdash;within reason&mdash;and actually expect it to work!
+
+=begin code
+
+  -my $config = Config::General->new( $cfg_file );
+  +my $config = Config::General->new( 
+  +   -ConfigFile     => $cfg_file,
+  +   -SplitDelimiter => '\s*(?:\:|=|->)\s*|\s+',
+  +   -SplitPolicy    => 'custom');
+
+=end code
+
+Now, even after several elves had commited edits of differing styles,
+M<Config::General> could DWIM
+
+=begin pre
+
+  gender:  female
+  #We're out of green dresses, blue is sort of like green, right? -Murphy
+  #dress=green
+  dress blue
+  hairbow->pink #Arrows rule!
+
+=end pre
+
+Elves love Perl because, like them, it serves to please&hellip;
+and Config::General is I<very> Perlish!
+
+Before long, this level of customization simply wasn't enough. Seriously,
+when have you ever heard (grand)parents complain about anything today being
+I<simpler>? Therefore, the Doll-O-Matic was retooled and renamed Toy-O-Matic
+(3000X!) to match. Now it could make more than dolls, but it's configuration
+remained straight-forward and flexible, even though a single file could
+contain parameters for a number of toys. An Army Dude with a Deluxe Rocket
+Launcher for Jimmy, a Modern Career Woman with the Malibu Accessory Set for
+Lisa and an Elf! for Tim.
+
+=begin pre
+
+  <toy elf_doll>
+      Include elf.cfg
+  </toy>
+
+  <toy army_dude>
+      nationality = antarctica
+      accessories = rocket launcher
+      accessories = jeep
+      accessories = backpack
+      speaks      = Viper commander is over the hill! Cover me! GO! GO! GO!
+  </toy>
+
+  <toy career_woman>
+      phone = Raspberry 200
+      <car>
+          make = BMVV
+          model = M3
+          color = pink
+      </car>
+      hair = perfect
+      speaks =<<END_PHRASE
+Buy! Sell! Buy! Sell! 
+Call my lawyer, check on the babysitter, 
+book me a flight to london!
+END_PHRASE
+  </toy>
+
+=end pre
+
+That's right, M<Config::General> supports heredocs, (globbing) of includes,
+and Apache-style structured files! Many elves work as webmasters in the
+off-season, so these latter features were second nature to them. Plus, the
+resulting data structures are easily inspected and understood:
+
+=begin pre
+
+% perl -MConfig::General -MData::Dumper -e "print Dumper{Config::General->new(-ConfigFile=>'@ARGV',-UseApacheInclude=>1)->getall()}" toys.conf
+$VAR1 = {
+           'toy' => {
+                      'jimmy_doll' => {
+                                        'pants' => 'green',
+                                        'jacket' => 'red',
+                                        'gender' => 'male'
+                                      },
+                      'career_woman' => {
+                                          'car' => {
+                                                     'color' => 'pink',
+                                                     'make' => 'BMVV',
+                                                     'model' => 'M3'
+                                                   },
+                                          'speaks' => 'Buy! Sell! Buy! Sell!
+Call my lawyer, check on the babysitter, 
+book me a flight to london!',
+                                          'hair' => 'perfect',
+                                          'phone' => 'Raspberry 200'
+                                        },
+                      'army_dude' => {
+                                       'speaks' => 'Viper commander is over the hill! Cover me! GO! GO! GO!',
+                                       'accessories' => [
+                                                          'rocket launcher',
+                                                          'jeep',
+                                                          'backpack'
+                                                        ],
+                                       'nationality' => 'antarctica'
+                                     }
+                    }
+         };
+
+=end pre
+
+The hacker elves were also quite happy to learn that M<Config::General>
+also write configuration files from raw data structures. They even created
+a GUI for designing new toys, and the results were written out to disk.
+Productivity soared, creativity blossomed, and kids were happy everywhere!
+
+=sourcedcode mod18.pl
+
+=sourcedcode mod18b.pl
+
+=cut

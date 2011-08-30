@@ -1,0 +1,195 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:Ferreira@tec-020.nonet" />
+<title>2006 Perl Advent Calendar: The Nutcracker</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body>
+
+<H1><A HREF="../">Perl Advent Calendar 2006-12</A>-13</H1>
+<h2 align="center">The Nutcracker</h2>
+<h3 align="center">by Adriano Ferreira</h3>
+
+<p>When I started programming, I didn't do it in what I consider today
+a great style &mdash; the Unix way. IDEs for Pascal and C running 
+under DOS were my gentle first tools. But I survived. Much later
+I met Perl and learned a lot about Unix, its utilities and
+libraries.</p>
+
+<p>Among Unix tools, shell scripting always warrants mention as powerful yet
+simple and fast ability to glue to put together utilities for a specific task. 
+But shell scripts need not be simple, in which case they are not fast (at
+least) for me to write. Larry said once "It is easier to port a shell than a
+shell script." Worse still, they don't even look like real languages.
+Expressions like:</p>
+
+<pre>if [ -e nuts.html ] ; then echo ok ; else echo bah ; fi</pre>
+
+<p>give me the willies. The inability to tweak formatting is annoying, if
+I wanted syntactically significant whitespace I'd use Python.</p>
+
+<p>Enter <tt><a href="http://perldoc.perl.org/Shell.html">Shell</a></tt>,
+which allows you to transparently invoke (via a shell) any program as a
+subroutine call. When I realized its usefulness, every shell script I needed
+to write with more than a sequence of commands were automatically promoted
+to a Perl script <tt>use</tt>-ing <tt>Shell</tt>.</p>
+
+<p>The module has a deceptively simple interface. Doing:</p>
+
+<pre>
+<span class="k">use</span> <span class="w">Shell</span> <span class="q">qw(tar)</span><span class="sc">;</span>
+</pre>
+
+<p>installs a stub in the calling package to spawn <tt>tar</tt>
+with any arguments you pass it.</p>
+
+<p>Another way to use <tt>Shell</tt>, which is not recommended, results from
+its initial design by Larry as a showcase for Perl 5.0.0's interprocess
+communication facilities and the new
+<tt><a href="http://perldoc.perl.org/perlsub.html#Autoloading-autoloading-AUTOLOAD">AUTOLOAD</a></tt>
+feature. Through <tt>AUTOLOAD</tt>, every call to an unknown sub name will
+cause perl to try to find and execute a program of the same name. But as soon
+as the box was opened, Larry Wall realized the dangers of this implementation.
+</p>
+
+<pre>
+<span class="k">use</span> <span class="w">Shell</span><span class="sc">;</span> <span class="c"># Attention! AUTOLOADing zone</span>
+
+<a name="foo-"></a><span class="k">sub </span><span class="m">foo</span> <span class="s">{</span> 
+  <span class="c"># do something fooy</span>
+<span class="s">}</span>
+<span class="w">fool</span><span class="sc">;</span> <span class="c"># typo will make it pass &amp;foo to the shell</span>
+</pre>
+
+<p>Of course, the inability to detect typos is a "feature" inherent in
+any use of <tt>AUTOLOAD</tt>, but what if you meant to call <tt>rn</tt>
+and instead called <tt>rm</tt>?</p>
+
+<p>Finally, if you're lOOpy, you may prefer the following style of invocation
+that also avoids polluting the namespace of the calling package.</p>
+
+<pre>
+<span class="k">use</span> <span class="w">Shell</span> <span class="s">(</span><span class="s">)</span><span class="sc">;</span> <span class="c">#Note the use of a null import list</span>
+
+<span class="k">my</span> <span class="i">$sh</span> = <span class="w">Shell</span><span class="w">-&gt;new</span><span class="sc">;</span>
+<span class="k">print</span> <span class="i">$sh</span><span class="i">-&gt;ls</span><span class="s">(</span><span class="q">&quot;-lh&quot;</span><span class="cm">,</span> <span class="i">$dir</span><span class="s">)</span><span class="sc">;</span>
+</pre>
+
+<p>Despite being a toy for demonstration, <tt>Shell</tt> is acceptable to
+use it in some applications: building quick scripts which may be improved
+later, by replacing the call to external programs with (faster) Perl
+equivalents, or which may remain as they are if they are good enough for their
+purposes.</p>
+
+<h4><a name="caveats">CAVEATS</a></h4>
+<ol>
+<li>Scripts written with <tt>Shell</tt> may not be portable due to the
+availability of the invoked utilities and some shell idiosyncracies. However,
+as they are written in Perl, there are no issues about language
+incompatibilities as it happens with slightly differing shells e.g;
+<tt>csh</tt> vs. <tt>tcsh</tt>.<sup><a href="#1">1</a></sup></li>
+
+<li>The module could be made more useful with further fine tuning.
+For instance, it would be nice to have better handling of return codes.</li>
+
+<li>Beware of clashes between the names of core Perl functions and external
+programs. While trying to import <tt>grep</tt> is futile, you could use
+<tt>fgrep</tt> or <tt>egrep</tt> if your system has them.</li>
+
+<li>Because <tt>Shell</tt> knows nothing about the programs you are executing
+it must allocate a buffer for each command invoked, just in case you need
+access to the output. This is akin to the minor sin of using <tt>qx{}</tt>
+even when you mean <tt>system()</tt>.</li>
+
+<li>Pipes, redirections and background processes can be difficult or impossible
+to express and manage with this module. Fortunately
+<tt><a href="http://search.cpan.org/dist/Shell-Autobox/">Shell::Autobox</a></tt>
+will help you tackle the former.</li>
+
+</ol>
+
+<h4><a name="the_example">OUR EXAMPLE</a></h4>
+
+<p>The example attached to this article shows how to do a hot backup 
+of a Subversion repository, archive and compress it into a <tt>.tar.bz2</tt>
+file and send it via e-mail with <tt>mutt</tt>. There is also some logic to
+avoid doing the backup more than once a day. The shell script version is left
+as an exercise to the reader.</p>
+
+<p>This script is as portable as the availability of the external programs
+used, and the consistency of their implementation: <tt>svnadmin</tt>, a
+<tt>tar</tt> which supports the <tt>-j</tt> option to pipe the result through
+<tt>bzip2</tt>, <tt>mutt</tt>, <tt>du</tt> (with <tt>-h</tt> for human
+readable sizes) and <tt>touch</tt>.
+Portability is also affected by any cleverly evil things you do with the
+shell syntax of the arguments. Here the only "trick" used is input redirection
+when calling <tt>mutt</tt> (which is a very common shell feature). It should
+run happily on Win32, Cygwin, Linux, FreeBSD and others <em>if</em> you have
+the necessary requirements at your system.</p>
+
+<p>Minor changes to the same script can be done to adjust it to other tasks.
+Each use case has its particular characteristics, like using <tt>svnadmin
+hotcopy</tt> for doing a hot backup over a live Subversion repository (which I
+learned <a href="http://svnbook.red-bean.com/en/1.1/ch05s03.html">here</a>). 
+But the rationale is the same: with tiny modifications of the example, you
+could easily do a Firebird database backup, invoking the <tt>gbak</tt>
+utility, a simple backup of some directory tree or any number of other things.
+</p>
+
+<h1><tt><a href='mod13.pl'>mod13.pl</a></tt></h1>
+<hr />
+<pre>
+   1 #!/usr/bin/perl
+   2 
+   3 <span class="k">use</span> <span class="w">strict</span><span class="sc">;</span>
+   4 <span class="k">use</span> <span class="w">warnings</span><span class="sc">;</span>
+   5 
+   6 <span class="k">use</span> <span class="w">Shell</span> <span class="q">qw(svnadmin tar du mutt touch)</span><span class="sc">;</span>
+   7 <span class="k">use</span> <span class="w">File::Slurp</span> <span class="q">qw(read_file write_file)</span><span class="sc">;</span>
+   8 <span class="k">use</span> <span class="w">File::Path</span> <span class="q">qw(rmtree)</span><span class="sc">;</span>
+   9 
+  10 <span class="c"># the repository location</span>
+  11 <span class="k">my</span> <span class="i">$ROOT</span> = <span class="q">&#39;/usr/share/svnroot/&#39;</span><span class="sc">;</span> 
+  12 <span class="c"># where I send the backup to</span>
+  13 <span class="k">my</span> <span class="i">$EMAIL</span> = <span class="q">&#39;backup-sink@example.com&#39;</span><span class="sc">;</span>
+  14 <span class="c"># control file: the last backup time</span>
+  15 <span class="k">my</span> <span class="i">$CTL</span> = <span class="k">glob</span> <span class="q">&#39;~/bk-time&#39;</span><span class="sc">;</span> 
+  16 
+  17 <span class="k">my</span> <span class="i">$LAST_MARK</span> = <span class="k">-e</span> <span class="i">$CTL</span> ? <span class="i">read_file</span><span class="s">(</span><span class="i">$CTL</span><span class="s">)</span> <span class="co">:</span> <span class="n">0</span><span class="sc">;</span>
+  18 <span class="k">my</span> <span class="i">$PERIOD</span> = <span class="n">24</span>*<span class="n">60</span>*<span class="n">60</span><span class="sc">;</span> <span class="c"># 24 hours </span>
+  19 <span class="k">my</span> <span class="i">$NOW</span> = <span class="k">time</span><span class="sc">;</span>
+  20 
+  21 <span class="k">if</span> <span class="s">(</span><span class="i">$NOW</span>&gt;<span class="i">$LAST_MARK</span>+<span class="i">$PERIOD</span><span class="s">)</span> <span class="s">{</span> <span class="c"># more than $PERIOD later</span>
+  22   <span class="k">my</span> <span class="i">$TMP</span> = <span class="q">&#39;svnbak&#39;</span><span class="sc">;</span>
+  23   <span class="c"># backing up the repository</span>
+  24   <span class="i">svnadmin</span><span class="s">(</span><span class="q">&quot;hotcopy&quot;</span><span class="cm">,</span> <span class="i">$ROOT</span><span class="cm">,</span> <span class="i">$TMP</span><span class="s">)</span><span class="sc">;</span>
+  25   <span class="c"># archiving/compressing</span>
+  26   <span class="k">my</span> <span class="i">$BAK</span> = <span class="q">&quot;$TMP.tar.bz2&quot;</span><span class="sc">;</span>
+  27   <span class="i">tar</span><span class="s">(</span><span class="q">&quot;cfj&quot;</span><span class="cm">,</span> <span class="i">$BAK</span><span class="cm">,</span> <span class="i">$TMP</span><span class="s">)</span><span class="sc">;</span>
+  28 
+  29   <span class="k">my</span> <span class="i">$SUBJECT</span> = <span class="q">&quot;[ATTIC] backup of $ROOT&quot;</span><span class="sc">;</span>
+  30   <span class="k">my</span> <span class="i">$BODY</span> = <span class="k">sprintf</span> <span class="h">&lt;&lt;BODY</span><span class="cm">,</span> <span class="k">scalar</span> <span class="k">localtime</span><span class="cm">,</span> <span class="k">-s</span> <span class="i">$BAK</span><span class="cm">,</span> <span class="i">du</span><span class="s">(</span><span class="q">&quot;-hs&quot;</span><span class="cm">,</span> <span class="i">$ROOT</span><span class="s">)</span><span class="sc">;</span>
+  31 <span class="hh">$ROOT: backup at %s</span>
+  32 <span class="hh">  %d Bytes - $BAK</span>
+  33 <span class="hh">  %s       (uncompressed)</span>
+  34 <span class="h">BODY</span>
+  35   <span class="i">write_file</span><span class="s">(</span><span class="q">&#39;body.txt&#39;</span><span class="cm">,</span> <span class="i">$BODY</span><span class="s">)</span><span class="sc">;</span>
+  36   <span class="i">mutt</span><span class="s">(</span><span class="q">&quot;-s&quot;</span><span class="cm">,</span> <span class="i">$SUBJECT</span><span class="cm">,</span> <span class="q">&quot;-a&quot;</span><span class="cm">,</span> <span class="i">$BAK</span><span class="cm">,</span> <span class="i">$EMAIL</span><span class="cm">,</span> <span class="q">&#39;&lt;&#39;</span><span class="cm">,</span> <span class="q">&#39;body.txt&#39;</span><span class="s">)</span><span class="sc">;</span> <span class="c"># sending mail</span>
+  37 
+  38   <span class="i">rmtree</span><span class="s">(</span><span class="i">$TMP</span><span class="s">)</span><span class="sc">;</span>
+  39   <span class="k">unlink</span> <span class="i">$BAK</span> <span class="k">or</span> <span class="k">warn</span> <span class="q">&quot;could not rm &#39;$BAK&#39;: $!\n&quot;</span><span class="sc">;</span> 
+  40   <span class="k">unlink</span> <span class="q">&#39;body.txt&#39;</span> <span class="k">or</span> <span class="k">warn</span> <span class="q">&quot;could not rm &#39;body.txt&#39;: $!\n&quot;</span><span class="sc">;</span> 
+  41 
+  42   <span class="k">my</span> <span class="i">$MARK</span> = <span class="k">int</span><span class="s">(</span><span class="i">$NOW</span> / <span class="i">$PERIOD</span><span class="s">)</span> * <span class="i">$PERIOD</span><span class="sc">;</span>
+  43   <span class="i">write_file</span><span class="s">(</span><span class="i">$CTL</span><span class="cm">,</span> <span class="i">$MARK</span><span class="s">)</span><span class="sc">;</span>
+  44 
+  45 <span class="s">}</span> <span class="k">else</span> <span class="s">{</span>
+  46   <span class="c"># don&#39;t do anything but</span>
+  47   <span class="i">touch</span><span class="s">(</span><span class="i">$CTL</span><span class="s">)</span><span class="sc">;</span> <span class="c"># update timestamp</span>
+  48 <span class="s">}</span>
+</pre>
+<a name="1">1</a>. <a href="http://www.faqs.org/faqs/unix-faq/shell/csh-whynot/">Yeah yeah&hellip;</a>
+</body>
+</html>

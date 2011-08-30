@@ -1,0 +1,219 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Data::Dumper::Simple</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 8th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Data::Dumper::Simple</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../7th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../9th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>When I'm debugging, the one module I can't do without is
+<b>Data::Dumper</b>.  The ability to print out what a variable contains
+recursively is invaluable.  It's one of the nine indispensible rules of
+debugging: Quit Thinking and Look.  No matter what I think a variable
+must contain, there's no substitution for quickly getting in there and
+printing it out to <i>just make sure</i>.</p>
+<p><b>Data::Dumper::Simple</b> provides a slight, but significant,
+improvement over <b>Data::Dumper</b>.  It automatically prints out the
+name of the variable you're dumping.  This may seem trivial, but in a
+situation where you're concentrating your hardest in tracking down a
+problem the last thing you want to be doing is getting confused about
+which Dumper statement is which.  And, admit it, we're all too lazy to
+add the extra information to the print statement by hand - but that's
+okay, laziness is a virtue in the Perl world - especially when we're so
+lazy we get a module to do it for us.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Data::Dumper::Simple">[Read the documentation for Data::Dumper::Simple on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Let's remind ourselves just how useful <b>Data::Dumper</b> is.  First
+we'll set up some variables:</p>
+<pre>  # create some data structures
+  my $foo = "wibble";
+  my %bar = ( boston =&gt; "cheers", space =&gt; "ten forward" );
+  my @baz = ( "red", [ "green", { yellow =&gt; "blue" } ] );</pre>
+
+<p>Then later on we'll print them out.</p>
+<pre>  use Data::Dumper;
+  print STDERR Dumper($foo, \%bar, \@baz);</pre>
+
+<p>We get a print out showing us well formatted versions of the data
+structures we fed in:</p>
+<pre>  $VAR1 = 'wibble';
+  $VAR2 = {
+            'space' =&gt; 'ten forward',
+            'boston' =&gt; 'cheers'
+          };
+  $VAR3 = [
+            'red',
+            [
+              'green',
+              {
+                'yellow' =&gt; 'blue'
+              }
+            ]
+          ];</pre>
+
+<p>This is great! Anywhere we want in our code whenever we want to see
+what a variable contains we can just print it out.  And we can sprinkle
+these all over our code so we can tell what things are, and track when
+we made the mistake...</p>
+<p>...apart from the fact we'd never be able to tell which variable is
+which because they're only labeled <code>$VAR1</code>, <code>$VAR2</code>, and <code>$VAR3</code>.
+As soon as we start using multiple <code>Dumper</code> commands the whole thing
+is going to get confusing.  Of course we could - if were prepared to
+type a lot more in our statements - label all our <b>Data::Dumper</b>
+output with whatever we wanted.  However, what we <i>really</i> want is to
+have the correct labels automatically with no extra effort.
+<b>Data::Dumper::Simple</b> comes to the rescue:</p>
+<pre>  use Data::Dumper::Simple;
+  print STDERR Dumper($foo, \%bar, \@baz);</pre>
+
+<p>This - through clever use of source filters - prints out some output
+that is labeled with the names of the variables that we were dumping
+out:</p>
+<pre>  $foo = 'wibble';
+  $bar = [
+           'boston' =&gt; 'cheers',
+           'space' =&gt; 'ten forward'
+         ];
+  $baz = [
+           'red',
+           [
+             'green',
+             {
+               'yellow' =&gt; 'blue'
+             }
+           ]
+         ];</pre>
+
+<p>And that's all there is to it.  A simple improvement for one of the
+common uses of Data::Dumper. </p>
+<p>We can take things a little further.  You'll note that the <i>funny
+characters</i> at the front of the variable names have all changed to <code>$</code>.
+That's because we're passing both <code>%bar</code> and <code>@bar</code> by a reference.
+We need to do this because the <b>Data::Dumper</b> <code>Dumper</code> function will
+get it's arguments flattened by the list calling convention.  If we'd
+written:</p>
+<pre>  use Data::Dumper;
+  print STDERR Dumper($foo, %bar, @baz);</pre>
+
+<p>We'd have got:</p>
+<pre>  $VAR1 = 'wibble';
+  $VAR2 = 'boston';
+  $VAR3 = 'cheers';
+  $VAR4 = 'space';
+  $VAR5 = 'ten forward';
+  $VAR6 = 'red';
+  $VAR7 = [
+            'green',
+            {
+              'yellow' =&gt; 'blue'
+            }
+          ];</pre>
+
+<p>As all the variables are smooshed together indistinguishably by the
+time they reach the <code>Dumper</code> function.  <b>Data::Dumper::Simple</b> is a
+little more clever than that.  Calling:</p>
+<pre>  use Data::Dumper::Simple;
+  print STDERR Dumper($foo, %bar, @baz);</pre>
+
+<p>Prints out exactly what we might expect:</p>
+<pre>  $foo = 'wibble';
+  %bar = (
+           'boston' =&gt; 'cheers',
+           'space' =&gt; 'ten forward'
+         );
+  @baz = (
+           'red',
+           [
+             'green',
+             {
+               'yellow' =&gt; 'blue'
+             }
+           ]
+         );</pre>
+
+<p>Meaning it's even quicker to get some useful debug information out.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/perldoc?Data::Dumper">Data::Dumper</a></li>
+<li><a href="http://books.slashdot.org/books/04/02/21/228241.shtml">Debugging: The 9 Indispensable Rules for Finding Even the Most Elusive Software and Hardware Problems</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:58 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

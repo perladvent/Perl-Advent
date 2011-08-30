@@ -1,0 +1,215 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: PPerl</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 4th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">PPerl</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../3rd/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../5th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>When you execute a program written in Perl, the Perl interpreter
+<code>perl</code> is loaded into memory, the source files are loaded, parsed
+and converted into bytecode.  This all happens really quickly, so
+fast that if you blink, you miss it.  In most cases this is fast enough.</p>
+<p>Sometimes it's not. </p>
+<p>The trouble is, that sometimes this isn't fast enough, because, well,
+the computer can do other things really quickly too.  If you run a
+Perl script every time you receive a mail then most of the time this
+is going to be fine, but should you suddenly get a thousand mails
+delivered then your computer's going to have a hard job simultaneously
+initialising a thousand Perl interpreters at once.</p>
+<p>What would be nice if instead of starting from scratch each time we
+run a program, it was possible to keep the program hanging around in
+memory ready to run.  This is what PPerl does - and it's really simple
+to use too.  In most cases all you need do is change one line of your
+well written source code and everything will work.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?PPerl">[Read the documentation for PPerl on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>The bash shell prompt can be configured to run a command each time it
+is about to print out and incorporate the output of that command into
+itself.  For example, utilising the unix date command:</p>
+<pre>  bash-2.05b$ PS1="\$(date) $ "
+  Wed Dec  3 21:27:27 GMT 2003 $ ls
+  hack_the_planet.pl
+  Wed Dec  3 21:27:32 GMT 2003 $</pre>
+
+<p>The important thing to remember is that whatever command we put in the
+script must be fast.  It's no good sitting around waiting for your command
+prompt to be set when you need to take some emergency action on your box.</p>
+<p>There's no reason this technique can't use a Perl script.  For example
+we could write a script that prints out the current load in different
+colours based on how high a load we have:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  use Sys::Load qw(getload);
+  use Term::ANSIColor qw(:constants);</pre>
+
+<pre>  # get the load
+  my ($load) = getload;</pre>
+
+<pre>  # print out the load in the correct colour
+  if ($load &gt; 0.8)
+   { print RED, "[$load]", RESET }
+  elsif ($load &gt; 0.5)
+   { print YELLOW, "[$load]", RESET }
+  else
+   { print GREEN, "[$load]", RESET }</pre>
+
+<p>Saving the above example in a file called "myprompt" somewhere in your
+path and then making it executable means that you can place the following
+line in your .bashrc to get the prompt to change each time:</p>
+<pre>   PS1="\$(myprompt) $ "</pre>
+
+<p>This script runs pretty nippy on my box and there's no way that I can
+type quick enough to create any significant load, but I hate to waste
+CPU load on a pretty utility to display CPU load. It's time to get
+PPerl involved.  All we really have to do is change the shebang line
+at the top of the script from</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<p>To run pperl instead:</p>
+<pre>  #!/usr/bin/pperl</pre>
+
+<p>The first time myprompt is run it spawns a collection of processes on
+the box, and executes as normal.</p>
+<pre>  [0.06] $ ps fx | grep myprompt
+  13920 ?        S      0:00 /home/mark/bin/myprompt
+  15191 ?        S      0:00  \_ /home/mark/bin/myprompt
+  15195 ?        S      0:00  \_ /home/mark/bin/myprompt
+  15199 ?        S      0:00  \_ /home/mark/bin/myprompt
+  15203 ?        S      0:00  \_ /home/mark/bin/myprompt
+  15207 ?        S      0:00  \_ /home/mark/bin/myprompt</pre>
+
+<p>Now whenever myprompt is executed pperl instead of loading in perl and
+parsing the script it simply communicates to one of the pperl
+processes from the pool and gets them to rerun the script.  This is
+considerably quicker.  Let's find out exactly how much quicker:</p>
+<pre>  #!/usr/bin/perl
+  
+  use strict;
+  use warnings;
+  
+  use Benchmark qw(cmpthese);
+  
+  cmpthese(1000, {
+    perl  =&gt; "`myprompt_orig`",
+    pperl =&gt; "`myprompt`",
+  });</pre>
+
+<p>This isn't as finely controlled as it could be, as in theory the load
+on the machine could effect the output, but as a rough test it's not
+bad.  Note, because we're doing most of the work in the sub processes
+we want to check the wallclock seconds that this returns, not the CPU
+usage for the timing process.  On my system, it takes about 85
+seconds to run a thousand iterations under perl and 80 seconds to
+run under pperl.</p>
+<p>So the pperl version is slightly quicker.  This speed difference is
+emphasised more and more the more code is in the script we load.  Let's
+write a perl script that deliberately loads a few really massive modules
+that contain a lot of code:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  use Template;
+  use POSIX;
+  use Socket;
+  use CGI;
+  BEGIN { CGI-&gt;compile }</pre>
+
+<pre>  print "Hello World\n";</pre>
+
+<p>With this script the perl version takes 313 seconds to run all
+thousand iterations, but the pperl version only takes 113 seconds -
+almost three times quicker.  So, we can probably get away with
+formatting our prompt with the Template Toolkit if we run under PPerl
+if we really want.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://perl.apache.org/docs/1.0/guide/">The mod_perl guide, useful for understanding limitations of long running programs</a></li>
+<li><a href="http://search.cpan.org/dist/CGI-SpeedyCGI/lib/CGI/SpeedyCGI.pm">SpeedyCGI, an alternative module that does the same as PPerl with more advanced functions</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:54 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

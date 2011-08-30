@@ -1,0 +1,295 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: HTML::Entities</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 2nd day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">HTML::Entities</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../1st/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../3rd/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Yesterday's advent calendar talked about making sure the data your
+CGI accepts is checked carefully, and in a mirror of that, today's
+entry talks about making sure the data you output to a HTML page
+is formatted properly.</p>
+<p>Just as failing to check the data you're getting in can cause you
+security problems, so can failing to check the data that you print
+out.  It can open you up to cross site scripting attacks, or, at the
+very least cause your pixel perfect layout to horribly break when your
+variable doesn't quite contain what you thought it did when you
+printed it.</p>
+<p>HTML::Entities is a simple module that can help you out here,
+translating strings back and forth between a normal string and one
+that's encoded in a form that's safe to place in the middle of a HTML
+document.  Importantly, it's capable of handling the edge cases that a
+simple regular expression based solution doesn't deal with, ensuring
+that things you print out are safe.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?HTML::Entities">[Read the documentation for HTML::Entities on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>It's easy to get caught out when you're printing user data in HTML
+documents.  Let's consider this basic example script that prints a
+form asking for your name, and once that form has been submitted back
+to the script prints out a hello greeting.</p>
+<pre>  #!/usr/bin/perl
+  
+  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # get the object
+  use CGI;
+  my $cgi = CGI-&gt;new();</pre>
+
+<pre>  # print the header line to tell the browser we're using HTML
+  print $cgi-&gt;header;</pre>
+
+<pre>  # print the correct HTML depending on if a name has been
+  # submitted or not.
+  my $name = $cgi-&gt;param("name");
+  if (!defined($name))
+  { 
+     print &lt;&lt;ENDOFHTML;
+  &lt;html&gt;
+   &lt;body&gt;
+    &lt;form method="POST"&gt;
+     what is your name? &lt;input type="text" name="name" /&gt;&lt;br /&gt;
+     &lt;input type="submit" name="submit" value="Submit" /&gt;
+    &lt;/form&gt;
+   &lt;/body&gt;
+  &lt;/html&gt;
+  ENDOFHTML
+  }
+  else
+   { print "&lt;html&gt;&lt;body&gt;Hello $name&lt;/body&gt;&lt;/html&gt;"; }</pre>
+
+<p>The scary thing is that this (broken) example will work fine, most of
+the time.  Most input people enter into a browser is valid html.
+Things like "Mark" will just work.  It'll spit out this:</p>
+<pre>  Content-Type: text/html;</pre>
+
+<pre>  &lt;html&gt;&lt;body&gt;Hello Mark&lt;/body&gt;&lt;/html&gt;</pre>
+
+<p>Which will render in the browser as:</p>
+<pre>  Hello Mark</pre>
+
+<p>The trouble comes when someone decides to put something odd into the
+form and we print it out without processing it as we do in the code
+example above.  As most people who've written html know, this can be
+something that we'd normally consider quite inoxious like an ampersand
+<code>&amp;</code> or left angle bracket <code>&lt;</code>.  Left angle brackets are used to
+start tags, and ampersands are used to create 'entities'.  Entities
+ are used for things that can't be represented in the character set
+that the HTML is using, like &amp;eacute for a lowercase e with an acute
+accent.  Entities are also used for encoding the special characters
+themselves, for where you want to use something like <code>&lt;</code> or <code>&amp;</code>
+without having any special meaning.  In day to day HTML output this
+means changing all the ampersands to &amp;amps; and left arrow brackets to
+&amp;lt; in your string.</p>
+<p>For example, if someone places <code>Rod, Jane &amp; Freddy</code> into the form,
+then we should encode the entities in that so it prints out this:</p>
+<pre>  Content-Type: text/html;</pre>
+
+<pre>  &lt;html&gt;&lt;body&gt;Hello Rod, Jane &amp;amp; Freddy&lt;/body&gt;&lt;/html&gt;</pre>
+
+<p>Whereas our previous example will only print out:</p>
+<pre>  Content-Type: text/html;</pre>
+
+<pre>  &lt;html&gt;&lt;body&gt;Hello Rod, Jane &amp; Freddy&lt;/body&gt;&lt;/html&gt;</pre>
+
+<p>Worse, someone could put <code>&lt;img src="http://python.org/pics/pythonHi.gif"&gt;</code> directly into the form, meaning that the script would print out
+without a second thought:</p>
+<pre>  Content-Type: text/html;</pre>
+
+<pre>  &lt;html&gt;&lt;body&gt;Hello &lt;img src="http://python.org/pics/pythonHi.gif"&gt;&lt;/body&gt;&lt;/html&gt;</pre>
+
+<p>And the browser would go ahead and load an image where you'd previously
+just wanted to be able to show a simple name.</p>
+<h2>Using HTML::Entities</h2>
+<p><b>HTML::Entities</b> is one of the easiest Perl modules to use.  It
+simply exports two functions into the callers namespace.  These can be
+used to encode or decode strings to or from a form that can be printed
+directly into a HTML document.</p>
+<pre>  use HTML::Entities;</pre>
+
+<pre>  # define my string
+  my $string = "Rod, Jane &amp; Freddy";
+  
+  # encode it
+  encode_entities($string);</pre>
+
+<pre>  # print it
+  print "$string\n";</pre>
+
+<p>This prints</p>
+<pre>  Rod, Jane &amp;amp; Freddy</pre>
+
+<p>Note how the <code>encode_entities</code> function encodes the string in place,
+altering the value it was passed.  If you don't want to alter the existing
+value, you can simply assign the result of <code>encode_entities</code> to a new
+variable, which will leave the original value untouched.</p>
+<pre>  use HTML::Entities;</pre>
+
+<pre>  # define my string
+  my $string = "Rod, Jane &amp; Freddy";
+  
+  # encode it
+  my $newstring = encode_entities($string);</pre>
+
+<pre>  # print it
+  print "old: $string\n" .
+        "new: $newstring\n";</pre>
+
+<p>This prints:</p>
+<pre>  old: Rod, Jane &amp; Freddy
+  new: Rod, Jane &amp;amp; Freddy</pre>
+
+<p>You also have control over which entities you actually want encoded.
+By default characters encoded are control chars, high-bit chars, and
+the <code>&lt;</code>, <code>&amp;</code>, <code>&gt;</code>, and <code>"</code> characters, but if you want to
+encode other characters then you might want to alter how you encode
+things.  For example, the <code>'</code> character is not encoded by default,
+but if you're creating XML and using it to delimit you attribute
+values you might want to encode any apostrophe that you're placing in
+an attribute. You can instruct <b>HTML::Entities</b> what to encode by
+placing the characters to be escaped in a string which you pass as a
+second argument to <code>encode_entities</code> like so:</p>
+<pre>  use HTML::Entities;
+  my $string = encode_entities("Mark's House","'")
+  print "&lt;meet where='$string' /&gt;";</pre>
+
+<p>This prints:</p>
+<pre>  &lt;meet where='Mark&amp;#39;s House' /&gt;</pre>
+
+<p>Note that only the entities contained in the string are encoded, so
+things like <code>&lt;</code> would not be encoded in the above example.</p>
+<p>The decode_entities function works essentially the same way as the
+encode_entities function but in reverse.</p>
+<pre>  use HTML::Entities;</pre>
+
+<pre>  # define my string
+  my $string = "Rod, Jane &amp;amp; Freddy";
+  
+  # decode it
+  my $newstring = decode_entities($string);</pre>
+
+<pre>  # print it
+  print "old: $string\n" .
+        "new: $newstring\n";</pre>
+
+<h2>The Potential Security Concerns.</h2>
+<p>In a lot of cases if you break your HTML by not encoding a ampersand
+or left angle bracket modern browsers will cope, or at the
+worst you won't be able to display your web page properly.  It's a bad
+thing to do, but it's not the end of the world.  What you've really
+got to worry about is people actually inserting extra HTML into your
+document.</p>
+<p>On a minimal level this can be used by people to add extra markup that
+we might not want them to be able to add, for example making the text
+they've submitted as a comment on a journal entry bigger, or a
+different colour.  Or worse, they could link in inappropriate pictures.
+All these things can range from making your site look very ugly, to
+meaning your site might seem to be displaying copyrighted or indecent
+pictures.</p>
+<p>While these matters are pretty bad, it pales in comparison to the risk
+of having someone place some Javascript in your page.  The most basic
+attack someone could do is place some code to redirect anyone looking
+at your page to another page on the web:</p>
+<pre>  &lt;script&gt;document.location="http://perladvent.org"&lt;/script&gt;</pre>
+
+<p>This will cause the browser to stop displaying your page and
+immediately load up this advent calendar.</p>
+<p>Even worse still is the problem of cross site scripting.  Javascript
+can access the cookies that are stored for your site, and these can
+contain private information like your session details.  If someone
+sends an email which is subsequently read via a web based email client
+which doesn't encode it's HTML properly it might be possible to send
+an email with some Javascript in it that's executed when the email is
+read. One thing this Javascript could do is steal the session info
+from the site cookie and send it to attacker by encoding it
+in a URL for an image that the Javascript requests from the attacker's
+webserver.  With this session info the attacker could read the person's
+email.</p>
+<p>This so called Cross Site Scripting is one of the growing number of
+attacks that can be used against sloppily coded sites.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.perl.com/pub/a/2002/02/20/css.html">Preventing Cross Site Scripting</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:54 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

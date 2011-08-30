@@ -1,0 +1,209 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Archive::Extract</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 15th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Archive::Extract</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../14th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../16th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>The Internet is full of stuff.  Big old piles of it.  Stuff we want to
+download.  Stuff we want to use.  Most of this stuff is bundled up in
+some archive format or another so that it's both compressed (lowering
+download time) and combined (so all files are collected together in
+one handy to distribute file.)  Before we can use anything from these
+archives we first have to extract their contents.</p>
+<p><b>Archive::Extract</b> allows us to extract the contents of an archive
+without worrying about the nitty gritty of what's involved.  Although
+there's plenty of other CPAN modules that can handle this for us - not
+to mention a plethora of command line tools - <b>Archive::Extract</b>
+manages to ignore the schmantics involved and just do the job,
+presenting us with a consistent interface no matter what archive
+format is used.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Archive::Extract">[Read the documentation for Archive::Extract on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Using this module couldn't be simpler:</p>
+<pre>  # create an archive object
+  my $archive = Archive::Extract-&gt;new(
+    archive =&gt; "Test-DatabaseRow-1.04.tar.gz"
+  );</pre>
+
+<pre>  # extract the contents to the current working directory
+  $archive-&gt;extract()
+    or die "Can't extract: " . $archive-&gt;error;</pre>
+
+<p>And that's all there is to it.  This is going to be one of the
+quickest tutorials of the year - but mainly because this module is so
+easy to use.  The simple interface completely hides the fact that the
+module behind the scenes is working out what type of archive the
+filename we passed in is and selecting the right module to do the
+extraction (or if we don't have the right module installed, using a
+command line utility to do the work for us.)  Like all the best
+modules, it just does what it does without any fuss, abstracting away
+all the complexities that are involved behind the scenes.</p>
+<h2>Temporary Directories</h2>
+<p>We can specify a directory to <b>Archive::Extract</b> when we call
+<code>extract</code> telling it where it can extract it's files to:</p>
+<pre>  $archive-&gt;extract(to =&gt; "/Users/mark/temp")
+    or die "Can't extract: " . $archive-&gt;error;</pre>
+
+<p>Perl can supply us with a new temporary directory to put the files
+in if we want:</p>
+<pre>  # load the temp directory module
+  use File::Temp qw(tempdir);</pre>
+
+<pre>  # extract the files to a tempdir
+  $archive-&gt;extract(to =&gt; tempdir(CLEANUP =&gt; 1))
+    or die "Can't extract: " . $archive-&gt;error;</pre>
+
+<p>By specifying <code>&lt;CLEANUP =</code> 1&gt;&gt; we're instructing that the program
+delete the directory and all it's contents when the it exits.
+Hopefully we'll have got what we wanted from the files by this point
+or we'll have copied or moved the files we want to keep somewhere
+else.</p>
+<h2>Working Out What We Extracted</h2>
+<p>If we put all the files in their own temporary directory we
+can simply find the files using <b>File::Find::Rule</b>:</p>
+<pre>  use File::Find::Rule;
+  my @files = File::Find::Rule-&gt;files-&gt;in($archive-&gt;output_path);</pre>
+
+<p>Alternatively we can query the archive to find out what files it
+contains:</p>
+<pre>  my $files = $archive-&gt;files;</pre>
+
+<p>Which produces something like this:</p>
+<pre>  $files = [
+             'Test-DatabaseRow-1.04/',
+             'Test-DatabaseRow-1.04/Build.PL',
+             'Test-DatabaseRow-1.04/CHANGES',
+             'Test-DatabaseRow-1.04/lib/',
+             'Test-DatabaseRow-1.04/lib/Test/',
+             'Test-DatabaseRow-1.04/lib/Test/DatabaseRow.pm',
+             'Test-DatabaseRow-1.04/Makefile.PL',
+             'Test-DatabaseRow-1.04/MANIFEST',
+             'Test-DatabaseRow-1.04/META.yml',
+             'Test-DatabaseRow-1.04/t/',
+             'Test-DatabaseRow-1.04/t/01basic.t',
+             'Test-DatabaseRow-1.04/t/02throws.t',
+             'Test-DatabaseRow-1.04/t/03tests.t',
+             'Test-DatabaseRow-1.04/t/04local.t',
+             'Test-DatabaseRow-1.04/t/05warn.t',
+             'Test-DatabaseRow-1.04/t/06multiple.t',
+             'Test-DatabaseRow-1.04/t/07results.t',
+             'Test-DatabaseRow-1.04/t/08utf8.t',
+             'Test-DatabaseRow-1.04/TODO'
+           ];</pre>
+
+<p>We can then use <b>File::Spec</b>'s <code>rel2abs</code> function to convert
+these paths into global paths relative to the extraction directory:</p>
+<pre>  use File::Spec::Functions qw(rel2abs);
+  foreach (@{ $files })
+   { $_ = rel2abs( $_, $archive-&gt;output_path ) }</pre>
+
+<p>Giving us something like this:</p>
+<pre>  $files = [
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/Build.PL',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/CHANGES',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/lib',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/lib/Test',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/lib/Test/DatabaseRow.pm',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/Makefile.PL',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/MANIFEST',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/META.yml',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/t',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/t/01basic.t',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/t/02throws.t',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/t/03tests.t',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/t/04local.t',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/t/05warn.t',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/t/06multiple.t',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/t/07results.t',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/t/08utf8.t',
+             '/tmp/Qm7Zxd12Ex/Test-DatabaseRow-1.04/TODO'
+           ];</pre>
+
+<p>Which is where the files are located on disk.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/perldoc?File::Temp">File::Temp</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:58 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

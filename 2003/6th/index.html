@@ -1,0 +1,305 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: Mail::SpamAssassin</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 6th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Mail::SpamAssassin</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../5th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../7th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>We all hate Spam.  Unsolicited email is a plague on the Internet
+that you and I have to put up with if we want to use email.</p>
+<p>One of the odd things about spam is that it's really easy to
+recognise.  Within fraction of a second I can tell you if an email is
+spam or not.  So why can't our computers just tell too?  I mean, given
+the context, how complicated can it be - since they're all malformed,
+semi-illiterate ramblings from a bunch of idiots that doesn't look
+like the usual mail I get there shouldn't really be a problem.</p>
+<p>This is where SpamAssassin comes in.  It uses a combination of systems
+to determine if a mail is spam or not.  And it does it well.  So well
+that it's never misidentified the legitimate semi-illiterate ramblings
+from the bunch of idiots I know as spam by mistake, but still cut out
+most of the dross that I never wanted to see, which is pretty darn
+impressive.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Mail::SpamAssassin">[Read the documentation for Mail::SpamAssassin on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>SpamAssassin is a module that utilises a variety of techniques to
+determine if a mail is spam or not.  This is an important factor - no
+one technique is used to make an overall decision if a mail is spam, but
+rather each technique scores the mail with points saying that it's n
+points positive that this is spam, or n points sure that this isn't
+spam.  When all the points are added up if the mail scores over a
+certain amount the mail is considered spam, otherwise it's not.</p>
+<p>These tests are quite varied.  The most basic tests pattern match
+the email looking for keywords that you might normally find in a
+spam message, or badly formed emails, or any of the other standard
+giveaways that most spam carries.</p>
+<p>There are tests that go to the network, that look up if the mail has
+come from a server that has been reported as somewhere that often
+sends spam, or if the mail looks like mail that have been recently
+reported by a large number of people as spam.</p>
+<p>Finally there are tests based on statistical analysis of previous mails
+you've got seeing how closely the mail you've just got resembles the
+spam or not spam you've received.  These 'Bayesian' type features are good
+as they tend to accurately tailor themselves to the particular variety 
+of spam you're personally being plagued with.</p>
+<p>The advantage in using all these tests at once is that SpamAssassin
+seems to catch a large percentage of the spam you might otherwise
+receive without ever mistakenly (in my experience at least) classifying
+a legitimate piece of mail as spam.</p>
+<h2>Using SpamAssassin</h2>
+<p>SpamAssassin is designed to work with a standard Unix mail delivery
+system.  In such a system the mail-server that your mail is finally
+<i>delivered</i> to runs on the same machine you have a user account on,
+and you either read your mail on the machine directly or via some
+remote access tool like POP3 or IMAP.  Having said this SpamAssassin
+is flexible enough that it's been adapted to run on a whole range of
+systems, from the ISP's solution of piping it though the module
+before putting it on a webmail account right the way down to
+<li><a href="http://sourceforge.net/projects/saoutlook/">incorporating it in Outlook</a></li>.  If you're
+willing to pay for it several commercial vendors offer turnkey
+solutions derived from SpamAssassin for traditional mail and exchange
+based services too.</p>
+<p>However, In the simplest of setups, <b>Mail::SpamAssassin</b> functions
+traditionally as a plug-in for the
+<li><a href="http://www.perladvent.org/2001/1st/">Mail::Audit</a></li> module.  If you're
+in a situation where you get your mail delivered to your home
+directory (for example if you've got access to a Unix shell account or
+you're sucking your mail down to your local Linux box via fetchmail)
+then you can probably just write a basic <b>Mail::Audit</b> Perl script
+that you call from your <code>.forward</code> file to deal with mail filtering
+and spam detection.</p>
+<pre>  #!/usr/bin/pperl</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  # file utilities for combining paths
+  use File::Spec;</pre>
+
+<pre>  # create a new Mail::Audit object
+  use Mail::Audit qw(List);
+  my $mail = Mail::Audit-&gt;new( nomime =&gt; 1 );</pre>
+
+<pre>  # check if it's spam, and if it is put it in spamassassined
+  our $sa;
+  BEGIN { $sa = Mail::SpamAssassin-&gt;new() }
+  my $status = $sa-&gt;check($mail);
+  if ($status-&gt;is_spam())
+   { $mail-&gt;accept(catfile("mail","spamassassined")); }</pre>
+
+<pre>  # check if it's a mailing list, and if so put it in the right place
+  $mail-&gt;list_accept(catdir("mail","lists")); }
+ 
+  # not spam, not a mailing list, just accept into our inbox
+  $mail-&gt;accept(catfile("mail","inbox")); }</pre>
+
+<p>And this is triggered by my .forward file that just contains the name
+of the executable script following a pipe symbol</p>
+<pre>  |/home/mark/bin/mail_filter</pre>
+
+<p>There's several aspects of this script that are worth commenting on.
+Firstly, we make sure the script runs under
+<li><a href="http://www.perladvent.org/2003/4th/">pperl</a></li>, and we ensure that the
+creation of our <b>Mail::SpamAssassin</b> object happens in a BEGIN block
+meaning that the object is created when the pperl script is first used
+and kept in memory between requests.</p>
+<p>These precautions mean that when someone spams us with a hundred
+messages instantly that we won't start a hundred separate perl
+processes, but rather that many tiny pperl processes will be started
+and they will talk to the five or so main pperl processes that will
+actually run the script.  This will hopefully protect your server from
+falling over from denial of service attacks, both unintentionally and
+meant deliberately.</p>
+<p>The other main thing to note is the way <b>Mail::Audit</b> functions.
+<b>Mail::Audit</b> is a simple module that builds an object from the
+message it's passed on standard input.  It delivers and stops running
+the script as soon as the <code>accept</code> method is called with the
+destination of where the mail is to be delivered.  The <code>catfile</code> and
+<code>catdir</code> functions are imported from File::Spec simply return
+whatever they're passed joined together with "/" or whatever is the
+directory separator on they system they're using.  Used like this
+<b>Mail::Audit</b> will deliver in simple mbox format - if you use another
+standard you might want to take a look at the manual page.  In our
+example the spam is simply moved to another folder - we don't reject
+it outright just in case the million to one occurrence happens and we
+get a legitimate mail misclassified.</p>
+<h2>The <code>spamassassin</code> Binary</h2>
+<p>It's possible to run SpamAssassin without even writing any perl code
+at all; this is where he command-line utility <code>spamassassin</code> comes in.
+Simply piping a mail though this from your .forward file causes a spam
+checked message to be printed out the other end.  If the mail is
+normal very little is changed on it aside from the adding of a few
+headers to indicate that it's been checked:</p>
+<pre>  X-Spam-Checker-Version: SpamAssassin 2.60 (1.212-2003-09-23-exp) on 
+          gan.twoshortplanks.com
+  X-Spam-Level: 
+  X-Spam-Status: No, hits=-4.8 required=5.0 
+      tests=BAYES_00,NORMAL_HTTP_TO_IP autolearn=no version=2.60</pre>
+
+<p>You can see in these headers the tests that have been triggered and
+you can see the overall score from adding the results of those tests
+together (in this case, -4.8, which is pretty low.)  In contrast to
+this however, if the score is above the user defined threshold the
+whole mail is dramatically changed.  The body of the mail is replaced
+with a report into what rules have been fired, and how this is evil
+evil spam.  The original mail is attached to this message unaltered.</p>
+<pre> Spam detection software, running on the system "gan.twoshortplanks.com", has
+ identified this incoming email as possible spam.  The original message
+ has been attached to this so you can view it (if it isn't spam) or block
+ similar future email.  If you have any questions, see
+ the administrator of that system for details.</pre>
+
+<pre> Content preview:  Dear Subscriber: A friend has set you up on a blind
+   date.... Click here to confirm or reschedule your date:
+   http://lovingthesinglelife.com/confirm/?ocP797159 [...] </pre>
+
+<pre> Content analysis details:   (27.1 points, 5.0 required)</pre>
+
+<pre>  pts rule name              description
+ ---- ---------------------- ----------------------------------------------
+  2.7 FAKED_UNDISC_RECIPS    Faked To "Undisclosed-Recipients"
+  4.1 MSGID_SPAM_ZEROES      Spam tool Message-Id: (12-zeroes variant)
+  1.8 INVALID_DATE_TZ_ABSURD Invalid Date: header (timezone does not exist)
+  0.6 TO_MALFORMED           To: has a malformed address
+  5.4 BAYES_99               BODY: Bayesian spam probability is 99 to 100%
+                             [score: 1.0000]
+  2.1 BLANK_LINES_70_80      BODY: Message body has 70-80% blank lines
+  0.5 REMOVE_PAGE            URI: URL of page called "remove"
+  0.5 FORGED_HOTMAIL_RCVD    Forged hotmail.com 'Received:' header found
+  0.4 DATE_IN_PAST_03_06     Date: is 3 to 6 hours before Received: date
+  2.1 FORGED_JUNO_RCVD       'From' juno.com does not match 'Received' headers
+  4.1 MSGID_OUTLOOK_INVALID  Message-Id is fake (in Outlook Express format)
+  0.1 CLICK_BELOW            Asks you to click below
+  2.7 MULTI_FORGED           Received headers indicate multiple forgeries</pre>
+
+<p>It's possible to get this same mail rewriting effect from within the
+<b>Mail::Audit</b> script by adding a</p>
+<pre>  $status-&gt;rewrite_mail()</pre>
+
+<p>before accepting the mail.</p>
+<h2>spamc and spamd</h2>
+<p>The problem with using the <code>spamassassin</code> binary directly when mails
+are delivered is that this code isn't running under pperl, and
+therefore you're firing up a new perl process for each time you check
+a mail.  Because each new process not only has to start perl, but it
+also has to load all the rule data and any Bayesian data you've
+accumulated so far this can be really slow.  To solve this problem the
+developers of SpamAssassin have applied a similar technique to PPerl.
+They have created two binaries, <code>spamc</code> and &lt;spamd&gt; that work
+together.  The <code>spamd</code> binary is designed to be started when your
+server boots up and listens on a port for requests from the
+lightweight <code>cpamc</code> binary that is executed each time a mail needs to
+be checked.  For example, once you've got spamd running in the
+background you can rate a mail by piping it though <code>spam -R</code></p>
+<pre>  cat mymail | spamc -R </pre>
+
+<p>And simply check if it's spam or not by using <code>spam -c</code></p>
+<pre>  cat mymail | spamc -c</pre>
+
+<p>Debian (and I'm sure most other distributions) installs a wrapper
+script that starts <code>spamd</code> when you install the appropriate spamassasin
+packages.</p>
+<h2>Procmail</h2>
+<p>Fans of procmail will realise that they can use spamc in a .procmailrc in
+order to filter their mail.  The excerpt from my own setup that does
+my mail filtering is:</p>
+<pre>  # W ait
+  # c arbon copy
+  :0 Wc: spamc.lock
+  * &lt; 256000
+  | spamc -c</pre>
+
+<pre>  # e preceding rule failed
+  :0 e
+  spamassasined</pre>
+
+<p>This basically says run one mail at a time though <code>spamc -c</code>, which will
+return differing values dependant if the mail is over a threshold.  Then,
+using the 'e' test we simply check if the test returned spam, and send the
+mail to the spamassassined mbox if it did.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.spamassassin.org">The SpamAssassin Homepage</a></li>
+<li><a href="http://www.perl.com/pub/a/2002/03/06/spam.html">Stopping Spam with SpamAssassin article on perl.com</a></li>
+<li><a href="http://sourceforge.net/projects/saoutlook/">SpamAssassin For Outlook</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:55 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

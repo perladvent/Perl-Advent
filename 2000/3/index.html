@@ -1,0 +1,610 @@
+<html>
+<head>
+<title>A Perl Module Advent Calendar</title></head>
+<body bgcolor="#281093" text="white" link="yellow" vlink="yellow">
+
+
+
+
+
+<p><img src="../../images/2000/3rd.jpg" alt="3rd" border="0" width="100" height="75">
+<hr>
+
+
+
+
+<A NAME="__index__"></A>
+<!-- INDEX BEGIN -->
+
+<UL>
+
+	<LI><A HREF="#name">NAME</A></LI>
+	<LI><A HREF="#synopsis">SYNOPSIS</A></LI>
+	<LI><A HREF="#description">DESCRIPTION</A></LI>
+	<LI><A HREF="#methods">METHODS</A></LI>
+	<LI><A HREF="#input">INPUT</A></LI>
+	<UL>
+
+		<LI><A HREF="#important commands">Important Commands</A></LI>
+		<LI><A HREF="#notsoimportant commands">Not-So-Important Commands</A></LI>
+		<LI><A HREF="#purely esoteric commands">Purely Esoteric Commands</A></LI>
+	</UL>
+
+	<LI><A HREF="#output">OUTPUT</A></LI>
+	<UL>
+
+		<LI><A HREF="#important events">Important Events</A></LI>
+		<LI><A HREF="#somewhat less important events">Somewhat Less Important Events</A></LI>
+	</UL>
+
+	<LI><A HREF="#author">AUTHOR</A></LI>
+	<LI><A HREF="#mad props">MAD PROPS</A></LI>
+	<LI><A HREF="#see also">SEE ALSO</A></LI>
+</UL>
+<!-- INDEX END -->
+
+<HR>
+<P>
+<H1><A NAME="name">NAME</A></H1>
+<P>POE::Component::IRC - a fully event-driven IRC client module.</P>
+<P>
+<HR>
+<H1><A NAME="synopsis">SYNOPSIS</A></H1>
+<PRE>
+  use POE::Component::IRC;</PRE>
+<PRE>
+  # Do this when you create your sessions. 'my client' is just a
+  # kernel alias to christen the new IRC connection with. (Returns
+  # only a true or false success flag, not an object.)
+  POE::Component::IRC-&gt;new('my client') or die &quot;Oh noooo! $!&quot;;</PRE>
+<PRE>
+  # Do stuff like this from within your sessions. This line tells the
+  # connection named &quot;my client&quot; to send your session the following
+  # events when they happen.
+  $kernel-&gt;post('my client', 'register', qw(connected msg public cdcc cping));
+  # You can guess what this line does.
+  $kernel-&gt;post('my client', 'connect',
+                { Nick     =&gt; 'Boolahman',
+                  Server   =&gt; 'irc-w.primenet.com',
+                  Port     =&gt; 6669,
+                  Username =&gt; 'quetzal',
+                  Ircname  =&gt; 'Ask me about my colon!', } );</PRE>
+<P>
+<HR>
+<H1><A NAME="description">DESCRIPTION</A></H1>
+<P>POE::Component::IRC is a POE component (who'd have guessed?) which
+acts as an easily controllable IRC client for your other POE
+components and sessions. You create an IRC compenent and tell it what
+events your session cares about and where to connect to, and it sends
+back interesting IRC events when they happen. You make the client do
+things by sending it events. That's all there is to it. Cool, no?</P>
+<P>[Note that using this module requires some familiarity with the
+details of the IRC protocol. I'd advise you to read up on the gory
+details of RFC 1459
+&lt;<A HREF="http://cs-pub.bu.edu/pub/irc/support/rfc1459.txt">http://cs-pub.bu.edu/pub/irc/support/rfc1459.txt</A>&gt; before you
+get started. Keep the list of server numeric codes handy while you
+program. Needless to say, you'll also need a good working knowledge of
+POE, or this document will be of very little use to you.]</P>
+<P>So you want to write a POE program with POE::Component::IRC? Listen
+up. The short version is as follows: Create your <CODE>session(s)</CODE> and an
+alias for a new POE::Component::IRC client. (Conceptually, it helps if
+you think of them as little IRC clients.) In your session's _start
+handler, send the IRC client a 'register' event to tell it which IRC
+events you want to receive from it. Send it a 'connect' event at some
+point to tell it to join the server, and it should start sending you
+interesting events every once in a while. If you want to tell it to
+perform an action, like joining a channel and saying something witty,
+send it the appropriate events like so:</P>
+<PRE>
+  $kernel-&gt;post( 'my client', 'join', '#perl' );
+  $kernel-&gt;post( 'my client', 'privmsg', ['#perl'], 'Pull my finger!' );</PRE>
+<P>The long version is the rest of this document.</P>
+<P>
+<HR>
+<H1><A NAME="methods">METHODS</A></H1>
+<P>Well, OK, there's only actually one, so it's more like ``METHOD''.</P>
+<DL>
+<DT><STRONG><A NAME="item_new">new</A></STRONG><BR>
+<DD>
+Takes one argument: a name (kernel alias) which this new connection
+will be known by. <STRONG>WARNING:</STRONG> This method, for all that it's named
+``new'' and called in an OO fashion, doesn't actually return an
+object. It returns a true or false value which indicates if the new
+session was created or not. If it returns false, check $! for the
+POE::Session error code.
+<P></P></DL>
+<P>
+<HR>
+<H1><A NAME="input">INPUT</A></H1>
+<P>How to talk to your new IRC component... here's the events we'll accept.</P>
+<P>
+<H2><A NAME="important commands">Important Commands</A></H2>
+<DL>
+<DT><STRONG><A NAME="item_ctcp_and_ctcpreply">ctcp and ctcpreply</A></STRONG><BR>
+<DD>
+Sends a CTCP query or response to the <A HREF="#item_nick"><CODE>nick(s)</CODE></A> or <CODE>channel(s)</CODE> which you
+specify. Takes 2 arguments: the nick or channel to send a message to
+(use an array reference here to specify multiple recipients), and the
+plain text of the message to send (the CTCP quoting will be handled
+for you).
+<P></P>
+<DT><STRONG><A NAME="item_connect">connect</A></STRONG><BR>
+<DD>
+Takes one argument: a hash reference of attributes for the new
+connection (see the <EM>SYNOPSIS</EM> section of this doc for an
+example). This event tells the IRC client to connect to a
+new/different server. If it has a connection already open, it'll close
+it gracefully before reconnecting. Possible attributes for the new
+connection are ``Server'', the server name; ``Password'', an optional
+password for restricted servers; ``Port'', the remote port number,
+``LocalAddr'', which local IP address on a multihomed box to connect as;
+``LocalPort'', the local TCP port to open your socket on; ``Nick'', your
+client's IRC nickname; ``Username'', your client's username; and
+``Ircname'', some cute comment or something. <A HREF="#item_connect"><CODE>connect()</CODE></A> will supply
+reasonable defaults for any of these attributes which are missing, so
+don't feel obliged to write them all out.
+<P></P>
+<DT><STRONG><A NAME="item_dcc">dcc</A></STRONG><BR>
+<DD>
+Send a DCC SEND or CHAT request to another person. Takes at least two
+arguments: the nickname of the person to send the request to and the
+type of DCC request (SEND or CHAT). For SEND requests, be sure to add
+a third argument for the filename you want to send. Optionally, you
+can add a fourth argument for the DCC transfer blocksize, but the
+default of 2048 should usually be fine.
+<P>Incidentally, you can send other weird nonstandard kinds of DCCs too;
+just put something besides 'SEND' or 'CHAT' (say, ``FOO'') in the type
+field, and you'll get back ``irc_dcc_foo'' events when activity happens
+on its DCC connection.</P>
+<P></P>
+<DT><STRONG><A NAME="item_join">join</A></STRONG><BR>
+<DD>
+Tells your IRC client to join a single channel of your choice. Takes
+at least one arg: the channel name (required) and the channel key
+(optional, for password-protected channels).
+<P></P>
+<DT><STRONG><A NAME="item_kick">kick</A></STRONG><BR>
+<DD>
+Tell the IRC server to forcibly evict a user from a particular
+channel. Takes at least 2 arguments: a channel name, the nick of the
+user to boot, and an optional witty message to show them as they sail
+out the door.
+<P></P>
+<DT><STRONG><A NAME="item_mode">mode</A></STRONG><BR>
+<DD>
+Request a mode change on a particular channel or user. Takes at least
+one argument: the mode changes to effect, as a single string (e.g.,
+``+sm-p+o''), and any number of optional operands to the mode changes
+(nicks, hostmasks, channel keys, whatever.) Or just pass them all as
+one big string and it'll still work, whatever. I regret that I haven't
+the patience now to write a detailed explanation.
+<P></P>
+<DT><STRONG><A NAME="item_nick">nick</A></STRONG><BR>
+<DD>
+Allows you to change your nickname. Takes exactly one argument: the
+new username that you'd like to be known as.
+<P></P>
+<DT><STRONG><A NAME="item_notice">notice</A></STRONG><BR>
+<DD>
+Sends a NOTICE message to the <A HREF="#item_nick"><CODE>nick(s)</CODE></A> or <CODE>channel(s)</CODE> which you
+specify. Takes 2 arguments: the nick or channel to send a notice to
+(use an array reference here to specify multiple recipients), and the
+text of the notice to send.
+<P></P>
+<DT><STRONG><A NAME="item_part">part</A></STRONG><BR>
+<DD>
+Tell your IRC client to leave the channels which you pass to it. Takes
+any number of arguments: channel names to depart from.
+<P></P>
+<DT><STRONG><A NAME="item_privmsg">privmsg</A></STRONG><BR>
+<DD>
+Sends a public or private message to the <A HREF="#item_nick"><CODE>nick(s)</CODE></A> or <CODE>channel(s)</CODE> which
+you specify. Takes 2 arguments: the nick or channel to send a message
+to (use an array reference here to specify multiple recipients), and
+the text of the message to send.
+<P></P>
+<DT><STRONG><A NAME="item_quit">quit</A></STRONG><BR>
+<DD>
+Tells the IRC server to disconnect you. Takes one optional argument:
+some clever, witty string that other users in your channels will see
+as you leave. You can expect to get an <CODE>irc_disconnect</CODE> event shortly
+after sending this.
+<P></P>
+<DT><STRONG><A NAME="item_register">register</A></STRONG><BR>
+<DD>
+Takes N arguments: a list of event names that your session wants to
+listen for, minus the ``irc_'' prefix. So, for instance, if you just
+want a bot that keeps track of which people are on a channel, you'll
+need to listen for JOINs, PARTs, QUITs, and KICKs to people on the
+channel you're in. You'd tell POE::Component::IRC that you want those
+events by saying this:
+<PRE>
+  $kernel-&gt;post( 'my client', 'register', qw(join part quit kick) );</PRE>
+<P>Then, whenever people enter or leave a channel your bot is on
+(forcibly or not), your session will receive events with names like
+``irc_join'', ``irc_kick'', etc., which you can use to update a list of
+people on the channel.</P>
+<P></P>
+<DT><STRONG><A NAME="item_unregister">unregister</A></STRONG><BR>
+<DD>
+Takes N arguments: a list of event names which you <EM>don't</EM> want to
+receive. If you've previously done a 'register' for a particular event
+which you no longer care about, this event will tell the IRC
+connection to stop sending them to you. (If you haven't, it just
+ignores you. No big deal.)
+<P></P></DL>
+<P>
+<H2><A NAME="notsoimportant commands">Not-So-Important Commands</A></H2>
+<DL>
+<DT><STRONG><A NAME="item_admin">admin</A></STRONG><BR>
+<DD>
+Asks your server who your friendly neighborhood server administrators
+are. If you prefer, you can pass it a server name to query, instead of
+asking the server you're currently on.
+<P></P>
+<DT><STRONG><A NAME="item_away">away</A></STRONG><BR>
+<DD>
+When sent with an argument (a message describig where you went), the
+server will note that you're now away from your machine or otherwise
+preoccupied, and pass your message along to anyone who tries to
+communicate with you. When sent without arguments, it tells the server
+that you're back and paying attention.
+<P></P>
+<DT><STRONG><A NAME="item_info">info</A></STRONG><BR>
+<DD>
+Basically the same as the ``version'' command, except that the server is
+permitted to return any information about itself that it thinks is
+relevant. There's some nice, specific standards-writing for ya, eh?
+<P></P>
+<DT><STRONG><A NAME="item_invite">invite</A></STRONG><BR>
+<DD>
+Invites another user onto an invite-only channel. Takes 2 arguments:
+the nick of the user you wish to admit, and the name of the channel to
+invite them to.
+<P></P>
+<DT><STRONG><A NAME="item_ison">ison</A></STRONG><BR>
+<DD>
+Asks the IRC server which users out of a list of nicknames are
+currently online. Takes any number of arguments: a list of nicknames
+to query the IRC server about.
+<P></P>
+<DT><STRONG><A NAME="item_links">links</A></STRONG><BR>
+<DD>
+Asks the server for a list of servers connected to the IRC
+network. Takes two optional arguments, which I'm too lazy to document
+here, so all you would-be linklooker writers should probably go dig up
+the RFC.
+<P></P>
+<DT><STRONG><A NAME="item_motd">motd</A></STRONG><BR>
+<DD>
+Request the server's ``Message of the Day'', a document which typically
+contains stuff like the server's acceptable use policy and admin
+contact email addresses, et cetera. Normally you'll automatically
+receive this when you log into a server, but if you want it again,
+here's how to do it. If you'd like to get the MOTD for a server other
+than the one you're logged into, pass it the server's hostname as an
+argument; otherwise, no arguments.
+<P></P>
+<DT><STRONG><A NAME="item_names">names</A></STRONG><BR>
+<DD>
+Asks the server for a list of nicknames on particular channels. Takes
+any number of arguments: names of channels to get lists of users
+for. If called without any channel names, it'll tell you the nicks of
+everyone on the IRC network. This is a really big list, so don't do
+this much.
+<P></P>
+<DT><STRONG><A NAME="item_sl">sl</A></STRONG><BR>
+<DD>
+Sends a raw line of text to the server. Takes one argument: a string
+of a raw IRC command to send to the server. It is more optimal to use
+the events this module supplies instead of writing raw IRC commands
+yourself.
+<P></P>
+<DT><STRONG><A NAME="item_stats">stats</A></STRONG><BR>
+<DD>
+Returns some information about a server. Kinda complicated and not
+terribly commonly used, so look it up in the RFC if you're
+curious. Takes as many arguments as you please.
+<P></P>
+<DT><STRONG><A NAME="item_time">time</A></STRONG><BR>
+<DD>
+Asks the server what time it thinks it is, which it will return in a
+human-readable form. Takes one optional argument: a server name to
+query. If not supplied, defaults to current server.
+<P></P>
+<DT><STRONG><A NAME="item_topic">topic</A></STRONG><BR>
+<DD>
+Retrieves or sets the topic for particular channel. If called with just
+the channel name as an argument, it will ask the server to return the
+current topic. If called with the channel name and a string, it will
+set the channel topic to that string.
+<P></P>
+<DT><STRONG><A NAME="item_trace">trace</A></STRONG><BR>
+<DD>
+If you pass a server name or nick along with this request, it asks the
+server for the list of servers in between you and the thing you
+mentioned. If sent with no arguments, it will show you all the servers
+which are connected to your current server.
+<P></P>
+<DT><STRONG><A NAME="item_userhost">userhost</A></STRONG><BR>
+<DD>
+Asks the IRC server for information about particular nicknames. (The
+RFC doesn't define exactly what this is supposed to return.) Takes any
+number of arguments: the nicknames to look up.
+<P></P>
+<DT><STRONG><A NAME="item_users">users</A></STRONG><BR>
+<DD>
+Asks the server how many users are logged into it. Defaults to the
+server you're currently logged into; however, you can pass a server
+name as the first argument to query some other machine instead.
+<P></P>
+<DT><STRONG><A NAME="item_version">version</A></STRONG><BR>
+<DD>
+Asks the server about the version of ircd that it's running. Takes one
+optional argument: a server name to query. If not supplied, defaults
+to current server.
+<P></P>
+<DT><STRONG><A NAME="item_who">who</A></STRONG><BR>
+<DD>
+Lists the logged-on users matching a particular channel name, hostname,
+nickname, or what-have-you. Takes one optional argument: a string for
+it to search for. Wildcards are allowed; in the absence of this
+argument, it will return everyone who's currently logged in (bad
+move). Tack an ``o'' on the end if you want to list only IRCops, as per
+the RFC.
+<P></P>
+<DT><STRONG><A NAME="item_whois">whois</A></STRONG><BR>
+<DD>
+Queries the IRC server for detailed information about a particular
+user. Takes any number of arguments: nicknames or hostmasks to ask for
+information about.
+<P></P>
+<DT><STRONG><A NAME="item_whowas">whowas</A></STRONG><BR>
+<DD>
+Asks the server for information about nickname which is no longer
+connected. Takes at least one argument: a nickname to look up (no
+wildcards allowed), the optional maximum number of history entries to
+return, and the optional server hostname to query.
+<P></P></DL>
+<P>
+<H2><A NAME="purely esoteric commands">Purely Esoteric Commands</A></H2>
+<DL>
+<DT><STRONG><A NAME="item_oper">oper</A></STRONG><BR>
+<DD>
+In the exceedingly unlikely event that you happen to be an IRC
+operator, you can use this command to authenticate with your IRC
+server. Takes 2 arguments: your username and your password.
+<P></P>
+<DT><STRONG><A NAME="item_rehash">rehash</A></STRONG><BR>
+<DD>
+Tells the IRC server you're connected to to rehash its configuration
+files. Only useful for IRCops. Takes no arguments.
+<P></P>
+<DT><STRONG><A NAME="item_restart">restart</A></STRONG><BR>
+<DD>
+Tells the IRC server you're connected to to shut down and restart itself.
+Only useful for IRCops, thank goodness. Takes no arguments.
+<P></P>
+<DT><STRONG><A NAME="item_sconnect">sconnect</A></STRONG><BR>
+<DD>
+Tells one IRC server (which you have operator status on) to connect to
+another. This is actually the CONNECT command, but I already had an
+event called 'connect', so too bad. Takes the args you'd expect: a
+server to connect to, an optional port to connect on, and an optional
+remote server to connect with, instead of the one you're currently on.
+<P></P>
+<DT><STRONG><A NAME="item_summon">summon</A></STRONG><BR>
+<DD>
+Don't even ask.
+<P></P>
+<DT><STRONG><A NAME="item_wallops">wallops</A></STRONG><BR>
+<DD>
+Another opers-only command. This one sends a message to all currently
+logged-on opers (and +w users); sort of a mass PA system for the IRC
+server administrators. Takes one argument: some clever, witty message
+to send.
+<P></P></DL>
+<P>
+<HR>
+<H1><A NAME="output">OUTPUT</A></H1>
+<P>The events you will receive (or can ask to receive) from your running
+IRC component. Note that all incoming event names your session will
+receive are prefixed by ``irc_'', to inhibit event namespace pollution.</P>
+<P>If you wish, you can ask the client to send you every event it
+generates. Simply register for the event name ``all''. This is a lot
+easier than writing a huge list of things you specifically want to
+listen for. FIXME: I'd really like to classify these somewhat
+(``basic'', ``oper'', ``ctcp'', ``dcc'', ``raw'' or some such), and I'd welcome
+suggestions for ways to make this easier on the user, if you can think
+of some.</P>
+<P>
+<H2><A NAME="important events">Important Events</A></H2>
+<DL>
+<DT><STRONG><A NAME="item_irc_connected">irc_connected</A></STRONG><BR>
+<DD>
+The IRC component will send an ``irc_connected'' event as soon as it
+establishes a connection to an IRC server, before attempting to log
+in. ARG0 is the server name.
+<P><STRONG>NOTE:</STRONG> When you get an ``irc_connected'' event, this doesn't mean you
+can start sending commands to the server yet. Wait until you receive
+an irc_001 event (the server welcome message) before actually sending
+anything back to the server.</P>
+<P></P>
+<DT><STRONG><A NAME="item_irc_disconnected">irc_disconnected</A></STRONG><BR>
+<DD>
+The counterpart to irc_connected, sent whenever a socket connection
+to an IRC server closes down (whether intentionally or
+unintentionally). ARG0 is the server name.
+<P></P>
+<DT><STRONG><A NAME="item_irc_error">irc_error</A></STRONG><BR>
+<DD>
+You get this whenever the server sends you an ERROR message. Expect
+this to usually be accompanied by the sudden dropping of your
+connection. ARG0 is the server's explanation of the error.
+<P></P>
+<DT><STRONG><A NAME="item_irc_join">irc_join</A></STRONG><BR>
+<DD>
+Sent whenever someone joins a channel that you're on. ARG0 is the
+person's nick!hostmask. ARG1 is the channel name.
+<P></P>
+<DT><STRONG><A NAME="item_irc_kick">irc_kick</A></STRONG><BR>
+<DD>
+Sent whenever someone gets booted off a channel that you're on. ARG0
+is the kicker's nick!hostmask. ARG1 is the channel name. ARG2 is the
+nick of the unfortunate kickee. ARG3 is the explanation string for the
+kick.
+<P></P>
+<DT><STRONG><A NAME="item_irc_mode">irc_mode</A></STRONG><BR>
+<DD>
+Sent whenever someone changes a channel mode in your presence, or when
+you change your own user mode. ARG0 is the nick!hostmask of that
+someone. ARG1 is the channel it affects (or your nick, if it's a user
+mode change). ARG2 is the mode string (i.e., ``+o-b''). The rest of the
+args (ARG3 .. $#_) are the operands to the mode string (nicks,
+hostmasks, channel keys, whatever).
+<P></P>
+<DT><STRONG><A NAME="item_irc_msg">irc_msg</A></STRONG><BR>
+<DD>
+Sent whenever you receive a PRIVMSG command that was addressed to you
+privately. ARG0 is the nick!hostmask of the sender. ARG1 is an array
+reference containing the <A HREF="#item_nick"><CODE>nick(s)</CODE></A> of the recipients. ARG2 is the text
+of the message.
+<P></P>
+<DT><STRONG><A NAME="item_irc_nick">irc_nick</A></STRONG><BR>
+<DD>
+Sent whenever you, or someone around you, changes nicks. ARG0 is the
+nick!hostmask of the changer. ARG1 is the new nick that they changed
+to.
+<P></P>
+<DT><STRONG><A NAME="item_irc_notice">irc_notice</A></STRONG><BR>
+<DD>
+Sent whenever you receive a NOTICE command. ARG0 is the nick!hostmask
+of the sender. ARG1 is an array reference containing the <A HREF="#item_nick"><CODE>nick(s)</CODE></A> or
+channel <CODE>name(s)</CODE> of the recipients. ARG2 is the text of the NOTICE
+message.
+<P></P>
+<DT><STRONG><A NAME="item_irc_part">irc_part</A></STRONG><BR>
+<DD>
+Sent whenever someone leaves a channel that you're on. ARG0 is the
+person's nick!hostmask. ARG1 is the channel name.
+<P></P>
+<DT><STRONG><A NAME="item_irc_ping">irc_ping</A></STRONG><BR>
+<DD>
+An event sent whenever the server sends a PING query to the
+client. (Don't confuse this with a CTCP PING, which is another beast
+entirely. If unclear, read the RFC.) Note that POE::Component::IRC will
+automatically take care of sending the PONG response back to the
+server for you, although you can still register to catch the event for
+informational purposes.
+<P></P>
+<DT><STRONG><A NAME="item_irc_public">irc_public</A></STRONG><BR>
+<DD>
+Sent whenever you receive a PRIVMSG command that was sent to a
+channel. ARG0 is the nick!hostmask of the sender. ARG1 is an array
+reference containing the channel <CODE>name(s)</CODE> of the recipients. ARG2 is
+the text of the message.
+<P></P>
+<DT><STRONG><A NAME="item_irc_quit">irc_quit</A></STRONG><BR>
+<DD>
+Sent whenever someone on a channel with you quits IRC (or gets
+KILLed). ARG0 is the nick!hostmask of the person in question. ARG1 is
+the clever, witty message they left behind on the way out.
+<P></P>
+<DT><STRONG><A NAME="item_irc_socketerr">irc_socketerr</A></STRONG><BR>
+<DD>
+Sent when a connection couldn't be established to the IRC server. ARG0
+is probably some vague and/or misleading reason for what failed.
+<P></P>
+<DT><STRONG><A NAME="item_events">All numeric events (see RFC 1459)</A></STRONG><BR>
+<DD>
+Most messages from IRC servers are identified only by three-digit
+numeric codes with undescriptive constant names like RPL_UMODEIS and
+ERR_NOTOPLEVEL. (Actually, the list of codes in the RFC is kind of
+out-of-date... the list in the back of Net::IRC::Event.pm is more
+complete, and different IRC networks have different and incompatible
+lists. Ack!) As an example, say you wanted to handle event 376
+(RPL_ENDOFMOTD, which signals the end of the MOTD message). You'd
+register for '376', and listen for 'irc_376' events. Simple, no? ARG0
+is the name of the server which sent the message. ARG1 is the text of
+the message.
+<P></P></DL>
+<P>
+<H2><A NAME="somewhat less important events">Somewhat Less Important Events</A></H2>
+<DL>
+<DT><STRONG><A NAME="item_irc_dcc_chat">irc_dcc_chat</A></STRONG><BR>
+<DD>
+Notifies you that one or more lines of text have been received from
+the client on the other end of a DCC CHAT connection. ARG0 is the nick
+of the person on the other end, ARG1 is the port number, and any
+subsequent args are the individual text lines sent by the other
+client.
+<P></P>
+<DT><STRONG><A NAME="item_irc_dcc_done">irc_dcc_done</A></STRONG><BR>
+<DD>
+You receive this event when a DCC connection terminates
+normally. Abnormal terminations are reported by ``irc_dcc_error'',
+below. ARG0 is the nick of the person on the other end, ARG1 is the
+DCC type (CHAT, SEND, GET, etc.), and ARG2 is the port number. For DCC
+SEND and GET connections, ARG3 will be the filename, ARG4 will be the
+file size, and ARG5 will be the number of bytes transferred. (ARG4 and
+ARG5 should always be the same.)
+<P></P>
+<DT><STRONG><A NAME="item_irc_dcc_error">irc_dcc_error</A></STRONG><BR>
+<DD>
+You get this event whenever a DCC connection or connection attempt
+terminates unexpectedly or suffers some fatal error. ARG0 will be a
+string describing the error. ARG1 will be the nick of the person on
+the other end of the connection. ARG2 is the DCC type (SEND, GET,
+CHAT, etc.). ARG4 is the port number of the DCC connection, if
+any. For SEND and GET connections, ARG5 is the filename.
+<P></P>
+<DT><STRONG><A NAME="item_irc_dcc_send">irc_dcc_send</A></STRONG><BR>
+<DD>
+Notifies you that another block of data has been successfully
+transferred from you to the client on the other end of a DCC SEND
+connection. ARG0 is the nick of the person on the other end, ARG1 is
+the port number, ARG2 is the filename, ARG3 is the total file size, and
+ARG4 is the number of bytes successfully transferred so far.
+<P></P>
+<DT><STRONG><A NAME="item_irc_dcc_start">irc_dcc_start</A></STRONG><BR>
+<DD>
+This event notifies you that a DCC connection has been successfully
+established. ARG0 is the nick of the person on the other end, ARG1 is
+the DCC type (CHAT, SEND, GET, etc.), and ARG2 is the port
+number. Note that the port number is a good way to uniquely identify a
+particular DCC connection. For DCC SEND and GET connections, ARG3 will
+be the filename and ARG4 will be the file size.
+<P></P>
+<DT><STRONG><A NAME="item_irc_snotice">irc_snotice</A></STRONG><BR>
+<DD>
+A weird, non-RFC-compliant message from an IRC server. Don't worry
+about it. ARG0 is the text of the server's message.
+<P></P></DL>
+<P>
+<HR>
+<H1><A NAME="author">AUTHOR</A></H1>
+<P>Dennis Taylor, &lt;<A HREF="mailto:dennis@funkplanet.com">dennis@funkplanet.com</A>&gt;</P>
+<P>
+<HR>
+<H1><A NAME="mad props">MAD PROPS</A></H1>
+<P>The maddest of mad props go out to Rocco ``dngor'' Caputo
+&lt;<A HREF="mailto:troc@netrus.net">troc@netrus.net</A>&gt;, for inventing something as mind-bogglingly
+cool as POE, and to Kevin ``oznoid'' Lenzo &lt;<A HREF="mailto:lenzo@cs.cmu.edu">lenzo@cs.cmu.edu</A>&gt;,
+for being the attentive parent of our precocious little infobot on
+#perl.</P>
+<P>Further thanks go out to Tori Amos for keeping me company while I was
+writing this, to Elephant and Castle for having great soup, and to the
+Strand for having cheap books, but I suppose that's not really
+relevant here. Too bad.</P>
+<P>
+<HR>
+<H1><A NAME="see also">SEE ALSO</A></H1>
+<P>Net::IRC, RFC 1459, <A HREF="http://www.irchelp.org/,">http://www.irchelp.org/,</A>
+<A HREF="http://www.cs.cmu.edu/~lenzo/perl/,">http://www.cs.cmu.edu/~lenzo/perl/,</A> <A HREF="http://www.infobot.org/,">http://www.infobot.org/,</A>
+<A HREF="http://tori.by.net/,">http://tori.by.net/,</A>
+<A HREF="http://newyork.citysearch.com/E/V/NYCNY/0002/46/68/,">http://newyork.citysearch.com/E/V/NYCNY/0002/46/68/,</A>
+<A HREF="http://www.pobox.com/~schwern/img/fishpants.jpg">http://www.pobox.com/~schwern/img/fishpants.jpg</A></P>
+
+
+</body>
+</html>
