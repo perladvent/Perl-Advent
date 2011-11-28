@@ -2,10 +2,16 @@ Title: Make all the combinations
 Topic: Set::CrossProduct
 Author: brian d foy
 
-You need to make combinations of things, but you don't want to create them all at once, or you can't create them all at once. You might only need one combination at a time.
+You need to make combinations of things, but you don't want to create them all
+at once, or you can't create them all at once. You might only need one
+combination at a time.
 
-I had this problem when I was creating a test suite for a legacy application. I need to test all of the boundary conditions for several functions. The return values for the new subroutines I was writing needed to be the same as those from the original:
+I had this problem when I was creating a test suite for a legacy application. I
+need to test all of the boundary conditions for several functions. The return
+values for the new subroutines I was writing needed to be the same as those
+from the original:
 
+	#!perl
 	my @tests = (
 		# INPUT_ARGS            
 		[ qw( blood adanac 1 ) ],
@@ -15,7 +21,7 @@ I had this problem when I was creating a test suite for a legacy application. I 
 		[ qw( navel adanac 1 ) ],
 		# ... many more tuples
 		);
-	
+
 	foreach my $tuple ( @tests ) {
 		is( 
 			Original::foo( @$tuple ),
@@ -24,14 +30,24 @@ I had this problem when I was creating a test suite for a legacy application. I 
 			);	
 		}
 
-This can be an effective way to write tests. The code that performs the actual tests is small and stays the same no matter how many tests I want to run. When I have more test cases, I add to the table of input values.
+This can be an effective way to write tests. The code that performs the actual
+tests is small and stays the same no matter how many tests I want to run. When
+I have more test cases, I add to the table of input values.
 
-As the table got larger, listing all of the combinations literally in the code became a problem. I'd miss some combinations, repeat others, and even if I'd gotten everything right, I couldn't fit the table on a single screen.
+As the table got larger, listing all of the combinations literally in the code
+became a problem. I'd miss some combinations, repeat others, and even if I'd
+gotten everything right, I couldn't fit the table on a single screen.
 
-I had specifically avoided nested loops. That might not annoy you when there are three or four parameters, but some of the subroutines took 15 parameters. That's a lot of nesting.
+I had specifically avoided nested loops. That might not annoy you when there
+are three or four parameters, but some of the subroutines took 15 parameters.
+That's a lot of nesting.
 
-Instead, I wanted something where I could list the possible values for each of the positions, but without having to make all of the combinations myself. That is, I wanted a way to take a cross product of sets where each result would have one element from each set. Hence, L<Set::CrossProduct>.
+Instead, I wanted something where I could list the possible values for each of
+the positions, but without having to make all of the combinations myself. That
+is, I wanted a way to take a cross product of sets where each result would have
+one element from each set. Hence, L<Set::CrossProduct>.
 
+  #!perl
 	my $iterator = Set::CrossProduct->new( 
 		[
 			[ qw( blood navel valencia ) ],
@@ -40,8 +56,10 @@ Instead, I wanted something where I could list the possible values for each of t
 		]
 		);
 
-I can then use the iterator to get the next combination to check. The original implementation was the reference for correct, bug-for-bug behavior:
+I can then use the iterator to get the next combination to check. The original
+implementation was the reference for correct, bug-for-bug behavior:
 
+  #!perl
 	while( my $tuple = $iterator->get ) {
 		is( 
 			New::foo(  @$tuple ),
@@ -50,10 +68,17 @@ I can then use the iterator to get the next combination to check. The original i
 			);	
 		}
 
-It's not a complicated module behind the scenes. For each of the array references, I maintain a cursor so I know which item to pick next. When I get to the end of an array reference, I go back to the start. If all the cursors are the last positions, then the iterator is spent.
+It's not a complicated module behind the scenes. For each of the array
+references, I maintain a cursor so I know which item to pick next. When I get
+to the end of an array reference, I go back to the start. If all the cursors
+are the last positions, then the iterator is spent.
 
-The more I used the module, the more uses I found for it, and the more I needed to move around the iterator. Besides getting the next element, I added methods to look around the current combination, pick a random combination, or, get all of the combination at once (it came full circle):
+The more I used the module, the more uses I found for it, and the more I needed
+to move around the iterator. Besides getting the next element, I added methods
+to look around the current combination, pick a random combination, or, get all
+of the combination at once (it came full circle):
 
+  #!perl
 	my $iterator = Set::CrossProduct->new( ARRAY_OF_ARRAYS );
 
 	# get the number of tuples
@@ -82,11 +107,13 @@ The more I used the module, the more uses I found for it, and the more I needed 
 	# in scalar context returns an array reference to all tuples
 	my $tuples           = $iterator->combinations;
 
-
 =head1 See Also
 
-The L<Set::CrossProduct> module isn't the only way to accomplish this task. The L<Algorithm::Loops> module has a C<NestedLoops> subroutine that can do the same thing.
+The L<Set::CrossProduct> module isn't the only way to accomplish this task. The
+L<Algorithm::Loops> module has a C<NestedLoops> subroutine that can do the same
+thing.
 
-Some people confuse a cross product of different sets with permutations of elements in the same set. If that's what you want to do, L<Algorithm::Combinatorics> might be the right tool.
+Some people confuse a cross product of different sets with permutations of
+elements in the same set. If that's what you want to do,
+L<Algorithm::Combinatorics> might be the right tool.
 
-=cut
