@@ -1,0 +1,43 @@
+Topic: s///r
+Title: The new /r flag
+Author: brian d foy
+
+Perl 5.14 introduced a new feature for the substitution operator to return a modified string while leaving the original alone. Normally, the substitution operator changes the bound string (if it matches) and returns the count of the number of substitutions:
+
+  my $count = $string =~ s/PATTERN/REPLACEMENT/g;
+
+If you didn't want to change the string, you had to create a new one, often leading to this idiom:
+
+  ( my $new = $old ) =~ s/PATTERN/REPLACEMENT/g;
+
+This way, C<$new> gets a copy and is actually the target of the C<s///>. Instead of that, you can use the new C</r> flag. That idiom then changes to this similar, but different statement:
+
+  my $new = $old =~ s/PATTERN/REPLACEMENT/gr;
+  
+This binds to C<$old> and returns the modified string to store in C<$new>. Working out the precedence, it looks like the parentheses have shifted:
+
+  my $new = ( $old =~ s/PATTERN/REPLACEMENT/gr );
+  
+This turns out to be much more useful inside a C<map>, where it's easy to forget that you don't get the modified string back:
+
+  my @new = map { s/PATTERN/REPLACEMENT/g } @old;
+
+After your C<@new> fills with C<1>'s and C<0>'s, you remember that you need a different last expression in the C<map> block:
+
+  my @new = map { s/PATTERN/REPLACEMENT/g; $_ } @old;
+
+But then, you find out that C<@new> is the same as C<@old> because the C<s///> with the aliased C<$_> actually changes the original data. So, you expand the block a bit:
+
+  my @new = map { my $s = $_; $s =~ s/PATTERN/REPLACEMENT/g; $s } @old;
+
+That's ugly. So, you upgrade to Perl 5.14 to get back to almost what you had before. Once you convince your entire company to upgrade, update all of your operating systems and packages, and reinstall all the modules, the C</r> flag saves you a lot of hassle inside the block:
+
+  my @new = map { s/PATTERN/REPLACEMENT/rg } @old;
+  
+This is useful with C<printf> too, where you might want to modify a string just for the output, but leaving the original alone:
+
+  printf "%s %s\n", 
+    s/PATTERN/REPLACEMENT/rg,
+    s/PATTERN2/REPLACEMENT/rg,
+    
+With the C</r> flag, it's now convenient to have the C<s///> in the middle of larger expressions.
