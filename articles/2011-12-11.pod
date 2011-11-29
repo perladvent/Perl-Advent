@@ -1,0 +1,90 @@
+Title: Mojolicious as a client
+Topic: Mojo::UserAgent
+Author: brian d foy
+
+=encoding utf8
+
+L<Mojolicious> isn’t just a framework for websites. It’s also a web client. Until L<Mojolicious|http://www.mojolicio.us>, the only reasonable general-purpose web client for Perl was L<LWP::UserAgent|https://www.metacpan.org/module/LWP::UserAgent> (Library-WWW for Perl). That library has been around for a long time, has many things built on top of it, and is actively maintained.
+
+I like writing web clients, and I’ve used L<LWP::UserAgent> for years. I’m used to it, know its insides, and can get things done. I didn’t have any reason to switch until I saw L<Marcus Ramberg’s presentation on Mojolicious|http://www.slideshare.net/marcusramberg/mojolicious-a-new-hope> at the L<Nordic Perl Workship|http://conferences.yapceurope.org/npw2011/>. After playing with it a bit, I think I like it much more. There's a richer interface, more functionality, and I think even the internals are nicer.
+
+L<Mojolicious> is another framework from Sebastian Riedel, whom you may remember from other frameworks. Sebastian wanted to create a self-contained web thingy that would handle everything you might need for the "HTML5 web". It wasn’t just going to fetch resources for you, it was going to parse it and let you walk it too. And, almost all of this was going to happen out of the box without add-ons. I think he, and the rest of the L<Mojolicious> community, got it mostly right.
+
+A simple program to print a webpage looks similar to what I would do with L<LWP::UserAgent>:
+
+  use 5.010;
+  
+  use Mojo::UserAgent;
+  my $ua = Mojo::UserAgent->new;
+  
+  say $ua->get('http://www.perladvent.org/')->res->body;
+
+It gets more interesting when I want to do something with the response. I can immediately access the HTML DOM, for instance:
+
+  use 5.010;
+  
+  use Mojo::UserAgent;
+  my $ua = Mojo::UserAgent->new;
+  
+  say $ua->get('http://www.perladvent.org/'
+    )->res->dom->html->head->title->text;
+
+I can also do more fancy processing. I can extract the titles of articles in the feed for L<blogs.perl.org|http://blogs.perl.org>. The C<each> method:
+
+  use 5.010;
+  
+  use Mojo::UserAgent;
+  my $ua = Mojo::UserAgent->new;
+  
+  $ua->get('http://blogs.perl.org/atom.xml'
+    )->res->dom( 'entry > title' )->each(
+      sub { state $n = 0; say ++$n, ": ", $_->text }
+      );
+
+I might even do parallel requests with L<Mojo::IOLoop>. Since I’m fetching pages from L<MetaCPAN|https://www.metacpan.org>, I needed to install L<IO::Socket::SSL>. This bit of code grabs the latest version number for each module (there’s a better way to do this, though):
+
+  use 5.010;
+  
+  use Mojo::UserAgent;
+  use Mojo::IOLoop;
+  
+  my $ua = Mojo::UserAgent->new;
+  
+  my $delay = Mojo::IOLoop->delay;
+  my @modules = qw(Mojolicious Set::CrossProduct DBD::SQLite);
+  
+  foreach my $module ( @modules ) {
+    my $url = "https://www.metacpan.org/module/$module";
+  
+    $delay->begin;
+    $ua->get( $url => sub {
+      my ($ua, $tx) = @_;
+      my $version = $tx->res->dom( 
+        'div.search-bar > div > ul > li' )->[1];
+      say "$module: ", 
+        $version =~ m|Module version: (\S+)</li>|;
+      $delay->end;
+      });
+    }
+  
+  $delay->wait;
+
+If the response isn’t HTML, but is JSON, like you would expect from AJAXy-like web thingys, you can easily handle that too. I get immediate access to the data without loading additional modules:
+
+  use 5.010;
+  
+  use Mojo::UserAgent;
+  my $ua = Mojo::UserAgent->new;
+  
+  say $ua->get('http://example.com/data.json'
+    )->res->json->{cat};
+
+The L<ojo> module lets you do these from the command line, too. It provides shortcuts. Notice that the call to C<res> has disappeared because the C<g> shortcut returns that for you:
+
+  % perl -Mojo -E 'say g("http://www.perladvent.org")->body'
+
+  % perl -Mojo -E "g('http://blogs.perl.org/atom.xml')->dom('entry > title')->each(sub{state \$n=0;say ++\$n,': ',\$_->text})"
+
+The L<Mojo::UserAgent> can do much more powerful things, but this should be enough to whet your appetite.
+
+=cut 
