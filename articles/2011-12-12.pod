@@ -32,8 +32,34 @@ You probably don't want to do that for a database dump with a million
 INSERT statements, but for schemas, it's B<great>!
 
 Here's an example adapted from the synopsis to initialize a new database
-for testing:
+for testing.  First, we drop our schema into F<sql/create.sql>:
 
+  #!vim sql
+  CREATE TABLE chapters (
+    chapterid int(10) NOT NULL DEFAULT 0,
+    longtitle char(80) NOT NULL DEFAULT '',
+    shorttitle char(40) NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE deletes (
+    deleteid char(255) NOT NULL DEFAULT '',
+    changed char(10) DEFAULT NULL,
+    changedby char(10) DEFAULT NULL,
+    PRIMARY KEY (deleteid)
+  );
+
+  CREATE TABLE distmtimes (
+    dist char(128) NOT NULL DEFAULT '',
+    distmtime char(10) DEFAULT NULL,
+    distmdatetime datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+    indexing_at datetime DEFAULT NULL,
+    indexed_at datetime DEFAULT NULL,
+    PRIMARY KEY (dist)
+  );
+
+...and probably in reality we've got quite a few more tables to create.  The we read in the SQL and fire it off:
+
+  #!perl
   use DBIx::RunSQL;
 
   my $dbh = DBIx::RunSQL->create(
@@ -45,6 +71,7 @@ for testing:
 
 You can also reuse an existing DBI handle:
 
+  #!perl
   my $dbh = connect_to_db();
 
   for my $file ( list_of_schema_file() ) {
