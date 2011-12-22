@@ -1,0 +1,171 @@
+Title:  Where Does He Get Those Wonderful Codepoints?
+Topic:  App::Uni & Unicode::Tussle
+
+=head1 𝔖𝔱𝔲𝔭𝔦𝔡 𝔘𝔫𝔦𝔠𝔬𝔡𝔢 𝔗𝔯𝔦𝔠𝔨𝔰
+
+I got interested in understanding how Unicode works for two reasons: I needed
+to understand it to do my job, and it gave me an improved ability to do
+L<stupid things on Twitter|https://twitter.com/rjbs/status/149640554597199872>.
+Mostly, today I want to talk about the latter.
+
+So, for example, how did I make that stupid section header above?  (By the way,
+if you can't read it, you should probably go install a more complete Unicode
+font, like Symbola!)  Well, I knew that Unicode 6 had introduced Fraktur
+characters, and if I knew how they were named, I could start from there, so I
+used the C<uni> command provided with L<App::Uni>:
+
+  #!code
+  $ uni fraktur
+  1D504 𝔄 MATHEMATICAL FRAKTUR CAPITAL A
+  1D505 𝔅 MATHEMATICAL FRAKTUR CAPITAL B
+  1D507 𝔇 MATHEMATICAL FRAKTUR CAPITAL D
+  1D508 𝔈 MATHEMATICAL FRAKTUR CAPITAL E
+  1D509 𝔉 MATHEMATICAL FRAKTUR CAPITAL F
+  1D50A 𝔊 MATHEMATICAL FRAKTUR CAPITAL G
+  ...
+
+This a stupidly useful tool being a goofball.  Did you know that I mostly use
+my programming skills to make dumb jokes on the internet?  Yeah, this is your
+surprised face: 😐
+
+  #!code
+  $ uni neutral
+  A64E Ꙏ CYRILLIC CAPITAL LETTER NEUTRAL YER
+  A64F ꙏ CYRILLIC SMALL LETTER NEUTRAL YER
+  1F610 😐 NEUTRAL FACE
+
+=head1 The 𝑁𝑒𝑥𝑡 Level
+
+So, C<uni> is great for finding characters quickly by name.  Sometimes, though,
+you want to find characters based on other criteria.  For example, when I see
+somebody trying to use C<m{\d}> to match ASCII digits.  I want to give them an
+example of some of the things that they really don't think should be matched.
+Tom Christiansen is one of Perl's chief Unicode gurus, and he's written a bunch
+of weird and useful tools.  brian d foy packaged it up and now it's easy for
+anybody to install it.  One of the tools is C<unichars>, which lets you find
+characters based on many more criteria than its name.  For example, to
+enlighten the guy using C<m{\d}>, I want to find digits that aren't in C<[0-9]>
+and I'm going to pick the seven from each script, because seven is a funny
+number:
+
+  #!code
+  $ unichars '\d' '$_ !~ /[0-9]/' 'NAME =~ /SEVEN/'
+  ...
+  ७  U+096D DEVANAGARI DIGIT SEVEN
+  ৭  U+09ED BENGALI DIGIT SEVEN
+  ੭  U+0A6D GURMUKHI DIGIT SEVEN
+  ૭  U+0AED GUJARATI DIGIT SEVEN
+  ୭  U+0B6D ORIYA DIGIT SEVEN
+  ௭  U+0BED TAMIL DIGIT SEVEN
+  ౭  U+0C6D TELUGU DIGIT SEVEN
+  ೭  U+0CED KANNADA DIGIT SEVEN
+  ൭  U+0D6D MALAYALAM DIGIT SEVEN
+  ๗  U+0E57 THAI DIGIT SEVEN
+  ໗  U+0ED7 LAO DIGIT SEVEN
+  ...
+
+I just specified my three criteria as arguments to the command:
+
+  #!code
+  $ unichars '\d' '$_ !~ /[0-9]/' 'NAME =~ /SEVEN/'
+  a digit      - \d           
+  not in [0-9] - $_ !~ /[0-9]/
+  seven        - NAME =~ /SEVEN/
+
+You could also replace that second rule with, say, C<'\P{ASCII}'>.  There's
+more than one way to do it.  There are some important things to know, though.
+By default, for example, C<unichars> won't search the supplementary
+multilingual plane or the so-called "astral" plane.  That means that this vital
+search will fail:
+
+  #!code
+  $ unichars 'NAME =~ /FACE/'
+  (nothing)
+
+You meant:
+
+  #!code
+  $ unichars -a 'NAME =~ /FACE/'
+  😩  U+1F629 WEARY FACE
+  🙀  U+1F640 WEARY CAT FACE
+
+Also, the sophistication of C<unichars> comes at a price: speed.  Searching for
+that weary cat face with C<uni> takes about 0.144s on my laptop.  Searching
+with C<unichars>, 14.899.
+
+When you're just trying to make a stupid joke on Twitter, those 14 seconds
+aren't worth spending.  On the other hand, when you need to actually search for
+characters matching certain criteria, C<unichars> can do it, and C<uni> can't.
+
+=head1 Two More Tools
+
+Unicode::Tussle comes with a bunch more tools, but I'll just show you two more,
+briefly.  C<uninames> is a bit more like C<uni> in that its primary job is to
+search character descriptions, but its searches aren't limited to character
+I<names>.  It looks at the whole description.  For example:
+
+  #!code
+  $ uninames face
+   ∯  222F  SURFACE INTEGRAL
+    # 222E 222E
+   ⌓  2313  SEGMENT
+    = position of a surface
+   ⌚  231A  WATCH
+    x (alarm clock - 23F0)
+    x (clock face one oclock - 1F550)
+   ⏰  23F0 ALARM CLOCK
+    x (watch - 231A)
+    x (clock face one oclock - 1F550)
+  ...
+   ☺  263A  WHITE SMILING FACE
+    = have a nice day!
+
+We get C<SURFACE INTEGRAL> because it matches C</face/i>, but why do we get
+C<SEGMENT> or C<WATCH>?  It's because they're related to character with "face"
+in their descriptions.  Sometimes, you'll get a match against a comment about
+the characters' usage:
+
+  #!code
+  $ uninames fraktur
+   ſ  017F  LATIN SMALL LETTER LONG S
+     * in common use in Roman types until the 18th century
+     * in current use in Fraktur and Gaelic types
+  ...
+
+Finally, there's C<uniprops>.  This is a I<wonderfully> useful tool, in I<very
+limited circumstances>.  Most often, for me, it comes up when I've got some
+weird input.  Say some user's name isn't working with some data validator.  The
+guy who wrote that validator required names to be (for some insane reason)
+Latin letters that were either uppercase or lowercase.  Our other input
+validator only has the first half of that constraint: Latin letters.  What's
+happening?  Well, the user causing us problems is going by the name “ᴿᴶᴮˢ” –
+what can C<uniprops> tell us about those?
+
+  #!code
+  ~$ uniprops <1d3f>
+  U+1D3F ‹ᴿ› \N{MODIFIER LETTER CAPITAL R}
+      \w \pL \p{L_} \p{Lm}
+      All Any Alnum Alpha Alphabetic Assigned InPhoneticExtensions Case_Ignorable
+         CI Cased Changes_When_NFKC_Casefolded CWKCF Dia Diacritic L Lm Gr_Base
+         Grapheme_Base Graph GrBase ID_Continue IDC ID_Start IDS Letter L_ Latin
+         Latn Modifier_Letter Lower Lowercase Phonetic_Extensions Print Word
+         XID_Continue XIDC XID_Start XIDS X_POSIX_Alnum X_POSIX_Alpha
+         X_POSIX_Graph X_POSIX_Lower X_POSIX_Print X_POSIX_Word
+
+So, it's Latin, a Letter, and Lowercase, but not a Lowercase_Letter.  What??
+Surely this is an anomaly..?  We can find out with C<unichars>!
+
+  #!code
+  $ unichars '\p{Letter}' '\P{Lowercase_Letter}' '\P{Uppercase_Letter}' '\p{Latin}'
+  (131 characters listed)
+
+What's the lesson here?  You and the other guy should learn what those
+categories I<mean>.  Once you've started doing that, you'll be well on your way
+down the rabbit hole, and you'll start to find all new uses for these tools…
+but none is likely to be as much fun as making stupid Tweets.
+
+=head1 See Also
+
+=for :list
+* L<Unicode::Tussle>
+* L<App::Uni>
