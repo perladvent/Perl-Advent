@@ -1,0 +1,91 @@
+Title: Now I have an SQL machine gun
+Topic: DBIx::RunSQL
+Author: David Golden <dagolden@cpan.org>
+
+=head1 Where do you keep your SQL?
+
+Do you use a database with Perl?  I don't mean one of those new-fangled No-SQL
+ones; I mean one of those SQL classics.  You do?  Where do you keep your SQL?
+
+You've got an ORM, check! You've got abstractions to hide your queries, check!
+But do you have any SQL lying around in files?  Maybe your schema?  Maybe
+you've got several different schemas?  Different versions?  Maybe ones for
+testing?  Maybe for different database engines? (Thank you
+L<SQL::Translator>!)
+
+=head1 How do you run your SQL?
+
+Do you use the command line client for each database?  Do you remember the
+syntax for each one?  If you run SQL from automated tests, do you always use
+the same type of database?  Do you use the same connection parameters?  Or
+do you mix it up?
+
+If you're the type of person who like to keep things DRY ("don't repeat
+yourself"), then doing things I<one> way for SQL code with command line tools
+and then I<another> way in your Perl code probably drives you crazy.
+
+=head1 Why not just use DBI, instead?
+
+L<DBIx::RunSQL> is your SQL machine gun.  It takes an SQL file, chops it
+up into statements, and fires them at your database through good, old L<DBI>.
+You probably don't want to do that for a database dump with a million
+INSERT statements, but for schemas, it's B<great>!
+
+Here's an example adapted from the synopsis to initialize a new database
+for testing.  First, we drop our schema into F<sql/create.sql>:
+
+  #!vim sql
+  CREATE TABLE chapters (
+    chapterid int(10) NOT NULL DEFAULT 0,
+    longtitle char(80) NOT NULL DEFAULT '',
+    shorttitle char(40) NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE deletes (
+    deleteid char(255) NOT NULL DEFAULT '',
+    changed char(10) DEFAULT NULL,
+    changedby char(10) DEFAULT NULL,
+    PRIMARY KEY (deleteid)
+  );
+
+  CREATE TABLE distmtimes (
+    dist char(128) NOT NULL DEFAULT '',
+    distmtime char(10) DEFAULT NULL,
+    distmdatetime datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+    indexing_at datetime DEFAULT NULL,
+    indexed_at datetime DEFAULT NULL,
+    PRIMARY KEY (dist)
+  );
+
+...and probably in reality we've got quite a few more tables to create.  The we read in the SQL and fire it off:
+
+  #!perl
+  use DBIx::RunSQL;
+
+  my $dbh = DBIx::RunSQL->create(
+      dsn     => 'dbi:SQLite:dbname=:memory:',
+      sql     => 'sql/create.sql',
+  );
+
+  # Now use $dbh as your database handle for testing
+
+You can also reuse an existing DBI handle:
+
+  #!perl
+  my $dbh = connect_to_db();
+
+  for my $file ( list_of_schema_file() ) {
+    DBIx::RunSQL->run_sql_file(
+        dbh     => $dbh,
+        sql     => $file,
+    );
+  };
+
+There you go.  Now you can keep your SQL files, but execute them from inside
+your Perl code with the connection you already have.  Ho-Ho-Ho!
+
+=head1 SEE ALSO
+
+=for :list
+* L<DBIx::RunSQL>
+* L<SQL::Translator>

@@ -1,0 +1,132 @@
+Title: A Shortcut to Unicode
+Topic: utf8::all
+Author: Shawn M Moore <sartak@gmail.com>
+
+Unicode is notoriously difficult for programmers to use correctly.
+Wouldn't it be swell if there were a module you could use to make
+your program fully Unicode-aware and -correct?
+
+Unfortunately such a thing could never exist, because Unicode is
+so much more than just English-plus-lots-of-funny-characters. It's
+a system for handling the writing systems of the thousands of
+languages in the world. Daunting? You betcha.
+
+There is just too much ambiguity in Perl's builtin functions to
+transparently upgrade them to be correct in the face of Unicode.
+
+=head2 L<utf8::all>
+
+Before you lose all hope, know that there I<is> a module, L<utf8::all>,
+that can get you most of the way to Unicode nirvana. It was borne
+out of the L<perl5i> project, quickly spun out as a useful standalone
+module.
+
+L<utf8::all> sets up the most common channels that your program
+will use to interact with the outside world to manage the UTF-8
+encoding and decoding for you. That means that when you, say, shift off
+an argument from C<@ARGV>, you will get a I<character string> instead
+of I<octets>. When you log to C<STDERR>, L<utf8::all> ensures
+that the I<characters> you C<warn> are encoded to the I<octets> that the
+outside world expects.
+
+While a full explanation of the difference between characters and
+octets is beyond the scope of this article, it is important to know
+that any time you are dealing with B<text> you need to operate on
+B<characters>. Violate this rule and you're likely to end up with
+garbage.
+
+Say we have a program that greets the name you pass in.
+
+    #!perl
+    use 5.14.2;
+    use warnings;
+
+    my $name = join " ", @ARGV;
+
+    say "HI " . uc($name) . "!";
+
+Run this with "Santa Claus" and you get "HI SANTA CLAUS!". Great! But once you
+leave the 26-letter English things get worse quickly. Try the French "Père
+Noël" and you'll get "HI PèRE NOëL!" Not perfect, but at least it stays
+readable. Go further afield to the Japanese "サンタクロース" and you'll end up
+with nothing but L<mojibake|http://en.wikipedia.org/wiki/Mojibake> and coal in
+your stocking.
+
+By adding C<use utf8::all> to this program, C<@ARGV> is decoded from I<octets>
+into I<characters> and C<STDOUT> is encoded from I<characters> into I<octets>
+for you. That means the results will end up being "HI SANTA CLAUS!", "HI PÈRE
+NOËL!", and "HI サンタクロース!" Certainly a lot more respectable.
+
+This module is especially useful for one-liners, since fiddling with the
+encoding of C<@ARGV>, C<STDIN>, and C<STDOUT> takes a lot more code than simply
+using an L<C<-M>|http://www.perladvent.org/2011/2011-12-05.html> on
+L<utf8::all>.  Say we wanted to write a filter that converts its input to
+Sᴍᴀʟʟᴄᴀᴘs.  Note that we have to carefully set up the encoding of not only both
+C<STDIN> and C<STDOUT>, but also of the program itself. If we forget to tell
+Perl that our code is written in UTF-8 (by loading the special L<utf8> module),
+then our transliteration will produce garbage, because Perl will see the
+right-hand side of the C<tr> as 64 I<octets>, not 26 I<characters>.
+
+    #!code
+    perl -Mutf8 -pe 'BEGIN { binmode($_, ":utf8") for STDIN, STDOUT }
+      tr[a-z][ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘQʀsᴛᴜᴠᴡxʏᴢ]'
+
+If that looks like a lot to spring from your fingers every time
+you want to write a one-liner that handles Unicode correctly, it
+certainly is. That one-liner doesn't even handle C<STDERR>, C<@ARGV>, or
+any additional file handles we might open!
+
+Instead, by simply declaring C<-Mutf8::all>, you don't have to
+micromanage any of that.
+
+    #!code
+    perl -Mutf8::all -pe 'tr[a-z][ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘQʀsᴛᴜᴠᴡxʏᴢ]'
+
+Tʜᴇ ꜰᴜᴛᴜʀᴇ ɪs ʜᴇʀᴇ!
+
+=head2 L<utf8::all>'s reach
+
+L<utf8::all> doesn't cover all of the suggestions Tom Christiansen outlines in
+L<his epic Stack Overflow
+post|http://stackoverflow.com/questions/6162484/why-does-modern-perl-avoid-utf-8-by-default/6163129#6163129>
+for basic Unicode support, but it does have open tickets for the features it
+misses! Right now (as of the upcoming 0.03), it's only missing an automatic
+C<L<unicode_strings|feature/the 'unicode_strings' feature>> and promoting
+encoding problems to fatal errors.
+
+There are also loads of cases L<utf8::all> will never be able catch.
+Despite its name, there is simply no sane way to dictate that
+everything must be Unicode. There is too much existing code out there
+which will break if you change its basic assumptions. For example
+if you're using L<DBD::SQLite>, you'll need to explicitly turn on
+UTF-8 handling like so:
+
+  #!perl
+  my $dbh = DBI->connect("dbi:SQLite:dbname=$file");
+  $dbh->{sqlite_unicode} = 1;
+
+There's also nothing this module, or any module really, can do to magically fix
+your English-specific assumptions. If you perform a text-munging operation like
+C<s/[0-9]//g> then there's no way to programmatically generalize that to
+Unicode. There are lots of other ways to write numerals besides the familiar
+Arabic digits, like Ⅶ, 万, and ៧, so a human with an understanding of the
+business requirements needs to decide which kinds of numerals to include and
+which kinds to exclude. There's no way a program can make the right choice for
+you.
+
+All that said, L<utf8::all> is still a mighty useful tool, especially for
+one-liners and small scripts, since it gets you 90% of the way there. If you're
+still reeling from all this, let L<utf8::all> serve as your first toe into the
+vast ocean of Unicode. It's (nearly) 2012 and the world is growing only more
+and more interconnected, so you are running out of excuses for not learning
+about how to deal with encodings.
+
+=head1 See Also
+
+=for :list
+* L<Encode>
+* L<Encode::DoubleEncodedUTF8>
+* L<Unicode::Tussle>
+* L<perl5i>
+* L<http://98.245.80.27/tcpc/OSCON2011/index.html>
+

@@ -1,0 +1,143 @@
+Title: A Big List of Stuff You Want
+Topic: List::Util & Friends
+
+=head1 Perl Is Not Enough
+
+Perl has lots of useful built-in functions.  Everybody loves C<grep>, right?
+
+  #!perl
+  my @coal_kids = grep { $_->is_naughty } @children;
+
+Maybe we only want the first element, though.  There's more than one way to do
+it – here are two:
+
+  #!perl
+  # This works just fine, but you might be waiting a while, since it's going to
+  # evaluate the block for every item in the list.
+  my ($first_coal_goes_to) = grep { $_->is_naughty } @children;
+
+  # This is a lot more efficient to run, but not to write.  Worse, it's not
+  # anywhere near as efficient to skim.
+  my $first_coal_goes_to;
+  for (@children) {
+    next unless $_->is_naughty;
+    $first_coal_goes_to = $_;
+    last;
+  }
+
+Fortunately, we've got L<List::Util>:
+
+  #!perl
+  use List::Util qw(first);
+
+  my $first_coal_goes_to = first { $_->is_naughty } @children;
+
+It's easy to read, easy to write, and works efficiently, stopping at the first
+hit.
+
+List::Util has a bunch of useful stuff like this.  It has routines for summing
+up numbers, or finding maxima and minima.  It's got a C<shuffle> routine for
+randomizing lists, which you should use.  I can't tell you how many I<horrible>
+reimplementations of List::Util's shuffle I've deleted over the years.
+
+Even more importantly, though, it provides a C<reduce> method.  C<reduce> is
+a really common higher-order function, often called C<fold>.  You can use it to
+build lots of other really useful behavior.  For example, we might use it to
+reimplement C<sum>, since the one that comes with List::Util stinks¹.
+
+C<reduce> is called with a function (usually written as a block) and a list of
+inputs.  If there's only one item in the list, it returns that.  Otherwise, it
+calls the function with the first two items and makes the result the new head
+of the list.  Confused?
+
+  #!perl
+  my @numbers = get_numbers;
+  my $sum     = reduce { $a + $b } (0, @numbers);
+
+If C<@numbers> is empty, we return 0.  If C<@numbers> contains (1, 2, 3), this
+is what happens:
+
+=for :list
+1. We have more than one item in the list!  Our input is (0, 1, 2, 3)
+2. Shift off 0 and 1, and unshift the result back onto the input.
+3. Now our input is (1, 2, 3)
+4. Shift off 1 and 2, and unshift the result back onto the input.
+5. Now our input is (3, 3)
+6. Shift off 3 and 3, and unshift the result back onto the input.
+7. Now our input is (6)
+8. There's only one input!  Return it!
+
+I<Lots> of stuff can get implemented in terms of C<reduce>.  Knowing how (and
+when) to use it is really useful.  In fact, the List::Util documentation
+points out how several of its functions could have been written as folding
+constructs instead.
+
+=head1 List::Util is Not Enough
+
+List::Util's documentation also lists a few things that people have proposed
+for inclusion over the years, like C<any>:
+
+  #!perl
+  sub any { $_ && return 1 for @_; 0 }
+
+The docs say that C<any> has been omitted because it's so easy to write inline
+(especially if you have C<first>).  Still, why not make them available?
+L<List::MoreUtils> does just that, providing all the routines List::Util
+declined to and I<much> more.
+
+  #!perl
+  # Note that you couldn't do this as easily with first, because it would
+  # return undef on both success and failure.  Also note that List::MoreUtil's
+  # "any" takes a block, not just a list.
+  if (any { ! defined } @input_values) {
+    ...
+  }
+
+  # Get every element until the block returns true.
+  my @first_half_alphabet = before { $_->last_name =~ /^N/i } @children;
+
+List::MoreUtils also helps get rid of many occurances of C<%seen>, one of my
+least favorite often-seen variables:
+
+  #!perl
+  # Don't write:
+  my @unique_guesses = do { my %seen = map {; $_ => 1 } @guesses; keys %seen };
+
+  # Write:
+  my @unique_guesses = uniq @guesses;
+
+And it provides the terribly-named C<natatime> for processing I<n> elements at
+a time:
+
+  #!perl
+  my $iterator = natatime 2, @pairs;
+  while (my ($k, $v) = $iterator->()) {
+    print "$key has value $v";
+  }
+
+=head1 There's a Lot More
+
+I've only given a very thin gloss over List::Util, and barely scratched the
+surface of List::MoreUtils.  The point is that these two libraries are useful
+all the time.  If you haven't used them yet, it's almost certain that you
+could've saved time by using them a few times.  Learn what's in them, and
+consider them a tool you can reach for without thinking about it.
+
+In fact, to help you not have to think about it, don't use either of them!
+Instead, use L<List::AllUtils>, which provides all the routines of the other
+two, combined into one library so you don't have to try to remember whether
+C<minmax> is from Util or MoreUtils².
+
+=head1 Footnotes
+
+=for :list
+1. List::Util's sum returns undef, instead of 0, for an empty input list.
+2. C<min> and C<max> are from Util, but C<minmax> is from MoreUtils
+
+=head1 See Also
+
+=for :list
+* L<List::Util>
+* L<List::MoreUtils>
+* L<List::AllUtils>
+

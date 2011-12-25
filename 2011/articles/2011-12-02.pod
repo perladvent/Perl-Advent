@@ -1,0 +1,94 @@
+Title: Keeping up with the Joneses
+Topic: App::cpanoutdated
+
+=head1 Restoring the Features of Yore
+
+Back in the day, there were two choices for installing code from the CPAN:  the
+original L<CPAN> client and L<CPANPLUS>.  Innovation in one kept driving the
+other, and by the release of perl-5.10, both had sprouted all kinds of features
+and usability enhancements.  They'd also gotten easier to use, but maybe not
+easy enough.  When L<Miyagawa|https://metacpan.org/author/MIYAGAWA> released
+L<App::cpanminus> (aka C<cpanm>), there was much rejoicing, and it's become
+incredibly popular in its two short years of life.
+
+One of the reasons that C<cpanm> has remained so easy to use is that it
+jettisons huge numbers of the advanced features of C<CPAN> and C<CPANPLUS>.
+Some of these are only needed for pretty exotic configurations like automated
+testers or enterprise environments.  A few, though, were pretty useful for
+everybody.  My favorite were probably the C<r> and C<upgrade> commands in the
+CPAN shell.
+
+C<r> (which as far as I know has no longer name) prints out a report on
+installed modules that aren't the latest version.  For example, if I run it
+right now, I see this:
+
+  #!code
+  cpan[1]> r
+  CPAN: Storable loaded ok (v2.30)
+  Reading '/Users/rjbs/.cpan/Metadata'
+    Database was generated on Thu, 03 Nov 2011 03:30:30 GMT
+  CPAN: Module::CoreList loaded ok (v2.57)
+
+  Package namespace              installed    latest  in CPAN file
+  Getopt::Lucid                      undef      0.19  DAGOLDEN/Getopt-Lucid-0.19.tar.gz
+  AnyDBM_File                         1.00      1.01  FLORA/perl-5.15.4.tar.gz
+  HTML::Mason::Apache::Request       undef         0  DROLSKY/HTML-Mason-1.47.tar.gz
+  Number::Tolerant::Type::constant   undef     1.700  RJBS/Number-Tolerant-1.700.tar.gz
+  PerlIO::scalar                      0.11      0.12  RJBS/perl-5.15.2.tar.bz2
+  1224 installed modules have no parsable version number
+  (use 'o conf show_unparsable_versions 1' to show them)
+
+The C<upgrade> command finds the same list, but instead of just printing it
+out, it installs all the new code.
+
+These have several good uses.  The first one is obvious:  you can keep your
+whole installed development environment up to date with the latest releases.
+This is maybe a little crazy for your production environment, but if you're
+installing to a L<local::lib|http://perladvent.org/2011/2011-12-01.html>, it's
+a great way to test your code against a full upgrade.  It's also great for
+debugging.  When I get a bug report that I can't reproduce, I often ask the
+reporting user to show me the output of a report like this.  I compare it to
+mine, and half the time I see a relevant different: the user has an older
+Moose, I have an older Params::Validate, or something along those lines.
+
+This kind of feature is great, but it's totally outside the realm of stuff that
+C<cpanm> is ever going to do.  That doesn't mean we need to go back to the old
+clients just yet, because L<Tokuhiro
+Matsuno|https://metacpan.org/author/TOKUHIROM> wrote L<App::cpanoutdated>.  It
+does the work of L<CPAN>'s C<r> command:
+
+  #!code
+  ~$ cpan-outdated
+  Z/ZE/ZEFRAM/Devel-Declare-0.006008.tar.gz
+  R/RJ/RJBS/Dist-Zilla-Plugin-CheckPrereqsIndexed-0.006.tar.gz
+  G/GE/GETTY/HTTP-Body-1.14.tar.gz
+  S/SM/SMUELLER/YAML-Syck-1.18.tar.gz
+  M/MS/MSCHILLI/Log-Log4perl-1.34.tar.gz
+  S/SM/SMUELLER/PAR-Dist-0.48.tar.gz
+  R/RJ/RJBS/Test-Fatal-0.008.tar.gz
+  S/SA/SADAHIRO/Unicode-Collate-0.84.tar.gz
+
+This is a less information than the C<r> command.  It doesn't tell us what the
+relevant module is, or what version we have installed, but it turns out that
+this is generally enough.  It still tells you which dists are out of date,
+which is just about as good as which modules.  (You also might note that it's a
+different set of dists.  That's because I had to run these commands on
+different installs, because I haven't kept my own C<cpan> working very well
+since I switched to C<cpanm>!  That's all.)
+
+It has another great property, too:  you can pipe the output of
+C<cpan-outdated> to C<cpanm>.
+
+  #!code
+  ~$ cpan-outdated | cpanm
+  [ … ]
+  8 distributions installed
+  ~$ cpan-outdated
+  ~$
+
+=head1 See Also
+
+=for :list
+* L<App::cpanoutdated>
+* L<App::cpanminus>
+

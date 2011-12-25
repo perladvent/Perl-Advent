@@ -1,0 +1,142 @@
+Title: Process ALL the FILES!
+Topic: Path::Class::Rule
+
+=head1 There's More Than One Way to Find Files
+
+=head2 File::Find
+
+The very first release of perl 5 included L<File::Find>.  It provided a
+mechanism for searching a file hierarchy for files and, presumably, doing stuff
+with them.  You use it like this:
+
+  #!perl
+  use File::Find;
+
+  find(
+    {
+      follow => 1, # follow symlinks
+      wanted => sub {
+        if (-d and $File::Find::dir =~ m{(?:^|/)tmp$}) {
+          # skip tmp dirs everywhere, do not descend into them
+          $File::Find::prune = 1;
+          return;
+        }
+
+        return unless -s   > 1_000_000; # ignore small files
+        return unless -M _ < 86_400;    # files not touched today
+
+        process_big_file( $_ );
+      },
+    },
+    '.', # start processing in cwd
+  );
+
+Simple, right?
+
+Like many libraries that have their origins in the early days of Perl 5, its
+interface can seem a bit weird today.  The usual complaint is that the
+C<wanted> argument is not actually a test as to whether we want the file.  It's
+a combination of testing for whether we want a file, whether we want to descend
+into a directory, and doing whatever we want to do.
+
+Oh, and the whole thing works with package variables and used to have a bunch
+of problems with reentrancy.
+
+=head2 File::Find::Rule
+
+Quite a while ago, we got a much simpler API for doing this sort of thing in
+L<File::Find::Rule>.  It let you build up a query that would find the files you
+wanted, and then you could iterate over them doing stuff.  It got a nice
+separation of "find" and "do," and as a bonus, threw in a lot of nice methods
+for writing your query quickly.
+
+We'd write the above something like this:
+
+  #!perl
+  use File::Find::Rule;
+
+  my $rule = File::Find::Rule->new;
+  $rule->or(
+    $rule->new->directory->name( qr{(?:^|/)tmp$} )->prune->discard,
+    $rule->new->size('>1000000')->exec(sub { -M < 86_400 })
+  );
+
+  my $iter = $rule->start('.');
+
+  while (my $file = $iter->()) {
+    process_big_file( $_ );
+  }
+
+This looks a lot simpler – at least to me.  There are a whole heap of extra
+simple rules, too, and you can add your own.  I've used File::Find::Rule
+happily for years, except for the one case where it becomes I<completely
+intolerable>.  Allow me to demonstrate:
+
+  #!code
+  $ time perl -MFile::Find -e 'find({ wanted => sub { die $_ if -f $_ } }, "/")'
+  0.03s user 0.01s system 70% cpu 0.045 total
+
+This program takes nearly no time at all to run.  It starts looking for files
+in F</>, finds something, and the C<wanted> coderef exits immediately.
+
+  #!code
+  $ time perl -MFile::Find::Rule -e 'my $iter = File::Find::Rule->start("/"); die $iter->()'
+  ...
+  ...
+  ...
+  (okay, I finally killed it)
+
+File::Find::Rule actually compiles your rules down to use File::Find, but it
+loses one of File::Find's key properties:  it is not lazy.  Even if you ask for
+an iterator, it slurps up all the files, then iterates over that list.  If
+you want to look through millions of files, this is just not going to cut it.
+
+That doesn't mean you need to go back to File::Find, though.
+
+=head2 Path::Class::Rule
+
+  #!code
+  $ time perl -MPath::Class::Rule -e 'my $iter = Path::Class::Rule->new->file->iter("/"); die $iter->()'
+  0.09s user 0.01s system 86% cpu 0.117 total
+
+Okay, so it's fast.  What is it?
+
+L<Path::Class::Rule> is yet another file finder, with an interface very much
+like that of File::Find::Rule, with two key differences:  it provides
+L<Path::Class> objects instead of filename strings, and its iterator is
+actually lazy.
+
+We could write our search as:
+
+  #!perl
+  use Path::Class::Rule;
+
+  my $rule = Path::Class::Rule->new;
+  $rule->skip( $rule->new->directory->name( qr{(?:^|/)tmp$} ) );
+  $rule->size(">1000000");
+  $rule->and(sub { -M < 86_400 });
+
+  my $iter = $rule->iter('.');
+
+  while (my $file = $iter->()) {
+    process_big_file( "$_" );
+  }
+
+There are a bunch of little differences between File::Find::Rule and
+Path::Class::Rule, but it's worth getting over them so that when you need to
+take your program and run it against that huge set of files you accidentally
+let accumulate under F</var> because you thought that the other guy was taking
+care of it (I mean, it's pretty much his responsibility, right?)... well, you
+just want the program to work without having to read the whole filesystem into
+memory first, right?
+
+=head1 See Also
+
+=for :list
+* L<Path::Class::Rule>
+* L<Path::Class>
+* L<File::Find>
+* L<File::Find on the Perl Advent Calendar|http://www.perladvent.org/2000/16/>
+* L<File::Find::Rule>
+* L<File::Find::Rule on the Perl Advent Calendar|http://www.perladvent.org/2002/11th/>
+* L<File::Next> - another file finder that is quite nice

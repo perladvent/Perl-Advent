@@ -1,0 +1,225 @@
+Title: Taming Search with Data::SearchEngine
+Topic: Data::SearchEngine
+Author: Cory G Watson <gphat@cpan.org>
+
+Sooner or later it's going to happen: Someone will request a feature of your
+application's search code.  It might be gentle at first.  A casual remark about
+speed, functionality or scalability will meander into your bug tracker, standup
+meeting or planning session. At first you will nod and file it away, knowing
+that it takes a few requests for something to really stick. Pretty soon a
+second, perhaps unrelated, request will arrive. Before you know it you'll be
+surrounded by reminders, almost
+L<Tribble-like|http://en.wikipedia.org/wiki/Tribble>, of a sobering fact:
+
+C<SELECT * FROM table WHERE description LIKE "whatever%"> isn't going to cut
+it anymore.
+
+=head2 Investigating Your Options
+
+There are B<lots> of ways to add search to your application.  The details of
+which largely depend on the type of data you are searching. You are on your
+own for evaluating and testing search-engines.  There are plenty of resources
+for that task.
+
+Instead, lets focus on what to do to minimize the impact to your application
+when adopting or changing search engines.
+
+=head2 The Problem with Search
+
+Every search library has a different interface.  Assuming you are using
+something similar to L<MVC|http://en.wikipedia.org/wiki/Model–view–controller>,
+you'll have code in each layer that deals with the implementation-specific
+functionality.  Your controller will have to parse requests and build queries
+to send to the model, and the view will need to iterate over and display the
+results. The model will bear the brunt of the changes, but that's what models
+are for.
+
+Needing to rewrite our controller and view every time we adjust our search or –
+worse yet – each time we evaluate a new search product is a real pain. I bet we
+can fix this if we just add another layer of abstraction!
+
+=head2 Enter Data::SearchEngine
+
+Data::SearchEngine is a toolbox that comes with everything you need to wrap a
+pretty API around your search implementation.  It even has two wrappers already
+written: one for L<Solr|http://lucene.apache.org/solr/> and one for
+L<ElasticSearch|http://www.elasticsearch.org/>. Before we talk about those
+let's take a moment to wrap up your average SQL-based search with these tools
+so you can see how they work.
+
+=head2 Step 1: Subclass!
+
+First, you'll want to create a Data::SearchEngine::MySearch that wraps your
+implementation:
+
+    #!perl
+    package Data::SearchEngine::MySearch;
+    use Moose;
+
+    with 'Data::SearchEngine';
+
+    sub search {
+      my ($self, $query) = @_;
+    }
+
+    1;
+
+We're consuming a L<Moose
+roles|https://metacpan.org/module/Moose::Cookbook::Roles::Recipe1> called
+L<Data::SearchEngine|https://metacpan.org/module/Data::SearchEngine> that
+requires the implementation of a method called C<search>.  Let's imagine that
+your search code just searches a databases using C<LIKE>.  I'm sure you can
+imagine a bit of code that executes that query and gets back a resultset,
+right?  Great!  Let's move on to the next bit then.
+
+B<Note:> That role also requires that you implement C<find_by_id>.  You can
+just make an empty sub to satisfy it for now.
+
+=head2 Step 2: Getting the Query
+
+The query is the request that the user has given us to find something. This is
+where the rubber really meets the road, as we need to create a query format
+that any search engine can use.  We won't try to abstract the syntax, but we
+can provide a container:
+
+L<Data::SearchEngine::Query|https://metacpan.org/module/Data::SearchEngine::Query>
+gives us a simple Query object:
+
+    #!perl
+    my $query = Data::SearchEngine::Query->new(
+        count => 10, # the number of results we'd like
+        page  => 1,  # the page we are on
+        query => 'elephants', # the query we're searching for
+    );
+
+    my $se = Data::SearchEngine::MySearch->new;
+
+    my $results = $se->search($query);
+
+Easy, eh? Your search backend may need more information or have a more
+complex query format, but that's ok.  Data::SearchEngine::Query has a
+permissive C<query> attribute plus hooks for things like filters.
+
+=head2 Step 3: Results!
+
+That last code example showed getting results back.  How does that work?  Let's
+write it!  Start with our C<MySearch> example earlier, but put some meat on
+it's bones:
+
+    #!perl
+    sub search {
+      my ($self, $query) = @_;
+
+      # ... your internal search junk, run some SQL maybe?
+
+      my $result = Data::SearchEngine::Results->new(
+          query => $query,
+          pager => Data::Paginator->new(
+            current_page => $query->page,
+            entries_per_page => $query->count,
+            total_entries => # results from your query!
+          )
+      );
+
+      # Iterate over your resultset here.
+      foreach my $hit (@hits) {
+          $result->add(Data::SearchEngine::Item->new(
+              id => $hit->id, # The unique id for this item
+              # Put any data you want to use in your result listing into
+              # this values hash.
+              values => {
+                  name => $hit->name,
+                  description => $hit->description
+              },
+              score => $hit->score
+          ));
+      }
+
+      # Return the result
+      return $result;
+    }
+
+That bit of code is pretty simple. We run our query and then store each row
+that is returned for that page in a L<Data::SearchEngine::Results> object.
+Now that we have our results we can show them to the user.
+
+B<Note:> Data::SearchEngine uses a special paginator class called
+L<Data::Paginator> that has many of the features of L<Data::Page|https://metacpan.org/module/Data::Page>
+and L<Data::Pageset|https://metacpan.org/module/Data::Pageset>. Since all of
+Data::SearchEngine is serializable there needed to be an easily serializable,
+Moose-based pagination module.  Hence Data::Paginator!
+
+=head2 Step 4: Show Our Answers
+
+The aforementioned Results object has an attribute C<items>. This is an array
+of
+L<Data::SearchEngine::Item|https://metacpan.org/module/Data::SearchEngine::Item>
+objects.  Displaying our results is as simple as iterating over this array.
+We'll write this in Perl, but it's easy to translate into your favorite
+templating module.
+
+    #!perl
+    foreach my $item (@{ $result->items }) {
+        print $item->id.' '.$item->get_value('name')."\n";
+    }
+
+That's it!  You'll use C<get_value> to retrieve any fields other than C<id>
+from the item.
+
+=head2 Done, So Now What?
+
+You've now successfully wrapped your internal search code with a powerful
+abstraction.  You could now easily experiment with
+L<ElasticSearch|https://metacpan.org/module/Data::SearchEngine::ElasticSearch>
+or L<Solr|https://metacpan.org/module/Data::SearchEngine::Solr>, the
+two search products for which there are existing Data::SearchEngine backends.
+Or you could take what you've just learned and create a new backend for a
+different search product.
+
+=head2 Some Other Noteworthy Features
+
+The Query object has lots of convenience methods for filtering (limiting your
+results via a filter such as "price > 20") and faceting (counting the number of
+items with different attributes so you can filter them).  It will also generate
+a unique digest based on it's attributes so that you can cache results.
+
+The Results object can be subclassed if your implementation needs some new
+features.  There are existing roles for
+L<Faceting|https://metacpan.org/module/Data::SearchEngine::Results::Faceted>
+and
+L<Spellchecking|https://metacpan.org/module/Data::SearchEngine::Results::Spellcheck>.
+Just have your C<search> method return the subclass.
+
+Results, Query and Item objects are all serializable using
+L<MooseX::Storage|https://metacpan.org/module/MooseX::Storage> via
+L<Deferred|https://metacpan.org/module/MooseX::Storage::Deferred>.  This is
+provided to make caching easy.
+
+Finally, keep in mind that Query is just a guide.  Your implementation may
+require much more complex syntax and Data::SearchEngine tries to stay out
+of the way.  For example the ElasticSearch query DSL uses hashrefs, not strings:
+
+    #!perl
+    # A real example using ElasticSearch
+    my $query = Data::SearchEngine::Query->new(
+        count => 20,
+        page => 1,
+        type => 'query_string',
+        query => {
+            'query' => 'foobar',
+        },
+        order => { 'date_crated' => 'desc' }
+    );
+
+=head2 Conclusion
+
+You might not change search backends every week, but taking a bit of time to
+wrap your custom implementation in something featureful can save you a lot of
+trouble down the road.  It also provides you with some great features as a
+result!
+
+=head1 See Also
+
+=for :list
+* L<Data::SearchEngine>
+

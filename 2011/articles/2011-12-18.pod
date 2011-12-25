@@ -1,0 +1,93 @@
+Title: Munge All the Filenames!
+Topic: rename
+
+=head1 A Shameful Admission
+
+It has come to pass many times that I've needed to rename a bunch of files.  I
+had a bunch of strategies for doing this, and I never picked one and stuck to
+using it.  I I<certainly> never build a reusable tool for it, which meant that
+every time I did it, I screwed things up in a new and exciting way.
+
+Sometimes a one-liner in shell would do it:
+
+  #!vim sh
+  for f in *.txt; { mv "$f" "$f.old" }
+
+Or maybe:
+
+  #!vim sh
+  for f in *.txt; { BASE=$(basename $f .txt); mv "$f" "$BASE.yaml" }
+
+Other times, I'd resort to Perl:
+
+  #!perl
+  use autodie qw(rename);
+  my @files   = grep { -f } <*>;
+  for my $file (@files) {
+    my $new = $file =~ s/^([0-9]+)/sprintf '%4u', $1/e;
+    rename $file => $new;
+  }
+
+Actually, I am relieved to note that I can't even easily show what I usually
+did, which was just deplorable.  I'd run Vim and do something like C<:r !find .
+-type f> to get a list of files, then do some C<:v/.../d> to delete files I
+didn't care to rename, then maybe put it in a C<__DATA__> section to iterate
+over or maybe use a block yank-and-put to build up a file that looked like
+this:
+
+  #!code
+  file1.pdf         "File 01.pdf"
+  file2.pdf         "File 02.pdf"
+  file10.pdf        "File 10.pdf"
+  file18.pdf        "File 18.pdf"
+
+Then I could just C<:%s/^/mv /> to put a C<mv> at the front of every line and
+pipe it through C<sh>!  Seriously, I<I did this>.  But I've gotten better.
+Now I use L<rename>.
+
+  #!code
+  rename '$_ = ucfirst; s/([0-9]+)/sprintf "%02u", $1/e;' *.pdf
+
+I love writing one-liners, but I always get them wrong.  For example, that one
+above has a bug.  With lots of one-liners, I can just run them over and over
+until I get it right.  When renaming files, though, you don't want to actually
+do it until you have it right – so there's the C<-n> switch to do a dry run:
+
+  ~$ rename -n '$_ = ucfirst; s/([0-9]+)/sprintf "%02u", $1/e;' *.pdf
+  rename file1.pdf File01.pdf
+  rename file10.pdf File10.pdf
+  rename file18.pdf File18.pdf
+  rename file2.pdf File02.pdf
+
+Oops.  I need to add whitespace.
+
+  ~$ rename -n '$_ = ucfirst; s/ *([0-9]+)/sprintf " %02u", $1/e;' *.pdf
+  rename file1.pdf File 01.pdf
+  rename file10.pdf File 10.pdf
+  rename file18.pdf File 18.pdf
+  rename file2.pdf File 02.pdf
+
+Great!  Drop the C<-n> and our files get renamed!
+
+If you need to do something more complicated – like keep a counter to number
+your files, you can write a whole subroutine in a "real" program:
+
+  #!perl
+  use strict;
+  use File::Rename;
+  my @files = @ARGV || die "no files given!";
+
+  my $i     = 1;
+  my $width = length scalar @files;
+  File::Rename::rename(
+    @files,
+    sub { s/^/sprintf '%0*u - ', $width, $i++/e },
+  );
+
+=head1 See Also
+
+=for :list
+* L<rename>
+* L<File::Rename>
+* L<mfn> is a specialized renamer for dealing in bulk with terrible filenames
+* L<a list of other Perl renamers|https://socialtext.net/perl5/prename>

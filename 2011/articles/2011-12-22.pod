@@ -1,0 +1,307 @@
+Title:  Less Tedium, More Transactions
+Topic:  DBIx::Connector
+Author: David Wheeler <david@justatheory.com>
+
+A frequent pattern when writing database-backed applications with the L<DBI>
+is to connect to the database and cache the database handle somewhere. A
+simplified example:
+
+  #!perl
+  package MyApp::DB;
+  use DBI;
+  use strict;
+
+  my $DBH = DBI->connect('DBI:SQLite:dbname=myapp.db', '', '', {
+      PrintError     => 0,
+      RaiseError     => 1,
+      AutoCommit     => 1,
+      sqlite_unicode => 1,
+  });
+
+  sub dbh { $DBH }
+
+Just load MyApp::DB anywhere in your app and, whenever you want to use the
+database, grab the handle from C<< MyApp::DB->dbh >>.
+
+This pattern is common enough that L<Apache::DBI> was created to magically do
+it for you on mod_perl, and the DBI added
+L<C<connect_cached()>|DBI/connect_cached> so that it could cache connections
+itself. However, each of these solutions has some issues:
+
+=over
+
+=item *
+
+What happens when your program forks? Apache::DBI handles this condition, but
+neither the home-grown solution nor C<connect_cached()> does, and identifying
+a forked database handle as the source of a crash is notoriously unintuitive.
+
+=item *
+
+What happens when your program spawns a new thread? Sure, some DBI drivers
+might still work, but others might not. Best to treat new threads the same as
+new processes and reconnect to the database. Neither Apache::DBI nor
+C<connect_cached()> deal with threading issues, and of course neither does the
+custom solution.
+
+=item *
+
+Apache::DBI is magical and mysterious; but the magic comes with serious
+side-effects. Apache::DBI plugs itself right into the DBI itself, replacing
+its connection methods (which is why load ordering is so important to use it
+properly). Knowledge of Apache::DBI is actually built right into the DBI
+itself, meaning that the magic runs deep and both ways. These are pretty
+serious violations of encapsulation in both directions.
+
+=item *
+
+C<connect_cached()> has a bit of its own unfortunate magic. Every call to
+C<connect_cached()> resets the connection attributes. So if you have code in
+one place that starts a transaction, and code elsewhere but executed in the
+same scope that also fetches a C<connect_cached()> handle, the transaction
+will be committed then and there, even though the code that started it might
+not be done with it. One can L<work around this issue via
+callbacks|http://justatheory.com/computers/programming/perl/dbi-connect-cached-hack.html>,
+but it's a bit of a hack.
+
+=back
+
+Using a custom caching solution avoids the magic, but getting fork- and
+thread-safety right is surprisingly non-trivial, in the same way that L<doing
+your own exception-handling is surprisingly
+non-trivial|http://perladvent.org/2011/2011-12-17.html>.
+
+Enter L<DBIx::Connector>, a module that efficiently manages your database
+connections in a thread- and fork-safe manner so that you don't have to. If
+you already have a custom solution, switching to DBIx::Connector is easy. Here's
+a revision of MyApp::DB that uses it:
+
+  #!perl
+  package MyApp::DB;
+  use DBIx::Connector;
+  use strict;
+
+  my $CONN = DBIx::Connector->new('DBI:SQLite:dbname=myapp.db', '', '', {
+      PrintError     => 0,
+      RaiseError     => 1,
+      AutoCommit     => 1,
+      sqlite_unicode => 1,
+  });
+
+  sub conn { $CONN }
+  sub dbh  { $CONN->dbh }
+
+Simple, right? You pass exactly the same parameters to C<< DBIx::Connector->new
+>> that you passed to C<< DBI->connect >>. The DBIx::Connector object simply
+proxies the DBI. You want the database handle itself, just call C<dbh()> and
+proceed as usual, confident that if your app forks or spawns new threads, your
+database handle will be safe. Why? Because DBIx::Connector detects such
+changes, and re-connects to the database, being sure to properly dispose of the
+original connection. But really, you don't have to worry about that, because
+DBIx::Connector does the worrying for you.
+
+=head3 Execution Methods
+
+DBIx::Connector is very good at eliminating the L<technical
+friction|http://www.modernperlbooks.com/mt/2011/11/on-technical-friction.html>
+of process and thread management. But that's not all there is to it.
+
+Although you can just fetch the DBI handle from your DBIx::Connector object
+and go, a better approach is to use its execution methods. These methods scope
+execution to a code block. Here's an example using
+L<C<run()>|DBIx::Connector/run>:
+
+  #!perl
+  $conn->run(sub {
+      shift->do($query);
+  });
+
+That may not seem so useful, and is more to type, but the real power comes
+from the L<C<txn()>|DBIx::Connector/txn> method. C<txn()> executes the code
+block within the scope of a transaction. So where you normally would write
+something like this:
+
+  #!perl
+  use Try::Tiny;
+  use MyApp::DBH;
+
+  my $dbh = MyApp::DBH->dbh;  
+  try {
+      $dbh->begin_work;
+      # do stuff...
+      $dbh->commit;
+  } catch {
+      $dbh->rollback;
+      die $_;
+  };
+
+The C<try()> method scopes the transaction for you, so that you can just focus
+on the work to be done and transaction management:
+
+  #!perl
+  use Try::Tiny;
+  use MyApp::DBH;
+
+  try {
+      MyApp::DBH->conn->txn(sub {
+          # do stuff...
+      }
+  } catch {
+      die $_;
+  };
+
+There's no need to call C<begin_work>, C<commit>, or C<rollback>, as C<txn()>
+does all that for you. Furthermore, it improves the maintainability of your
+code, as the scope of the transaction is much more clearly defined as the scope
+of the code block. Additional calls to C<txn()> or C<run()> within that block
+are harmless, and just become part of the same transaction:
+
+  #!perl
+  MyApp::DBH->conn->txn(sub {
+      my $dbh = shift;
+      $dbh->do($_) for @queries;
+      $conn->run(sub {
+          shift->do($expensive_query);
+          $conn->txn(sub {
+              shift->do($another_expensive_query);
+          });
+      });
+  });
+
+Even cooler is the L<C<svp()>|DBIx::Connector/svp> method, which scopes
+execution of a code block to a savepoint, or subtransaction, if your database
+supports it (all of the drivers currently supported by DBIx::Connector do).
+For example, this transaction will commit the insertion of values 1 and 3, but
+not 2:
+
+  #!perl
+  MyApp::DBH->conn->txn(sub {
+      my $dbh = shift;
+      $dbh->do('INSERT INTO table1 VALUES (1)');
+      try {
+          $conn->svp(sub {
+              shift->do('INSERT INTO table1 VALUES (2)');
+              die 'OMGWTF?';
+          });
+      } catch {
+             warn "Savepoint failed: $_\n";
+      };
+      $dbh->do('INSERT INTO table1 VALUES (3)');
+  });
+
+=head3 Connection Management
+
+The recommended pattern for using a cached DBI handle is to call
+L<C<ping()>|DBI/ping> when you fetch it from the cache, and reconnect if it
+returns false. Apache::DBI and C<connect_cached()> do this for you, and so does
+DBIx::Connector.  However, in a busy application C<ping()> can get called I<a
+lot>.  L<We|http://pgexperts.com/> recently did some query analysis for a
+client, and found that 1% of the database execution time was taken up with
+C<ping()> calls. That may not sound like a lot, but looking at the numbers, it
+amounted to 100K pings I<per hour>. For something that just returns true 99.9*%
+of the time, it seems a bit silly.
+
+Enter DBIx::Connector L<connection modes|DBIx::Connector/Connection Modes>.
+The default mode is "ping", as that's what most installations are accustomed
+to. A second mode is "no_ping", which simply disables pings. I don't recommend
+that.
+
+A better solution is to use "fixup" mode. This mode doesn't normally call
+C<ping()> either. However, if a code block passed to C<run()> or C<txn()>
+throws an exception, I<then> DBIx::Connector will call C<ping()>. If it
+returns false, DBIx::Connector reconnects to the database and executes the
+code block again. This configuration should handle some common situations,
+such as idle timeouts, without bothering you about it.
+
+Specify "fixup" mode whenever you call an execution method, like so:
+
+  #!perl
+  $conn->txn(fixup => sub { ... });
+
+You can also specify that your connection always use "fixup" via the
+L<C<fixup()>|DBIx::Connector/fixup> accessor. Modify the caching library like
+so (line 8 is new):
+
+  #!perl
+  my $CONN = DBIx::Connector->new('DBI:SQLite:dbname=myapp.db', '', '', {
+      PrintError     => 0,
+      RaiseError     => 1,
+      AutoCommit     => 1,
+      sqlite_unicode => 1,
+  });
+
+  $CONN->mode('fixup'); # ⬅ ⬅ ⬅  enter fixup mode!
+
+  sub conn { $CONN }
+  sub dbh  { $CONN->dbh }
+
+However, you must be more careful with fixup mode than with ping mode, because
+a code block can be executed twice. So you must be sure to write it such that
+there are no side effects to multiple executions. Don't do this, for example:
+
+  #!perl
+  my $count = 0;
+  $conn->txn(fixup => sub {
+      shift->do('INSERT INTO foo (count) VALUES(?)', undef, ++$count);
+  });
+  say $count; # may be 1 or 2
+
+Will it insert a value of C<1> or C<2>? It's much safer to remove
+non-transactional code from the block, like so:
+
+  #!perl
+  my $count = 0;
+  ++$count;
+  $conn->txn(fixup => sub {
+      shift->do('INSERT INTO foo (count) VALUES(?)', undef, $count);
+  });
+  say $count; # can only be 1
+
+An even trickier pattern to watch out for is something like this:
+
+  #!perl
+  my $user = 'rjbs';
+  $conn->run(fixup => sub {
+      my $dbh = shift;
+      $dbh->do('INSERT INTO users (nick) VALUES (?)', undef, $user);
+
+      # Do some other stuff...
+
+      $dbh->do('INSERT INTO log (msg) VALUES (?)', undef, 'Created user');
+  });
+
+If the database disconnects between the first and second calls to C<do>, and
+DBIx::Connector manages to re-connect and run the block again, you might get a
+unique key violation on the first call to C<do>. This is because we've used
+the C<run()> method. In the fist execution of the block, user "rjbs" was
+inserted and autocommitted. On the second call, user "rjbs" is already there,
+and because it's a username, we get a unique key violation.
+
+The rule of thumb here is to use C<run()> only for database reads, and to use
+C<txn()> (and C<svp()>) for writes. C<txn()> will ensure that the transaction
+is rolled back, so the second execution of the code block will be
+side-effect-free.
+
+=head3 Pedigree
+
+DBIx::Connector is derived from patterns originally implemented for
+L<DBIx::Class>, though it's nearly all original code. The upside for those of
+us who don't use ORMs is that we get this independent piece of ORM-like
+behavior without its ORMishness. So if you're a database geek like me,
+DBIx::Connector is a great way to reduce L<technical
+friction|http://www.modernperlbooks.com/mt/2011/11/on-technical-friction.html>
+without buying into the whole idea of an ORM.
+
+As it turns out, L<DBIx::Connector> is good not just for straight-to-database
+users, but also for ORMs. Both L<DBIx::Class> and L<Rose::DB> have plans to
+replace their own caching and transaction-handling implementations with
+DBIx::Connector hood. That will be great for everyone, as the problems will
+all be solved in this one place.
+
+=head1 See Also
+
+=for :list
+* L<DBIx::Connector>
+* L<DBI>
+* L<DBIx::Class>
+* L<Rose::DB>
