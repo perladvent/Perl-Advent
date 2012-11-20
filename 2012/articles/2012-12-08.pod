@@ -1,0 +1,71 @@
+Title: Atomic Gift Wrapping
+Topic: File::AtomicWrite
+Author: Yanick Champoux <yanick@cpan.org>
+
+Gift wrapping. You rarely want to do it by the Christmas Tree because you
+know, you just B<know> that just when you're in the middle of wrapping that
+huge I<Dino-Rampage Total Combat Battlezone> box, one of your child processes
+will innocently try to access the living room resources, see the half-ready
+present, go totally ape-boinker, and make every single day till Christmas a
+grueling hell.  So instead, you usually wrap the presents in some dark corner
+of the house — usually the attic, the shed, or the secret room you built
+specifically for that purpose. Then, when the pile o' prezzies is ready, you
+carefully peek out in the hallway, make sure there is no living being in sight,
+rush down the stairs holding the loot with every prehensible limb available,
+and dump the whole thing under the tree. When the amazed kids ask how the
+glittery boxes got there? Well… I<Magic>.
+
+Atomic file writing? Exactly the same thing.
+
+Most of the time, you can write files at your leisure, but sometimes you have
+other programs that can access it at any time, and you don't want them to end
+up bits and pieces. So you either begin to play with locking the file ("No one
+enter the room until I'm done!") or you write the new file in a different
+place, and when everything is ready, you do a quick switcheroo where you
+replace the old copy with its new incarnation. There is still a window where
+things can go wrong, but it's a minimal one.
+
+Of course, the switcheroo is much easier (and funnier) to say than to do. That
+is, unless you use L<File::AtomicWrite>, which takes care of all the nitty
+gritty details for you. To wit:
+
+  #!perl
+  use File::Atomic;
+
+  my $present_list = File::Atomic->new({ file => '/etc/wishlist' });
+
+  my $fh = $present_list->fh;
+
+  say {$fh} 'For Xmas, I want:';
+
+  say {$fh} 'A pony';
+
+  # snip 10,000 lines
+
+  say {$fh} 'And a Rocket-Raptor Sky Armageddon action figure';
+
+  $present_list->commit;
+
+Or, alternatively:
+
+  #!perl
+  use File::Atomic;
+
+  File::AtomicWrite->write_file({
+    file  => '/etc/wishlist',
+    input => \$all_i_want,
+  });
+
+To accomodate different levels of paranoia, the module allows for several
+options, including the directory in which the temporary file is written, the
+template for the name of said temporary file, optional checksum of the data to
+be written, the minimal size that data should be (wishlist under 50K?
+IMPOSSIBLE!), and much, much more. But, and this is the good news, all the hard
+stuff has been taken off your plate. Now all you need to do is to write to
+the file (easy) or, in the real world equivalent, find the gift that needs to
+be appended under the tree (… okay, maybe not that easy).
+
+=head1 See Also
+
+=for :list
+* L<File::AtomicWrite>
