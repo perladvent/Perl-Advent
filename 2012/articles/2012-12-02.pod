@@ -1,0 +1,211 @@
+Title: My Favorite Pies
+Topic: perl -pi -e
+Author: Ricardo Signes <rjbs@cpan.org>
+
+I like pie.
+
+I prefer pie to cake, and within the realm of pies, I have a few favorites.
+Almost certainly, my favorite pie is L<pumpkin
+pie|http://en.wikipedia.org/wiki/Pumpkin_pie>.  When I learned that it's
+primarily an American dessert, and had a few Brits tell me that making
+something sweet from pumpkin sounded awful… well, I was pretty broken up about
+those poor lost souls.
+
+Pumpkin pie isn't much of a Christmas treat, though.  At Christmas, I might be
+more likely to get a slice of L<chess
+pie|http://en.wikipedia.org/wiki/Chess_pie>.  Chess pie is even more American,
+and mostly found in the South.  It's pretty much eggs, sugar, more sugar, and
+vinegar.  Some people call it "vinegar pie."  Trust me, it's better than it
+sounds.
+
+Chess pie is good stuff, but I'm sort of expected to write something about
+I<Perl> today, so I'm going to write about I<Perl pie>.  Perl pies are a
+great treat.  They're good for you, they're easy to make, and they require very
+little Perl expertise to make.
+
+=head2 I don't want to put Perl in my mouth.
+
+I don't either!  Also, no baking is going to be required, and we're certainly
+not going to make anything in a microwave.
+
+=head2 Okay, then, carry on.
+
+L<Perl's command line switches|perlrun> are pretty darn cool.  Last year, I
+wrote about L<the -M switch|http://perladvent.org/2011/2011-12-05.html> and
+some tricks you could pull with it.  There are lots of poorly-known switches
+that can be put to great use, in there.  I'd love to cover them all, but for
+now I'm going to start with C<-n>.
+
+Let's imagine we've got some input file, F<file.txt>:
+
+  #!code
+  Alfa
+  Bravo
+  Charlie
+  Delta
+  Echo
+
+The C<-n> switch implicitly wraps our program in a loop like this:
+
+  #!perl
+  LINE: while (<>) {
+    # your program goes here
+  }
+
+This is great for doing things you might otherwise do with C<awk> or C<sed>.  I
+haven't used either of those in years, because of C<perl>.  For example, we
+could write this:
+
+  #!perl
+  #!/usr/bin/perl -n
+  die "bogus first character" unless /\A[A-Z]/;
+  s/\A(.)\K/ is the abbreviation for $1/;
+  print;
+
+...to get...
+
+  #!code
+  A is the abbreviation for Alfa
+  B is the abbreviation for Bravo
+  C is the abbreviation for Charlie
+  D is the abbreviation for Delta
+  E is the abbreviation for Echo
+
+In fact, in my experience almost all programs I'd write with C<-n> end with
+C<print>, so I never use C<-n>.  Instead, I use C<-p>, which is exactly the
+same but adds:
+
+  #!perl
+  continue {
+    print or die "-p destination: $!\n";
+  }
+
+The general idea is that now your program is a set of transformations on
+repeated input, and that you're just editing the stream as it goes by, line by
+line.  It's quite sed-y.
+
+The C<-n> and C<-p> switches are both usable on the shebang line, but they're
+rarely seen there — it's pretty easy to type the loop out when you're making a
+program that you're going to keep around a while.  They're much more commonly
+seen in one-liners with the famous and beloved C<-e> (or its younger brother
+C<-E>).  Does your system lack C<nl> for numbering lines?  No problem:
+
+  #!code
+  ~$ perl -pe '$_ = sprintf "%6u: $_", $.' file.txt
+       1: Alfa
+       2: Bravo
+       3: Charlie
+       4: Delta
+       5: Echo
+
+(Remember C<$.>?  It's the current line number of the file you're reading.)
+
+Somebody deleted C<grep>?  And L<ack>?  Will, it sounds like you've got some
+personnel problems to deal with, but in the meantime, okay:
+
+  #!code
+  ~$ perl -ne 'print "$.: $_" if /l/' file.txt
+  1: Alfa
+  3: Charlie
+  4: Delta
+
+Note that while we I<could> have used C<-n> in writing the first example,
+replacing C<sprintf> with C<printf>, but we I<had to> use C<-n> in the second
+example!  Because the C<print> is in a C<continue>, you can't avoid printing by
+using C<next>.  For that, we must stick to C<-n>.
+
+=head2 I was told there would be pie.
+
+Yes, well…  from C<-p> and C<-n> and C<-e>, we can make a Perl I<pen>, but not
+a pie.  For pie, we're obviously going to need some C<-i>.
+
+The C<-i> switch will be familiar to C<sed>-loving grognards.  It lets us edit
+files on disk, using any value given to the switch as a backup file extension.
+So:
+
+  #!code
+  ~$ cat file.txt
+  Alfa
+  Bravo
+  Charlie
+  Delta
+  Echo
+  ~$ perl -p -i.bak -e 's/[a-z]/-/g' file.txt
+  ~$ cat file.txt
+  A---
+  B----
+  C------
+  D----
+  E---
+  ~$ cat file.txt.bak
+  Alfa
+  Bravo
+  Charlie
+  Delta
+  Echo
+
+Now, using an argument to C<-i> is a I<very> good idea.  Perl's handling of
+I/O errors when dealing with files with C<-i> isn't the best, and you can lose
+data if you (or your operating system) screws up.  That said… I don't think I
+ever actually use F<.bak> or anything like that.  That's what C<git> is for,
+right?  In my use, the most important reasons to know about that F<.bak> option
+are (1) to inform other users so that I have plausible deniability when they
+ruin their unrecoverable data and (2) to remember that B<you cannot write
+C<perl -pie>>.  That's why Perl pies look like this:
+
+  #!code
+  $ perl -pi -e 's/../.../' input.txt
+
+=head1 Now bake me a pie!
+
+I use Perl pies quite often, especially for doing mechanical refactoring of
+code.  For example, let's say that I've done a bunch of work on making a
+library called Pumpkin::Walnut, and it's got a number of associated subclasses,
+and there's Pumpkin::WalnutX, etc.  It turns out that for legal reasons, we
+can't call it Walnut and have to rebrand the whole thing as Pumpkin::Filbert.
+First we do a bit of renaming of the files in F<lib>, possibly using
+L<rename|http://perladvent.org/2011/2011-12-18.html>, and then muck about in
+the files themselves:
+
+This is a piece of cake (so to speak):
+
+  $ perl -pi -e 's/Pumpkin::Walnut/Pumpkin::Filbert/g' $(find lib -type f)
+
+...then review for absurdity by consulting C<git diff>.
+
+Adding editor hints to your files is trivial:
+
+  $ perl -pi -e 'print "%# vim: ft=mason:\n" if $. == 1' $(file mason -type f)
+
+You can fix wonky newlines:
+
+  $ perl -pi -e 's/\x0A?\x0D/\n/g' file.txt
+
+...and of course you can do all sorts of things I<other> than C<s///>.  Here's
+a longer-form of a one-liner I keep lying around:
+
+  #!code
+  ~$ cat numbers.csv
+  5,7,7,9,14,13,9,3,0,6
+  18,6,17,15,5,19,2,0,16,12
+  5,3,5,5,9,13,19,13,4,17
+  16,16,14,1,10,2,10,2,11,9
+  15,1,14,14,18,12,4,10,16,16
+
+  ~$ perl -MList::Util=sum -ani -F, -E 'say sum @F' numbers.csv
+  ~$ cat numbers.txt
+  73
+  110
+  93
+  91
+  120
+
+It's a lot of fun to write big applications in Perl, using all the other
+libraries we talk about every other day on the Perl Advent Calendar, but
+sticking to plain old core Perl is still a pretty sweet way to solve tons of
+everyday problems.
+
+=head1 See Also
+
+=for :list
+* L<perlrun>
