@@ -1,0 +1,93 @@
+Title: Sleigh Upgrade
+Topic: Scope::Upper
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Santa's little helpers had just completed an upgrade to his fleet of sleighs.
+Ruldoph was getting tired of lighting the way each night, and wanted a year
+off, so they'd I<finally> fitted some headlights.  They'd also updated their
+code to turn them on and off again automatically (so the batteries didn't wear
+out) whenever Santa took off:
+
+  #!perl
+  sub fly_to_next_house {
+    my $self = shift;
+
+    $self->sleigh->lights(1);
+
+    $self->gps->set_destination( shift(@{ $self->nice_list })->address );
+    $self->sleigh->fly_to_destination( $self->gps );
+
+    $self->sleigh->lights(0);
+  }
+
+"I like it," said Santa, "but what happens though if the GPS doesn't know where
+the address is?"
+
+"Hmmm", said the wise old elf, "well, it is running Apple Maps so I guess there
+I<might> be a problem".  "But", he continued, "not to worry.  The
+set_destination method throws an exception and there's some I<terribly>
+complicated code that catches it and deals with it in the routine that calls
+C<fly_to_next_house>."
+
+"Ha! The elves just look it up on Google Maps you mean.", Santa laughed,
+"Though that's not what I'm on about.  Look: If the GPS throws and an exception,
+can't you see the B<lights never get turned off> because the code to do so
+won't be executed."
+
+"Oh crumbs", the elf conceded, "well, I guess we could use a localized variable
+to set the lights.  Those are automatically unset at the end of the current
+scope no matter what - even if you do exit by an exception!"
+
+  #!perl
+  sub fly_to_next_house {
+    my $self = shift;
+
+    local $Sliegh::Lights = 1;
+
+    $self->gps->set_destination( shift(@{ $self->nice_list })->address );
+    $self->sleigh->fly_to_destination( $self->gps );
+  }
+
+Santa stroked his beard for a few minutes.  Then he shook his head.  "No,
+that's not going to work.  For a starters you've mistyped 'Sleigh,' and since
+there's no error with misspelled fully qualified variables, the sleigh will
+end up flying me in the dark!  Even if you fix that, this isn't going to
+work with one single variable controlling all the lights on every one of my
+sleighs."
+
+"Oh, good point, "how about this then?"
+
+  #!perl
+  sub fly_to_next_house {
+    my $self = shift;
+
+    $self->sleigh->turn_lights_on_till_end_of_scope;
+
+    $self->gps->set_destination( shift(@{ $self->nice_list })->address );
+    $self->sleigh->fly_to_destination( $self->gps );
+  }
+
+"That's great! How did you do that?"
+
+"Well, that's why they call me the I<Wise> Old Elf"
+
+  #!perl
+  package Sleigh;
+  ...
+
+  use Scope::Upper qw(reap UP);
+
+  sub turn_lights_on_till_end_of_scope {
+    my $self = shift;
+
+    # turn on the lights
+    $self->lights(1);
+
+    # and turn them off again we exit our caller's scope
+    reap { $self->lights(0) } UP;
+  }
+
+=head1 See Also
+
+=for :list
+* L<Scope::Upper>
