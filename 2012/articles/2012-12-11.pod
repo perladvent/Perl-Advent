@@ -1,0 +1,112 @@
+Title: Making a list and checking it twice
+Topic: IO::Prompt::Tiny
+Author: David Golden <dagolden@cpan.org>
+
+Poor Santa.  It's getting close to Christmas, and he still hasn't made his
+list of CPAN authors yet!  Who will get coal?  Who will get a present?
+
+With the clock ticking, he decides to automate his list building with Perl,
+but still needs to check it twice.
+
+Santa doesn't need a GUI, he likes the terminal just fine, so he's going to
+write a program to decide if the CPAN authors are naughty or nice and
+then prompt him to confirm each one.
+
+How should he prompt?  He likes the nice simple prompt of ExtUtils::MakeMaker,
+should he use it?
+
+    $ perl -MExtUtils::MakeMaker -wE 'prompt("Naughy?", "yes")'
+    Naughty? [yes]
+
+Loading all of ExtUtils::MakeMaker just to get a prompt is just a little bit
+gross, so maybe he can do better.  Next stop… CPAN!
+
+So many prompting modules to choose from… (sigh)… the usual problem
+with CPAN.  But wait, look!  A "Tiny" module, and it works B<exactly>
+like ExtUtils::MakeMaker… M<IO::Prompt::Tiny>.
+
+Santa decides to give it a try:
+
+    #!perl
+    use v5.14;
+    use warnings;
+
+    use File::Slurp qw/write_file/;
+    use IO::Prompt::Tiny qw/prompt/;
+    use ORDB::CPANUploads;
+    use Time::Piece;
+
+    # Find each CPAN author's latest release date
+    # If they didn't release in 2012, let's call them naughty
+    my $results = ORDB::CPANUploads->selectall_arrayref(
+      'select author, max(released) from uploads group by author',
+    );
+
+    # Make a list
+    my %list;
+
+    for my $author (@$results) {
+      my $id   = $author->[0];
+      my $date = gmtime( $author->[1] );
+
+      # Check it once
+      my $prompt = sprintf( "\n%-9s released on %s.  Naughty? (yes/no)", $id, $date );
+      my $ans = prompt( $prompt, $date->year < 2012 ? "yes" : "no" );
+      $list{$id} = ( $ans =~ /^y/i ? "naughty" : "nice" );
+
+      # Check it twice
+      my $check = prompt( "Are you sure $id is $list{$id}? (yes/no)", "yes" );
+      redo unless $check =~ /^y/i;
+    }
+
+    write_file(
+      'list.txt',
+      { atomic => 1 },
+      map { "$_ is $list{$_}\n" } sort keys %list
+    );
+
+Excellent, now he's ready to make his list and find all those naughty
+CPAN authors who haven't released in 2012:
+
+    $ perl naughty-or-nice.pl
+
+    AADLER    released on Sun Feb 13 20:32:59 2011.  Naughty? (yes/no) [yes] 
+    Are you sure AADLER is naughty? (yes/no) [yes] 
+
+    AAKD      released on Wed Nov  9 06:26:08 2005.  Naughty? (yes/no) [yes] 
+    Are you sure AAKD is naughty? (yes/no) [yes] 
+
+    AAKHTER   released on Thu Nov 10 03:18:33 2005.  Naughty? (yes/no) [yes] 
+    Are you sure AAKHTER is naughty? (yes/no) [yes] 
+
+    AALLAN    released on Fri Nov 17 20:44:54 2006.  Naughty? (yes/no) [yes] 
+    Are you sure AALLAN is naughty? (yes/no) [yes] 
+
+    AANOAA    released on Sat Feb 12 09:10:34 2011.  Naughty? (yes/no) [yes] 
+    Are you sure AANOAA is naughty? (yes/no) [yes] 
+
+    AAR       released on Sun Mar 11 19:50:00 2012.  Naughty? (yes/no) [no] 
+    Are you sure AAR is nice? (yes/no) [yes] 
+
+    AARDEN    released on Wed Apr 30 16:19:59 2003.  Naughty? (yes/no) [yes] 
+    Are you sure AARDEN is naughty? (yes/no) [yes]
+
+    ⋮
+
+    ZWON      released on Thu Sep  1 15:21:14 2011.  Naughty? (yes/no) [yes] yes
+    Are you sure ZWON is naughty? (yes/no) [yes] yes
+
+    ZZZ       released on Tue Aug 16 17:05:53 2011.  Naughty? (yes/no) [yes] yes
+    Are you sure ZZZ is naughty? (yes/no) [yes] yes
+
+After bouncing on the return key almost 12,000 times, Santa is ready for
+Christmas on CPAN!
+
+
+=head1 See Also
+
+=for :list
+* L<IO::Prompt::Tiny>
+* L<IO::Prompt::Hooked> - a handy, minimalist validation wrapped around IO::Prompt::Tiny
+* L<IO::Prompter> - a feature-packed all-singing all-dancing bit of Damianware
+* IO::Prompter::Tinier - not yet written
