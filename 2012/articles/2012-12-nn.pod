@@ -1,0 +1,223 @@
+Title: Expanding Your CGI Parameters with CGI::Expand
+Topic: CGI::Expand
+
+=head1 CGI and parameters
+
+The Common Gateway Interface (CGI) restricts developers to structuring parameters
+into C<name=value> pairs. For instance, let's say you have a page (index.pl - as
+shown in the "Full Code Example" section) that prints the pairs of parameters 
+passed through a GET or POST. 
+
+When you access the page through the GET method with the following Universal Resource 
+Identifier (URI) C<index.pl?animal=camel&language=perl> you see:
+
+  #!code
+  animal: camel
+  language: perl
+  
+When you access the page through the POST method with values selected for the various
+form elements on the page you also see:
+
+  #!code
+  animal: camel
+  language: perl
+  
+The relevant code from the page, index.pl, that performs these operations looks like:
+
+  #!code
+  for my $param_name (param)
+  {
+      print "$param_name: ";
+      my @param_values = param($param_name);
+      print join(", ", @param_values), "<br />\n";
+  }
+
+
+As you can read in the code, the C<param> method provides the functionality we're 
+interested in discussing today. When called without a parameter, C<param> or C<param()>,
+ the method returns a list of parameter names. When accessed with the name of a 
+ parameter, C<param("animal")>, the method returns the value of the parameter.
+
+Now, let's say you have a more complex example, like a preferences page for a shopping
+site with a large list of options. You need to construct a list of names for each 
+element so that when you POST to the server for processing you can identify which options
+were selected so you can test the parameters one by one to determine which ones are
+populated, which ones aren't, and then parse each value to determine if the input is 
+valid and if it is set the proper field, process the data and display a result. 
+  
+Phew! Did you get all of that? 
+
+That is an awful lot of work to perform when you can quite easily set each name 
+attribute to a value that mimics the structure of your form and imparts an intrinsic 
+structure to the data sent through the POST. Why do the following:
+
+	#!code
+	skill_one=technology&skill_two=writing&language_one=perl&language_two=python&
+	language_three=php&language_four=c&languages_five=java
+
+when you can do the following:
+
+	#!code
+	skills.0=technology&skills.1=writing&languages.0=perl&languages.1=python&
+	languages.2=php&languages.3=c&languages.4=java
+
+O.K. You get the first example where I used a unique name for each value but now I lost 
+you with the second? Understandable, but first think about what I did and try to map 
+it to data structures found in Perl.
+
+You see a hash. Good! You see a list. Great! With CGI::Expand you can use a variety of
+structures to POST data. In this case I sent the following to the server with the 
+second example:
+
+  #!code
+  {
+     skills => ['technology', 'writing'],
+     languages => ['perl', 'python', 'php', 'c', 'java']
+  }
+
+
+Now, can you see how useful such structures might be when used with complex forms?
+Great! Provided the module you are using implements a compatible C<param> method like
+C<CGI> you can leverage C<CGI::Expand> to make your life and that of the maintenance
+developers behind you, much easier. In the following sections you can learn about 
+how C<CGI::Expand> does the heavy lifting for you, how you can configure C<CGI::Expand>
+to suit your needs and about some helper methods provided by the module that might 
+be useful to you in other projects.
+ 
+=head1 CGI::Expand
+
+The methods provided by C<CGI::Expand> include C<expand_cgi>, C<expand_hash> and 
+C<collapse_hash>. The first method provides the core functionality of the module, 
+to pack the The expand and collapse utility methods provide the developer with
+the ability to build a hashref from a parameter string and collapse a hashref into a
+parameter string accordingly.   
+
+=head2 C<expand_cgi()>
+This method takes a CGI object and returns a hashref for the expanded data structure.
+This becomes important when you build structure into your parameters like in the 
+following example:
+
+  #!code
+  $parameters = 'skill.0=technology&skill.1=writing&language.0=perl&language.1=python
+                 &language.2=php&language.3=c&language.4=java';
+  
+    expanded with
+  
+  $hash = expand_cgi( CGI->new($parameters) );
+    
+    expands to
+    
+  {
+     skill => ['technology', 'writing'],
+     language => ['perl', 'python', 'php', 'c', 'java']
+  }
+  
+The above is a trivial example. More complex examples are given on the CPAN page for
+C<CGI::Expand> as listed in the references section. 
+
+=head2 C<expand_hash()>
+The C<expand_hash()> method implements the logic used to expand the keys of the parameter 
+hash. The CPAN page for C<CGI::Expand> provides a great example:
+
+  #!code
+  $args = expand_hash({ 'a.b.1' => [1,2] });
+  
+    where the value of $args is
+    
+  { a => { b => [undef, [1,2] ] } }
+  
+
+
+=head2 C<collapse_hash()>
+The C<collapse_hash()> method implements the logic used to collapse the hashref into the 
+parameter string. Again, the CPAN page for C<CGI::Expand> provides a great example:
+
+  #!code
+  $flat = collapse_hash({ a => { b => [undef, [1,2] ] } });
+  
+    where the value of $flat is 
+  
+  { 'a.b.1.0' => 1, 'a.b.1.1' => 2 }
+
+
+=head1 Configuring CGI::Expand
+
+In addition to being able to subclass the C<expand_cgi> method to change the default 
+logic used to expand the parameter string, the behavior of the methods provided by
+C<CGI::Expand> can also be influenced by adjusting two class attributes, C<max_array> 
+and C<separator> and/or two helper functions, C<split_name()> and C<join_name()>.
+
+The first of the two class attributes, C<max_array>, sets the size limit for arrays 
+used in the hashref, which by default is set to 100. The second attribute, C<separator>, 
+sets the character used to separate the packed parameter string, which by default is a 
+period. Each of these options need to be overridden to change the default behavior of 
+the C<expand_cgi> method. 
+
+The first of the two helper functions, C<split_name(), implements the logic used to 
+parse the parameter string and split it into segments while the second helper function,
+C<join_name()> implements the logic used to join the split segments back into a 
+parameter string.
+  
+
+=head1 Conclusion
+C<CGI::Expand> can make your life much easier by giving you a way to structure your parameters 
+in a way you want while also giving you a way to embed meaning into the structure. These two
+benefits should reduce the amount of code you write which should reduce time to market and 
+improve maintainability. Hopefully this article provided you with a quick introduction to 
+C<CGI::Expand>l If you decide to use this module in your code you should probably read about the 
+C<EXCEPTIONS>, C<DEPRECATIONS> and C<LIMITATIONS> at the links provided in the C<References>
+section. Good luck with your code! and Happy Holidays!
+
+=head1 Full Code Example
+
+  #!code
+  #!/usr/bin/perl
+
+  use strict;
+  use warnings;
+
+  use CGI ':standard';
+
+  my $form = '
+      <p>Select your skill: </p>
+      <select name="skill">
+          <option name="technology">Technology</option>
+          <option name="writing">Writing</option>
+      </select>
+      <select name="software">
+          <option name="perl">Perl</option>
+          <option name="python">Python</option>
+          <option name="php">PHP</option>
+          <option name="c">C</option>
+          <option name="java">Java</option>
+      </select>
+      <input type="submit" value="SUBMIT" />
+  ';
+
+  my $query = CGI->new();
+  print $query->header();
+  print $query->start_html("Perl Advent 2012");
+  print $query->startform(-method => "POST", -target => "#");
+
+  print $form;
+
+  print $query->endform();
+
+  print "You submitted ... <br /><br />";
+  print "METHOD: " . request_method() . "<br />";
+  for my $param_name (param)
+  {
+      print "<strong>$param_name</strong> -> ";
+      my @param_values = param($param_name);
+      print join(", ", @param_values), "<br />\n";
+  }
+
+  print $query->end_html();
+  
+# NOTE: Are these formatted properly?
+=head1 References
+* L<CGI::Expand|http://search.cpan.org/dist/CGI-Expand/Expand.pm>
+* L<CGI::Expand README|http://cpansearch.perl.org/src/BOWMANBS/CGI-Expand-2.03/README>
+* L<CGI::Expand EXCEPTIONS|http://search.cpan.org/dist/CGI-Expand/Expand.pm#EXCEPTIONS>
+* L<CGI::Expand DEPRECATIONS|http://search.cpan.org/dist/CGI-Expand/Expand.pm#DEPRECATIONS>
+* L<CGI::Expand LIMITATIONS|http://search.cpan.org/dist/CGI-Expand/Expand.pm#LIMITATIONS>
