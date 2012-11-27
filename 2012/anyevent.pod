@@ -1,0 +1,78 @@
+Title: Synchronous Operations are So Outdated
+Topic: AnyEvent
+
+=head1 Understanding asynchronous events
+
+The best way to explain why synchronous code can sometimes be daunting
+is use an example from Real Life™. A single day in our lives can contain
+plenty of actions that make us cringe and growl. Take, for instance, trying to
+make a meal.
+
+Imagining you're cooking. You won't wait for the water to boil before you
+prepare the potatoes. Nor will you wait for the potatoes to be done before
+you start working on the salad.
+
+Asynchronous programming means having multiple events happen at
+the same time. It allows you to get more things done while you're waiting for
+other things to happen. Let's take a look at some examples in code-land.
+
+We will be using L<AnyEvent> for this article, but the same principles exist
+in all other async frameworks.
+
+=head1 Firing off the queue
+
+Suppose we have a magical file that has links pasted in it (that's the magical
+part) and we want to download every image that gets pasted in it. These are
+two different actions: (1) Checking for updates to the file and (2) Downloading
+the images.
+
+  #!perl
+  use AnyEvent;
+  use AnyEvent::HTTP;
+  use Regexp::Common 'URI';
+  use File::Basename 'basename';
+  use autodie;
+
+  my $fh        = open my $fh, '<', 'links.txt';
+  my $fhwatcher = AnyEvent->io(
+      fh   => $fh,
+      poll => 'r',
+      cb   => sub {
+          my $line = <$fh>;
+
+          # ignoring lines that aren't HTTP URIs
+          $line =~ /^$RE{URI}{HTTP}$/ or return;
+
+          # call an HTTP request
+          http_get $line, sub {
+              my $body     = shift;
+              my $filename = basename($line);
+
+              syswrite $filename, $body
+                  or warn "Couldn't write to $filename: $!";
+          };
+      },
+  );
+
+Let's analyze what we've got so far. We use some modules that you should
+recognize. If you don't, you should check them out.
+
+The next thing is opening a file handle. We then set up a watcher for some
+I/O operation using L<AnyEvent>'s C<io> method. It needs the file handle we
+are going to operate on, and the kind of operation we'll do (we pick C<r> for
+reading) and a callback to run. This callback is the main thing that takes a
+bit to understand.
+
+Since multiple events run at the same time, the application (much like the
+spice) must flow. To do this, we set up events and already provide them the
+code we want them to run when they're ready. Once we've given them all the
+information they need, they can start up and we can continue on doing more
+things. This is what those callbacks are.
+
+Our anonymous subroutine is called for our file is ready for information to be
+read from it. Once it's ready, we read a single line from it. This will, in
+fact,
+
+Once you get used to programming asynchronously, it's like having scissors:
+you just run with it! B<Note:> Do not run with scissors.
+
