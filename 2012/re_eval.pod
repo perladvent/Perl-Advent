@@ -31,24 +31,27 @@ from time to time, lexicals at best did the wrong thing, and at worst
 caused segfaults. In particular, the behaviour of closures didn't match
 reasonable expectations. For example, this code:
 
-    for my $i (0..2) {
-	push @r, qr/^(??{$i})$/;
-    }
-    print "ok 0\n" if "0" =~ $r[0];
-    print "ok 1\n" if "1" =~ $r[1];
-    print "ok 2\n" if "2" =~ $r[2];
+  #!perl
+  for my $i (0..2) {
+      push @r, qr/^(??{$i})$/;
+  }
+  print "ok 0\n" if "0" =~ $r[0];
+  print "ok 1\n" if "1" =~ $r[1];
+  print "ok 2\n" if "2" =~ $r[2];
 
 prints out three ok's now, but formerly printed nothing. It works because
 in terms of pads, closures, etc, these:
 
-    /A(?{B})C/;
-    $r = qr/A(?{B})C/;
+  #!perl
+  /A(?{B})C/;
+  $r = qr/A(?{B})C/;
 
 (where B is a block of code) are now parsed (in terms of lexicals) roughly
 as:
 
-    /A/ && do {B} && /C/;
-    $r = sub { /A/ && do {B} && /C/ };
+  #!perl
+  /A/ && do {B} && /C/;
+  $r = sub { /A/ && do {B} && /C/ };
 
 That is, in the first line, the code block shares the same pad as the
 surrounding code, while in the second example it uses the pad of a hidden
@@ -58,9 +61,10 @@ all Just Do the Right Thing.
 However, Perl also supports patterns that are determined at run-time, or
 which contain a mixture of compile- and run-time patterns, such as
 
-    my $pat = 'C(?{D})';
-    use re 'eval;
-    /A(?{B})-$pat/;
+  #!perl
+  my $pat = 'C(?{D})';
+  use re 'eval;
+  /A(?{B})-$pat/;
 
 Formerly, as the run-time pattern was being assembled, any bits of literal
 code (such as the C<B> above) would be recompiled, destroying any closure
@@ -68,9 +72,10 @@ information. Now, such code snippets are preserved, and only the non-literal
 bits are compiled. Similarly where regexp objects are included within a
 larger pattern:
 
-    my $re = qr/C(?{D})/;
-    use re 'eval;
-    /A(??{B})-$re/;
+  #!perl
+  my $re = qr/C(?{D})/;
+  use re 'eval;
+  /A(??{B})-$re/;
 
 Although the text of the C<$re> pattern is interpolated and recompiled,
 any code blocks within C<$re> are I<not> recompiled.
@@ -78,15 +83,14 @@ any code blocks within C<$re> are I<not> recompiled.
 Finally, because pads are handled properly now, things don't go awry
 during recursion:
 
-    sub recurse {
-	my ($n) = @_;
-	return if $n > 2;
-	print "ok\n" if "A$n" =~ /^A(??{$n})$/;
-	recurse($n+1);
-    }
-    recurse(0);
+  #!perl
+  sub recurse {
+      my ($n) = @_;
+      return if $n > 2;
+      print "ok\n" if "A$n" =~ /^A(??{$n})$/;
+      recurse($n+1);
+  }
+  recurse(0);
 
 There were lots of other subtleties involved, but those are the ones I can
 think of off the top my head.
-
-Dave Mitchell.
