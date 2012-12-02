@@ -25,13 +25,18 @@ counting of balancing braces. This is in contrast to something like
 C<"foo$hash{ $x ? '{' : '[' }bar">, where the expression for the hash
 index doesn't require balanced braces.
 
-So the first change was to integrate the parsing of the code blocks with
-the parsing of the surrounding Perl code: at least for literal regexes.
+  #!perl
+  /(?{ $x = '{' })/ # <-- was an error
 
-The second big issue was that by just saving the pad and resurrecting it
-from time to time, lexicals at best did the wrong thing, and at worst
-caused segfaults. In particular, the behaviour of closures didn't match
-reasonable expectations. For example, this code:
+  "foo$hash{ $x ? '{' : '[' }bar" # <-- not an error
+
+So the first change was to integrate the parsing of the code blocks with
+the parsing of the surrounding Perl code, at least for literal regexes.
+
+The second big issue was that by just saving the L<pad|perlglossary/scratchpad>
+and resurrecting it from time to time, lexicals at best did the wrong thing,
+and at worst caused segfaults. In particular, the behaviour of closures didn't
+match reasonable expectations. For example, this code:
 
   #!perl
   for my $i (0..2) {
@@ -58,14 +63,15 @@ as:
 That is, in the first line, the code block shares the same pad as the
 surrounding code, while in the second example it uses the pad of a hidden
 anonymous sub, which is cloned anew on each call to C<qr//>. This makes it
-all Just Do the Right Thing.
+all Just Do the Right Thing.  C<qr//> constructs that contain arbitrary code
+now act like closures.
 
-However, Perl also supports patterns that are determined at run-time, or
-which contain a mixture of compile- and run-time patterns, such as
+However, Perl also supports patterns that are determined at runtime, or
+which contain a mixture of compile- and runtime patterns, such as
 
   #!perl
   my $pat = 'C(?{D})';
-  use re 'eval;
+  use re 'eval';
   /A(?{B})-$pat/;
 
 Formerly, as the run-time pattern was being assembled, any bits of literal
@@ -76,7 +82,7 @@ larger pattern:
 
   #!perl
   my $re = qr/C(?{D})/;
-  use re 'eval;
+  use re 'eval';
   /A(??{B})-$re/;
 
 Although the text of the C<$re> pattern is interpolated and recompiled,
@@ -86,6 +92,7 @@ Finally, because pads are handled properly now, things don't go awry
 during recursion:
 
   #!perl
+  # test-recurse-regex.pl
   sub recurse {
       my ($n) = @_;
       return if $n > 2;
@@ -94,5 +101,22 @@ during recursion:
   }
   recurse(0);
 
+…and then…
+
+  #!code
+  $ perl test-recurse-regex.pl
+  ok
+  ok
+  ok
+
 There were lots of other subtleties involved, but those are the ones I can
-think of off the top my head.
+think of off the top my head.  These bugs made the entire C<(?{})> and
+C<(??{})> features unreliable in earlier perls, but with the upcoming perl 5.18
+release, it should work sanely and predictably!
+
+=head1 See Also
+
+=for :list
+* L<code in regex|perlre/code->
+* L<postponed regex|perlre/code-1>
+* L<regex 'eval' mode|re/"'eval' mode">
