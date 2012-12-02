@@ -1,0 +1,92 @@
+=head1 Fixing the regexep code block facility
+
+The C</(?{})/> code-execution facility was added to regular expressions
+back in 1998, in the 5.005 release. Since then it's been sitting there,
+marked experimental, until in 2012, the implementation was completely
+re-written for the 5.17.1 release.
+
+The way it originally worked was that during regex compilation, if an
+opening C<(?{> was seen, the balancing C<}> was found, and the text
+between the braces was passed to perl's internal eval mechanism. But after
+compiling the code, the execution was skipped, and instead the optree and
+pad of the compiled eval were saved and attached to the regexp object.
+Later when the regexp was being executed, the current pad would be set to
+the saved pad, and the ops in the optree called.
+
+So, what's wrong with that?
+
+Well, everything really.
+
+First, at the most trivial level, the code isn't properly parsed, so
+something like C</(?{ $x = '{' })/> is an error, due the simplistic
+counting of balancing braces. This is in contrast to something like
+C<"foo$hash{ $x ? '{' : '[' }bar">, where the expression for the hash
+index doesn't require balanced braces.
+
+So the first change was to integrate the parsing of the code blocks with
+the parsing of the surrounding Perl code: at least for literal regexes.
+
+The second big issue was that by just saving the pad and resurrecting it
+from time to time, lexicals at best did the wrong thing, and at worst
+caused segfaults. In particular, the behaviour of closures didn't match
+reasonable expectations. For example, this code:
+
+    for my $i (0..2) {
+	push @r, qr/^(??{$i})$/;
+    }
+    print "ok 0\n" if "0" =~ $r[0];
+    print "ok 1\n" if "1" =~ $r[1];
+    print "ok 2\n" if "2" =~ $r[2];
+
+prints out three ok's now, but formerly printed nothing. It works because
+in terms of pads, closures, etc, these:
+
+    /A(?{B})C/;
+    $r = qr/A(?{B})C/;
+
+(where B is a block of code) are now parsed (in terms of lexicals) roughly
+as:
+
+    /A/ && do {B} && /C/;
+    $r = sub { /A/ && do {B} && /C/ };
+
+That is, in the first line, the code block shares the same pad as the
+surrounding code, while in the second example it uses the pad of a hidden
+anonymous sub, which is cloned anew on each call to C<qr//>. This makes it
+all Just Do the Right Thing.
+
+However, Perl also supports patterns that are determined at run-time, or
+which contain a mixture of compile- and run-time patterns, such as
+
+    my $pat = 'C(?{D})';
+    use re 'eval;
+    /A(?{B})-$pat/;
+
+Formerly, as the run-time pattern was being assembled, any bits of literal
+code (such as the C<B> above) would be recompiled, destroying any closure
+information. Now, such code snippets are preserved, and only the non-literal
+bits are compiled. Similarly where regexp objects are included within a
+larger pattern:
+
+    my $re = qr/C(?{D})/;
+    use re 'eval;
+    /A(??{B})-$re/;
+
+Although the text of the C<$re> pattern is interpolated and recompiled,
+any code blocks within C<$re> are I<not> recompiled.
+
+Finally, because pads are handled properly now, things don't go awry
+during recursion:
+
+    sub recurse {
+	my ($n) = @_;
+	return if $n > 2;
+	print "ok\n" if "A$n" =~ /^A(??{$n})$/;
+	recurse($n+1);
+    }
+    recurse(0);
+
+There were lots of other subtleties involved, but those are the ones I can
+think of off the top my head.
+
+Dave Mitchell.

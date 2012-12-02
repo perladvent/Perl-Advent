@@ -1,0 +1,181 @@
+Title: Checking Out Your Data Structures
+Topic: Data::Printer
+
+=head1 Have Your Variables Been Naughty or Nice?
+
+Every once in a while you expect your variables to contain a certain value,
+only to realize, sometimes a bit too late, that something's off. We've all
+been there, and having a way to quickly and neatly view the
+contents of your variables can make all the difference in the world.
+
+Enter L<Data::Printer>, a module that formats and prints your data structures
+on screen, in a way that lets you easily check them and spot errors. Its
+output is colored by default, and it also contains several filters to help
+you debug objects.
+
+Using it couldn't be simpler: Data::Printer exports a C<p()> function to your
+namespace that you use to dump your data to STDERR (or
+L<anywhere else|Data::Printer/"Changing output targets"> in fact):
+
+  #!perl
+  use Data::Printer;
+
+  ...
+
+  p $some_variable;
+
+Since it's a debugging module you'll likely be turning it on and off
+everywhere in your code. If that's the case, a common idiom is to simply add
+this line when you need to check some data:
+
+  #!perl
+  use DDP; p $some_variable;
+
+Which takes advantage of L<DDP>, a shorter alias for Data::Printer.
+
+
+=head1 Optimized for Humans
+
+Now, if you were using it to view the content of a complex data structure,
+this is what you might get:
+
+=begin html
+
+<table class="code-listing">
+<tbody>
+ <tr>
+  <td class="code" style="font-weight:normal">
+\ [
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#fff">[0]</span> "<span style="color:#ff7">/path/from/env</span>" <span style="color:#b11">(TAINTED)</span>,
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#fff">[1]</span> [
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#fff">[0]</span> "<span style="color:#ff7">foo</span>",
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#fff">[1]</span> "<span style="color:#ff7">bar</span>"
+&nbsp;&nbsp;&nbsp;&nbsp;],
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#fff">[2]</span> {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#b40486">name</span> &nbsp;&nbsp;&nbsp;&nbsp;"",
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#b40486">gifts</span> &nbsp;&nbsp;&nbsp;<span style="background-color:#f00;color:#ccc">var[1]</span>
+&nbsp;&nbsp;&nbsp;&nbsp;},
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#fff">[3]</span> \ "<span style="color:#ff7">Some string reference</span>" <span style="color:#01dfa5">(weak)</span>
+]
+  </td>
+ </tr>
+</tbody>
+</table>
+
+=end html
+
+Did you see what just happened? Not only did Data::Printer show you the
+contents of your variable in a clear, colored and indented fashion, it
+also let you see array indices, know about circular references, tainted data,
+tied variables, weak references and much more!
+
+But enough about plain data structures. Let's try it with an object:
+
+  #!perl
+  package My::Class {
+    sub new {
+      my $class = shift;
+      return bless { num => 42 }, $class;
+    }
+
+    sub foo {}
+    sub bar {}
+    sub _baz {}
+  };
+
+
+If you use Data::Printer on an instance of the class defined above, you'll
+see something like this when you dump it:
+
+=begin html
+
+<table class="code-listing">
+<tbody>
+ <tr>
+  <td class="code" style="font-weight:normal">
+<span style="color:#5f5">My::Class</span> {
+&nbsp;&nbsp;&nbsp;&nbsp;public methods (3) : <span style="color:#5f5">bar</span>,<span style="color:#5f5">foo</span>,<span style="color:#5f5">new</span>
+&nbsp;&nbsp;&nbsp;&nbsp;private methods (1) : <span style="color:#5f5">_baz</span>
+&nbsp;&nbsp;&nbsp;&nbsp;internals: {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#b40486">num</span> &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#0a4bac">42</span>
+&nbsp;&nbsp;&nbsp;&nbsp;}
+}
+  </td>
+ </tr>
+</tbody>
+</table>
+
+=end html
+
+Pretty neat, huh? It would even show inheritance if we had any =)
+
+
+=head1 Filters
+
+Another of Data::Printer's strenghts lies in how it lets you easily filter
+Perl types and classes. The basic distribution includes formatters for some
+popular modules like L<DateTime>, L<Digest> and L<DBI>, so if you have
+enabled them in your L<settings|Data::Printer/"CUSTOMIZATION">, then this:
+
+  #!perl
+  my $data = {
+      datetime => DateTime->new( year => 2012, month => 12, day => 25 ),
+      dbh      => DBI->connect($dsn, $user, $pass),
+      digest   => Digest::MD5->new,
+  };
+
+  use DDP; p $data;
+
+Might show you something like this:
+
+=begin html
+
+<table class="code-listing">
+<tbody>
+ <tr>
+  <td class="code" style="font-weight:normal">
+\ {
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#b40486">datetime</span>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#5f5">2012-12-25T00:00:00 [floating]</span>,
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#b40486">dbh</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;mysql Database Handle (<span style="color:#5f5">connected</span>) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;database: mydb
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Auto Commit: 1
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Statement Handles: 0
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Last Statement: <span style="color:#ff7">-</span>
+&nbsp;&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#b40486">digest</span>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#5f5">d41d8cd98f00b204e9800998ecf8427e [reset]</span>,
+}
+  </td>
+ </tr>
+</tbody>
+</table>
+
+=end html
+
+Notice how, in this example, Data::Printer showed you:
+
+=over 4
+
+=item * DateTime objects as formatted strings with the timezone
+(in this case, 'floating');
+
+=item * Database handles with information regarding connection, current
+database, amount of active statement handles, last ran statement and even
+extra properties that might influence your program (like 'Auto commit');
+
+=item * Digest objects (like L<Digest::MD5>) as formatted hexdumps,
+including a mention when, like in the example above, the digest is actually
+is the one of a reset (empty) element.
+
+=back
+
+There are L<several different filters available on CPAN|Data::Printer::Filter/"EXISTING FILTERS">
+and you can make some new ones yourself!
+
+=head1 In Short
+
+L<Data::Printer> is a shiny tool for your Perl utility belt that not only
+pretty-prints variables, but also provides very useful information regarding
+your data. It is also extremely easy to tweak to suit your own taste and
+debugging needs, from colors to formatting to new filters.
+
+If you're not using it already, give it a go!
