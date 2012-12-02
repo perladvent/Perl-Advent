@@ -4,7 +4,7 @@ Topic: AnyEvent
 =head1 Understanding asynchronous events
 
 The best way to explain why synchronous code can sometimes be daunting
-is use an example from Real Life™. A single day in our lives can contain
+is to use an example from Real Life™. A single day in our lives can contain
 plenty of actions that make us cringe and growl. Take, for instance, trying to
 make a meal.
 
@@ -14,17 +14,215 @@ you start working on the salad.
 
 Asynchronous programming means having multiple events happen at
 the same time. It allows you to get more things done while you're waiting for
-other things to happen. Let's take a look at some examples in code-land.
+other things to happen.
+
+The basis element of asynchronous programming is callbacks, so let's go over
+that first, and then take a look at some examples of async in code-land.
 
 We will be using L<AnyEvent> for this article, but the same principles exist
 in all other async frameworks.
 
-=head1 Firing off the queue
+=head1 Introduction to callbacks
 
-Suppose we have a magical file that has links pasted in it (that's the magical
-part) and we want to download every image that gets pasted in it. These are
-two different actions: (1) Checking for updates to the file and (2) Downloading
-the images.
+Since multiple events run at the same time, the application (much like the
+spice) must flow. To do this, we set up events and already provide them the
+code we want them to run when they're ready. Once we've given them all the
+information they need, they can start up and we can continue on doing more
+things.
+
+We're going to be using one paradigm some are not familiar with: B<callbacks>.
+So just to get you up to speed, let me start by explaining callbacks in a
+nutshell.
+
+Callbacks are references to subroutines. These subroutines can be defined using
+names or be anonymous. We can then call those subroutines by their reference
+instead of their name.
+
+    # callbacks to named subroutines
+    sub func { ... }
+    my $func_reference = \&func;
+    $func_reference->(@arguments);
+
+    # callbacks to anonymous subroutines
+    my $func_reference = sub { ... };
+    $func_reference->(@arguments);
+
+The fact that we can call C<sub> to create a reference to a subroutine, that
+means we can send C<sub> directly without saving it first:
+
+    sub some_cb_handler {
+        my $callback = shift;
+        $callback->("hello");
+    }
+
+    some_cb_handler( sub {
+        my $greeting = shift;
+        say "$greeting, world!";
+    } );
+
+=head1 Reading from input
+
+You have an application that needs to read from a handle (which could be a
+file descriptor, a socket, or even the standard input), but you don't know
+when it will be ready to be read.
+
+In a synchronous application, you'll be waiting for it to become available,
+possibly calling C<sleep> in between. But these days, we're busy people, we
+can't just be waiting by the phone. We have stuff to do!
+
+    sub alert_action {
+        my $action = shift;
+        say "New action found: $action";
+    }
+
+    my $io_watcher = AnyEvent->io(
+        fh   => $fh,
+        poll => 'r',
+        cb   => sub {
+            # we can now read!
+            my $input = <$fh>;
+            if ( $input =~ /^New action: (\w+)/ ) {
+                alert_action($1);
+            }
+        },
+    );
+
+    # continue to do something else
+
+How does that work? By calling L<AnyEvent>'s C<io> method, you're creating a
+new watcher that checks polls a file handle for new read events. If it has
+something to read, it will call the code reference we provided. Both the checks
+and the subroutine call will happen in the background.
+
+Also, since we've given it all the information it needs (what file handle to
+poll, what kind of events we want, and what to do in that case), it doesn't
+need to hold us back. That way we can continue with some other code, and the
+watcher will wait and running the background, without bothering us.
+
+=head1 Keeping the watchers alive
+
+There is a problem I haven't mentioned. That code is fine, except once it
+executes the additional code, the application will close, simply because it
+reached the end of the file. We want to keep the application running, so our
+watchers will continue to work. How do we do that? Condition variables!
+
+Condition variables are variables that represent a condition waiting to come
+true, like your cat waiting for you to get comfortable with a laptop and
+when it comes true, comes over and lies on it, disrupting your work.
+
+    my $cv      = AnyEvent->condvar;
+    my $watcher = AnyEvent->io(
+        fh   => $fh,
+        poll => 'r',
+        cb   => sub {
+            my $input = <$fh>;
+            ...
+            if ( $input =~ /^End of processing file/ ) {
+                $cv->send;
+            }
+        },
+    );
+
+    ...
+    $cv->recv;
+    say "All done!";
+
+This time we created a condition variable that is available to the watcher.
+The watcher still dilligently continuing its work. Only this time as soon as it
+finds a line in the file indicating the end of it, it will call C<send> on the
+condition variable, making the condition true, effecitvely saying "that's it,
+we're done".
+
+If someone has called C<recv> on the condition variable, it will wait until
+something else in the background (like our watcher) will call C<send> and then
+will continue running.
+
+That means that the line "All done!" will only get written once our worker
+finished reading the line.
+
+=head1 Timing your cooking
+
+The last element in L<AnyEvent> we'll be taking a look at is the timer. Timers
+are events (any event) that gets run at some point in time. It can be in a few
+minutes or at a specific time. It can happen once or maybe even several times.
+
+    my $timer = AnyEvent->timer(
+        after    => 3.5,
+        interval => 5,
+        cb       => sub {
+            say "Ping? Pong!";
+        },
+    );
+
+This defines a timer that will wait 3.5 seconds, and then call the subroutine
+every 3.5 seconds. Fairly simple. Let's try a few timers.
+
+    my @steps        = qw<Cutting Simmering Cooking Seasoning Serving>;
+    my $current_step = 'Preparing';
+
+    my $cv = AnyEvent->condvar;
+    my $t1 = AnyEvent->timer(
+        interval => 60 * 7,
+        cb       => sub {
+            say "Current cooking state: $current_step";
+        },
+    );
+
+    my $t2 = AnyEvent->timer(
+        after    => 2, # two seconds to wash hands before working!
+        interval => 60 * 10, # assuming every action takes 10 seconds
+        cb       => sub {
+            $current_step = shift @steps or return $cv->send;
+            do_step($current_step);
+        },
+    );
+
+    $cv->recv;
+    say "Dinner is served!";
+
+What we have here isn't the best example for how to make a meal, but it
+does give us an example to show multiple timers. The first timer (C<$t1>)
+keeps alerting us every seven minutes about our progress. Meanwhile, our
+second timer picks up an action to do every 10 minutes, and does it. Once no
+more actions are available, it tells the condition variable that it's done.
+It does this by simply returning out of the subroutine (so we don't call
+C<do_step> again) and calls C<send> at the same time.
+
+After we created our timers, we set up a C<recv> on a condition variable,
+meaning "don't continue running the application until we are notified that
+the timers finished their work". It will wait in that point in time (without
+blocking the timers) until the C<send> is called. Then it will continue and
+say dinner is finally served. Since it's the end of the application, the
+timers will close and the application will end.
+
+Here is the output we'll get from running the application:
+
+  Current cooking state: Preparing
+  (do_step() called with "Cutting")
+  Current cooking state: Cutting
+  (do_step() called with "Simmering")
+  Current cooking state: Simmering
+  Current cooking state: Simmering
+  (do_step() called with "Cooking")
+  Current cooking state: Cooking
+  (do_step() called with "Seasoning")
+  Current cooking state: Seasoning
+  (do_step() called with "Serving")
+  Current cooking state: Serving
+  Current cooking state: Serving
+  Dinner is served!
+
+=head1 Bringing it all together
+
+After we've gone over a few elements of AnyEvent, we can build a small useful
+application. We'll add a few more elements such as L<AnyEvent::HTTP>,
+L<Regexp::Common>, L<File::Basename>, and C<begin> and C<end> calls for
+condition variables.
+
+Suppose we have a file that has contains a lot of links and we want to download
+every image listed in it. These are two different actions: (1) Reading the file
+and (2) Downloading the images. We will also have a timer that gives us the
+progress every single minute.
 
   #!perl
   use AnyEvent;
@@ -33,6 +231,8 @@ the images.
   use File::Basename 'basename';
   use autodie;
 
+  my $counter   = 0;
+  my $cv        = AnyEvent->condvar;
   my $fh        = open my $fh, '<', 'links.txt';
   my $fhwatcher = AnyEvent->io(
       fh   => $fh,
@@ -44,15 +244,32 @@ the images.
           $line =~ /^$RE{URI}{HTTP}$/ or return;
 
           # call an HTTP request
+          $cv->begin;
           http_get $line, sub {
               my $body     = shift;
               my $filename = basename($line);
 
               syswrite $filename, $body
                   or warn "Couldn't write to $filename: $!";
+
+              $counter++;
+              $cv->end;
           };
       },
   );
+
+  my $progress = AnyEvent->timer(
+      after    => 2, # giving it two seconds before starting
+      interval => 2,
+      cb       => sub {
+          printf "[%s] Update: finished downloading $counter images\n",
+              scalar AnyEvent->now;
+      },
+  );
+
+  $cv->recv;
+  close $fh;
+  say "Finished downloading all files";
 
 Let's analyze what we've got so far. We use some modules that you should
 recognize. If you don't, you should check them out.
@@ -63,16 +280,33 @@ are going to operate on, and the kind of operation we'll do (we pick C<r> for
 reading) and a callback to run. This callback is the main thing that takes a
 bit to understand.
 
-Since multiple events run at the same time, the application (much like the
-spice) must flow. To do this, we set up events and already provide them the
-code we want them to run when they're ready. Once we've given them all the
-information they need, they can start up and we can continue on doing more
-things. This is what those callbacks are.
+Every time we read a line that has a URL, we call C<begin> on the condition
+variable, which means "hey, I'm about to run an action". Each C<begin>
+correlates to an C<end> call. We issue an HTTP request for that URL and once
+we finish fetching it and saving it, we issue the correlating C<end> call, to
+note that the condition variable can be released. This helps when you have more
+than just one condition for the variable (like we did earlier with C<send>).
 
-Our anonymous subroutine is called for our file is ready for information to be
-read from it. Once it's ready, we read a single line from it. This will, in
-fact,
+Every time we read a URL, we'll call C<begin>, and end up with multiple
+C<begin>s, and every time we finish working on a URL, we call C<end> to clear
+the previous C<begin>. When all C<begin> calls C<end>ed, it will return to the
+C<recv> method, much like calling C<send>. Simply imagine C<send> as a single
+condition, while C<begin> and C<end> are multiple.
+
+We also create a progress timer that indicates every two seconds the amount
+of links we've sent. You'll notice it uses L<AnyEvent>'s C<now>, which is a
+more compatible way to call C<time> when running in an event loop.
+
+The C<recv> call in the end will wait until all C<begin> calls will be closed
+using the C<end> method. Once we've worked on the entire file, it will print
+a nice message and the application will close.
+
+=head1 Just the beginning...
 
 Once you get used to programming asynchronously, it's like having scissors:
 you just run with it! B<Note:> Do not run with scissors.
+
+Try out an event framework and see how much fun it is for yourself. Perl has
+many to offer, such as L<AnyEvent>, L<POE>, L<IO::Async>, L<Reflex>,
+L<IO::Lambda>, L<Coro>, and more.
 

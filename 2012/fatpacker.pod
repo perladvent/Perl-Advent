@@ -11,6 +11,19 @@ dependencies.
 There are a few existing solutions for them, but we're going to concentrate
 on a new one called B<FatPacker>.
 
+=head1 Our application
+
+Of course, we just happen to have a sample application we want to pack. It
+downloads various pages from our website and compiles a statistics report. It
+uses L<HTTP::Tiny> as a user agent. Our application begins with the lines:
+
+    #!perl
+    use strict;
+    use warnings;
+    use HTTP::Tiny;
+
+Our app is surprisingly saved as the file F<ourapp.pl>.
+
 =head1 Packing the deps
 
 L<App::FatPacker> comes with an application called F<fatpack>.  You'll use
@@ -21,18 +34,21 @@ steps for packing your dependencies. Let's go over them.
 
 =item * Tracing
 
-To find out what dependencies our code has, we C<trace> our script. This will
+To find out what dependencies our code has, we C<trace> our app. This will
 create a file called F<fatpacker.trace>, which includes a list of modules that
 F<fatpack> has discovered.
 
     #!code
-    $ fatpack trace myscript.pl
+    $ fatpack trace ourapp.pl
 
 In case some modules aren't successfully traced, you can ask C<fatpack> to
 include them:
 
     #!code
-    $ fatpack trace --use=Additional::Module myscript.pl
+    $ fatpack trace --use=Additional::Module ourapp.pl
+
+If we open the F<fatpacker.trace> file, we can see it collected a few modules,
+including both F<HTTP/Tiny.pm> and F<Carp.pm> (which L<HTTP::Tiny> uses).
 
 =item * Gathering packlists
 
@@ -50,18 +66,33 @@ can reuse this information.
     #!code
     $ fatpack packlists-for `cat fatpacker.trace` > packlists
 
+The F<packlists> file will include the path to the packlists of L<Carp> and
+L<HTTP::Tiny>.
+
 =item * Forming the tree
 
 In this step FatPacker collects all the dependencies recursively into a
 directory called F<fatlib>, which it will then be able to pack together.
 
-XXX - I am confused by the following paragraph: -- rjbs, 2012-11-27
-
-We will be feeding the command the packlists the previous command has printed
-using the file we saved earlier.
+C<tree> needs a list of packlists. Lucky for us, we saved the packlists
+that our previous command has found in a file called F<packlists>.  Let's
+just call C<tree> and feed it that file.
 
     #!code
     $ fatpack tree `cat packlists`
+
+Taking a look at our F<fatlib> directory, we'll see the following structure:
+
+    fatlib/
+    ├── Carp
+    │   └── Heavy.pm
+    ├── Carp.pm
+    └── HTTP
+        └── Tiny.pm
+
+You can clearly see it added L<HTTP::Tiny> and L<Carp>, but you can also see
+it added L<Carp::Heavy> which comes with L<Carp>. This is what recursively
+copying dependencies means.
 
 =item * Packing dependencies
 
@@ -76,12 +107,42 @@ uses them, so we will concatenate that as well. We will also print this to a
 new file so we could ship it.
 
     #!code
-    $ (fatpack file; cat myscript.pl) > myscript.packed.pl
+    $ (fatpack file; cat ourapp.pl) > ourapp.packed.pl
 
 That's all there is to it!
 
-You can now ship F<myscript.packed.pl> to any location, and it will include all
-dependencies recursively.
+You can now ship F<ourapp.packed.pl> to any location, and it will include
+all dependencies recursively.
+
+You can open our newly-packed application file and see the way it has packed
+everything together:
+
+    #!perl
+    BEGIN {
+        my %fatpacked;
+
+        $fatpacked{"Carp.pm"} = <<'CARP';
+            ... # entire Carp
+        CARP
+
+        $fatpacked{"Carp/Heavy.pm"} = <<'CARP_HEAVY';
+            ... # entire Carp::Heavy
+        CARP_HEAVY
+
+        $fatpacked{"HTTP/Tiny.pm"} = <<'HTTP_TINY';
+            ... # entire HTTP::Tiny
+        HTTP_TINY
+
+        # fixing of @INC to load these
+        ...
+    } # END OF FATPACK CODE
+    #!perl
+    use strict;
+    use warnings;
+    use HTTP::Tiny;
+
+    # rest of our code
+    ...
 
 =back
 
