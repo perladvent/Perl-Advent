@@ -1,0 +1,105 @@
+=pod
+
+=head1 Perl Advent Calendar 2012
+
+=head1 Testing networking client code using Test::LWP::UserAgent
+
+L<Test::LWP::UserAgent> is a module I wrote after writing several networking
+client libraries for $work with inconsistent and spotty test coverage -- what
+I most wanted to do was fully simulate the server end of a network
+connection, without having to delve deeply into L<LWP>'s internal
+implementation, nor mock a lot of methods, which the traditional mock object
+approach would require.
+
+Exploring the options available led me to Yury Zavarin's
+L<Test::Mock::LWP::Dispatch>, whose API I adapted into the initial version of
+L<Test::LWP::UserAgent>.  It behaves exactly like L<LWP::UserAgent>, one of
+the main networking client libraries in perl, in all respects except for the
+portion that actually sends the request out to the network - at that point it
+returns the first response that you have preconfigured that matches the
+outbound request.
+
+    my $useragent = Test::LWP::UserAgent->new;
+    $useragent->map_response(qr/example.com/, HTTP::Response->new(200));
+
+    my $response = $useragent->get('http://example.com');
+    # prints 200
+    say $response->code;
+
+    $response = $useragent->get('http://google.com');
+    # prints 404
+    say $response->code;
+
+In the above example, no outbound reqest passing through this useragent will
+use the live network (this is the default behaviour). Any request whose URI
+matches C</example.com/> will receive an HTTP 200 response, and the remaining
+requests will return a 404.
+
+If, however, you wish to only capture some requests, while letting the
+remainder use the network normally, you can enable the C<network_fallback>
+feature:
+
+    my $useragent = Test::LWP::UserAgent->new;
+    $useragent->network_fallback(1);
+    $useragent->map_response(qr/example.com/, HTTP::Response->new(200));
+
+    my $response = $useragent->get('http://example.com');
+    # prints 200
+    say $response->code;
+
+    $response = $useragent->get('http://google.com');
+    # prints 200
+    say $response->code;
+
+And indeed if you inspect the C<$response> object returned, you will see that
+it contains the actual network response from contacting L<http://google.com>.
+
+Configuration can also be done globally, if you want all useragents in your
+program to use the same settings (or if you do not have direct control over
+the actual useragent object being used, but just its class):
+
+    Test::LWP::UserAgent->map_response(...);
+    my $response = Test::LWP::UserAgent->new->request(...);
+
+L<Test::LWP::UserAgent> inherits from L<LWP::UserAgent>, so it satisfies
+C<isa()>/C<@ISA> requirements that you may have via L<Moose> or another system
+that uses type checking.  This means that all the normal options available in
+L<LWP::UserAgent> are still available to you, and work identically, for
+example:
+
+    my $useragent = Test::LWP::UserAgent->new(
+        timeout => 10,
+        cookie_jar => { file => "$ENV{HOME}/.cookies.txt" },
+    );
+
+You can also use L<Test::LWP::UserAgent> to connect to a local L<PSGI>
+application seamlessly, which can be very useful when you have a client and
+server installed on the same box but do not want to fuss with separate code
+for handling this case, or if you want more fine-grained control over what
+responses to send:
+
+    my $app = Plack::Util::load_psgi('./myapp.psgi');
+    $useragent->register_psgi('mytestdomain.com', $app);
+    my $response = $useragent->request(...);
+
+
+=head1 SUMMARY
+
+Use Test::LWP::UserAgent to control data flow that you would otherwise receive
+over the network, to test your application's handling of that data.
+
+=head1 CODE EXAMPLES
+
+The code examples above are fleshed out as fully-working code in the examples/
+directory under L<http://metacpan.org/release/Test-LWP-UserAgent>, along with
+a detailed example of some unit tests for a hypothetical networking client
+library.
+
+=head1 AUTHOR
+
+Karen Etheridge (ether)
+L<http://metacpan.org/author/ETHER>
+L<http://github.com/karenetheridge>
+
+=cut
+
