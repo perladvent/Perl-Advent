@@ -1,0 +1,329 @@
+Title: Give and Receive the Right Number of Gifts
+Topic: JSON
+Author: Shawn M Moore <code@sartak.org>
+
+=head2 Making a List
+
+Santa is already hard at work preparing for this year's Christmas. Little boys
+and girls across the world are sending him their Christmas lists, which look
+like this:
+
+  Shawn.txt:
+      3 wooden toys
+      1 dog clock
+      1 hobby horse
+      2 glider planes
+
+Santa naturally uses Perl to parse this list, as he has been these last 25
+Christmases. Santa's Perl script produces the work orders that his elves use to
+make all those toys.
+
+  #!perl
+  #!/usr/bin/env perl
+  use 5.16.0;
+  use warnings;
+  use autodie;
+
+  my $kid_name = shift;
+  my $toy_count = 0;
+
+  open my $handle, '<', "$kid_name.txt";
+  while (<$handle>) {
+      my ($quantity, $gift) = /^(\d+) (.+)/;
+      say "$kid_name would like $gift ($quantity).";
+      $toy_count += $quantity;
+  }
+
+  say "Dearest Elf, please make $toy_count gifts for $kid_name.";
+
+Santa's script simply looks at each line in the child's Christmas list and
+keeps a tally of how many gifts in total they would like. Here's what Santa
+sends to his elves on my behalf:
+
+  Shawn would like wooden toys (3).
+  Shawn would like dog clock (1).
+  Shawn would like hobby horse (1).
+  Shawn would like glider planes (2).
+  Dearest Elf, please make 7 gifts for Shawn.
+
+All is well and good in Santa's Workshop!
+
+=head2 JavaScript
+
+In his copious free time, Santa has been learning this year's hot new thing,
+node.js. After all, Santa has his future to think about. If the
+giving-billions-of-presents-to-kids-every-year racket doesn't work out, he
+knows that he can fall back on his hobby, programming. But Santa knows software
+engineering jobs generally demand fluency in multiple languages, so to get some
+practical experience, he'll use node.js to process these Christmas lists. Since
+Perl is so good at text parsing, Santa will continue using that to process the
+incoming Christmas lists. But he wants to port the work order builder to
+JavaScript. And of course, Santa knows to use JSON to share data between the
+two environments.
+
+First, he changes the Perl script to emit JSON instead of text:
+
+  #!perl
+  #!/usr/bin/env perl
+  use 5.16.0;
+  use warnings;
+  use autodie;
+  use JSON;
+
+  my $kid_name = shift;
+  my @xmas_list;
+
+  open my $handle, '<', "$kid_name.txt";
+  while (<$handle>) {
+      my ($quantity, $gift) = /^(\d+) (.+)/;
+      push @xmas_list, {
+          gift     => $gift,
+          quantity => $quantity,
+      };
+  }
+
+  say to_json({
+      kid_name  => $kid_name,
+      xmas_list => \@xmas_list,
+  });
+
+Now that the Perl script is producing JSON, Santa is ready to write the node
+code to consume the Christmas list. He structured the JavaScript to register
+callbacks for interesting events: every time there's new data on C<STDIN>, it
+is concatenated onto the C<json> variable. Then when C<STDIN> is closed, the
+full JSON is consumed and examined to print out the work order.
+
+  #!vim javascript
+  #!/usr/bin/env node
+  var json = '';
+
+  process.stdin.resume();
+
+  process.stdin.on('data', function(chunk) { json += chunk });
+
+  process.stdin.on('end', function() {
+      var input     = JSON.parse(json),
+          kid_name  = input.kid_name,
+          xmas_list = input.xmas_list,
+          toy_count = 0;
+
+      xmas_list.forEach(function (item) {
+          console.log(kid_name + " would like " + item.gift + " (" + item.quantity + ").");
+          toy_count += item.quantity;
+      });
+
+      console.log("Dearest Elf, please make " + toy_count + " gifts for " + kid_name + ".");
+  });
+
+Santa fires off these two scripts and examines the first work order that comes
+out.
+
+    Shawn would like wooden toys (3).
+    Shawn would like dog clock (1).
+    Shawn would like hobby horse (1).
+    Shawn would like glider planes (2).
+    Dearest Elf, please make 03112 gifts for Shawn.
+
+Oh no! 3,112 gifts is way too many for one kid! Santa scratches his beard and
+tries to figure out where things went wrong. He reads the JavaScript again and
+again, but it all looks right. He reads the Perl again and again, but that
+looks right too. And where did that zero come from anyway? Elves are certainly
+eccentric but even they prefer decimal, not octal, numbers.
+
+Do you, beloved reader, see the problem?
+
+=head2 Data Interchange
+
+This problem is driving Santa batty, so he starts shifting a little bit more
+blame than is deserved.
+
+"I<Does node.js not even get B<addition> right?>"
+
+"I<Is this abominable computer playing tricks on me?>"
+
+"I<That Larry fella? B<Coal!!>>"
+
+Certainly you've felt the same kind of debugging paranoia before, too. Often a
+divide and conquer approach will get your foot in the door of these kinds of
+problems. If Santa can decisively conclude that the bug is in either the Perl
+or the JavaScript, that halves the problem he is flailing at.
+
+We can figure out which language the bug is in by closely examining the JSON
+passed from Perl to JavaScript. If the JSON is correct, then the bug can't
+possibly be in Perl. If the JSON is wrong, then the bug is obviously in Perl.
+So what does that JSON look like?
+
+  #!vim javascript
+   {
+       "xmas_list" : [
+          {
+             "gift"     : "wooden toys",
+             "quantity" : "3"
+          },
+          {
+             "gift"     : "dog clock",
+             "quantity" : "1"
+          },
+          {
+             "gift"     : "hobby horse",
+             "quantity" : "1"
+          },
+          {
+             "gift"     : "glider planes",
+             "quantity" : "2"
+          }
+       ],
+       "kids_name" : "Shawn"
+    }
+
+That JSON is wrong! Why is each C<quantity> a string? That makes no sense. And
+since the JSON is wrong, there must be a bug in the Perl program.
+
+Each quantity is a string ultimately because Perl is very forgiving. If you
+write C<$str1 + $str2>, Perl knows that you meant I<addition> and not
+I<concatenation> because you chose the C<+> operator instead of the C<.>
+operator. Concatenation doesn't even cross Perl's mind! So Perl dutifully
+complies with the C<+> operator by numifying C<$str1> and C<$str2> then adding
+whatever it pulled out of those two strings.
+
+In Santa's original completely-Perl program, and indeed in most programs, this
+behavior is very helpful. When Perl deconstructed each line of the Christmas
+list with a regular expression, it pulled out two substrings: quantity and
+name. But when Santa summed up the number of gifts, Perl numified each
+quantity. We didn't need to tell Perl to do that beyond just using addition.
+This correctly produced the total 7.
+
+However when Santa changed his program to start emitting JSON, there was no
+more addition to hint to Perl that quantity is actually numeric. Instead, when
+L<JSON> came to serialize each quantity, it saw that Perl currently thought the
+value was a string not a number (since it was produced with a regular
+expression capture group). So L<JSON> produced the strings C<"3">, C<"1">,
+C<"1">, and C<"2">.
+
+This is problematic because in many other languages that aren't Perl, such as
+JavaScript, what the C<+> operator will do depends on the types of its
+operands. C<number + number> means addition and C<string + string> means
+concatenation. It's not better or worse than how Perl does it; just different.
+But it means that when the JSON contained strings for quantity, node.js chose
+I<concatenation>, not I<addition>, during each iteration of C<toy_count +=
+item.quantity;>. This is how Santa accidentally ordered C<"03112"> gifts for me
+(recall that C<toy_count> was initialized to C<0>, so that's where that leading
+C<0> came from).
+
+=head2 Numification
+
+Now we understand the bug. But what is Santa to do about it? It's already
+December 23rd, he doesn't have much time here!
+
+The fix is to I<force> Perl to treat the quantity value as numeric. You can do
+this in several different ways: adding zero, multiplying by one, using
+C<int(...)>, and so on. These operations can only produce numbers, which lets
+Perl annotate such values as being numeric. That way when L<JSON> comes to
+serialize quantity, it sees that the value is a number not a string, so it
+leaves off the quotation marks. Then when node.js parses this JSON, it treats
+each quantity as a number, not as a string, so C<+> means addition not
+concatenation, so we should end up with the correct sum.
+
+Let's add zero to C<$quantity> to produce a number.
+
+  #!perl
+  push @xmas_list, {
+      gift     => $gift,
+      quantity => $quantity + 0,
+  };
+
+With this change, the JSON looks like this:
+
+  #!vim javascript
+  {
+      "xmas_list" : [
+         {
+            "gift"     : "wooden toys",
+            "quantity" : 3
+         },
+         {
+            "gift"     : "dog clock",
+            "quantity" : 1
+         },
+         {
+            "gift"     : "hobby horse",
+            "quantity" : 1
+         },
+         {
+            "gift"     : "glider planes",
+            "quantity" : 2
+         }
+      ],
+      "kids_name" : "Shawn"
+  } 
+
+And the toy order looks like this:
+
+  Shawn would like wooden toys (3).
+  Shawn would like dog clock (1).
+  Shawn would like hobby horse (1).
+  Shawn would like glider planes (2).
+  In summary, Shawn would like 7 gifts.
+
+Great! Problem solved!
+
+=head2 L<JSON::Types>
+
+Santa is very happy that orders are now flowing correctly. But he is concerned
+about that C<+ 0>. It's not particularly obvious what the C<+ 0> is doing,
+because, practically speaking, when would you ever want to add zero to
+something? Next year when it comes time to incorporate 2013's cool tech, Santa
+may have forgotten the reason for the C<+ 0> and outright delete it, or simply
+drop it when he next refactors the code. He could leave a comment:
+
+=begin vim perl
+
+    push @xmas_list, {
+        gift     => $gift,
+        quantity => $quantity + 0, # treat quantity as a number
+    };
+
+=end vim
+
+But he's understandably still concerned about potential maintenance problems because, let's face it, C<+ 0> is fundamentally strange.
+
+Luckily for Santa, there is a new module called L<JSON::Types> that makes
+fixing this and other similar problems a treat. L<JSON::Types> provides a
+subroutine called C<number> which encapsulates the messy bit of convincing Perl
+to produce a number.
+
+  #!perl
+  push @xmas_list, {
+      gift     => $gift,
+      quantity => JSON::Types::number($quantity),
+  };
+
+The best part is that just by putting C<JSON::Types::number> into the source
+code, it's a lot more obvious what is really going on. Even a thousand years
+from now, Santa will be able to understand what that piece of code means and
+why it must happen. After all, L<JSON::Types> has easily-findable documentation
+explaining the problem. It's hard to document C<+ 0> in general, and it's hard
+to search for too. Just seeing the word "JSON" in that line of code might even
+be enough to jog Santa's memory.
+
+L<JSON::Types> also provides C<string> for turning numbers into strings. You
+could of course use C<"$number"> to force a string into a number, but that has
+the same kinds of problems and as C<+ 0>.
+
+Finally, L<JSON::Types> also provides a C<bool> subroutine for producing the
+constants C<true> and C<false> that JSON has. In Perl, we get by just fine with
+using C<undef> or the empty string for C<false> and C<1> for true, but in other
+languages, that simply will not stand. C<bool($value)> will use the same kind
+of logic as Perl's C<if> to decide whether C<$value> should produce C<true> or
+C<false>. Without L<JSON::Types>, you'd have to do something silly like
+C<$value ? JSON::true : JSON::false>.
+
+So, this year, be sure you're using addition, not concatenation, to count how
+many gifts your loved ones get!
+
+=head1 See Also
+
+=for :list
+* L<JSON>
+* L<JSON::Types>
+
