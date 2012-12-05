@@ -9,7 +9,7 @@ is to use an example from Real Life™. A single day in our lives can contain
 plenty of actions that make us cringe and growl. Take, for instance, trying to
 make a meal.
 
-Imagining you're cooking. You wouldn't wait for the water to boil before you
+Imagine you're cooking. You wouldn't wait for the water to boil before you
 prepared the potatoes. Nor would you wait for the potatoes to be done before
 you started working on the salad.
 
@@ -96,7 +96,7 @@ can't just be waiting by the phone. We have stuff to do!
   # continue to do something else
 
 How does that work? By calling L<AnyEvent>'s C<io> method, you're creating a
-new watcher that checks polls a file handle for new read events. If it has
+new watcher that checks a file handle for new read events. If it has
 something to read, it will call the code reference we provided. Both the checks
 and the subroutine call will happen in the background.
 
@@ -136,9 +136,9 @@ work.
   say "All done!";
 
 This time we created a condition variable that is available to the watcher.
-The watcher still dilligently continuing its work. Only this time as soon as it
+The watcher still dilligently continues its work. Only this time as soon as it
 finds a line in the file indicating the end of it, it will call C<send> on the
-condition variable, making the condition true, effecitvely saying "that's it,
+condition variable, making the condition true, effectively saying "that's it,
 we're done".
 
 If someone has called C<recv> on the condition variable, it will wait until
@@ -148,11 +148,29 @@ will continue running.
 That means that the line "All done!" will only get written once our worker
 finished reading the line.
 
+Another ramification of the condition variable's behavior is that it is
+possible to create an infinite loop by creating a condition variable, calling
+C<recv>, and not having anything call C<send> on it. It looks exactly like
+this:
+
+  #!perl
+  my $cv = AnyEvent->condvar;
+  $cv->recv;
+
+  # or in short
+  AnyEvent->condvar->recv;
+
+Since the application is now waiting for a condition variable to come true, it
+will not terminate. Because nothing can call C<send> on this variable, it
+basically means the application will stay up indefinitely. The most common
+usage for this are daemons, which should always be running.
+
 =head1 Timing your cooking
 
 The last element in L<AnyEvent> that  we'll be looking at is the timer. Timers
-are events (any event) that gets run at some point in time. It can be in a few
-minutes or at a specific time. It can happen once or maybe even several times.
+are events (any kind of event) that gets run at some point in time. It can be
+in a few minutes from now or at a specific hour. It can happen once or it can
+repeat itself several times, or even forever.
 
   #!perl
   my $timer = AnyEvent->timer(
@@ -164,14 +182,14 @@ minutes or at a specific time. It can happen once or maybe even several times.
   );
 
 This defines a timer that will wait 3.5 seconds, and then call the subroutine
-every 3.5 seconds. Fairly simple. Let's try a few timers.
+every 5 seconds. Fairly simple. Let's try a few timers.
 
   #!perl
   my @steps        = qw<Cutting Simmering Cooking Seasoning Serving>;
   my $current_step = 'Preparing';
 
   my $done = AnyEvent->condvar;
-  my $t1 = AnyEvent->timer(
+  my $t1   = AnyEvent->timer(
       interval => 60 * 7,
       cb       => sub {
           say "Current cooking state: $current_step";
@@ -179,8 +197,8 @@ every 3.5 seconds. Fairly simple. Let's try a few timers.
   );
 
   my $t2 = AnyEvent->timer(
-      after    => 2, # two seconds to wash hands before working!
-      interval => 60 * 10, # assuming every action takes 10 seconds
+      after    => 2,       # two seconds to wash hands before working!
+      interval => 60 * 10, # assuming every action takes 10 minutes
       cb       => sub {
           $current_step = shift @steps or return $done->send;
           do_step($current_step);
@@ -199,11 +217,11 @@ It does this by simply returning out of the subroutine (so we don't call
 C<do_step> again) and calling C<send> at the same time.
 
 After we created our timers, we set up a C<recv> on a condition variable,
-meaning "don't continue running the application until we are notified that
-the timers finished their work". It will wait in that point in time (without
-blocking the timers) until the C<send> is called. Then it will continue and
-say dinner is finally served. Since it's the end of the application, the
-timers will close and the application will end.
+meaning "don't continue running the rest of the application until we are
+notified that the timers finished their work". It will wait in that point in
+time (without blocking the timers) until the C<send> is called. Then it will
+continue and say dinner is finally served. Since it's the end of the
+application, the timers will close and the application will end.
 
 Here is the output we'll get from running the application:
 
@@ -222,17 +240,56 @@ Here is the output we'll get from running the application:
   Current cooking state: Serving
   Dinner is served!
 
+=head1 Condition variables with multiple calls
+
+Sometimes the behavior of the condition variable's C<send> and C<recv> is
+not flexible enough to handle instances in which you need to be able to wait
+on multiple calls.
+
+Suppose you have a calculation to do that depends on the result of multiple
+database queries. Before the SQL experts jump at it, let's also suppose these
+queries are made across different databases.
+
+A database connection is in fact a network operation, which means it blocks.
+This is an ideal example for async programming. You could initiate several
+connections and queries concurrently instead of consequtively. Using condition
+variables, you would probably try to open three condition variables, and then
+waiting for each to come true. That won't work, since you can only call C<recv>
+on one variable at a time.
+
+Instead, condition variables can accept a C<begin> and C<end> call to signify
+a multi-call request. Once all C<begin> calls had C<end> call on them, it will
+return to the C<recv> method.
+
+  #!perl
+  my $cv  = AnyEvent->condvar;
+  my $sum = 0;
+  foreach my $db (@dbs) {
+      # beginning an event
+      $cv->begin;
+
+      $db->query( $query, sub {
+          my $amount = shift;
+          $sum += $amount;
+
+          # finishing an event
+          $cv->end;
+      },
+  }
+
+  $cv->recv;
+  say "All database queries finished.";
+
 =head1 Bringing it all together
 
 After we've gone over a few elements of AnyEvent, we can build a small useful
 application. We'll add a few more elements such as L<AnyEvent::HTTP>,
-L<Regexp::Common>, L<File::Basename>, and C<begin> and C<end> calls for
-condition variables.
+L<Regexp::Common>, and L<File::Basename>.
 
 Suppose we have a file that has contains a lot of links and we want to download
 every image listed in it. These are two different actions: (1) reading the file
 and (2) downloading the images. We will also have a timer that gives us the
-progress every single minute.
+progress every two seconds.
 
   #!perl
   use AnyEvent;
@@ -259,10 +316,10 @@ progress every single minute.
               my $body     = shift;
               my $filename = basename($line);
 
-              syswrite $filename, $body
+              syswrite $filename, $body ?
+                  $counter++            :
                   or warn "Couldn't write to $filename: $!";
 
-              $counter++;
               $cv->end;
           };
       },
@@ -270,9 +327,9 @@ progress every single minute.
 
   my $progress = AnyEvent->timer(
       after    => 2, # giving it two seconds before starting
-      interval => 2,
+      interval => 2, # report every two seconds
       cb       => sub {
-          printf "[%s] Update: finished downloading $counter images\n",
+          printf "[%s] Update: finished downloading $counter images.\n",
               scalar AnyEvent->now;
       },
   );
@@ -281,7 +338,7 @@ progress every single minute.
   close $fh;
   say "Finished downloading all files";
 
-Let's analyze what we've got so far. We use some modules that you should
+Let's analyze what we've got here. We use some modules that you should
 recognize. If you don't, you should check them out.
 
 The next thing is opening a file handle. We then set up a watcher for some
@@ -291,25 +348,17 @@ reading) and a callback to run. This callback is the main thing that takes a
 bit to understand.
 
 Every time we read a line that has a URL, we call C<begin> on the condition
-variable, which means "hey, I'm about to run an action". Each C<begin>
-correlates to an C<end> call. We issue an HTTP request for that URL and once
-we finish fetching it and saving it, we issue the correlating C<end> call, to
-note that the condition variable can be released. This helps when you have more
-than just one condition for the variable (like we did earlier with C<send>).
-
-Every time we read a URL, we'll call C<begin>, and end up with multiple
-C<begin>s, and every time we finish working on a URL, we call C<end> to clear
-the previous C<begin>. With all C<begin> calls C<end>ed, it will return to the
-C<recv> method, much like calling C<send>. Simply imagine C<send> as a single
-condition, while C<begin> and C<end> are multiple.
+variable. We issue an HTTP request for that URL and once we finish fetching it
+and saving it, we issue the corresponding C<end> call.  When all C<begin> calls
+have C<end>ed, it will return to the C<recv> method, much like calling C<send>.
 
 We also created a progress timer that announces, every two seconds, the number
-of links we've sent. You'll notice it uses L<AnyEvent>'s C<now>, which is a
-safer way to call C<time> when running in an event loop.
+of links we've sent. You'll notice it uses L<AnyEvent>'s C<now>, which is the
+recommended way to call C<time> when running in an event loop.
 
-The C<recv> call in the end will wait until all C<begin> calls will be closed
-using the C<end> method. Once we've worked on the entire file, it will print
-a nice message and the application will close.
+The C<recv> call in the end will wait until all C<begin> calls will be closed.
+Once we've worked on the entire file, it will print a nice message and the
+application will end.
 
 =head1 Just the beginning...
 
