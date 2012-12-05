@@ -1,0 +1,146 @@
+Title: Santa Has Dependencies Too
+Topic: Pinto
+Author: Jeffrey Ryan Thalhammer <jeff@imaginative-software.com>
+
+In the old days, Santa's elves would build every toy from scratch, but
+now he outsources most of the parts for the toys.  Naturally, he has
+created a sophisticated supply-chain management system to ensure that
+each toy is consistently built from the same parts.
+
+The same is true for software development.  These days, our
+applications depend on lots of frameworks and libraries.  So we also
+need to manage the supply of those dependencies to ensure that every
+build has the same "parts".
+
+L<Pinto> helps you manage your supply of dependencies by creating a
+custom repository of Perl modules.  The repository is fully compatible
+with CPAN installers (e.g. C<cpan>, C<cpanm>, C<cpanp>).  But unlike
+the public CPAN, the modules in your Pinto repository only change when
+you want to change them.  So you'll get the exact same result each and
+every time you build.
+
+The C<pinto> command line utility does all the work of creating the
+repository, and provides some helpful tools for managing change as
+your dependencies evolve over time.  Let's take a look at some of the
+things you can do...
+
+First, let's create a repository.  All you need is a directory where
+the repository will live (we'll use F<~/my_repo> here) and the name of
+the stack (we'll use C<prod> here).  A stack is just a named subset of
+modules in your repository (more on that later).  Here's what the
+command would look like:
+
+  $ pinto -r ~/my_repo init --stack=prod
+
+Suppose we want to use L<Catalyst> for a new application.  So let's
+get it from the CPAN and put it in our Pinto repository.  This command
+will put the latest (at this moment) version of Catalyst and all of
+its dependencies into the Pinto repository:
+
+  $ pinto -r ~/my_repo pull Catalyst
+
+To install Catalyst, we just point C<cpanm> (or C<cpan> or C<cpanp>)
+at the stack inside the repository.  Every time we do this, we'll get
+exactly the same version of Catalyst and its dependencies, even if
+newer versions have been released to the public CPAN:
+
+  $ cpanm --mirror=file:///home/jeff/my_repo/prod --mirror-only Catalyst
+
+From time to time, Santa decides to upgrade the parts used to build a
+toy, or even switch to a new parts supplier entirely.  To ensure
+quality, Santa always sets up a separate assembly line for the elves
+to test the new parts before committing them to mass production.
+
+With Pinto, you can do the same thing.  Suppose that Catalyst 4.0 is
+released to the CPAN and we want to try upgrading our application,
+which now has several other dependencies of its own.  We can make an
+experimental duplicate of those dependencies by copying the stack like
+this:
+
+  $ pinto -r ~/my_repo copy prod catalyst-upgrade
+
+Any changes we make to the "catalyst-upgrade" stack are completely
+separate from the "prod" stack.  So we can now go ahead and upgrade
+Catalyst (and whatever new modules it may require) like this:
+
+  $ pinto -r ~/my_repo pull --stack=catalyst-upgrade Catalyst~4.0
+
+To test our upgraded application dependencies, we just make a new
+build by pointing cpanm at the "catalyst-upgrade" stack inside the
+repository:
+
+  $ cpanm --mirror=file:///home/jeff/my_repo/catalyst-upgrade --mirror-only Catalyst
+
+If our application (and all of its dependencies) build cleanly then we
+can just merge two stacks together and throw away the experimental
+stack:
+
+  $ pinto -r ~/my_repo merge catalyst-upgrade prod
+  $ pinto -r ~/my_repo delete catalyst-upgrade
+
+Occasionally, Santa's elves find that a new version of a part is
+flawed or just not compatible with current their line of toys.  Since
+the workshop is pretty big, it can be hard to ensure that every elf
+foreman doesn't mistakenly order the new (flawed) part for his
+assembly line.  So Santa keeps a real-time blacklist of all the part
+numbers that are not allowed in the workshop.
+
+This happens all the time in software development, so Pinto allows you
+to "pin" the modules in your repository, which prevents them from
+being upgraded.  Suppose we already have Plack 2.0 in our Pinto
+repository and we learn that Plack 3.0 is not compatible with our
+application.  So we can pin Plack to let everyone know that it can't
+be upgraded yet:
+
+  $ pinto -r ~/my_repo pin Plack
+
+If anyone tries to upgrade Plack directly or to satisfy the
+prerequisites for some other module, then Pinto will refuse to comply.
+Once you've resolved the problem, then you can unpin Plack and upgrade
+it as needed.
+
+Keeping lists of all the naughty and nice children is huge task, so
+Santa has become very good at record keeping.  He also keeps excellent
+records of everything that happens in the workshop.  This helps him to
+identify the critical links in his supply chain or reward deserving
+elves.
+
+Pinto keeps records too, so you can see what's in the repository right
+now and how it has changed over time.  Here are some of the things you
+can do:
+
+  # Show all the modules in the stack right now:
+  $ pinto -r ~/my_repo list
+
+  # Show who's responsible for the current modules in the stack:
+  $ pinto -r ~/my_repo blame
+
+  # Show how and why the stack has changed over time:
+  $ pinto -r ~/my_repo log --detailed
+
+As you can imagine, Santa Claus has pretty much perfected the science
+of supply-chain management.  So when it comes to managing our supply
+of module dependencies, we software developers could probably learn a
+lot from him.  Perhaps Pinto should have been called "Donner" or
+"Vixen".
+
+=head1 SEE ALSO
+
+=over 4
+
+=item Pinto on CPAN
+
+L<https://metacpan.org/module/Pinto>
+
+=item Pinto::Manual on CPAN
+
+L<https://metacpan.org/module/Pinto::Manual>
+
+=item Pinto presentation at YAPC
+
+L<http://www.youtube.com/watch?v=oaBBVZFhJUk>
+
+=back
+
+=cut
+
