@@ -1,151 +1,287 @@
-Title: Better Testing
-Topic: forkprove and Test::Pretty
-Author: Jesse Luehrs <doy@tozt.net>
+Title: Set-based DBIx::Class
+Topic: DBIx::Class
+Author: Arthur Axel "fREW" Schmidt <frew@cpan.org>
 
-=head1 Moose is slow!
+I've been using L<DBIx::Class> for a few years, and I've been part of the
+development team for just a little bit less.  Three years ago I wrote a
+L<Catalyst Advent article|http://www.catalystframework.org/calendar/2009/20>
+about there mere five L<DBIx::Class::Helpers>, which have since ballooned to
+twenty-four.  I'll be mentioning a few helpers in this post, but the main thing
+I want to describe is a way of using DBIx::Class that results in efficient
+applications as well as reduced code duplication.
 
-At least when testing. Moose's compile time speed isn't typically a problem
-when running things like web applications, since they only start up once, but
-tests frequently run many instances of the application in quick succession, and
-this can add quite a bit of time to the overall runtime of the test suite. This
-can in fact happen with a lot of different modules - Moose is just the most
-well known example, but any large module will have a similar effect.
+(Don't know anything about DBIx::Class?  Want a
+refresher before diving in more deeply?  Maybe watch
+L<my presentation|https://www.youtube.com/watch?v=Vm_NlfHNVvg> on it, or, if
+you don't like my face, try L<this
+one|http://www.youtube.com/watch?v=N-tbMPyNlM8>.)
 
-If you look at what's actually happening though, all of this extra time is
-spent doing the same thing. The same code is loaded at the start, and then only
-after compilation is finished do things start to diverge (to run the actual
-tests themselves). There's no reason that the code that runs for C<use Moose>
-should need to run multiple times during the test suite, since it always does
-the same thing, and so a lot of time could be saved by loading modules fewer
-times.
+The thesis of this article is that B<< when you write code to act on things at
+the set level, you can often leverage the database's own optimizations >> and
+thus produce faster code at a lower level.
 
-=head2 Test::Aggregate
+=head1 Set Based DBIx::Class
 
-In the past, people have attacked this problem by combining test files into
-fewer, bigger ones, or by using something like L<Test::Aggregate> to automate
-this process. This is error-prone, because a lot of times tests can have global
-effects - installing subs into packages, creating classes, etc. We really do
-want tests to run in separate environments, to avoid allowing them to interfere
-with each other.
+The most important feature of DBIx::Class is not the fact that it saves
+you time by allowing you to sidestep database incompatibilities.  It's not
+that you never have to learn the exact way to paginate correctly with SQL
+Server.  It isn't even that you won't have to write DDL for some of the
+most popular databases.  Of course DBIx::Class B<does> do these things.
+Any ORM worth it's weight in salt should.
 
-=head2 App::ForkProve
+=head2 Chaining
 
-L<App::ForkProve> solves this problem. It is a wrapper for L<App::Prove>, which
-allows you to preload modules, and then instead of running each of the test
-files via C<fork> and C<exec>, it runs them via C<fork> and C<eval>. This way,
-the preloaded modules are already loaded in the current interpreter, and so
-when the test files are run, the C<use> statement is just a no-op.
+The most important feature of
+DBIx::Class is the L<ResultSet|DBIx::Class::ResultSet>.  I'm not an expert
+on ORMs, but I've yet to hear of another ORM which has an immutable[†] query
+representation framework.  The first thing you B<must> understand to achieve
+DBIx::Class mastery is ResultSet chaining.  This is basic but critical.
 
-This actually works remarkably well - the L<OX> test suite takes 30 seconds to
-run C<make test> on my laptop, which decreases to 14 seconds under
-C<prove -rj5 -l t> (since it runs the tests in parallel on multiple
-processors), but
-C<forkprove -rj5 -l -MOX -MOX::Request -MOX::Response -MOX::RouteBuilder::Code -MOX::RouteBuilder::ControllerAction -MOX::RouteBuilder::HTTPMethod t>
-runs in just I<3 seconds>.
+The basic pattern of chaining is that you can do the following and not hit the
+database:
 
-=head2 Tips and tricks
+  #!perl
+  $resultset->search({
+     name => 'frew',
+  })->search({
+     job => 'software engineer',
+  })
 
-That command line did get a bit long though, and it's hard for people who
-aren't the developer to know what things are useful to preload. It may be
-useful to provide a module along with your test suite that does the job of
-loading all of the useful modules, so you only have to specify a single C<-M>
-option. For instance, here is the contents of C<t/Preload.pm> in the OX
-repository:
+What the above implies is that you can add methods to your resultsets like the
+following:
 
-=begin vim perl
+  #!perl
+  sub search_by_name {
+     my ($self, $name) = @_;
 
-  package t::Preload;
-  use strict;
-  use warnings;
-
-  use OX;
-  use OX::Request;
-  use OX::Response;
-  use OX::RouteBuilder::Code;
-  use OX::RouteBuilder::ControllerAction;
-  use OX::RouteBuilder::HTTPMethod;
-
-  1;
-
-=end vim
-
-Now, you can just run C<forkprove -rj5 -l -Mt::Preload t> to get the same
-effect.
-
-Another useful trick is that since C<forkprove> is entirely compatible with
-C<prove> except for the C<-M> option, you can replace C<prove> with
-C<forkprove> entirely, by adding an alias to your shell configuration:
-
-  alias prove="forkprove"
-
-This way, prove will continue to work as it always has in the past, but if you
-specify any C<-M> options, they will be preloaded.
-
-=head2 Caveats
-
-This isn't I<entirely> free, however. One obvious place where this would cause
-problems is in test files which test to make sure certain modules I<don't> get
-loaded in certain situations. If you preload those modules, those tests will
-start failing.
-
-In addition, since the tests are running from C<forkprove> itself, any calls to
-C<Carp::confess> or similar will report a longer stacktrace than they would
-otherwise, because all of the App::ForkProve machinery is actually still on the
-call stack. This is not typically a problem, but can potentially cause failures
-if you are relying on matching the entire stacktrace in a test.
-
-=head1 TAP is ugly!
-
-So now we have our tests running nice and quickly, and we make a change in our
-actual code, and it causes some tests to fail. The trouble is, the actual
-causes of the failures can be obscured by all of the C<prove> output,
-especially if it's running in parallel. It'd be nice to have an easily
-skimmable output that makes it much more apparent what is wrong.
-
-A typical solution here is to run C<prove -l t>, see the list of failures at
-the end, and run the test files individually with
-C<perl -Ilib t/failing-test.t>. This isn't great though, since raw TAP isn't
-the easiest thing to read. Additionally, if your tests don't have descriptions,
-it can be quite hard to find the test you're looking for.
-
-=head2 Test::Pretty
-
-L<Test::Pretty> modifies the TAP output in order to make it a lot more pleasant
-to read. It adds colored output, automatically generates a test description
-based on the line number and contents of tests if they don't have one. For
-instance:
-
-=for html
-<img src="test-pretty.png" />
-
-In addition, it cleans up the output of subtests to make them easier to follow:
-
-=for html
-<img src="test-pretty-subtest.png" />
-
-=head2 Tips and tricks
-
-Another shell alias can make using this easier:
-
-=begin vim sh
-
-  function t {
-      if [[ -d blib ]]; then
-          perl -Mblib -MTest::Pretty "$@"
-      else
-          perl -Ilib -MTest::Pretty "$@"
-      fi
+     $self->search({ $self->current_source_alias . ".name" => $name })
   }
 
-=end vim
+  sub is_software_engineer {
+     my $self = shift;
 
-This way, C<t t/foo.t> will run the given test file, using C<blib> if
-appropriate.
+     $self->search({
+        $self->current_source_alias . ".job" => 'software engineer',
+     })
+  }
 
-=cut
+And then the query would become merely
+
+  #!perl
+  $resultset->search_by_name('frew')->is_software_engineer
+
+(microtip: use L<DBIx::Class::Helper::ResultSet::Me> to make defining searches
+as above less painful.)
+
+=head2 Relationship Traversal
+
+The next thing you need to know is relationship traversal.  This can happen two
+different ways, and to get the most code reuse out of DBIx::Class you'll need
+to be able to reach for both when the time arrises.
+
+The first is the more obvious one:
+
+  #!perl
+  $person_rs->search({
+     'job.name' => 'goblin king',
+  }, {
+     join => 'job',
+  })
+
+The above finds person rows that have the job "L<goblin
+king|https://www.google.com/search?tbm=isch&q=david+bowie+jareth>."
+
+The alternative to use L<DBIx::Class::ResultSet/related_resultset>:
+
+  #!perl
+  $job_rs->search_by_name('goblin_king')
+         ->related_resultset('person')
+
+The above generates the same query, but allows you to use methods that are
+defined on the job resultset.
+
+=head2 Subqueries
+
+Subqueries are less important for code reuse and more important in
+avoiding incredibly inefficient database patterns.  Basically, they allow the
+database to do more on its own.  Without them, you'll end up asking the
+database for data, then you'll send that data right back to the database as
+part of your next query.  It's not only pointless
+network overhead but also two queries.
+
+Here's an example of what not to do in C<DBIx::Class>:
+
+  #!perl
+  my @failed_tests = $tests->search({
+     pass => 0,
+  })->all;
+
+  my @not_failed_tests = $tests->search({
+    id => { -not_in => [map $_->id, @failed_tests] }, # XXX: DON'T DO THIS
+  });
+
+If you got enough failed tests back, this would probably just error.
+B<< Just Say No >> to inefficient database queries:
+
+  #!perl
+  my $failed_tests = $tests->search({
+     pass => 0,
+  })->get_column('id')->as_query;
+
+  my @not_failed_tests = $tests->search({
+    id => { -not_in => $failed_tests },
+  });
+
+This is much more efficient than before, as it's just a single query and lets
+the database do what it does best and gives you what you exactly want.
+
+=head2 Christmas!
+
+Ok so now you know how to reuse searches as much as is currently possible.
+You understand the basics of subqueries in C<DBIx::Class> and how they
+can save you time.  My guess is that you actually already knew that.
+"This wasn't any kind of ninja secret, fREW!  You lied to me!"  I'm sorry,
+but now we're getting to the real meat.
+
+=head2 Correlated Subqueries
+
+One of the common, albeit expensive, usage patterns I've seen in C<DBIx::Class>
+is using C<< N + 1 >> queries to get related counts.  The idea is that you do
+something like the following:
+
+  #!perl
+  my @data = map +{
+     %{ $_->as_hash },
+     friend_count => $_->friends->count, # XXX: BAD CODE, DON'T COPY PASTE
+  }, $person_rs->all
+
+Note that the C<< $_->friends->count >> is a query to get the count of friends.
+The alternative is to use correlated subqueries.  Correlated subqueries are
+hard to understand and even harder to explain.  The gist is that, just like
+L<before|/Subqueries>, we are just using a subquery to avoid passing data to
+the database for no good reason.  This time we are just going to do it for each
+row in the database.  Here is how one would do the above query, except as
+promised, with only a single hit to the database:
+
+  #!perl
+  my @data = map +{
+     %{ $_->as_hash },
+     friend_count => $_->get_column('friend_count'),
+  }, $person_rs->search(undef, {
+     '+columns' => {
+        friend_count => $friend_rs->search({
+           'friend.person_id' =>
+              { -ident => $person_rs->current_source_alias . ".id" },
+        }, {
+          alias => 'friend',
+        })->count_rs->as_query,
+     },
+  })->all
+
+There are only two new things above.  The first is C<-ident>.  All C<-ident>
+does is tell C<DBIx::Class> "this is the name of a thing in the database, quote
+it appropriately."  In the past people would have written C<-ident> using
+queries like this:
+
+ #!perl
+ 'friend.person_id' => \' = foo.id' # don't do this, it's silly
+
+So if you see something like that in your code base, change it to C<-ident> as
+above.
+
+The next new thing is the C<< alias => 'friend' >> directive.  This merely
+ensures that the inner rs has it's own alias, so that you have something to
+correlate against.  If that doesn't make sense, just trust me and cargo cult
+for now.
+
+This adds a virtual column, which is itself a subquery.  The column is,
+basically, C<< $friend_rs->search({ 'friend.person_id' => $_->id })->count >>,
+except it's all done in the database.  The above is B<horrible> to recreate
+every time, so I made a helper:
+L<DBIx::Class::Helper::ResultSet::CorrelateRelationship>.  With the helper the
+above becomes:
+
+  #!perl
+  my @data = map +{
+     %{ $_->as_hash },
+     friend_count => $_->get_column('friend_count'),
+  }, $person_rs->search(undef, {
+     '+columns' => {
+        friend_count => $person_rs->correlate('friend')->count_rs->as_query
+     },
+  })->all
+
+=head2 L<::ProxyResultSetMethod|DBIx::Class::Helper::Row::ProxyResultSetMethod>
+
+Correlated Subqueries are nice, especially given that there is a helper to
+make creating them easier, but it's still not as nice as we would like it.
+I made another helper which is the icing on the cake.  It encourages more
+forward-thinking DBIx::Class usage with respect to resultset methods.
+
+Let's assume you need friend count very often.  You should make the following
+resultset method in that case:
+
+  #!perl
+  sub with_friend_count {
+     my $self = shift;
+
+     $person_rs->search(undef, {
+        '+columns' => {
+           friend_count => $person_rs->correlate('friend')->count_rs->as_query
+        }
+     }
+  }
+
+Now you can just do the following to get a resultset with a friend count
+included:
+
+  #!perl
+  $person_rs->with_friend_count
+
+But to access said friend count from a result you'll still have to use
+C<< ->get_column('friend') >>, which is a drag since using C<get_column> on a
+C<DBIx::Class> result is nearly using a private method.  That's where my helper
+comes in.  With L<DBIx::Class::Helper::Row::ProxyResultSetMethod>, you can use
+the C<< ->with_friend_count >> method B<from> your row methods, and better yet,
+if you used it when you originally pulled data with the resultset, the result
+will use the data that it already has!  The gist is that you add this to your
+result class:
+
+    __PACKAGE__->load_components(qw( Helper::Row::ProxyResultSetMethod ));
+    __PACKAGE__->proxy_resultset_method('friend_count');
+
+and that adds a C<friend_count> method on your row objects that will correctly
+proxy to the resultset or use what it pulled or cache if called more than once!
+
+=head2 L<::ProxyResultSetUpdate|DBIx:Class::Helper::Row::ProxyResultSetUpdate>
+
+I have one more, small gift for you.  Sometimes you want to do something when
+either your row or resultset is updated.  I posit that the best way to do this
+is to write the method in your resultset and then proxy to the resultset from
+the row.  If you force your API to update through the result you are doing C<N>
+updates (one per row), which is inefficient.  My helper simply needs to be
+loaded:
+
+    __PACKAGE__->load_components(qw( Helper::Row::ProxyResultSetUpdate ));
+
+and your results will use the update defined in your resultset.
+
+=head2 Don't Stop!
+
+This isn't all!  DBIx::Class can be very efficient B<< and also >> reduce
+code duplication.  Whenever you have something that's slow or bound to result
+objects, think about what you could do to leverage your amazing storage layer's
+speed (the RDBMS) and whether you can push the code down a layer to be reused
+more.
+
+[†] if it weren't for the fact that there is an implicit iterator akin to
+C<< each %foo >> it would be 100% immutable.  It's pretty close though!
 
 =head1 See Also
 
 =for :list
-* L<forkprove>
-* L<Test::Pretty>
+* L<DBIx::Class>
+* L<DBIx::Class::Helper::ResultSet::Me>
+* L<DBIx::Class::Helper::ResultSet::CorrelateRelationship>
+* L<DBIx::Class::Helper::Row::ProxyResultSetMethod>
+* L<DBIx:Class::Helper::Row::ProxyResultSetUpdate>
