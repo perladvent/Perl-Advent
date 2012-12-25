@@ -1,0 +1,123 @@
+Title: A Cache Present
+Topic: CHI
+Author: Jonathan Swartz <swartz@pobox.com>
+
+People love receiving I<cash> for Christmas, but a I<cache> is a much
+more useful gift for your performance-hungry web server or application.
+
+Today we'll talk about L<CHI>, a modern Cache Handling Interface for Perl --
+sort of a L<DBI> for caching.
+
+=head1 USING CHI
+
+Creating a cache looks like:
+
+  #!perl
+  my $cache = CHI->new(
+      driver    => '...',
+      namespace => '...',
+      # driver specific args
+  );
+
+I<driver> indicates the cache backend, which controls how the cache data
+will be stored. Available backends include L<Memory|CHI::Driver::Memory>,
+L<File|CHI::Driver::File>, L<BDB|CHI::Driver::BerkeleyDB>,
+L<Memcached|CHI::Driver::Memcached>, and L<Redis|CHI::Driver::Redis> - see
+L<CPAN|https://metacpan.org/search?q=CHI%3A%3ADriver> for a complete list -
+and creating your own driver is L<simple|CHI::Driver::Development>.
+
+I<namespace> is a string that keeps this cache from other caches on the same
+backend. Often it's the name of the caller's Perl package or script.
+
+C<CHI> honors the standard I<get>/I<set> API that most cache modules use:
+
+  #!perl
+  # Try to get value from cache.
+  #
+  my $data = $cache->get($key);
+  if ( !defined $data ) {
+
+      # Was not in cache. Compute $data here.
+      #
+      $data = ...;
+
+      # Store in cache with a 10 minute expiration time.
+      #
+      $cache->set( $key, $data, "10m" );
+  }
+
+It also provides an all-in-one I<compute> API, which is shorter and
+less error-prone:
+
+  #!perl
+  # Try to get value from cache; if missing, call the sub
+  # and store the returned value.
+  #
+  my $data = $cache->compute($key, "10m", sub {
+      # Compute and return value here
+  });
+
+=head1 FEATURES
+
+With C<CHI> you get a lot of caching features under the tree, and you
+can use them no matter which backend you've chosen.
+
+=head2 Automatic key/value serialization
+
+You can store arbitrary I<values> in the cache, including listrefs, hashrefs
+and combinations thereof; C<CHI> will automatically serialize and
+deserialize them for you. Automatic compression over a certain size is also
+an option.
+
+You can also use arbitrary references as cache I<keys>, e.g.
+
+  #!perl
+  my $key = [$pub_id, $article_id, $page_id];
+  my $data = $cache->get($key, ...);
+
+This saves you from the tedious and failure-prone process of composing
+multiple values into a key. And if your key is too long or too weird
+for your driver, CHI will digest and/or escape it for you.
+
+=head2 Multilevel caches
+
+You can chain multiple caches together in various ways. For example, here we
+place a size-limited memory L<L1
+cache|http://en.wikipedia.org/wiki/CPU_cache#Multi-level_caches> in front of
+a memcached cache. C<CHI> will look in the memory cache first; on a miss, it
+will consult memcached and write back the value into the memory cache.
+
+  #!perl
+  my $cache = CHI->new(
+      driver   => 'Memcached',
+      servers  => [ "10.0.0.15:11211", "10.0.0.15:11212" ],
+      l1_cache => { driver => 'Memory', global => 1,
+                    max_size => 1024*1024 }
+  );
+
+=head2 Miss stampede avoidance
+
+A L<miss
+stampede|http://lists.danga.com/pipermail/memcached/2007-July/004810.html>
+occurs when a popular cache item expires, and a large number of processes
+all rush to recompute it. CHI provides L<two
+ways|https://metacpan.org/module/CHI#Getting-and-setting> to reduce or avoid
+this common cache problem - I<probablistic expiration> (in which expiration
+occurs over a range, instead of a single fixed time) and I<busy locks> (in
+which the first process sets a lock so that other processes know not to
+start recomputing).
+
+=head2 Logging and statistics
+
+You can tell CHI to L<log|https://metacpan.org/module/CHI#LOGGING> every
+cache hit, miss and set for debugging purposes. You can also tell CHI to
+output L<statistics|https://metacpan.org/module/CHI#STATS> about the performance of your caches, including the
+hit/miss rate and the average compute time for each namespace.
+
+Happy caching all!
+
+
+=head1 See Also
+
+=for :list
+* CHI

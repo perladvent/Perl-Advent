@@ -1,0 +1,203 @@
+Title: The Greatest Tradition of All
+Topic: File::ShareDir::Tarball
+Author: Yanick Champoux <yanick@cpan.org>
+
+The Holidays. No time in the calendar can boast a higher density of traditions
+per diem than this glorious tail end of the year. But amidst this gleefull
+storm of traditions dealing with the culinary, the jocose, the social, one
+particularly stands out for being almost universally observed.
+
+I'm talking about the hallowed ritual of returning presents.
+
+This problem, funnily enough, isn't restricted to packages that come with bows
+and glitter. Perl distributions, historically, don't come with a return policy.
+That is, once distribution C<Foo-Bar> is installed, it stays installed.  Like
+aunt Thelma's pan-chromatic acrylic sweater, it would linger at the back of the
+closet -- dusty, unused and untouched by more-discriminating-than-that moths,
+an immutable testament that taste isn't a trait passed through genetic lines.
+Which usually isn't such a big problem: computers usually have deep closet
+spaces.
+
+=head1 When Gifts Turn to Time-Bombs
+
+There are, however, a few cases where that lingering can cause issues. The most
+common is when those ghosts of installation pasts interfere with the current
+festivities.
+
+For example, if version 1 of the distribution C<Holidays-Activities> contains
+
+    /lib/Holidays/Activities/SingSongs.pm
+    /lib/Holidays/Activities/BeMerry.pm
+    /lib/Holidays/Activities/MeetFriends.pm
+    /lib/Holidays/Activities/DressUpAsElf.pm
+
+and version 2, after realising that tights, bell-adorned curly slippers and
+short skirts aren't for everybody, revises its payload to be:
+
+    /lib/Holidays/Activities/SingSongs.pm
+    /lib/Holidays/Activities/BeMerry.pm
+    /lib/Holidays/Activities/MeetFriends.pm
+    /lib/Holidays/Activities/DressUpAsSanta.pm
+
+then somebody first installing version 1, and then version 2, will end up with
+some of last year's leftovers, so to speak:
+
+    /lib/Holidays/Activities/SingSongs.pm
+    /lib/Holidays/Activities/BeMerry.pm
+    /lib/Holidays/Activities/MeetFriends.pm
+    /lib/Holidays/Activities/DressUpAsElf.pm
+    /lib/Holidays/Activities/DressUpAsSanta.pm
+
+Yet, this is still not guaranteed to cause problem. If the
+C<Holidays-Activities> modules are called piecemeal, nobody with a lick of good
+sense will ever call C<use Holidays::Activities::DressUpAsElf>, and everybody's
+eyeballs will be spared. But if, say, C<Holidays::Activities> use a snazzy
+module like L<Module::Pluggable> to find all the activities one needs to do
+during those merry times:
+
+    #!perl
+    package Holidays::Activities;
+
+    use Module::Pluggable
+        search_path => ['Holidays::Activities'],
+        require     => 1;
+
+    sub celebrate {
+        my $self = shift;
+
+        $_->perform($self) for $self->plugins;
+    }
+
+    ...
+
+B<BAM!> We end up with a user sporting tights, a cheerfully rotund pot-belly,
+lots of facial hair and a pointy nose. That sound you're hearing in your
+head? That's the screams of millions of children for whom the Holidays will
+never be the same.
+
+=head1 Ghost Of Installs Yet To Come, Give Me a Chance!
+
+Fortunately, all is not lost.  As it happens, most modern CPAN clients provide
+a little-known-yet-handy stash of Pepto-Bismol alongside the milk and cookies:
+the installation of a distribution will also include a F<.packlist> file
+listing all installed files (the modules, the scripts, the manpages, the whole
+deal).  For example, for a C<Dist::Zilla> installed in
+F</opt/perlbrew/perls/perl-5.16.1/lib/site_perl/5.16.1/Dist/Zilla.pm>, a
+F<.packlist> will be created in
+F</opt/perlbrew/perls/perl-5.16.1/lib/site_perl/5.16.1/x86_64-linux/auto/Dist/Zilla/.packlist>
+and will look like:
+
+    /opt/perlbrew/perls/perl-5.16.1/bin/dzil
+    /opt/perlbrew/perls/perl-5.16.1/lib/site_perl/5.16.1/Dist/Zilla.pm
+    /opt/perlbrew/perls/perl-5.16.1/lib/site_perl/5.16.1/Dist/Zilla/App.pm
+    /opt/perlbrew/perls/perl-5.16.1/lib/site_perl/5.16.1/Dist/Zilla/App/Command.pm
+    /opt/perlbrew/perls/perl-5.16.1/lib/site_perl/5.16.1/Dist/Zilla/App/Command/add.pm
+    /opt/perlbrew/perls/perl-5.16.1/lib/site_perl/5.16.1/Dist/Zilla/App/Command/authordeps.pm
+    /opt/perlbrew/perls/perl-5.16.1/lib/site_perl/5.16.1/Dist/Zilla/App/Command/build.pm
+    /opt/perlbrew/perls/perl-5.16.1/lib/site_perl/5.16.1/Dist/Zilla/App/Command/clean.pm
+    /opt/perlbrew/perls/perl-5.16.1/lib/site_perl/5.16.1/Dist/Zilla/App/Command/install.pm
+    ... and so on, and so forth ...
+
+Word of caution: there are some instances where those F<.packlist> will be
+missing.  Some Linux distributions, belonging squarely on the B<naughty> list,
+don't include them in their packaging of perl distributions. It's also
+possible, if you still celebrate the Saturnalia and run on a pre-modern era
+perl, that you won't have them.
+
+=head1 Are the Batteries Included With That Toy?
+
+Partially.  If one dig deeps in the L<lore of
+Module::Build|Module::Build::Cookbook>, one would find an almost-undocumented
+C<--uninst> option that stands for exactly what you think. So it's possible to
+do, during a manual installation dance:
+
+    perl Build.PL
+    ./Build test
+    ./Build install --uninst 1
+
+L<ExtUtils::MakeMaker> also offer a similar command:
+
+    perl Makefile.Pl
+    make test
+    make UNINST=1
+
+As was L<discussed
+recently|http://blogs.perl.org/users/joel_berger/2012/11/rfc-modulebuildcleaninstall.html>,
+however, both systems seem to have issues. And, beside, while a mechanism is
+offered, it puts the onus of cleaning the leftover of past parties to the user.
+I<Manual cleaning>, to boot. Hardly optimal.
+
+=head1 We Need the Help of Elves (just skip the tights, please)
+
+Fairly recently, L<Module::Build::CleanInstall> made its appearance to help
+with this problem.  This module is a subclass of L<Module::Build> that simply
+adds an automatic uninstallation of previous versions of a distribution
+(provided that the F<.packlist> file is found) before doing the new install.
+Its usage couldn't be simplier: change all mention of Module::Build to
+Module::Build::CleanInstall in the F<Build.PL>:
+
+    #!perl
+    use strict;
+    use warnings;
+
+    use Module::Build::CleanInstall;
+
+    Module::Build::CleanInstall->new(
+        dist_name => "Holidays-Activities",
+        ... # same as Module::Build
+    )->create_build_script;
+
+and you're good to go (just don't forget to add Module::Build::CleanInstall as
+a build dependency in your distribution F<META.json> or F<META.yml>).
+
+A different solution has also emerged for the special case of
+L<File::ShareDir>-based shared files. Instead of trying to remove past files,
+this approach proposes to bundle all shared files in a single tarball. As the
+name of the tarball remains the same from one version to the next, one is thus
+assured that the new file will always clobber its previous incarnation. And the
+space saving brought by the compression could easily be seen as a nice dollop
+of whipped cream atop an already appealing hot cocoa.  Of course, for the
+author, dealing with the tarballing of the shared files at release time, and
+handling their uncompression in the code is one more fixing that must be added
+to the already extensive work-feast that is release management. And that is why
+two modules have been created to help there:
+L<Dist::Zilla::Plugin::ShareDir::Tarball>
+auto-tarballs share directories at release time (provided that you use
+L<Dist::Zilla>, natch):
+
+    #!vim dosini
+    ; in your dist.ini file
+
+    [ShareDir]
+    [ShareDir::Tarball]
+
+and L<File::ShareDir::Tarball> takes care of that pesky extraction business for
+you, and transparently provides the user with the extracted temporary
+directory/files.
+
+   #!perl
+   use File::ShareDir::Tarball ':all';
+
+   my $dir = dist_dir('Holidays-Activities');
+   # $dir is now the path to a temporary directory holding
+   # the extracted content of the shared files tarball
+
+=head1 Aunts Will Be Aunts, Garish Sweaters Will Still Pop Up
+
+... but at least now we have a few more venues to quietly deal with
+those presents once the party is over. And this is good, for a sage once
+said
+
+   "To receive is pleasure, and to give is higher pleasure still. But to
+   give back and get what you really wanted all along with a minimum of fuss
+   and without waiting in line with your coat on and screaming brats right
+   behind you for hours on end is the greatest pleasure of
+   them all."
+
+Or something like that. I might be paraphrasing.
+
+=head1 See Also
+
+=for :list
+* L<File::ShareDir::Tarball>
+* L<Dist::Zilla::Plugin::ShareDir::Tarball>

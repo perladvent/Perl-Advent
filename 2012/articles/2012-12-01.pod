@@ -1,207 +1,120 @@
-Title: Keeping the Packages Neatly Wrapped Up
-Topic: local::lib
+Title: Sweet Path::Class is Coming to Town
+Topic: Path::Class
+Author: Yanick Champoux <yanick@cpan.org>
 
-=head1 Who the heck installed WWW::AdventCalendar on the server?
+File and directory paths. They start off so simple, but then depending on which
+system the script runs on, they might use slashes or backslashes. And then
+there are spaces that come to mess everything up. And then there are those
+systems that use drive letters and volume names. And so on, and so forth.
 
-Imagine this not-exactly-hypothetical conversation:
+You know what? Give yourself the gift of simplicity these holidays, and begin
+to use L<Path::Class>.
 
-  <Alice> Who the heck installed WWW::AdventCalendar on the server?
-  <Bob>   I did.  Why?
-  <Alice> We're trying to set up a new server just like it, and we found
-          this installed, and it wants all kinds of crazy prerequisites.
-          Why on Earth do we need this in production?
-  <Bob>   Oh, we don't.  I just wanted to play around with it.
-  <Alice> ...so you installed it globally?
-  <Bob>   Well, how else was I going to play with it?
+Path::Class wraps all those file and directory operations in object-oriented
+goodness that will warm your DWIM-hungry little heart.
 
-Now, I'm not going to defend Bob here, and say that he was just trying to use a
-really cool program, or that he is a really decent coworker who only made this
-mistake a couple times and other times comes in right on schedule and doesn't
-make waves, or that he probably deserves some time off and a desk that isn't
-right under the air conditioning vent.  None of that would be relevant.
-
-I'm just going to say that sometimes it seems a lot easier to just globally
-install some stupid library to play with it than to do something else.  After
-all, what's the alternative?
-
-Well, you can download the tarball, extract it, and so on, something like:
-
-  #!code
-  $ curl http://cpan.metacpan.org/authors/id/R/RJ/RJBS/WWW-AdventCalendar-1.102.tar.gz
-  $ tar zxvf WWW-AdventCalendar-1.102.tar.gz
-  $ cd WWW-AdventCalendar
-  $ perl Makefile.PL
-  [ ... ]
-  $ make
-  $ perl -I lib -MWWW::AdventCalendar -e '...'
-
-Yes.  You can do that, but there are two problems.  First off, it's already
-much, much more annoying than just:
-
-  #!code
-  $ cpanm WWW::AdventCalendar
-  $ perl -MWWW::AdventCalendar -e '...'
-
-Secondly, it won't work, anyway, because the C<[ ... ]> in my snippet above
-would include things like missing prerequisites.  Lots of them.
-
-Well, you could get each one in turn, and end up with a dozen C<-I> options on
-your oneliner.  But that won't work either, because some of them will be XS
-libraries, so they'll have compiled C code, so you'll need to use C<-Mblib>, and
-who ever gets that working right across a bunch of paths?
-
-So, C<cpanm> it is, right?
-
-Yes, actually!
-
-=head1 Look, Ma, no C<sudo>!
-
-Of course, if you tried to use C<cpanm> as it stands, it will probably complain
-that you don't have write permissions to C<@INC>, so you can't properly install
-the library globally.  You can re-run as C<cpanm -S>, and you'll be prompted to
-authenticate for C<sudo>.  Now everything installs nicely!  See, this is how
-Bob gets himself in trouble.  He just wants things to work nicely.  Is that so
-wrong?
-
-Well, yes, probably.  Bob just needs to know how to make things work nicely
-I<without putting crap in C</usr/local/lib/perl>>.
-
-Actually, if you tried running C<cpanm> without telling it to authenticate to
-install globally, you would've gotten this somewhat overwhelming message, which
-you should not bother reading here:
-
-  ! Can't write to /usr/pkg/lib/perl5/site_perl/5.8.0 and /usr/pkg/lib/perl5/site_perl/bin:
-  ! Installing modules to /export/home/rjbs/perl5
-  ! To turn off this warning, you have to do one of the following:
-  !   - run me as a root or with --sudo option
-  !     (to install to /usr/pkg/lib/perl5/site_perl/5.8.0 and /usr/pkg/lib/perl5/site_perl/bin)
-  !   - run me with --local-lib option e.g. cpanm --local-lib=~/perl5
-  !   - Set PERL_CPANM_OPT="--local-lib=~/perl5" environment variable (in your shell rc file)
-  !   - Configure local::lib in your shell to set PERL_MM_OPT etc.
-
-Did you read it by accident?  Sorry.  Instead, just finish reading this
-article.
-
-What you really want to do is to get all the convenience of having a CPAN
-client install a module, including all its prereqs, with one simple command,
-into a compartment you can throw away when you're done.  This is exactly what
-L<local::lib> is for.
-
-  #!code
-  $ eval `perl -Mlocal::lib=~/local/advcal`
-  $ cpanm WWW::AdventCalendar
-  [ ... ]
-  38 distributions installed
-
-local::lib adds a new set of directories to your Perl environment.  With a
-local::lib in place, stuff installed from the CPAN will go into the local::lib,
-affecting your current shell, but nothing else.  It's actually much better than
-just learning how L<blib> works, because it will also update your C<$PATH> so
-that programs installed by the libraries will work, too.  When you're done, you
-can remove the directory and log out of the shell, and everything will be back
-to normal.
-
-You could also leave the directory around.  Most of the time, it would just sit
-there doing nothing, but if you wanted to play around with the code in it
-later, you could use the same local::lib invocation later to get that set of
-directories back in action.
-
-If you're really lazy, like me, you could write a little shell function to make
-it even easier to turn on a local::lib:
-
-  #!vim sh
-  ll () { eval `perl -Mlocal::lib=$1` }
-
-=head1 How does it work?
-
-There is a lot of tricky handling of edge cases and special horrible things
-inside local::lib, but for the most part it does something very simple.  If we
-get rid of the shell C<eval>, you can see:
-
-  #!code
-  ~$ perl -Mlocal::lib=~/local/whatever
-  Attempting to create directory /Users/rjbs/local/whatever
-  export PERL_LOCAL_LIB_ROOT="/Users/rjbs/local/whatever";
-  export PERL_MB_OPT="--install_base /Users/rjbs/local/whatever";
-  export PERL_MM_OPT="INSTALL_BASE=/Users/rjbs/local/whatever";
-  export PERL5LIB="/Users/rjbs/local/whatever/lib/perl5/darwin:/Users/rjbs/local/whatever/lib/perl5";
-  export PATH="/Users/rjbs/local/whatever/bin:$PATH";
-
-After ensuring that directory exists (and possibly mentioning, on C<STDOUT>,
-that it had to be created), local::lib prints out a bunch of lines that, if
-executed in your shell, will set up environment variables that put the
-directory into play.  It decides just what to print based on the shell you're
-using, so C<csh> users will see C<setenv> instead of C<export>, and so on.
-
-For example, the C<MM_OPT> environment variable tells L<ExtUtils::MakeMaker> to
-install inside the compartment.  C<MB_OPT> passes the same information to
-L<Module::Build>.  C<PERL5LIB> acts like a C<use lib> statement at the top of
-any Perl code you run.
-
-You can have multiple local::lib compartments active at once:
-
-  ~$ ll local/already-there
-  Attempting to create directory /Users/rjbs/local/already-there
-
-  ~$ ll local/second-lib
-  Attempting to create directory /Users/rjbs/local/second-lib
-
-  ~$ perl -Mlocal::lib=local/three
-  Attempting to create directory /Users/rjbs/local/three
-  export PERL_LOCAL_LIB_ROOT="$PERL_LOCAL_LIB_ROOT:/Users/rjbs/local/three";
-  export PERL_MB_OPT="--install_base /Users/rjbs/local/three";
-  export PERL_MM_OPT="INSTALL_BASE=/Users/rjbs/local/three";
-  export PERL5LIB="/Users/rjbs/local/three/lib/perl5/darwin-2level:
-  /Users/rjbs/local/three/lib/perl5:$PERL5LIB";
-  export PATH="/Users/rjbs/local/three/bin:$PATH";
-
-The most recently-added compartment is the installation target, but things in
-the first two will still be there.
-
-  ~$ echo $PATH
-  /Users/rjbs/local/three/bin:/Users/rjbs/local/second-lib/bin:
-  /Users/rjbs/local/already-there/bin:/Users/rjbs/bin:/usr/local/bin:
-  /usr/bin:/bin:/usr/sbin:/sbin:/opt/local/bin
-
-If you want to take one compartment out of use, that's easy, too:
-
-  ~$ perl -Mlocal::lib=--deactivate,local/second-lib
-  export PERL_LOCAL_LIB_ROOT="/Users/rjbs/local/already-there:/Users/rjbs/local/three";
-  export PATH="/Users/rjbs/local/three/bin:/Users/rjbs/local/already-there/bin:/Users/rjbs/bin:
-  /usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/local/bin";
-  export PERL5LIB="/Users/rjbs/local/three/lib/perl5/darwin-2level:
-  /Users/rjbs/local/three/lib/perl5:/Users/rjbs/local/already-there/lib/perl5/darwin-2level:
-  /Users/rjbs/local/already-there/lib/perl5";
-
-Of course, 99% of the time, I bet you'll just want the same case I want:  C<ll>
-to start using a local::lib and logging out to stop.
-
-=head1 local::lib – the diagnostics
-
-If you're like me, you're often thwarted by the overly-clever formatting done
-by some version of GNU's man-reading toolchain.  It will turn "" into “” and
-other such things.  This is particularly bad when it turns C<program -X> into
-C<program –X> – if you didn't notice, that second one uses an emdash instead of
-a hyphen.
-
-To deal with people copying and pasting from man pages to the shell and having
-this problem, local::lib has one of my favorite error handling blocks that I've
-yet seen:
+To begin with, creating the objects is pretty straight-forward:
 
   #!perl
-  if ($arg =~ /−/) {
-    die <<'DEATH';
-  WHOA THERE! It looks like you've got some fancy dashes in your commandline!
-  These are *not* the traditional -- dashes that software recognizes. You
-  probably got these by copy-pasting from the perldoc for this module as
-  rendered by a UTF8-capable formatter. This most typically happens on an OS X
-  terminal, but can happen elsewhere too. Please try again after replacing the
-  dashes with normal minus signs.
-  DEATH
+  use Path::Class qw/ file dir /;
+
+  my $dir = dir(qw/ home santa children naughty / );
+
+  # could also have done
+  # my $dir = dir( '/home/santa/children/naughty' );
+  # and Path::Class would have understood
+
+  my $entry = file(qw/ home santa children naughty yanick /);
+
+  # or simply
+  #my $entry = $dir->file('yanick');
+
+And because the C<dir> and C<file> objects auto-stringify to their representing
+strings, it means that you can use them just like any regular path strings:
+
+  #!perl
+  say "Uh oh" if -f $entry;
+
+  opendir my $dh, $dir;
+  printf "there are %d naughty children in this directory\n",
+      scalar grep { /^\.\.$/ } readdir $dh;
+
+But as soon you discover the methods those objects have, you'll I<soooo>
+not want to do that. Traveling up and down directory structures will
+now be a joy:
+
+  #!perl
+  # down
+  my $subdir = $dir->subdir('really_naughty');
+
+  # up and down
+  my $good_ones = $dir->parent->subdir('nice');
+
+  say "by the by, it's a relative path" if $dir->is_relative;
+
+Cleaning up complicated paths? A wonder:
+
+  #!perl
+  say dir( '/home/santa/../santa////children/.//nice' )->resolve;
+  # yes, prints '/home/santa/children/nice'
+
+Utilities and shortcuts to create tempfiles, iterate through the directory
+entries or traverse the directory structure? All there:
+
+  #!perl
+  # create a temporary file
+  my ( $wishlist_fh, $wishlist_filename ) = $dir->tempfile;
+
+  say { $wishlist_fh } "I want a $_" for @gift_ideas;
+
+  # read the directory
+  while ( my $naughty_child = $naughty_dir->next ) {
+      $naughty_child->remove if $naughty_child =~ /yanick|rjbs/;
   }
+
+  # go gift hunting
+  my @hidden = dir(qw/ dev rooms /)->traverse(sub {
+      my( $entry, $cont ) = @_;
+      # grab any gift file
+      return $cont->(), ($entry) x ( -f $entry and $entry =~ /\.gift$/; );
+  });
+
+Regular file operations are likewise simplified via nifty methods:
+
+  #!perl
+  my $list = file(qw/ home yanick xmas list /);
+
+  # read the whole file, split it in lines
+  my @wishlist = $list->slurp;
+
+  s/$/ pretty please/ for @wishlist;  # doesn't hurt to be polite
+
+  # and write back to the file
+  $list->spew(@wishlist);
+
+  # if one wants a filehandle...
+  my $fh = $list->openr;  # open for reading
+  while(my $wish = <$fh>){
+      say "I want a $wish";
+  }
+
+  # want to touch a file?
+  file('/home/santa/helpers/glug')->touch;
+
+  # or remove one?
+  file('/home/santa/helpers/Belsnickel')->remove;
+
+Trust me, once you begin using them, there'll be no going back. In fact, you'll
+probably wish they were also available as L<Moose> types to use them everywhere
+natively.
+
+And then you'll discover L<MooseX::Types::Path::Class>, and the
+Christmas bells will be forevermore ringing.
 
 =head1 See Also
 
 =for :list
-* L<local::lib>
-
+* L<Path::Class>
+* L<MooseX::Types::Path::Class>
+* L<File::Spec>
+* L<File::Path>

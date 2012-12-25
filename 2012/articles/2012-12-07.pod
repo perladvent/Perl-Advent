@@ -1,0 +1,176 @@
+Title: Is your code… Safe?
+Topic: Safe
+Author: Rafaël Garcia-Suarez <rgs@consttype.org>
+
+Today we'll have a little chat about the C<Safe> module. What does it do,
+how does it work and when to use it?
+
+=head2 The Purpose
+
+L<Safe>'s purpose is to provide a I<restricted C<eval()> function> to perl,
+which will function as the regular C<eval(STRING)> built-in, except in two
+important points:
+
+=over
+
+=item *
+
+This restricted C<eval()> will refuse to compile certain built-ins (the
+list being customizable, so for example you can prevent compilation
+of all filesystem access functions, or just some, or none)
+
+=item *
+
+Moreover, it will compile code in a separate, quarantined namespace, where
+the data of your main program will not be accessible.
+
+=back
+
+=head2 The Example
+
+Quick, a code example, to see what it looks like:
+
+  #!perl
+  use v5.14.0;
+  use warnings;
+  use Safe;
+
+  # create a Safe compartment
+  my $compartment = Safe->new;
+  $compartment->deny(qw(:base_loop));
+
+  $_ = 2;
+
+  # First try
+  my $result = $compartment->reval( q{ 40 + $_ } );
+  defined $result or die "Safe compilation error: $@";
+  say $result;
+
+  # Second try
+  $result = $compartment->reval( q{ $_++ for 1..40 } );
+  defined $result or die "Safe compilation error: $@";
+  say $result;
+
+In this example we start by creating a fairly restricted Safe
+compartment, where not only the default set of built-ins is forbidden,
+but also all loop built-ins (C<for>, C<while>, etc.)
+
+The result of the first try will be 42, since the addition and the
+variable fetching are still permitted operations. The second try will
+fail with the error message:
+
+  'foreach loop entry' trapped by operation mask
+
+=head2 The Basics
+
+There are a couple of points worth noting even in such a small example.
+
+First, we use the C<deny()> method to deny more operations than the
+default set. Safe provides C<deny()>, C<permit()>, C<deny_only()>
+and C<permit_only()> to customize this set more finely; you can
+pass to those methods lists of individual op names (as known to the perl
+internals) or handy predefined bundles (like C<:base_loop>). Those
+bundles are listed in the C<Opcode> man page.
+
+Secondly, just like C<eval()>, a compilation error reported by the
+C<reval()> method will be in the C<$@> variable.
+
+Thirdly, we used C<$_> in the string we've been reval-ing. But the
+namespaces were supposed to be separated? Did I lie? Of course not,
+I did not lie, and this isn't a bug in Safe either. The fact
+is that C<$_> is one of the few variables that are I<shared> by
+default between the program's global namespace and the compartment's one.
+
+To verify this, change the "first try" lines to this, and observe
+how the C<$result> will now be 40 instead of 42:
+
+  #!perl
+  our $x = 2; # or "my $x = 2", does not matter
+  my $result = $compartment->reval( q{ 40 + $x } );
+
+Of course, the list of variables you want to share can be changed, too:
+
+  #!perl
+  our $x = 2;
+  $compartment->share('$x');
+  my $result = $compartment->reval( q{ 40 + $x } );
+  say $result; # will now say '42'
+
+You can specify that you want to share functions as well, so the
+reval-ed code will be able to call them. By default, Safe will
+share the C<*_> glob (so, C<$_>, C<@_>, etc.) and a quite long
+list of built-in functions that are often called behind the scenes
+(like C<&UNIVERSAL::isa> or C<&utf8::downgrade>). Use the Source
+for the full list, which is perl-version-dependent.
+
+=head2 The Details
+
+So what exactly is this new namespace that Safe is masking C<main::>
+under? The C<root()> method allows you to access it, as in the following
+example:
+
+  #!perl
+  use v5.14.0;
+  use warnings;
+  use Safe;
+
+  my $compartment = Safe->new;
+  my $root = $compartment->root;
+
+  say "root namespace name: $root";
+
+  my $result = $compartment->reval( q{ $x = 42 } );
+  say "result = $result";
+
+  no strict 'refs';
+  say "safe's \$x : ", ${ $root.'::x' }; # 42 too !
+
+On My Machine the C<root()> method will return the string C<Safe::Root0>
+in this example. So consequently the variable introduced as C<$x> in the
+evaluated code will be known as C<$Safe::Root0::x> in the outer program.
+
+Also, you'll notice that C<$x> has been compiled by Safe without
+fussing about I<Global symbol "$x" requires explicit package name>:
+the ambient pragmas are not passed to the C<reval()>. If you want
+to enforce strictures in the compilation phase, you have to call
+C<reval()> with a second boolean parameter set to true:
+
+    my $result = $compartment->reval( q{ our $x = 42 }, 1 );
+
+=head2 The Lengths
+
+As you can imagine a popular game is to get Safe execute code that it
+shouldn't. Safe goes to some lengths to avoid this. Here are two of
+those, just to excite your imagination:
+
+I<Destructor destruction>. Before exiting from a C<reval()>, Safe will
+check whether any class gained new methods, and if so, it will delete every
+C<DESTROY> and C<AUTOLOAD> it finds under its root namespace. This is to prevent
+destructors or functions created inside the department from being run
+outside of it (for example if the C<reval()> returns to its caller a newly
+crafted object).
+
+I<Closure closing>. Safe provides a method C<wrap_code_ref()> that will
+take a code reference as an argument, and return a version of it wrapped
+in a C<reval()> (that's the short story -- check the source for the gory
+details). Subsequently, C<reval()> will check its return values for any code
+references (recursively, if it returns hash or array references), and will
+invoke C<wrap_code_ref()> on any code reference found there before passing them
+to you.
+
+=head2 The Caveats
+
+TL;DR: No silver bullet, etc.
+
+Longer version (but really it's just common sense): the name of the Safe
+module is misleading. If should have been called C<Restricted::Sortof> or
+something. It has its uses, but making evaluating foreign
+code safer is not one of these. Even in a very restricted compartment,
+it's possible to introduce a pathologically slow regular expression,
+or a pathologically long loop, or a pathologically big string. Any
+use of Safe for serious security purposes is basically misguided.
+
+=head1 See Also
+
+=for :list
+* L<Safe>

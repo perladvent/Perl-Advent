@@ -1,0 +1,78 @@
+Title: Gift Wrapping, part II: Locking the Room
+Topic: File::Flock::Tiny
+Author: Yanick Champoux <yanick@cpan.org>
+
+Continuing on the topic of gift wrapping, another traditional manoeuver to
+wrap gifts in peace consist on locking yourself in a room (typically, with a
+sign reading I<Do Not Enter> on the door) as you perform the deed.
+
+With programs, you'll want to do the same thing if your program should only
+have one instance running at any given time. You want to have a lock file,
+but then you have to see how arcane things like C<L<flock|perlfunc/flock>>
+works, think about cross-platform issues… or, maybe, you could use
+L<File::Flock::Tiny>:
+
+  #!perl
+  use File::Flock::Tiny;
+
+  my $lock = File::Flock::Tiny->write_pid('/tmp/bedroom') 
+      or die "somebody else is hogging the wrapping space already";
+
+  wrap_presents();
+
+  # all done
+  $lock->release;
+
+Niftier still, it turns out that the above example is overkill, because
+C<File::Flock::Tiny> will automatically release the lock when its C<$lock>
+object goes out of scope.  Knowing that, the C<< $lock->release >> line is not
+necessary.  This auto-release trick plays also very nicely with L<Moose>. Want
+to have a script with lockfile functionality? Here goes:
+
+  #!perl
+  package Gift::Wrapping;
+
+  use Moose;
+
+  has lockfile => (
+      is      => 'ro',
+      isa     => 'Str',
+      default => '/tmp/bedroom',
+  );
+
+  has lock => (
+      is => 'ro',
+      isa => 'File::Flock::Tiny::Lock',
+      lazy => 1,
+      default => sub {
+          my $self = shift;
+          File::Flock::Tiny->write_pid($self->lockfile) 
+              or die "resource already locked\n";
+      },
+  );
+
+  before gather_presents => sub {
+      my $self = shift;
+      $self->lock;
+  };
+
+  ...
+
+  __PACKAGE__->meta->make_immutable;
+  1;
+
+With that, your script will judicously lock itself in the bedroom before taking
+out the presents from their secret place. As soon as the object is done and
+get out of scope (most likely as the the script terminates), the lock will be
+automatically removed.
+
+Oh. This being said, check under the bed. Chances are that locking the room, no
+matter how cleverly, won't help you if your tikes are already hidding under the
+bed. Just saying…
+
+=head1 See Also
+
+=for :list
+* L<File::Flock::Tiny>
+* L<flock|perlfunc/flock>
+* L<Fcntl> (if you must)
