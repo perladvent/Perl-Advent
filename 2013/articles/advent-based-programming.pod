@@ -1,0 +1,374 @@
+Title: Advent-based Programming
+Topic: Beam::Emitter
+Author: Yanick Champoux <yanick@cpan.org>
+
+Oh, sorry, seasonal slip of the tongue. I meant I<Event>-based programming. A
+programming paradigm that is used quite exensively in 
+some languages (hellooo JavaScript), but perhaps
+slightly less so in Perl. And while we see it used most often for asynchronous tasks --
+GUIs, server stuff -- it also offers advantages for more typical settings.
+
+For example, let's consider a Christmas supper. We can all agree that it's a
+task that involves a lot of details. If we were to tackle the task the
+conventional way, we'd create a master class that would organize everything,
+orchestrate the activities of everybody in the household, and probably go mad
+before the end of the evening from the sheer complexity of the affair.
+Not appealing. Alternatively, we could imitate what
+generations of families have done to get through such an operation: holler
+across the room each time something happens or is needed, and let everybody
+concerned in the crowd deal with it.
+
+As you may suspect, many modules exist to deal with event-based programming.
+Here, I'll use L<Beam::Emitter>, a very light-weight L<Moo>-based system. 
+
+As mentioned above, the goal here is to have a very simple core system, 
+and have it broadcast everything that need to be acted upon. So we'll do just
+that and create our house, which will act like a (warm and cozy) echo chamber:
+
+
+    package XmasSupper;
+
+    use 5.10.0;
+
+    use strict;
+    use warnings;
+
+    use JSON qw/ encode_json /;
+
+    use Moose;
+
+    with 'Beam::Emitter';
+
+    has guests => (
+        traits => [ 'Array' ],
+        isa => 'ArrayRef[Peep]',
+        is => 'ro',
+        default => sub { [] },
+        handles => {
+            add_guest => 'push',
+        },
+    );
+
+    has "table" => (
+        isa => 'HashRef',
+        is => 'ro',
+        default => sub { {} },
+    );
+
+    # method to invite our guests
+    sub invite {
+        my $self = shift;
+
+        for ( @_ ) {
+            $_->supper($self);
+            $self->add_guest($_);
+            $_->register_events;
+        }
+    }
+
+    # the events of the evening
+
+    sub prepare { $_[0]->emit('prepare') }
+
+    sub serve { $_[0]->emit("supper's ready") }
+
+    sub eat { $_[0]->emit("eat") }
+
+    sub done {
+        my $self = shift;
+        
+        say "leftovers: ", encode_json( $self->table );
+
+        $self->emit( 'all done' );
+    }
+
+    1;
+
+
+All the magic of the party will reside in its guests (but then, isn't that
+always the case?). Each person invited, via C<<$_->register_events>> is
+invited to keep their ears open for things that pertain to them. So what we
+need to have their class implement is that listening, and of course whatever
+they have to do when the stuff happens.
+
+
+    package Peep;
+
+    use 5.10.0;
+
+    use strict;
+    use warnings;
+
+    use JSON qw/ encode_json /;
+
+    use Moose;
+    use Moose::Util qw/ apply_all_roles /;
+
+    has name => (
+        isa => 'Str',
+        is  => 'ro',
+    );
+
+    has "supper" => (
+        isa => 'XmasSupper',
+        is => 'rw',
+        handles => [ 'emit', 'on', 'table' ],
+    );
+
+
+    # can be trusted with the turkey?
+    has is_cook => (
+        isa     => 'Bool',
+        is      => 'ro',
+        default => 0,
+        trigger => sub {
+            my $self = shift;
+            apply_all_roles( $self, 'Cook' ) if $self->is_cook;
+        },
+    );
+
+    # prefer white or dark meat?
+    has turkey_preference => (
+        isa       => 'Str',
+        is        => 'ro',
+        predicate => 'has_turkey_preference',
+    );
+
+    # prefered trimmings?
+    has trimmings => (
+        traits  => [ 'Array' ],
+        isa     => 'ArrayRef[Str]',
+        is      => 'ro',
+        default => sub { [] },
+        handles => {
+            all_trimmings => 'elements',
+        },
+    );
+
+    # helping or just chillin' in the living room?
+    has is_busy => (
+        isa     => 'Bool',
+        is      => 'rw',
+        default => 0,
+    );
+
+    has plate => (
+        isa => 'HashRef',
+        is => 'ro',
+        default => sub { {} },
+    );
+
+    # keep an ear out for stuff we can do
+    sub register_events {
+        my $self = shift;
+        
+        $self->supper->on( 'need fixing' => sub {
+                return if $self->is_busy;
+                $self->prepare_fixing(shift);
+        } );
+
+        $self->supper->on( "supper's ready" => sub {
+            $self->fill_plate;
+        });
+
+        $self->supper->on( "eat" => sub {
+            $self->eat;
+        });
+
+        $self->supper->on( 'all done', sub { 
+            $self->say( 'God bless us, every one!' );
+        } ) if $self->name eq 'Timothy';
+
+    }
+
+    # ... and the stuff we can, and will, do
+
+    sub prepare_fixing {
+        my( $self, $fixing ) = @_;
+
+        $self->is_busy(1);
+
+        $self->say( "preparing the ", $fixing->type );
+        $self->table->{fixing}{$fixing->type} = 2;
+
+        # somebody's on it, can stop calling for help
+        $fixing->stop;
+    }
+
+    sub fill_plate {
+        my $self = shift;
+
+        for ( $self->all_trimmings ) {
+            if ( $self->table->{fixing}{$_} ) {
+                $self->table->{fixing}{$_}--;
+                $self->plate->{fixing}{$_}++;
+            }
+            else {
+                $self->say( "no more ", $_ );
+            }
+        }
+
+        $self->plate->{turkey} = 1;
+        $self->table->{turkey}{$self->turkey_preference}--;
+    }
+
+    sub eat { 
+        my $self = shift;
+        $self->say( 'O NOM NOM NOM', "\n", encode_json( $self->plate ) );
+    }
+
+    sub say {
+        my $self = shift;
+        say $self->name, ": ", @_;
+    }
+
+    1;
+
+The system is very flexible. Have some events only some people can act on? No
+problem, just have those special ones listen to the events. For example, only
+a bona fide cook should be trusted with taking control of the kitchen:
+
+    package Cook;
+
+    use strict;
+    use warnings;
+
+    use Trimming;
+
+    use Moose::Role;
+
+    after 'register_events' => sub {
+        my $self = shift;
+        
+        $self->on( 'prepare', sub {
+            $self->prepare_supper;
+        });
+    };
+
+    sub prepare_supper {
+        my $self = shift;
+
+        $self->is_busy(1);
+        
+        # needs help with the fixings
+        $self->emit( 'need fixing', 
+            class => 'Trimming',
+            type => $_
+        ) for qw/ potatoes pickles gravy /;
+
+        # prepare the turkey
+        $self->table->{ turkey } = { white => '4', dark => '4' }; 
+
+        $self->say( "turkey's done" );
+    }
+
+    1;
+
+Need to pass on some additional information with an event, like what type of
+trimming needs to be attended to? With
+I<Beam::Emitter>, the events are passed objects, so you can create a
+a sub-class containing the data you want and it's all good:
+
+
+    package Trimming;
+
+    use strict;
+    use warnings;
+
+    use Moose;
+
+    extends 'Beam::Event';
+
+    has "type" => (
+        isa      => 'Str',
+        is       => 'ro',
+        required => 1,
+    );
+
+    1;
+
+And with that... believe it or not, you're all set to go. Well, almost. We
+still have to send our invitations and launch the festivities:
+
+    # supper.pl
+
+    use strict;
+    use warnings;
+
+    use XmasSupper;
+    use Peep;
+
+    my $supper = XmasSupper->new;
+
+    $supper->invite( $_ ) for 
+        Peep->new(
+            name              => 'Mrs. Cratchit',
+            is_cook           => 1,
+            turkey_preference => 'white',
+            trimmings         => [ 'gravy', 'potatoes' ],
+        ),
+        Peep->new(
+            name              => 'Bob',
+            turkey_preference => 'dark',
+            trimmings         => [ 'gravy', 'potatoes', 'pickles' ],
+        ),
+        Peep->new(
+            name              => 'Timothy',
+            turkey_preference => 'dark',
+            trimmings         => [ 'gravy', 'pickles' ],
+        ),
+        Peep->new(
+            name              => 'Martha',
+            turkey_preference => 'dark',
+            trimmings         => [ 'potatoes', 'pickles' ],
+        ),
+        Peep->new(
+            name              => 'Peter',
+            turkey_preference => 'white',
+            trimmings         => [ 'pickles' ],
+        ),
+        Peep->new(
+            name              => 'Bilinda',
+            turkey_preference => 'white',
+            trimmings         => [ 'gravy' ],
+        );
+
+    $supper->prepare;
+
+    $supper->serve;
+
+    $supper->eat;
+
+    $supper->done;
+
+
+And then... lo and behold:
+
+    $ perl supper.pl 
+    
+    Bob: preparing the potatoes
+    Timothy: preparing the pickles
+    Martha: preparing the gravy
+    Mrs. Cratchit: turkey's done
+
+    Timothy: no more gravy
+    Martha: no more potatoes
+    Martha: no more pickles
+    Peter: no more pickles
+    Bilinda: no more gravy
+    
+    Mrs. Cratchit: O NOM NOM NOM
+    {"turkey":1,"fixing":{"gravy":1,"potatoes":1}}
+    Bob: O NOM NOM NOM
+    {"turkey":1,"fixing":{"pickles":1,"gravy":1,"potatoes":1}}
+    Timothy: O NOM NOM NOM
+    {"turkey":1,"fixing":{"pickles":1}}
+    Martha: O NOM NOM NOM
+    {"turkey":1}
+    Peter: O NOM NOM NOM
+    {"turkey":1}
+    Bilinda: O NOM NOM NOM
+    {"turkey":1}
+    
+    leftovers: {"turkey":{"white":1,"dark":1},"fixing":{"gravy":0,"pickles":0,"potatoes":0}}
+    Timothy: God bless us, every one!
