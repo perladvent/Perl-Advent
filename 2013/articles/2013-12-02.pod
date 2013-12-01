@@ -1,0 +1,97 @@
+Title: Dancer Goes Megasplat
+Topic: Dancer's Metasplat
+Author: Yanick Champoux <yanick@cpan.org>
+
+No, Santa Claus' sleigh just didn't have the mother of all reindeer-benders.
+This article is rather about the little-known but very useful feature of
+L<Dancer> known as the megasplat.
+
+So, what's the megasplat? Well, C<Dancer>, being heavily influenced by Ruby's
+L<Sinatra|http://www.sinatrarb.com/>, adopted its I<splat> placeholder, which
+allows to capture elements of a route:
+
+  #!perl
+  use Dancer;
+
+  get '/wishlist/*' => sub {
+      my( $child ) = splat;
+
+      return NortPole::DB->get_wishlist( $child );
+  };
+
+That route will match F</wishlist/timmy>, and F</wishlist/sandy>, and
+the wishlist of every other child in the world, but what if we want to match
+several path elements? That's where we go mega:
+
+  #!perl
+  use Dancer;
+
+  get '/giddy_up/**' => sub {
+      my( $reindeers ) = splat;
+
+      my @exclamations = (
+          'Now', 'On', 'To the top of the porch', 'To the top of the wall'
+      );
+
+      return join '', map {
+          sprintf "%s, %s!\n",
+                  $exclamations[rand @exclamations], $_
+      } @$reindeers;
+  };
+
+  dance;
+
+With that, we can hit F</giddy_up/Prancer/Dancer/Vixen/Cupid> and get back:
+
+  Now, Prancer!
+  To the top of the porch, Dancer!
+  To the top of the wall, Vixen!
+  On, Cupid!
+
+Besides that, the megasplat can also be used to mimick L<Catalyst>'s chaining
+behavior:
+
+  #!perl
+  use 5.10.0;
+
+  use Dancer;
+
+  my( @naughty, @nice, %gift, $child );
+
+  any '/child/*/**' => sub {
+      ($child) = splat;
+      pass;
+  };
+
+  prefix = '/child/*';
+
+  get '/naughty' => sub { push @naugthy, $child; 'tsk tsk'     };
+  get '/nice'    => sub { push @nice, $child;    'nicely done' };
+
+  put '/gift/*' =>  sub { $gift{$child} = (splat)[1] };
+
+  get '/gift' => sub { $child ~~ $naughty ? 'coal' : $gift{$child} };
+
+  dance;
+
+Which will give Santa a nice little basic web service for his I<Nice &
+Naughty> book keeping:
+
+  $ curl http://api.toydb.np/child/rjbs/nice
+  nicely done
+  $ curl http://api.toydb.np/child/yanick/naughty
+  tsk tsk
+  $ curl -X PUT http://api.toydb.np/child/rjbs/gift/pony
+  noted
+  $ curl -X PUT http://api.toydb.np/child/yanick/gift/pony
+  noted
+  $ curl http://api.toydb.np/child/yanick/gift
+  coal
+  $ curl http://api.toydb.np/child/rjbs/gift
+  pony
+
+=head1 See Also
+
+=for :list
+* L<Dancer>
+* L<Sinatra|http://www.sinatrarb.com/>
