@@ -43,10 +43,11 @@ We need to provide a value for that attribute.
 For example, assuming we have two C<Person> objects, in Perl we might
 write something like:
 
-   ### Three triples...
-   $person1->name("Alice");     # $person1's name is "Alice".
-   $person2->name("Bob");       # $person2's name is "Bob".
-   $person1->spouse($person2);  # $person1's spouse is $person2.
+  #!perl
+  ### Three triples...
+  $person1->name("Alice");     # $person1's name is "Alice".
+  $person2->name("Bob");       # $person2's name is "Bob".
+  $person1->spouse($person2);  # $person1's spouse is $person2.
 
 If you've ever told anyone your name, then you've used a triple.
 
@@ -56,10 +57,11 @@ theory tells us that complex facts can be broken down into multiple triples,
 generally by taking a relationship and turning it into a "thing" in its own
 right:
 
-   $marriage->participant1($person1);
-   $marriage->participant2($person2);
-   $marriage->start($wedding_date);
-   $marriage->legally_recognised_in(@countries);
+  #!perl
+  $marriage->participant1($person1);
+  $marriage->participant2($person2);
+  $marriage->start($wedding_date);
+  $marriage->legally_recognised_in(@countries);
 
 So that's the triple. Three components. Any fewer would be useless; any
 more are just sugar.
@@ -112,6 +114,7 @@ identified by the same URI leads to ambiguity; so the URI I use to
 identify myself must be different to the URI for my homepage.) Now I
 can state my name in RDF like this:
 
+  #!vim xml
    <http://tobyinkster.co.uk/#i>
       <http://xmlns.com/foaf/0.1/name>
          "Toby" .
@@ -142,51 +145,52 @@ quality and standards-compliant implementations.
 
 Here's an example of using the previous triple in RDF::Trine:
 
-   use 5.010;
-   use strict;
-   use RDF::Trine qw( statement iri literal );
-   use RDF::Query;
+  #!perl
+  use 5.010;
+  use strict;
+  use RDF::Trine qw( statement iri literal );
+  use RDF::Query;
 
-   # Create the triple.
-   #
-   my $triple = statement(
-      iri("http://tobyinkster.co.uk/#i"),
-      iri("http://xmlns.com/foaf/0.1/name"),
-      literal("Toby"),
-   );
+  # Create the triple.
+  #
+  my $triple = statement(
+     iri("http://tobyinkster.co.uk/#i"),
+     iri("http://xmlns.com/foaf/0.1/name"),
+     literal("Toby"),
+  );
 
-   # Let's take a look at that.
-   #
-   say $triple->as_string;
+  # Let's take a look at that.
+  #
+  say $triple->as_string;
 
-   # Create an in-memory triple database for querying...
-   #
-   my $model = RDF::Trine::Model->new;
+  # Create an in-memory triple database for querying...
+  #
+  my $model = RDF::Trine::Model->new;
 
-   # ... and add our triple.
-   #
-   $model->add_statement($triple);
+  # ... and add our triple.
+  #
+  $model->add_statement($triple);
 
-   # I told you it was SQL-like...
-   #
-   my $query = RDF::Query->new(<<'SPARQL');
-   SELECT $name
-   WHERE {
-      <http://tobyinkster.co.uk/#i>
-         <http://xmlns.com/foaf/0.1/name>
-            $name .
-   }
-   SPARQL
+  # I told you it was SQL-like...
+  #
+  my $query = RDF::Query->new(<<'SPARQL');
+  SELECT $name
+  WHERE {
+     <http://tobyinkster.co.uk/#i>
+        <http://xmlns.com/foaf/0.1/name>
+           $name .
+  }
+  SPARQL
 
-   # Run the query against the database
-   #
-   my $results = $query->execute($model);
+  # Run the query against the database
+  #
+  my $results = $query->execute($model);
 
-   # This is an iterator, a bit like DBI results
-   #
-   while (my $row = $results->next) {
-      say "GOT ", $row->{name}->value;
-   }
+  # This is an iterator, a bit like DBI results
+  #
+  while (my $row = $results->next) {
+     say "GOT ", $row->{name}->value;
+  }
 
 =head2 What is it Good For?
 
@@ -284,31 +288,32 @@ RESTful HTTP protocol for querying remote RDF data stores.
 DBpedia's SPARQL endpoint is L<http://dbpedia.org/sparql>. Let's query
 it using L<RDF::Query::Client>.
 
-   use 5.010;
-   use strict;
-   use RDF::Query::Client;
-   use constant DBPEDIA => 'http://dbpedia.org/sparql';
+  #!perl
+  use 5.010;
+  use strict;
+  use RDF::Query::Client;
+  use constant DBPEDIA => 'http://dbpedia.org/sparql';
 
-   # Notice the "PREFIX" keyword in SPARQL can be used to set up
-   # abbreviations for long URIs.
-   #
-   my $query = RDF::Query::Client->new(<<'SPARQL');
-   PREFIX category: <http://dbpedia.org/resource/Category:>
-   PREFIX dc:       <http://purl.org/dc/terms/>
-   PREFIX rdfs:     <http://www.w3.org/2000/01/rdf-schema#>
-   SELECT $title
-   WHERE {
-      $resource dc:subject category:Christmas_songs .
-      $resource dc:subject category:Vocal_duets .
-      $resource rdfs:label $title .
-      FILTER ( langMatches(lang($title), "en") )
-   }
-   SPARQL
+  # Notice the "PREFIX" keyword in SPARQL can be used to set up
+  # abbreviations for long URIs.
+  #
+  my $query = RDF::Query::Client->new(<<'SPARQL');
+  PREFIX category: <http://dbpedia.org/resource/Category:>
+  PREFIX dc:       <http://purl.org/dc/terms/>
+  PREFIX rdfs:     <http://www.w3.org/2000/01/rdf-schema#>
+  SELECT $title
+  WHERE {
+     $resource dc:subject category:Christmas_songs .
+     $resource dc:subject category:Vocal_duets .
+     $resource rdfs:label $title .
+     FILTER ( langMatches(lang($title), "en") )
+  }
+  SPARQL
 
-   my $results = $query->execute( DBPEDIA );
-   while (my $row = $results->next) {
-      say "GOT ", $row->{title}->value;
-   }
+  my $results = $query->execute( DBPEDIA );
+  while (my $row = $results->next) {
+     say "GOT ", $row->{title}->value;
+  }
 
 This gives me a list of five songs; much easier to narrow down the song I was
 looking for. Oh yes, that was it...
