@@ -1,0 +1,364 @@
+Title: Gift Exchanges as a Practical Example of Cyclic Directional Graphs
+Topic: Graph::Easy
+Author: Yanick Champoux <yanick@cpan.org>
+
+Sometimes, graphs are huge, complex drawings showing the far-stretching relationships between
+myriads of elements.
+
+Other times? We just feel the need to draw a few boxes and arrows to get a
+visual idea of what the heck is going on.
+
+For those latter cases, L<Graph::Easy> is your friend. 
+
+I<Graph::Easy> is a helping elf with no delusion of grandeur. It is primary meant for
+tackling modest graphs (think less than 100 nodes), but it does it with a
+simplicity and an ease of use that is very nice indeed.
+
+For example, let's say you're managing a gift exchange. A simple one where you
+just have to decide who's giving to who, and what. Well, that's easy enough:
+
+    use 5.16.0;
+
+    use Graph::Easy;
+    use List::AllUtils qw/ shuffle /;
+
+    my @peeps = shuffle qw/
+        alice bernard charlotte dee ezekiel 
+        felicia gregory heidi isaac julia karl 
+        leo marie nathan
+    /;
+
+    my @gifts = shuffle qw/
+        book CD slippers teddy bear bathrobe
+        mittens scarf chocolate candles wine
+        clock calendar mirror playing cards
+        beanie
+    /;
+
+    my $exchange = Graph::Easy->new;
+
+    while( my( $i, $p ) = each @peeps ) {
+                        # from, to,           gift
+        $exchange->add_edge( $p,   $peeps[$i-1], $gifts[$i] );
+    }
+
+Our graph now contains all the information we want, and we can get it back
+in a variety of formats. We can get a human-friendly list of edges:
+
+    print $exchange->as_txt;
+
+which will output
+
+    [ ezekiel ] -- wine --> [ heidi ]
+    [ heidi ] -- CD --> [ bernard ]
+    [ bernard ] -- slippers --> [ charlotte ]
+    [ charlotte ] -- playing --> [ leo ]
+    [ leo ] -- book --> [ karl ]
+    [ karl ] -- cards --> [ nathan ]
+    [ nathan ] -- chocolate --> [ felicia ]
+    [ felicia ] -- scarf --> [ marie ]
+    [ marie ] -- teddy --> [ gregory ]
+    [ gregory ] -- bear --> [ dee ]
+    [ dee ] -- beanie --> [ alice ]
+    [ alice ] -- mirror --> [ julia ]
+    [ julia ] -- bathrobe --> [ isaac ]
+    [ isaac ] -- clock --> [ ezekiel ]
+
+or we can get an ascii representation of the graph:
+
+    print $exchange->as_ascii;
+
+which output
+
+
+            chocolate
+    +-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+    v                                                                                                                                                                                                                                                                       |
+    +-------+  beanie   +---------+  candles   +------+  book   +---------+  teddy   +---------+  cards   +-------+  clock   +-----------+  slippers   +--------+  calendar   +---------+  bear   +-----+  mittens   +-------+  playing   +-----+  mirror   +-------+  CD   +-------+
+    | marie | --------> | gregory | ---------> | karl | ------> | ezekiel | -------> | felicia | -------> | isaac | -------> | charlotte | ----------> | nathan | ----------> | bernard | ------> | dee | ---------> | julia | ---------> | leo | --------> | alice | ----> | heidi |
+    +-------+           +---------+            +------+         +---------+          +---------+          +-------+          +-----------+             +--------+             +---------+         +-----+            +-------+            +-----+           +-------+       +-------+
+
+
+Granted, that format is useful for small graphes, but it get hard to grok for
+bigger ones. For those, there are better suited graphical output formats.
+Like C<svg>, provided by L<Graph::Easy::As_svg> (which is not part of the core
+I<Graph::Easy> distribution):
+
+    print $exchange->as_svg;
+
+which gives us the prettier
+
+=begin html
+
+<svg width="2456.312" height="165.56" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Generated at Sun Dec  1 14:49:55 2013 by:
+  Graph::Easy v0.73
+  Graph::Easy::As_svg v0.23
+-->
+
+<title>Untitled graph</title>
+<defs>
+ <!-- open arrow -->
+ <g id="ah" stroke-linecap="round" stroke-width="1">
+  <line x1="-8" y1="-4" x2="1" y2="0" />
+  <line x1="1" y1="0" x2="-8" y2="4" />
+ </g>
+
+ <!-- class definitions -->
+ <style type="text/css"><![CDATA[
+ .edge {
+  font-size: 13px;
+  stroke: black;
+  text-align: center;
+ }
+ .graph {
+  font-size: 16px;
+  text-align: center;
+ }
+ .node {
+  font-size: 16px;
+  text-align: center;
+ }
+ ]]></style>
+</defs>
+
+<!-- graph background with border (mainly for printing) -->
+<rect x="0.5" y="0.5" width="2454.312" height="163.56" fill="white" stroke="white" />
+
+<g id="0" class="edge">
+ <!-- from ezekiel to nathan -->
+ <!-- horizontal -->
+ <line x1="105.92" y1="114.92" x2="200.25" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="201.25" y="114.92"/>
+ <text x="114" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">playing</text>
+</g>
+
+<g id="11" class="edge">
+ <!-- from julia to dee -->
+ <!-- horizontal -->
+ <line x1="1769.82" y1="114.92" x2="1853.1" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="1854.1" y="114.92"/>
+ <text x="1779" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">clock</text>
+</g>
+
+<g id="13" class="edge">
+ <!-- from heidi to julia -->
+ <!-- horizontal -->
+ <line x1="1588.21" y1="114.92" x2="1692.17" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="1693.17" y="114.92"/>
+ <text x="1595" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">bathrobe</text>
+</g>
+
+<g id="15" class="edge">
+ <!-- from charlotte to heidi -->
+ <!-- horizontal -->
+ <line x1="1408.45" y1="114.92" x2="1504.02" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="1505.02" y="114.92"/>
+ <text x="1416" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">candles</text>
+</g>
+
+<g id="17" class="edge">
+ <!-- from felicia to charlotte -->
+ <!-- horizontal -->
+ <line x1="1212.03" y1="114.92" x2="1292.23" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="1293.23" y="114.92"/>
+ <text x="1222" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">wine</text>
+</g>
+
+<g id="19" class="edge">
+ <!-- from gregory to felicia -->
+ <!-- horizontal -->
+ <line x1="1018.33" y1="114.92" x2="1120.04" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="1121.04" y="114.92"/>
+ <text x="1025" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">calendar</text>
+</g>
+
+<g id="21" class="edge">
+ <!-- from bernard to gregory -->
+ <!-- horizontal -->
+ <line x1="838.86" y1="114.92" x2="909.54" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="910.54" y="114.92"/>
+ <text x="850" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">CD</text>
+</g>
+
+<g id="23" class="edge">
+ <!-- from marie to bernard -->
+ <!-- horizontal -->
+ <line x1="652.89" y1="114.92" x2="732.78" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="733.78" y="114.92"/>
+ <text x="663" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">bear</text>
+</g>
+
+<g id="25" class="edge">
+ <!-- from isaac to marie -->
+ <!-- horizontal -->
+ <line x1="479.01" y1="114.92" x2="564.02" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="565.02" y="114.92"/>
+ <text x="488" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">teddy</text>
+</g>
+
+<g id="27" class="edge">
+ <!-- from nathan to isaac -->
+ <!-- horizontal -->
+ <line x1="299.28" y1="114.92" x2="395.15" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="396.15" y="114.92"/>
+ <text x="307" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">mittens</text>
+</g>
+
+<g id="3" class="edge">
+ <!-- from karl to ezekiel -->
+ <!-- south/west corner -->
+ <g stroke="#000000">
+  <line x1="2412.31" y1="49.14" x2="2412.31" y2="75.88" />
+  <line x1="2386.31" y1="49.64" x2="2412.81" y2="49.64" />
+ </g>
+
+ <!-- horizontal -->
+ <line x1="94" y1="49.64" x2="2386.31" y2="49.64" stroke="#000000" />
+ <text x="119.6" y="44" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">book</text>
+
+ <!-- south/east corner -->
+ <g stroke="#000000">
+  <line x1="55.5" y1="49.14" x2="55.5" y2="74.75" />
+  <line x1="55" y1="49.64" x2="94" y2="49.64" />
+ </g>
+ <use stroke="#000000" xlink:href="#ah" transform="translate(55.5 75.75)rotate(90)"/>
+</g>
+
+<g id="5" class="edge">
+ <!-- from leo to karl -->
+ <!-- horizontal -->
+ <line x1="2274.45" y1="114.92" x2="2372.88" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="2373.88" y="114.92"/>
+ <text x="2282" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">slippers</text>
+</g>
+
+<g id="7" class="edge">
+ <!-- from alice to leo -->
+ <!-- horizontal -->
+ <line x1="2113.5" y1="114.92" x2="2206.3" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="2207.3" y="114.92"/>
+ <text x="2122" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">mirror</text>
+</g>
+
+<g id="9" class="edge">
+ <!-- from dee to alice -->
+ <!-- horizontal -->
+ <line x1="1925.05" y1="114.92" x2="2031.36" y2="114.92" stroke="#000000" />
+ <use stroke="#000000" xlink:href="#ah" x="2032.36" y="114.92"/>
+ <text x="1932" y="110" style="font-family:sans-serif;font-size:12.8px" fill="#000000" stroke="none">chocolate</text>
+</g>
+
+<g id="1" class="node">
+ <!-- ezekiel, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="76" x="17.5" y="82.78" />
+ <text x="55" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">ezekiel</text>
+</g>
+
+<g id="2" class="node">
+ <!-- nathan, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="73" x="213.668" y="82.78" />
+ <text x="250" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">nathan</text>
+</g>
+
+<g id="4" class="node">
+ <!-- karl, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="51" x="2386.812" y="82.78" />
+ <text x="2412" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">karl</text>
+</g>
+
+<g id="6" class="node">
+ <!-- leo, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="42" x="2219.524" y="82.78" />
+ <text x="2240" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">leo</text>
+</g>
+
+<g id="8" class="node">
+ <!-- alice, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="55" x="2046.276" y="82.78" />
+ <text x="2073" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">alice</text>
+</g>
+
+<g id="10" class="node">
+ <!-- dee, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="46" x="1865.132" y="82.78" />
+ <text x="1888" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">dee</text>
+</g>
+
+<g id="12" class="node">
+ <!-- julia, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="52" x="1706.788" y="82.78" />
+ <text x="1732" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">julia</text>
+</g>
+
+<g id="14" class="node">
+ <!-- heidi, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="57" x="1517.588" y="82.78" />
+ <text x="1546" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">heidi</text>
+</g>
+
+<g id="16" class="node">
+ <!-- charlotte, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="92" x="1303.884" y="82.78" />
+ <text x="1349" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">charlotte</text>
+</g>
+
+<g id="18" class="node">
+ <!-- felicia, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="67" x="1134.38" y="82.78" />
+ <text x="1167" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">felicia</text>
+</g>
+
+<g id="20" class="node">
+ <!-- gregory, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="85" x="919.996" y="82.78" />
+ <text x="962" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">gregory</text>
+</g>
+
+<g id="22" class="node">
+ <!-- bernard, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="85" x="744.396" y="82.78" />
+ <text x="786" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">bernard</text>
+</g>
+
+<g id="24" class="node">
+ <!-- marie, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="66" x="576.276" y="82.78" />
+ <text x="609" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">marie</text>
+</g>
+
+<g id="26" class="node">
+ <!-- isaac, rect -->
+ <rect fill="#ffffff" height="64.28" stroke="#000000" width="59" x="408.756" y="82.78" />
+ <text x="438" y="120" style="font-family:serif" fill="#000000" text-anchor="middle">isaac</text>
+</g>
+
+</svg>
+
+=end html
+
+And, of course, in true Perlish fashion, we can also take things into our own hands
+and just work on the graph ourselves:
+
+    printf "From: %s, To: %s, item: %s\n", 
+        $_->label, 
+            # because we know there's only one edge per peep
+        map { $_->to->label, $_->label }$_->edges for $exchange->nodes;
+
+which gives us
+
+    From: alice, To: karl, item: beanie
+    From: bernard, To: leo, item: playing
+    From: charlotte, To: felicia, item: CD
+    From: dee, To: dee, item: chocolate
+    From: ezekiel, To: marie, item: mittens
+    From: felicia, To: dee, item: chocolate
+    From: gregory, To: nathan, item: bathrobe
+    From: heidi, To: ezekiel, item: book
+    From: isaac, To: bernard, item: cards
+    From: julia, To: charlotte, item: mirror
+    From: karl, To: julia, item: scarf
+    From: leo, To: gregory, item: clock
+    From: marie, To: alice, item: calendar
+    From: nathan, To: nathan, item: bathrobe
+
