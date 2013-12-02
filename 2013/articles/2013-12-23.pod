@@ -3,10 +3,10 @@ Topic: Beam::Emitter
 Author: Yanick Champoux <yanick@cpan.org>
 
 Oh, sorry, seasonal slip of the tongue. I meant I<Event>-based programming. A
-programming paradigm that is used quite exensively in 
-some languages (hellooo JavaScript), but perhaps
-slightly less so in Perl. And while we see it used most often for asynchronous tasks --
-GUIs, server stuff -- it also offers advantages for more typical settings.
+programming paradigm that is used quite exensively in some languages (hellooo
+JavaScript), but perhaps slightly less so in Perl. And while we see it used
+most often for asynchronous tasks — GUIs, server stuff — it also offers
+advantages for more typical settings.
 
 For example, let's consider a Christmas supper. We can all agree that it's a
 task that involves a lot of details. If we were to tackle the task the
@@ -19,13 +19,13 @@ across the room each time something happens or is needed, and let everybody
 concerned in the crowd deal with it.
 
 As you may suspect, many modules exist to deal with event-based programming.
-Here, I'll use L<Beam::Emitter>, a very light-weight L<Moo>-based system. 
+Here, I'll use L<Beam::Emitter>, a very light-weight L<Moo>-based system.
 
-As mentioned above, the goal here is to have a very simple core system, 
+As mentioned above, the goal here is to have a very simple core system,
 and have it broadcast everything that need to be acted upon. So we'll do just
 that and create our house, which will act like a (warm and cozy) echo chamber:
 
-
+    #!perl
     package XmasSupper;
 
     use 5.10.0;
@@ -76,7 +76,7 @@ that and create our house, which will act like a (warm and cozy) echo chamber:
 
     sub done {
         my $self = shift;
-        
+
         say "leftovers: ", encode_json( $self->table );
 
         $self->emit( 'all done' );
@@ -84,14 +84,13 @@ that and create our house, which will act like a (warm and cozy) echo chamber:
 
     1;
 
-
 All the magic of the party will reside in its guests (but then, isn't that
-always the case?). Each person invited, via C<<$_->register_events>> is
+always the case?). Each person invited, via C<< $_->register_events >> is
 invited to keep their ears open for things that pertain to them. So what we
 need to have their class implement is that listening, and of course whatever
 they have to do when the stuff happens.
 
-
+    #!perl
     package Peep;
 
     use 5.10.0;
@@ -161,7 +160,7 @@ they have to do when the stuff happens.
     # keep an ear out for stuff we can do
     sub register_events {
         my $self = shift;
-        
+
         $self->supper->on( 'need fixing' => sub {
                 return if $self->is_busy;
                 $self->prepare_fixing(shift);
@@ -228,6 +227,7 @@ The system is very flexible. Have some events only some people can act on? No
 problem, just have those special ones listen to the events. For example, only
 a bona fide cook should be trusted with taking control of the kitchen:
 
+    #!perl
     package Cook;
 
     use strict;
@@ -239,7 +239,7 @@ a bona fide cook should be trusted with taking control of the kitchen:
 
     after 'register_events' => sub {
         my $self = shift;
-        
+
         $self->on( 'prepare', sub {
             $self->prepare_supper;
         });
@@ -249,7 +249,7 @@ a bona fide cook should be trusted with taking control of the kitchen:
         my $self = shift;
 
         $self->is_busy(1);
-        
+
         # needs help with the fixings
         $self->emit( 'need fixing', 
             class => 'Trimming',
@@ -269,7 +269,7 @@ trimming needs to be attended to? With
 I<Beam::Emitter>, the events are passed objects, so you can create a
 a sub-class containing the data you want and it's all good:
 
-
+    #!perl
     package Trimming;
 
     use strict;
@@ -290,6 +290,7 @@ a sub-class containing the data you want and it's all good:
 And with that... believe it or not, you're all set to go. Well, almost. We
 still have to send our invitations and launch the festivities:
 
+    #!perl
     # supper.pl
 
     use strict;
@@ -345,7 +346,7 @@ still have to send our invitations and launch the festivities:
 And then... lo and behold:
 
     $ perl supper.pl 
-    
+
     Bob: preparing the potatoes
     Timothy: preparing the pickles
     Martha: preparing the gravy
@@ -356,7 +357,7 @@ And then... lo and behold:
     Martha: no more pickles
     Peter: no more pickles
     Bilinda: no more gravy
-    
+
     Mrs. Cratchit: O NOM NOM NOM
     {"turkey":1,"fixing":{"gravy":1,"potatoes":1}}
     Bob: O NOM NOM NOM
@@ -369,6 +370,11 @@ And then... lo and behold:
     {"turkey":1}
     Bilinda: O NOM NOM NOM
     {"turkey":1}
-    
+
     leftovers: {"turkey":{"white":1,"dark":1},"fixing":{"gravy":0,"pickles":0,"potatoes":0}}
     Timothy: God bless us, every one!
+
+=head1 See Also
+
+=for :list
+* L<Beam::Emitter>
