@@ -1,0 +1,174 @@
+Title: Playing it safe with Safe::Isa
+Topic: Safe::Isa
+Author: David Golden <dagolden@cpan.org>
+
+Earlier this year in Manhattan, a garage worker drove an Audi into an open
+car elevator shaft. The car fell three floors and the worker escaped
+through the sun roof.
+
+Every year I see stories of people falling in elevator shafts — sometimes
+dying — when the elevator they are expecting to be there suddenly isn't.
+
+But what do elevator shafts have to do with Perl?
+
+There is a common idiom for checking an object's class that is remarkably
+like stepping through an elevator door without checking that the elevator
+is there:
+
+    #!perl
+    if ( $thing->isa( "Class::I'm::Looking::For" ) } {
+        # do something with $thing
+    }
+
+If C<$thing> is an unblessed reference, you've just fallen down
+the elevator shaft and gotten a fatal error.
+
+If C<$thing> is a scalar, then it's treated like a class name.  That
+might be what you want, but if you really wanted I<an object>, then
+you're in trouble if you call any object methods on it.
+
+Usually, the C<isa> method comes from the L<UNIVERSAL> class, so maybe
+you thought (or were taught) to call it as a function:
+
+    #!perl
+    if ( UNIVERSAL::isa( $thing, "Class::I'm::Looking::For" ) } {
+        # do something with $thing
+    }
+
+That is wrong, too, because C<isa> is supposed to be a I<method>, and you've
+just skipped the entire C<@ISA> hierarchy.  If any class defined its own
+C<isa> method, you'll get a different answer than what you should.  (A
+L<mock object|https://en.wikipedia.org/wiki/Mock_object> used in testing
+might do that, for instance.)
+
+You might have learned to check for an object first, with L<Scalar::Util>
+and C<blessed>:
+
+    #!perl
+    use Scalar::Util 'blessed';
+
+    if ( blessed( $thing ) && $thing->isa( "Class::I'm::Looking::For" ) } {
+        # do something with $thing
+    }
+
+That is mostly correct (someone could have blessed an object into the class
+"0" for instance), but in any ordinary code, it will do what you want.
+
+Unfortunately, that's a lot to write over and over, as you might if you're
+using some sort of exception object system like L<Throwable> or L<failures>
+or the venerable L<Exception::Class>.
+
+For example, imagine you're using L<failures> and you've wrapped some
+possibly fatal code with C<try> from L<Try::Tiny> and you need to test the
+error to see if it's an object of various types or just a string.
+
+Do you really want to type C<blessed> in every conditional?
+
+    #!perl
+    use failures qw/io::file io::network/;
+    use Try::Tiny;
+
+    try {
+        something_that_might_fail()
+    }
+    catch {
+        if   ( blessed($_) && $_->isa("failure::io::file") ) {
+            ...
+        }
+        elsif( blessed($_) && $_->isa("failure::io") ) {
+            ...
+        }
+        elsif( blessed($_) && $_->isa("failure") ) {
+            ...
+        }
+        else { # string or ref or other object exception
+            ...
+        }
+    }
+
+Or wrap it all in another C<if> just to test C<blessed>?
+
+    #!perl
+    use failures qw/io::file io::network/;
+    use Try::Tiny;
+
+    try {
+        something_that_might_fail()
+    }
+    catch {
+        if ( blessed($_) ) {
+            if   ( $_->isa("failure::io::file") ) {
+                ...
+            }
+            elsif( $_->isa("failure::io") ) {
+                ...
+            }
+            elsif( $_->$isa("failure") ) {
+                ...
+            }
+            else { # other object
+                ...
+            }
+        }
+        else { # string or ref exception
+            ...
+        }
+    }
+
+L<Safe::Isa> makes this easier by exporting an C<$_isa>
+variable containing a code reference that you can use in place of
+C<UNIVERSAL::isa>.  It checks C<blessed> and C<isa> for you,
+just the way you want:
+
+    #!perl
+    use Safe::Isa;
+
+    if ( $thing->$_isa( "Class::I'm::Looking::For" ) } {
+        # do something with $thing
+    }
+
+This works because Perl treats a code reference on the right side
+of an arrow operator as a method to invoke.  These are equivalent:
+
+    #!perl
+    $thing->$_isa(   "Class::I'm::Looking::For" )
+    $_isa->( $thing, "Class::I'm::Looking::For" )
+
+That makes our earlier C<failures> example a bit more concise:
+
+    #!perl
+    use failures qw/io::file io::network/;
+    use Try::Tiny;
+    use Safe::Isa; # for $_isa
+
+    try {
+        something_that_might_fail()
+    }
+    catch {
+        if   ( $_->$_isa("failure::io::file") ) {
+            ...
+        }
+        elsif( $_->$_isa("failure::io") ) {
+            ...
+        }
+        elsif( $_->$_isa("failure") ) {
+            ...
+        }
+        else {
+            ...
+        }
+    }
+
+L<Safe::Isa> gives you several similar helpers, including C<$_can>,
+C<$_does>, and C<$_DOES>, plus a generic C<$_call_if_object> code reference
+that works like this:
+
+    #!perl
+    $thing->$_call_if_object(method_name => @args);
+
+The lesson is this: calling a method on something that you aren't sure is
+an object is like stepping into an elevator without checking that it's
+there.  Most of the time, you're safe, right until you have a long fall
+and crash.
+
+Using L<Safe::Isa> gives you a safe, concise way to look before you step.
