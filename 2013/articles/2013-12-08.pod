@@ -1,0 +1,132 @@
+Title: The PAUSE Permissions Model
+Topic: App::PAUSE::CheckPerms
+Author: Neil Bowers <neil@bowers.com>
+
+PAUSE has a permissions model that is defined in terms of I<modules>
+and not I<distributions>.
+It controls who can release what modules onto CPAN.
+Actually, that's not quite true, but it's a good enough approximation
+to get started with.
+
+=head2 Uploading a new module
+
+If you upload a new module to CPAN, you become the I<owner> of that module.
+From that point forward only you can upload that module, unless you give
+someone co-maint permissions for your module.
+
+If you upload a new dist that contains multiple new modules,
+then you're given ownership for each module.
+
+When you upload a dist to PAUSE, you get two emails back. The first
+tells you whether the dist was successfully uploaded to your author's directory.
+PAUSE then checks whether you have upload permissions for every module.
+If you don't, the second email will identify the offending modules,
+and the dist won't be I<indexed>.
+L<search.cpan.org|http://search.cpan.org> flags such uploads
+as an B<< ** UNAUTHORIZED RELEASE ** >>.
+
+=head2 F<06perms.txt>
+
+PAUSE holds all information about users, modules, releases,
+permissions, and more, in a database. Some of this information
+is dumped into text files by hourly cronjobs;
+these files are distributed on CPAN.
+
+The permissions data is written to
+L<06perms.txt|http://www.cpan.org/modules/06perms.txt>.
+The body of this file is a CSV, with triples that give module name,
+PAUSE id, and permission.
+
+ % grep Module::Path, 06perms.txt
+ Module::Path,NEILB,f
+
+The 'B<f>' permission ('first come') says that I was the first person
+to upload the module, so I'm the owner.
+
+I recently took over maintenance of L<enum> from ZENIN, and was
+granted co-maintenance by the PAUSE admins (with ZENIN's blessing):
+
+ % grep ^enum, 06perms.txt
+ enum,NEILB,c
+ enum,ZENIN,m
+
+The 'B<m>' permission against ZENIN says that he registered it on the
+module list. Within PAUSE, ZENIN also has the 'f' permission, but 'm'
+takes precedence, so that's what's listed.
+
+L<PAUSE::Permissions> gives a simple interface to C<06perms.txt>,
+letting you iterate over it either line-by-line, or by module.
+
+=head2 Co-maint
+
+If you have co-maint permissions for a module, you can upload a new
+version onto CPAN, but you can't grant co-maint permissions to anyone else.
+Only the owner can do that.
+
+In F<06perms.txt>, co-maint is indicated with a 'c'.
+There are a small number of modules that have both 'm' and 'f' permissions,
+for different users.
+As noted above, the 'm' takes precedence, and the user with 'f' is treated
+as a co-maint.
+
+=head2 Deleting dists
+
+You can only delete dists that you uploaded. Even if you're the owner,
+you can't delete dists uploaded by someone with co-maint permission(s)
+(remember: the permissions model relates to modules, not dists).
+
+If you upload a dist containing one new module,
+and later delete the dist (via PAUSE),
+then the module won't exist on CPAN, but you'll have an 'f' permission,
+and no-one will be able to use that namespace.
+This can be an issue if you refactor a dist, and change some class names.
+
+You can release the permissions via
+the PAUSE web interface ("Change Permissions"), either by transferring
+them to another PAUSE user, or relinquishing them, which means anyone
+could then use that module name.
+
+=head2 Watch out for inconsistent permissions
+
+Let's say you upload a dist containing a number of modules.
+You'll be owner ('f' permission) for all modules.
+Later, you grant co-maint permissions to a couple of friends,
+giving them 'c' permissions for all modules.
+You take it in turns to do releases, using a shared GitHub repo.
+
+If one of your friends adds a new module, (s)he will be given ownership
+of that module ('f'irst come), and the rest of you won't have permissions.
+If you subsequently try to release a version of the dist, it will fail
+the indexing stage, because you don't have permission for one of the modules
+in the dist. When someone adds a new class, they need to remember to give
+co-maint permissions to everyone else (using the PAUSE web interface).
+
+=head2 Check your dists!
+
+If you install L<App::PAUSE::CheckPerms>, you'll get a script which
+will check the permissions consistency of all your dists.
+For example, if you run:
+
+ % pause-checkperms --user DOY
+
+you'll see a number of dists listed, including:
+
+ Resource-Pack
+   Resource::Pack              | doy STEVAN
+   Resource::Pack::Dir         | doy STEVAN
+   Resource::Pack::File        | doy STEVAN
+   Resource::Pack::FromFile    | DOY
+   Resource::Pack::Installable | DOY
+   Resource::Pack::Resource    | DOY
+   Resource::Pack::URL         | doy STEVAN
+
+The owner of a module is indicated by an UPPER CASE pause id.
+A lower-case pause id signifies co-maint.
+In this example, STEVAN couldn't release the dist, and neither
+DOY nor STEVAN could grant co-maint to a third party on their own.
+
+=head1 See Also
+
+=for :list
+* L<App::PAUSE::CheckPerms>
+* L<the PAUSE source code|https://github.com/andk/pause>
