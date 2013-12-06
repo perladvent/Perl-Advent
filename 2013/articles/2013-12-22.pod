@@ -1,0 +1,174 @@
+Title: Got Git? Ask Santa to get Got!
+Topic: App::GitGot
+Author: John SJ Anderson <genehack@genehack.org>
+
+=head2 Many Git Repos Can Get Messy
+
+Like most developers, I've got a I<lot> of source code in Git repositories,
+scattered and duplicated across the four-odd machines I use on a regular basis
+(the laptop, the server, the other laptop, the VPS...) It's actually worse than
+that, because it's not just source code — I've got various configuration files
+in different repositories, a couple repositories that just contain documents,
+and so on. I keep everything in sync and configured the same across all my
+machines by depending on these repositories to be reasonably up-to-date with
+the master copy (which is some times at Github, some times on $WORK's repo
+server, some times on one of my servers...)
+
+In order to effectively manage the all these git repositories, from all those
+different locations, across all those machines, I use
+L<got|https://metacpan.org/pod/App::GitGot>. C<got> is a utility that makes it
+trivial to run various C<git> commands across some or all of the repositories
+that C<got> knows about.
+
+=head2 Get GitGot
+
+Before you can use C<got>, you need to install it. Luckily, it's on CPAN, in
+the L<App::GitGot> dist. Fire up your favorite CPAN client and install that,
+and once all the dependencies install, you should have a shiny new C<got>
+command available to you. Much like C<git>, C<got> works via a series of
+sub-commands — if you just run C<got>, you'll get a list of all the available
+sub-commands.
+
+=head2 Gotta tell got where your git repos are
+
+In order for C<got> to manage your repositories, you'll have to add them to the
+configuration file. (By default, this lives at C<~/.gitgot>.) One way to add a
+repo is the C<got add> command — C<cd> into the repo you want to add, and run
+C<got add>. You'll be prompted for a few pieces of info — the defaults are
+generally correct — and then the repository will be added to the config file.
+
+    % got add
+    Name: etc
+     URL: git@github.com:genehack/etc.git
+    Path: /Users/genehack/etc
+    Tags: config
+
+Note the "Tags" entry — as we'll see shortly, tags are one way you can select
+repositories to operate on.
+
+If you want to just accept the defaults without having a chance to edit them,
+you can run C<got add -D>, which will just accept the default options.
+Currently, there isn't any command to edit a repository after it has been added
+(to add or change tags, for example), but the configuration file is a very
+simple YAML file which is trivial to hand-edit.
+
+There are a couple of other sub-commands that add repositories to your config
+file. C<got clone $CLONE_URL> will run C<git clone> on the given URL, and then
+add the resulting repository checkout to your C<got> config. Similarly, C<got
+fork $GITHUB_URL> will fork the given Github repo, then clone the resulting
+fork, and finally add it to your C<got> config. The C<got fork> sub-command
+depends on having a properly configured C<~/.github-identity> file with your
+Github authentication information.
+
+=head2 Got Gets Your Git Repos In Line
+
+Once you've added some git repositories to your C<got> config file, you can use
+C<got> to carry out various batch operations. For example, you can show all the
+repositories C<got> is aware of with the C<got list> (aka C<got ls>)
+sub-command. You can also specify a subset of repositories to operate on by
+providing additional arguments. For example, given this output:
+
+  % got ls
+    1) Perl-Build      git   git://github.com/tokuhirom/Perl-Build
+    2) STAMPS          git   git@github.com:genehack/STAMPS.git
+    3) app-gitgitr     git   git@github.com:genehack/app-gitgitr.git
+    4) app-gitgot      git   git@github.com:genehack/app-gitgot.git
+    5) app-miseenplace git   git@github.com:genehack/app-miseenplace.git
+    6) build-color     git   git@github.com:genehack/build-color.git
+    7) dosetool        git   genehack.net:/var/git/private/dosetool
+    8) emacs           git   git@github.com:genehack/emacs.git
+    9) etc             git   git@github.com:genehack/etc.git
+
+You can specify one or more repository index numbers, or number ranges, to only
+select certain repos. For example:
+
+  % got ls 2 4-6 7 9
+    2) STAMPS           git   git@github.com:genehack/STAMPSOB.git
+    4) app-gitgot       git   git@github.com:genehack/app-gitgot.git
+    5) app-miseenplace  git   git@github.com:genehack/app-miseenplace.git
+    6) build-color      git   git@github.com:genehack/build-color.git
+    7) dosetool         git   genehack.net:/var/git/private/dosetool
+    9) etc              git   git@github.com:genehack/etc.git
+
+You can also specify tags with the C<-t> flag:
+
+  % got ls -t config
+    5) app-miseenplace  git   git@github.com:genehack/app-miseenplace.git
+    8) emacs            git   git@github.com:genehack/emacs.git
+    9) etc              git   git@github.com:genehack/etc.git
+
+Multiple C<-t> options may be given, in which case they are combined in a
+"logical OR" fashion.
+
+Finally, you can specify repos by name:
+
+  % got ls emacs
+    8) emacs  git   git@github.com:genehack/emacs.git
+
+This ability to select a subset of repositories to operate on applies not just to the C<got ls> subcommand, but to any C<got> subcommand that operates on multiple repositories, such as C<got gc>, C<got status>, or C<got update>.
+
+=head2 Gotta Get It Together Now
+
+As I mentioned above, I depend on a number of git repositories being kept up to
+date with the master copy in order to propagate configuration changes across
+machines and to maintain consistency in how things are configured. I do this by
+frequently (at least once a week, if not more often), using a combination of
+C<got update_status> and C<got status> to first update all the repositories on
+a given machine, then display repositories that have either uncommitted changes
+or changes that have been locally committed but not pushed up to the master. By
+using these two commands and iterating across all my active machines, it
+becomes trivial to make sure everything is up to date.
+
+B<Note:> The C<update_status>, C<update>, and C<status> commands all take an
+optional C<-q> (for quiet) flag. This hides the output from repositories that
+don't have anything "interesting" to show — all the unchanged repos, all the
+clean repos that are in sync with the remote, etc. Also worth noting is that
+the C<update> command does a C<git pull>. There's an outstanding request for a
+C<git fetch> command, which is waiting on me to have a spare tuit, or some
+brave volunteer to send in a pull request.
+
+=head2 But Wait, We Got More
+
+C<got> also has a number of commands that are designed to make it easier to
+work with individual repositories without needing to know exactly where they
+live on disk. The C<got chdir REPO> command spawns a new subshell inside the
+given repository, and the C<got tmux REPO> subcommand (contributed by Yannick
+Champoux) spawns a new C<tmux> window with the working directory inside the
+given repository. The repository's name will be used as the name of the C<tmux>
+window. If the window has already been created by a previous invocation of
+C<got tmux>, instead of creating a new window, the existing window will be
+selected.
+
+If you're curious whether a given repository is being managed by C<got>, you
+can use the C<got this> command (contributed by Mike Greb) while inside the
+repository. If it is managed by C<got>, you'll get back the listing output for
+the repo. If it is not managed by C<got>, you'll see a message to that effect.
+
+=head2 What You Got?
+
+At this point, C<got> is a very good fit for my personal workflow around git
+repositories across multiple machines. I realize, however, that my workflow is
+not everybody's workflow, and I'm very open to additional commands or command
+flags being added to make C<got> more generically useful to more people. C<got>
+was also originally intended to be a VCS-agnostic tool; it just so happened
+that around the time I got the first usable version of it completed, my need to
+use anything other than C<git> for revision control evaporated. The extension
+hooks for other VCSen are still in place, however, and I would love to merge
+code that adds SVN, Hg, or even CVS support.
+
+Please fork the L<repository|http://github.com/genehack/app-gitgot/> on Github,
+add your own contribution, and send in a pull request!
+
+=head2 Acknowledgments
+
+C<got> was originally very heavily inspired by a similar tool, developed by
+Ingy döt Net, called L<App::AYCABTU|https://metacpan.org/pod/App::AYCABTU>. In
+particular, the repository selection interface and large chunks of the config
+file were shamelessly pilfered. C<got> has also been greatly improved by the
+efforts of Yanick Champoux, Mike Greb, and Chris Prather, as well as everybody
+who has reported a bug or wishlist feature.
+
+=head1 See Also
+
+=for :list
+* L<App::GitGot>
