@@ -1,0 +1,181 @@
+Title: Toystore Story
+Topic: GitStore
+Author: Yanick Champoux <yanick@cpan.org>
+
+This year, Gluggag&aelig;gir has been assigned to the I<Trendy Toy Assembly
+Line>. His mission? To set up a system to track the inventory of each type of
+toy. His parameters? Make it light on infrastructure, make it such that every change is
+auditable, and make it as easy as possible to interact with by the main Elf IT division.
+
+Knowing that his old IT division buddies are all command line junkies, Glugg
+decided to try something different: L<GitStore>.
+I<GitStore> is a module that turns a Git repository into a datastore, and it comes
+with a L<MooseX::Storage> driver that turns it into a persistent object
+repository. Glugg rationalized that Git repositories are as light on the
+infrastructure as anything would ever be, are a pretty much the ultimate tool to keep track
+of change history, and could make his IT friends real happy if he was to
+choose the right object serialization format.
+
+So Glugg went to work. Meaning: he poured himself a stiff eggnog mug and
+created a I<Toy> class:
+
+    package Toy;
+
+    use strict;
+    use warnings;
+
+    use Moose;
+    use MooseX::Storage;
+    
+    with Storage( format => 'JSON', io => 'GitStore');
+
+    has name => (
+        isa      => 'Str',
+        is       => 'ro',
+        required => 1,
+    );
+
+    has quantity => (
+        traits  => [ 'Counter' ],
+        isa     => 'Int',
+        is      => 'rw',
+        default => 0,
+        handles => { built => 'inc' },
+    );
+
+    has wishlist => (
+        traits  => [ 'Array' ],
+        isa     => 'ArrayRef[Str]',
+        default => sub { [] },
+        handles => {
+            add_wishlist => 'push',
+            all_children => 'elements',
+            nbr_children => 'count',
+        },
+    );
+
+    sub status {
+        my $self = shift;
+
+        print $self->name, ": ";
+
+        my $surplus = $self->quantity - $self->nbr_children;
+
+        if ( $surplus >= 0 ) {
+            print "all is good, surplus of $surplus toys.\n"
+        }
+        else {
+            $surplus *= -1;
+            print "ALERT, $surplus children in danger to be disappointed\n";
+        }
+    }
+
+    # always save before going out of context
+    sub DEMOLISH { $_[0]->store( $_[0]->name ) }
+
+    1;
+
+Once this done, he created an empty git repository in '~ttal/toystore', and
+asked the department team lead to fill it with the trendy toys of this year:
+
+    use Toy;
+
+    my $toystore = '/users/ttal/toystore';
+
+    Toy->new( name => $_, git_repo => $toystore ) for qw/
+        my_pretty_platypus
+        heckle_me_groucho
+        star_peace_inaction_figure
+    /;
+
+With the toys created, the rest of the department could now get busy. Half the
+elves would update the inventory, and the other half would keep track of which
+children requested those particular toys. All of this done by a fairly complex
+process, but fortunately using a very simple API to the store:
+
+    # increase the inventories
+    Toy->load( 'my_pretty_platypus', git_repo => $toystore )->built(2);
+    Toy->load( 'heckle_me_groucho', git_repo => $toystore  )->built(3);
+    Toy->load( 'star_peace_inaction_figure', 
+               git_repo => $toystore                       )->built(1);
+
+    # update the wishlists
+    Toy->load( 'my_pretty_platypus', git_repo => $toystore)
+       ->add_wishlist('rjbs', 'toby', 'yanick');
+    Toy->load( 'heckle_me_groucho', git_repo => $toystore )
+       ->add_wishlist('arthur');
+    Toy->load( 'star_peace_inaction_figure', git_repo => $toystore)
+       ->add_wishlist('david');
+
+With that very simple system, Glugg had the audit feature requested by the
+bosses. Not in a super dainty way, mind you, but serviceable:
+
+    $ git log my_pretty_platypus    
+    commit 3a89e96455f5704fd58b8ed786374998a1533d5d
+    Author: anonymous <anon@127.0.0.1>
+    Date:   Sun Dec 8 20:52:58 2013 +0000
+
+    @@ -1 +1 @@
+    -{"__CLASS__":"Toy","quantity":2,"name":"my_pretty_platypus","wishlist":[]}
+    +{"__CLASS__":"Toy","quantity":2,"name":"my_pretty_platypus","wishlist":["rjbs","toby","yanick"]}
+
+    commit a3caacde128a24a79898dabd0afcbf4556f021b0
+    Author: anonymous <anon@127.0.0.1>
+    Date:   Sun Dec 8 20:52:58 2013 +0000
+
+    @@ -1 +1 @@
+    -{"__CLASS__":"Toy","quantity":0,"name":"my_pretty_platypus","wishlist":[]}
+    +{"__CLASS__":"Toy","quantity":2,"name":"my_pretty_platypus","wishlist":[]}
+
+    commit abc3f329823980464f67126b7e0afaeaeffe2101
+    Author: anonymous <anon@127.0.0.1>
+    Date:   Sun Dec 8 20:52:58 2013 +0000
+
+    @@ -0,0 +1 @@
+    +{"__CLASS__":"Toy","quantity":0,"name":"my_pretty_platypus","wishlist":[]}
+
+
+And while the store was, of course, easily accessible via scripts to generate
+reports and whatnots:
+
+    use GitStore;
+
+    my $gitstore = GitStore->new($toystore);
+
+    for my $toy ( $gitstore->list ) {
+        Toy->load( $toy, git_repo => $toystore )->status;
+    }
+
+    __END__
+    will print:
+
+    heckle_me_groucho: all is good, surplus of 2 toys.
+    my_pretty_platypus: ALERT, 1 children in danger to be disappointed
+    star_peace_inaction_figure: all is good, surplus of 0 toys.
+
+It was also easily mungeable via other means. For example, some IT elves
+partial to the I<fish> shell and to L<App::jt> got in the habit of getting the
+current toy tallies via:
+
+    $ cd ~ttal/toystore
+    $ for toy in *; cat $toy | jt --fields name,quantity; end;
+    {
+    "quantity" : 3,
+    "name" : "heckle_me_groucho"
+    }
+    {
+    "quantity" : 2,
+    "name" : "my_pretty_platypus"
+    }
+    {
+    "quantity" : 1,
+    "name" : "star_peace_inaction_figure"
+    }
+
+
+All in all, Glugg was pretty smug about his system. And with the TTAL
+department happily churning away, he was able to return to his pet project --
+a skunkwork initiative aimed at leveraging Big Data technologies in a 
+fashion that would revolutionalize the way the North Pole was processing children.
+But this story, dear boys and dear girls, is a story for another night...
+
