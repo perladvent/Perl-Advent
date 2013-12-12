@@ -1,7 +1,6 @@
-
-Bisecting Perl to find when something broke (or was fixed!)
-
-=head1 INTRODUCTION
+Title: Bisecting Perl to find when something broke (or was fixed!)
+Topic: bisect.pl
+Author: Matthew Horsfall <WolfSage@gmail.com>
 
 So, it's Christmas Eve and you've decided now's the time to update production to
 the latest and greatest version of Perl. But since you don't want to spend your
@@ -11,6 +10,7 @@ run your ample test suite against it first.
 One of your tests looks like this: (Why it has your production code in it I have
 no idea):
 
+  #!perl
   # t/a_test.t
   use strict;
   use warnings;
@@ -43,16 +43,16 @@ After upgrading Perl from 5.8.8 to 5.18.1, you find this test breaks:
 
 But why?! That's perfectly valid Perl!
 
-=head1 BISECTING TO THE RESCUE
+=head1 Bisecting to the rescue!
 
 Thankfully, with a clone of the Perl git repository, we can answer this
 question. So first we grab a copy:
 
   $ git clone git://perl5.git.perl.org/perl.git perl
 
-In Porting/ you'll find a tool called 'bisect.pl'. This is a nice wrapper around
-git bisect that will build Perl for each revision being tested and run your
-tests, telling you when your test first broke.
+In F<Porting/> you'll find a tool called F<bisect.pl>. This is a nice wrapper
+around git bisect that will build Perl for each revision being tested and run
+your tests, telling you when your test first broke.
 
 However, this script cannot be run from the Perl repository it is testing, so
 first we must make a copy of a clean checkout of blead:
@@ -64,18 +64,19 @@ our world collapsed) and wait a very long time to get our results:
 
   $ cd perl-2
   $ ../perl/Porting/bisect.pl --start=perl-5.8.8 --end=v5.18.1 \
-  -- ./perl -Ilib ~/t/a_test.t
+    -- ./perl -Ilib ~/t/a_test.t
 
-Grab an eggnog, wrap some presents, write your memoirs, this will take awhile.
+Grab an egg nog, wrap some presents, write your memoirs, this will take awhile.
 
-Optionally, we can make this go a *little* faster, because we have an awesome
-computer that we got last Christmas, and it can do many things in parallel:
+Optionally, we can make this go a I<little> faster, because we have an awesome
+computer that we got last Christmas, and it can do many things in parallel.  We
+just add a C<-j> option:
 
   $ ../perl/Porting/bisect.pl --start=perl-5.8.8 --end=v5.18.1 \
-  -j 8 -- ./perl -Ilib ~/t/a_test.t
+    -j 8 -- ./perl -Ilib ~/t/a_test.t
 
-Note that above --start and --end are git tags, instead they could even be
-commit IDs.
+Note that while above C<--start> and C<--end> are git tags, instead they could
+even be commit IDs.
 
 Anyways, after waiting a long while the bisect finally finishes and tells us
 this:
@@ -90,49 +91,43 @@ this:
   ok 4 - Git motorcycle is awesome!
   HEAD is now at eb3d0a5 Block signals during fork (fixes RT#82580)
   good - zero exit from ./perl -Ilib ~/t/a_test.t
+
   417a992d4dc78be79e44d19e029d9742d0334128 is the first bad commit
   commit 417a992d4dc78be79e44d19e029d9742d0334128
   Author: Zefram <zefram@fysh.org>
   Date:   Fri May 25 22:25:21 2012 +0100
 
       remove deprecated qw-as-parens behaviour
-
-  :100644 100644 e18449adad89073b7bd0b902434f606d965bc39a 8738f692f5a0cd3af9662f97eff28a322d89525d M      embed.fnc
-  :100644 100644 62cd24e42b33ac825df37c2a90bfd1277f740168 7c5575e1f3a5eb097d01eca77cd69860988bb6bc M      embed.h
-  :100644 100644 472eab001bc44110a7178f1c032f62836a2b146b 00ddadbd9511e883a50ed94652f6f65bfcaeca00 M      perly.act
-  :100644 100644 7cbdd2f06707f474b1ed0b8cd4b99e24498b37bd fa47196067232ff892a9d28d64a6e473d64f2b94 M      perly.h
-  :100644 100644 d1e1f7b71b677583329ec2f44e665584ef6bdf43 b34cad9bd338df0a6721c4f0e23d0f0ed7f7e706 M      perly.tab
-  :100644 100644 8b5733b3adc82b28a9ae9d4709deacd7e01c8705 9143341bae62cb16943698c8050948a14be87bd1 M      perly.y
-  :040000 040000 80493977b100  5696  100  5696    0     0  33868      0 --:--:-- --:--:-- --:--:-- 54247
-9792b72f1122b2b178d6c34f5f45da3 b24cba89ba6301c6e0d7cc244074f0c257b8c92f M      pod
-  :100644 100644 5630f6d623ddd7e392bb03e4c2eea21660b0d5ce 19d825a69ee20de74df1bdd1d280bbf95ead01ab M      proto.h
-  :040000 040000 fa0dca2a9b0be03f62c3fcd27e5557fd1835c218 2d2480c5bccf1e5f7603016ed2838331d07e0f59 M      t
-  :100644 100644 6cc0336a3a00f026ef7512ffd8cb1e679117f06d 4a774b51e06ee5e220e363e202eea76f4cd4039e M      toke.c
+  ⋮
   bisect run success
   That took 2019 seconds
 
 Voila! And knowing that, we can fix our test by changing:
 
+  #!perl
   for my $gift qw(charcoal sweater) {
 
 To
 
+  #!perl
   for my $gift (qw(charcoal sweater)) {
 
 And
 
+  #!perl
   for my $gift qw(car motorcycle) {
 
 To
 
+  #!perl
   for my $gift (qw(car motorcycle)) {
 
 And upgrade our servers and go home and enjoy the holidays!
 
-=head1 A FEW MORE TRICKS
+=head1 A few more tricks…
 
-There's a few neat things bisect.pl can also do for us, and its documentation
-includes examples of many of them.
+There are a few more neat things that F<bisect.pl> can also do for us, and its
+documentation includes examples of many of them.
 
 For example, you don't need to provide a start and end, that just speeds things
 up:
@@ -147,9 +142,9 @@ Or you can search for the reverse:
 
 Check out C<perldoc Porting/pod/bisect-runner.pl> for more information.
 
-=head1 IN CLOSING
+=head1 In closing
 
-bisect.pl is an incredibly useful tool. Here, we used it to find why some
+F<bisect.pl> is an incredibly useful tool. Here, we used it to find why some
 external Perl program failed, but it's most often used to figure out when
 something broke in Perl itself.
 
