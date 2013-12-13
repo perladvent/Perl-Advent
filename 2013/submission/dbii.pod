@@ -2,6 +2,47 @@ Title: Shake those gifts and figure out what's inside!
 Topic: DBIx::Introspector
 Author: Arthur Axel "fREW" Schmidt <frew@cpan.org>
 
+=head2 Action Shot!
+
+  #!perl
+  my $d = DBIx::Introspector->new(drivers => '2013-12.01');
+
+  # standard dialects
+  $d->decorate_driver_unconnected(Pg     => concat_sql => '%s || %s');
+  $d->decorate_driver_unconnected(SQLite => concat_sql => '%s || %s');
+
+  # non-standard
+  $d->decorate_driver_unconnected(MSSQL  => concat_sql => '%s + %s');
+  $d->decorate_driver_unconnected(mysql  => concat_sql => 'CONCAT( %s, %s )');
+
+  my $concat = $d->get(
+     $dbh,
+     'dbi:ODBC:server=10.6.6.17;database=Lynx;driver=SQL Server Native Client 11.0',
+     'concat_sql',
+  );
+
+  $concat = sprintf($concat, 'first_name', 'last_name');
+  my $sth = $dbh->prepare("SELECT $concat AS name FROM people");
+  # ...
+
+  # or lazily connected with DBIC:
+
+  $d->get(
+     sub { $schema->storage->dbh },
+     'dbi:ODBC:server=10.6.6.17;database=Lynx;driver=SQL Server Native Client 11.0',
+     'concat_sql',
+     { dbh_fallback_connect => sub { $schema->storage->ensure_connected } },
+  );
+
+  $concat = sprintf($concat, 'first_name', 'last_name');
+  $rs->search(undef, {
+     '+columns' => {
+        name => \$concat,
+     },
+  });
+
+=head2 Why DBIx::Introspector?
+
 A common (but rarely acknowledged) problem when writing portable SQL is
 accurately detecting what kind of database you are connected to and,
 sometimes, how you have connected.  The typical solution is to assume
@@ -16,7 +57,7 @@ includes mysql, Postgres, Oracle, and probably most importantly SQL
 Server.)  Often users assume that ODBC means SQL Server but, that's
 clearly not correct.
 
-L<DBIx::Introspector|https://github.com/frioux/DBIx-Introspector> solves this
+L<DBIx::Introspector> solves this
 problem (as well as one other).  It has a basic but mostly complete set of
 detection methods.  If, after it is released, there are problems discovered in
 the detection methods, the user can easily swap in new detection methods.  The
@@ -27,18 +68,19 @@ handles (or DSNs) for various pieces of information.
 
 For starters, you need to define a new DBIx::Introspector.  Let's pretend we
 are writing some program that needs to concatenate stuff in the database, and
-should support some major databases.  This code would probably be sufficient:
+should support some major databases.  This code from the L</Action Shot!> is
+probably sufficient:
 
   #!perl
   my $d = DBIx::Introspector->new(drivers => '2013-12.01');
 
   # standard dialects
-  $d->decorate_driver_unconnected(Pg     => concat_sql => '? || ?');
-  $d->decorate_driver_unconnected(SQLite => concat_sql => '? || ?');
+  $d->decorate_driver_unconnected(Pg     => concat_sql => '%s || %s');
+  $d->decorate_driver_unconnected(SQLite => concat_sql => '%s || %s');
 
   # non-standard
-  $d->decorate_driver_unconnected(MSSQL  => concat_sql => '? + ?');
-  $d->decorate_driver_unconnected(mysql  => concat_sql => 'CONCAT( ?, ? )');
+  $d->decorate_driver_unconnected(MSSQL  => concat_sql => '%s + %s');
+  $d->decorate_driver_unconnected(mysql  => concat_sql => 'CONCAT( %s, %s )');
 
 First, note that we specify a string (C<2013-12.01>) for drivers.
 In order to maintain backwards compatibility DBIx::Introspector
@@ -122,7 +164,7 @@ work for anything using ODBC, ADO, and other non-one-to-one drives.
 =head1 See Also
 
 =for :list
-* L<DBIx::Introspector|https://github.com/frioux/DBIx-Introspector>
+* L<DBIx::Introspector>
 * L<DBIx::Connector>
 * L<DBIx::Exceptions|https://github.com/frioux/DBIx-Exceptions>
 * L<DBIx::Class>
