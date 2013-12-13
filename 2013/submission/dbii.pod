@@ -2,36 +2,36 @@ Title: Shake those gifts and figure out what's inside!
 Topic: DBIx::Introspector
 Author: Arthur Axel "fREW" Schmidt <frew@cpan.org>
 
-=head2 Action Shot!
+=head2 How does my database do this thing?
+
+Okay, so you write a library that talks to a database, but you don't control
+what kind.  You only got the DSN and the connection at runtime, and you want it
+to work all over the place.  That's hard!  What if you need to do something
+that's done differently on different database systems, like concatenate two
+strings?
+
+You can use DBIx::Introspector.
 
   #!perl
   my $d = DBIx::Introspector->new(drivers => '2013-12.01');
 
-  # standard dialects
-  $d->decorate_driver_unconnected(Pg     => concat_sql => '%s || %s');
-  $d->decorate_driver_unconnected(SQLite => concat_sql => '%s || %s');
+  setup_standard_dialects($d); # we'll come back to this!
 
-  # non-standard
-  $d->decorate_driver_unconnected(MSSQL  => concat_sql => '%s + %s');
-  $d->decorate_driver_unconnected(mysql  => concat_sql => 'CONCAT( %s, %s )');
-
-  my $concat = $d->get(
-     $dbh,
-     'dbi:ODBC:server=10.6.6.17;database=Lynx;driver=SQL Server Native Client 11.0',
-     'concat_sql',
-  );
+  # This will tell us how to concatenate two strings!
+  my $concat = $d->get($dbh, $dsn, 'concat_sql');
 
   $concat = sprintf($concat, 'first_name', 'last_name');
   my $sth = $dbh->prepare("SELECT $concat AS name FROM people");
-  # ...
 
-  # or lazily connected with DBIC:
+If we were already using DBIx::Class, we could get the database handle from
+that:
 
+  #!perl
   $d->get(
-     sub { $schema->storage->dbh },
-     'dbi:ODBC:server=10.6.6.17;database=Lynx;driver=SQL Server Native Client 11.0',
-     'concat_sql',
-     { dbh_fallback_connect => sub { $schema->storage->ensure_connected } },
+    sub { $schema->storage->dbh },
+    $dsn,
+    'concat_sql',
+    { dbh_fallback_connect => sub { $schema->storage->ensure_connected } },
   );
 
   $concat = sprintf($concat, 'first_name', 'last_name');
