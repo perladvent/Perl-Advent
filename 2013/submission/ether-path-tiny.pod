@@ -1,0 +1,127 @@
+
+Path::Tiny: the little module that keeps on giving
+
+Do you have difficulty remembering all of the core modules that help you work
+with path names and contents, their interfaces, and all the little edge cases
+that you have to watch out for?  I sure do! But I have a new tool in my
+toolbox that lets me forget about File::Spec, File::Copy, File::Path,
+File::Temp and the rest -- Path::Tiny.  It's amazingly full-featured for a
+module that can still rightfully claim the Tiny name.
+
+For instance, you may be aware that it lets you deal with path strings in an
+architecture-agnostic way, and stringifies as needed:
+
+    my $path = path(qw(master_list 2013 North_America));
+
+    # prints 'master_list/2013/North_America';
+    say $path;
+
+    # prints 'master_list/2013/North_America' on unix,
+    #        'master_list\2013\North_America' on win32
+    say $path->canonpath;
+
+    # prints /home/santa/master_list/2013/North_America when $CWD is /home/santa
+    say $path->absolute;
+
+    # prints 'master_list/2013'
+    say $path->parent;
+
+    # prints 'master_list/2013/North_America/Vancouver/ETHER'
+    say $path->child('Vancouver', 'ETHER');
+
+Did you also know it can help you with creating temporary directories and
+files, automatically respecting the C<TMPDIR> environment variable?
+
+    my $tempdir = Path::Tiny->tempdir('delivery_list__XXXXXX');
+    my $tempfile = Path::Tiny->tempfile(TEMPLATE => 'delivery_list_XXXXXX', suffix => '.bin');
+
+Or that you can use it to easily process your files?
+
+    foreach my $city_dir (path(qw(master_list 2013 North_America))->children)
+    {
+        foreach my $gift_path ($city_dir->children)
+        {
+            # recipient will be the same as from path(qw(master_list 2013 North_America Vancouver ETHER))
+            process_giftlist($gift_path);
+        }
+    }
+
+You can even traverse directories recursively:
+
+    my @naughty;
+    my $iter = path(qw(master_list 2013))->iterator({ recurse => 1 });
+    while (my $path = $iter->())
+    {
+        push @naughty, $path and next if $path->parent->child('.naughty')->is_file;
+
+        process_giftlist($path) if $path->is_file;
+    }
+
+And remove entire trees:
+
+    # no gifts for you!
+    foreach my $naughty_path (@naughty)
+    {
+        send_lump_of_coal_to($path->basename);
+        $naughty_path->remove_tree;
+    }
+
+Path::Tiny also makes creating files and directories a breeze:
+
+    my $year = '2013';  # or POSIX::strftime('%Y', localtime)
+    foreach my $child (keys %census)
+    {
+        my $gift_path = path('master_list', $year, $child->{region}, $child->{city}, $child->{name});
+
+        # creates full directory heirarchy if it does not already exist
+        $gift_path->mkpath;
+
+        # append to existing file, or create a new one as needed
+        my @gift_list = @{ $child->{gifts} // [] };
+        $gift_path->append_utf8({ locked => 1 }, \@gift_list);
+    }
+
+But what about processing file contents?  That's also a joy:
+
+    sub process_giftlist
+    {
+        my $gift_path = shift;
+
+        my $fh = $gift_path->openr_utf8;
+        while (my $line = <$fh>) { ... }
+    }
+
+What a about a few more stocking stuffers?
+
+Keep your filesystem clean by ensuring that locally-created scratch files are
+in the tempdir:
+
+    chdir $tempdir unless $tempdir->subsumes(Path::Tiny->cwd);
+
+Create a file anywhere in the system, without having to create intermediary
+files:
+
+    my $scratch_file = $tempdir->child('batch_01', 'scratchfile.txt')->touchpath;
+
+Move a file for safe-keeping into a directory that may not yet exist:
+
+    $scratch_file->move(Path::Tiny->rootdir('master_list', '2013', 'extras')->mkpath));
+
+Create a digest of the file, for easily watching for other things changing the file:
+
+    foreach my $path (...)
+    {
+        my $digest = $path->digest;
+        reprocess_file($path) if $digest ne ($digest{$path} // '');
+        $digest{$path} = $digest;
+    }
+
+
+But this is my favourite feature of all, because it rolls up so many concerns
+into one tidy little package... never again will you have to have to worry
+about error-checking, encoding, line endings or anything else that might
+distract us from gift preparation:
+
+    my $file_contents = $gift_path->slurp_utf8;
+
+Mmm, tasty Path::Tiny!
