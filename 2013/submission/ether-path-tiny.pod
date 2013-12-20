@@ -48,27 +48,21 @@ Or that you can use it to easily process your files?
         }
     }
 
-You can even traverse directories recursively:
+You can even traverse directories recursively, and remove entire trees:
 
     my @naughty;
     my $iter = path(qw(master_list 2013))->iterator({ recurse => 1 });
     while (my $path = $iter->())
     {
-        # skip over directories
-        next unless $path->is_file;
+        if ($path->child('.naughty')->is_file)
+        {
+            # no gifts for you!
+            send_lump_of_coal_to($path->basename);
+            $path->remove_tree($path);
+            next;
+        }
 
-        push @naughty, $path and next if $path->parent->child('.naughty')->is_file;
-
-        plan_delivery($path);
-    }
-
-And remove entire trees:
-
-    # no gifts for you!
-    foreach my $naughty_path (@naughty)
-    {
-        send_lump_of_coal_to($path->basename);
-        $naughty_path->remove_tree;
+        plan_delivery($path) if $path->is_file;
     }
 
 L<Path::Tiny> also makes creating files and directories a breeze:
