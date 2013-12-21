@@ -1,0 +1,209 @@
+Title: Bashing Perl5
+Topic: hub, bash
+Author: Ingy Döt Net <ingy@ingy.net>
+
+=head1 Bashing Perl5
+
+In the past 6 months, I've worked on a lot of
+L<things|https://github.com/ingydotnet> in a lot of
+L<languages|https://github.com/acmeism/RosettaCodeData>.  Being an
+L<Acmeist|http://acmeism.org>, this shouldn't seem suspect. What may come as a
+surprise, is that my main go-to programming language during this time has been
+B<Bash>! Bash? Is that even a programming language?
+
+=head1 Bashing Ingy
+
+Let me introduce you to my favorite new tool:
+L<git-hub|https://github.com/ingydotnet/git-hub>. Install this tool and now you
+can do all your day-to-day L<GitHub|http://github> interaction using C<git>
+commands.
+
+Who is L<Ingy döt Net|http://ingy.net> anyway?
+
+    $ git hub user ingydotnet
+
+Who cares?
+
+    $ git hub followers ingydotnet
+
+What good is he?
+
+    $ git hub repos ingydotnet
+
+I'm confused…
+
+    $ git hub --help
+
+OK, what's going on with this git-hub repo?
+
+    $ git hub repo ingydotnet/git-hub
+
+Fork that!
+
+    $ git hub fork ingydotnet/git-hub
+
+Clone me down, Scotty!
+
+    $ git hub clone git-hub  # your fork
+
+Hmmm, I like git-hub!
+
+    $ git hub star ingydotnet/git-hub
+
+The git-hub command is even chainable. Want to follow all the members of the
+C<perl6> GitHub organization, and star all their repos?
+
+    $ git hub members perl6 --all --raw | git hub follow -
+    $ git hub repos perl6 -ar | git hub star -
+
+With the C<--raw> flag, git-hub prints just the userid or repo-spec, then the
+'-' flag tells the command to read each line of STDIN and replace the '-' with
+it. Voila!
+
+=head1 WTB? (What/Why The Bash?)
+
+This amazingly simple/powerful git command is written in Bash. If you are
+familiar with how Git works, it's basically a huge collection of subcommand
+plugins with names like C<git-clone>. Try running this command:
+
+    $ ls `git --exec-path`
+
+You should see well over 100 commands. They can be written in any language. In
+fact, in the early days they were generally written in Perl5! As git became
+more popular, much of the Perl was ported to C. You'll notice that most of
+those files are symlinks to the C<git> executable. This means that while
+C<git-clone> is written in C, you could simply replace that symlink with a
+Haskell program of your own crafting.
+
+In May 2013, I became interested in a replacement for git-submodule, called
+L<git-subtree|https://github.com/apenwarr/git-subtree>, but soon noticed it had
+lots of problems too, so I started writing
+L<git-subrepo|https://github.com/ingydotnet/git-subrepo>. The subtree command
+was written in Bash. I put the subrepo command on hold and started working on
+the C<git-hub> project. For fun, I decided to see if it was possible to write it
+in Bash (since I could easy revert to Perl5 if it wasn't).
+
+Was it? It was!
+
+When I try out a new programming language, I generally just think in terms of
+my favorite programming idioms, rather than language specific idioms. When I
+get stuck writing something, I Google the idiom and read the (almost always
+StackOverflow) explanation. It starts off slow, but fairly soon I'm getting
+stuff working, and eventually I feel like a
+L<Rock Star|http://www.youtube.com/watch?v=dQw4w9WgXcQ>.
+
+With Bash, every idiom I needed was there, albeit often in a ridiculous
+syntactic form, compared to Perl5 (or its hipster cousin Ruby).
+
+=head1 The Good, The Bad, and the WTF!
+
+Let's look at some
+L<Modern Bash|https://github.com/ingydotnet/git-hub/blob/perl5-advent-2013/lib/git-hub#L164>.
+This is the part of the C<git-hub> code where the subcommands are written. For
+example, here's the 2 functions for the C<git hub user> command:
+
+    #!vim bash
+    command:user() {
+      get-args ?user:get-user
+      api-get "/users/$user"
+      msg_404="User '$user' not found."
+    }
+
+    ok:user() {
+      fields=(
+        login type name email blog location company bio
+        followers following public_repos public_gists
+      )
+      report-data
+    }
+
+Quite often when people see this code for the first time they don't believe
+it's plain old Bash. Well, it is! (And it isn't!). The code above has been
+heavily refactored, with some Ingy DSL sprinkled on top. Let's review this
+snippet:
+
+This is the definition of 2 functions. The ':' is just part of the function
+name. Bash is quite liberal on function name characters, while quite strict on
+variable names. Since Bash lacks any concept of hierarchical namespacing, the
+':' lets us fake it nicely. The '()' parens are required but useless (i.e.,
+nothing ever goes inside them).
+
+The C<get-args> is just another internal function. I've been using '-' instead
+of '_' because, you know, it feels more modern. Note that the argument has no
+quotes. Being a lover of L<YAML|http://yaml.org>, I avoid quotes when I can. In
+Bash, commands go through a process called Parameter Expansion, in which
+whitespace is king. I only use quotes when a string has variable interpolation
+I<and> the variable in question might have whitespace that would mess up the
+expansion.
+
+The C<fields=(…)> is how you initialize an array. It's so elegant, and yet this
+elegance is a Bash rarity. Here's another sexy idiom:
+
+    #vim bash
+    fields+=(foo bar)   # push 2 elements onto an array variable
+
+What if we wanted to print the contents of the array or its size?
+
+    #vim bash
+    echo $fields       # Nope. Only prints 'login'.
+    echo ${fields[@]}  # Correct (and ugly)
+    echo ${#fields[@]} # Print the array size (so obvious, right?)
+
+As you can see, the Ugly is never far away. What if we want to join the array
+into a string where the elements are separated by a ':'?
+
+    #vim bash
+    printf -v string "$(IFS=':'; eval echo "\"${fields[*]}\"")"
+    echo $string
+
+WTF?!
+
+=head1 Which Advent Calendar is this anyway?
+
+You ♥ Perl5. Why is Ingy Bashing you? ('tis the season to be merry!!!)
+
+As I swam through the enimatic waters of Bash, it became very apparent to me
+where Perl got its roots. There was a consistent string of Aha! moments, where
+I would see where Larry got his inspirations and then cranked them each up to
+11.
+
+A friend pointed out to me that he read somwhere that Perl was originally an
+attempt to do Shell programming in a single process. This was after I noticed
+that a simple C<git hub user> command spawned ~200 subprocesses! I guess
+subprocesses are cheaper now than in the 80s.
+
+Which reminds me, I only realized yesterday that Bash 1.0 was released 2 years
+I<after> Perl 1.0. Bash is FSF's I<free> offering of the Bourne shell (from
+which all the great Unix shells descended). It turns out that Bash got more
+ideas from Perl than the reverse. Perl 1.0 only had sh, csh and ksh to start
+from.
+
+I have a book worth of interesting Bash stuff to tell you. Maybe I should write
+one. :-♥
+
+=head1 Bash Into the Future
+
+Why is Bash of interest as a programming language? Well for one, it's fairly
+ubiquitous. This lets you write apps that will cause the least pain for the
+most general audience. But the same can be said of Perl5. It seems to be
+installed by default as much as Bash.
+
+Well, there's a couple things that Shell is way better at than Perl/Ruby/Python
+etc: IPC and system interaction. These things are so naturally ingrained into
+Shell, that they often go unnoticed.
+
+The real problem with programming in Bash is there's no CPAN. But that's a
+solvable problem! I realized early into git-hub development that I needed a
+complete JSON parser. Not only that, Bash has no data structures to parse JSON
+into. I solved both problems by writing
+L<json-bash|https://github.com/ingydotnet/json-bash>. I also needed to
+write tests. check out
+L<test-more-bash|https://github.com/ingydotnet/test-more-bash>. All these
+obscure idioms could be packaged into a nice DSL, to make Bash hacking more
+accessible. Introducing L<Bash+|https://github.com/ingydotnet/bashplus>.
+
+Hmm. This is a nice start. Hmm. Where to host all these modules, and start the
+Bash revolution? I've owned the domain bpan.org for many years now…
+
+Stay tuned!!!
+
