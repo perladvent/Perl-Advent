@@ -1,18 +1,25 @@
+Title: DateTimes
+Topic: DateTime::Moonpig
+Author: Mark Jason Dominus (陶敏修) <mjd@plover.com>
 
-The M<DateTime> suite is an impressive tour de force, but I hate the
-interface. The method it provides are usually not the ones you want,
+The L<DateTime> suite is an impressive tour de force, but I hate its
+interface. The methods it provides are usually not the ones you want,
 and the things it makes easy are often things that are not useful.
+
+=head2 Mutators
 
 The most obvious example is that it has too many mutators.  I believe
 that date-time values are a kind of number, and should be treated like
 numbers. In particular they should be immutable.  Rik Signes has
-A<http://rjbs.manxome.org/rubric/entry/1929|a hair-raising story>
+L<http://rjbs.manxome.org/rubric/entry/1929|a hair-raising story>
 about an accidental mutation that caused a hard to diagnose bug,
 because the C<add_duration> method modifies the object on which it is
 called, instead of returning a new object.
 
+=head2 DateTime::Duration
+
 But the most I<severe> example, the one that drives me into a rage, is
-that the C<subtract_datetime> method returns a M<DateTime::Duration> object,
+that the C<subtract_datetime> method returns a L<DateTime::Duration> object,
 and this object is never what you want, because it is impossible to
 use it usefully.
 
@@ -21,6 +28,7 @@ between 1969-04-02 02:38:17 EST and 2013-12-25 21:00:00 EST.  You can
 set up the two M<DateTime> objects for the time, and subtract them
 using the overloaded minus operator:
 
+	#!perl
 	my ($a) = DateTime->new( year => 1969, month => 04, day => 02,
 				 hour => 2, minute => 38, second => 17,
 				 time_zone => "America/New_York" ) ;
@@ -31,88 +39,137 @@ using the overloaded minus operator:
 
 	my $difference = $b - $a;
 
-Internally this invokes C<subtract_datetime> to yeild a
-M<DateTime::Duration> object for the difference.  The
-M<DateTime::Duration> object C<$diff> will contain the information
+Internally this invokes C<subtract_datetime> to yield a
+DateTime::Duration object for the difference.  The
+DateTime::Duration object C<$diff> will contain the information
 that this is a difference of 536 months, 23 days, 1101 minutes, and 43
 seconds, a fact which seems to me to be of very limited usefulness.
 
-It appears that there are methods that will get you the actual elapsed
-time in seconds, but none of them do it.  And indeed, none of them
-can, because the subtraction has thrown away all the information about
-how long the days and years were---days and years vary in length---so
-it doesn't know.  It won't even hazard an approximate guess, by
-multiplying the hours by 3600 and the days by 86400.  If you wanted
-the actual elapsed time, you are out of luck.
+You might want to know how long this interval is, so you can compare
+it to similar intervals.  So you might want to know how many seconds
+this is.  It happens that the two times are exactly 1,411,669,328
+seconds apart, but there's no way to get the C<$difference> object to
+tell you this.
 
-To get what I think is a useful answer you cannot use the overloaded
-subtraction operator; instead you must write
+It I<seems> like there are methods that will get you the actual
+elapsed time in seconds, but none of them will do it.  For example,
+C<< $difference->in_units('seconds') >> looks promising, but will
+return 43, which is the 43 seconds left over after you've thrown away
+the 536 months, 23 days, and 1101 minutes.  I don't know what the use
+case for this is supposed to be.
 
-        $b->clone->subtract_datetime_absolute($a)->in_units('seconds')
+And indeed, no method can tell you how long the duration really is,
+because the subtraction has thrown away all the information about how
+long the days and months and years were—days, months and years vary
+in length—so it simply doesn't know how much time this object
+actually represents.  I don't know why the designer of
+DateTime::Duration thought it would be a good idea to throw this
+information away, but that's what it does.  And I don't know why the
+designer of DateTime thought it would be a good idea to overload
+the subtraction operator to make it easy to throw this information
+away, but that's what it does.
 
-M<DateTime::Moonpig> is an attempt to deal with this by changing the
-interface and leaving the internals alone.  I developed it for
-A<http://blog.plover.com/prog/Moonpig.html|the I<Moonpig> project that
-Rik Signes and I did>; hence the name.
+Similarly if you wanted to know how many days there are between the
+two dates, the DateTime::Duration object won't tell you because it
+can't tell you.  If you had the elapsed seconds difference, you could
+convert it to the correct number of days simply by dividing by 86400
+and rounding off.  This works because, even though days vary in
+length, they don't vary by much, and the variations cancel out over
+the course of a year.  If you do this you find that the elapsed number
+of days is approximately 16338.7653, which rounds off to 16338 or
+16339 depending on how you want to treat the 18-hour time-of-day
+difference.  This result is not I<quite> exact, but the error is on
+the order of 0.000002%.  So the elapsed seconds are useful, and you
+can compute other useful values with them, and get useful answers. In
+contrast, DateTime::Duration's answer of "536 months and 23 days"
+is I<completely> useless because months vary in length by nearly 10%
+and DateTime has thrown away the information about how long the
+months were.  The best you can do to guess the number of days from
+this is to calculate the 536 months by 30.4375, which is the average
+number of days in a month, and add 23.  This is clumsy, and gets you
+16337 days—which is close, but wrong.
 
-M<DateTime::Moonpig> introduces four main changes to the interface of
-M<DateTime>:
+To get what I consider a useful answer out of the DateTime objects
+you I<must not> use the overloaded subtraction operator; instead you
+must do this:
+
+        #!perl
+        $b->subtract_datetime_absolute($a)->in_units('seconds')
+
+=head2 What's M<DateTime::Moonpig> for?
+
+L<DateTime::Moonpig> attempts to get rid of the part of DateTime I
+don't like and keep the part I do like, by changing the interface and
+leaving the internals alone.  I developed it for
+L<the I<Moonpig> billing system that Rik Signes and I
+did|http://blog.plover.com/prog/Moonpig.html>; hence the name.
+
+DateTime::Moonpig introduces four main changes to the interface of
+DateTime:
 
 =over 4
 
 =item 1.
 
-Most of the mutators are gone.  They throw fatal exceptions
-if you try to call them.
+Most of the mutators are gone.  They throw fatal exceptions if you try
+to call them.
 
 =item 2.
 
 The overridden addition and subtraction operators have been changed to
 eliminate M<DateTime::Duration> entirely.  Subtracting two
 M<DateTime::Moonpig> object yields the difference in seconds, as an
-ordinary Perl number.  This means that instead of 
+ordinary Perl number.  This means that instead of
 
-        $x = $b->clone->subtract_datetime_absolute($a)->in_units('seconds')
+        #!perl
+        $x = $b->subtract_datetime_absolute($a)->in_units('seconds')
 
 one can write
 
+        #!perl
         $x = $b - $a
 
-From here it's easy to get the approximate number of days, hours,
-etc. by dividing by 86400, 3600, or whatever; in my experience this is
-usually what is wanted, and one simply doesn't care if this
-approximate number is off by a fraction of a day or hour because of
-intervening leap seconds.
+From here it's easy to get the approximate number of days difference:
+just divide by 3600.  Similarly, dividing this by 3600 gets the number
+of hours difference.
 
-Also, a number of seconds can be added to or subtracted from a
-M<DateTime::Moonpig> object; this yields a new object representing a
-time that is that many seconds later or earlier.  This means that if
-you are not concerned with perfect exactness, you can write
+Also, an integer number of seconds can be added to or subtracted from
+a DateTime::Moonpig object; this yields a new object representing a
+time that is that many seconds later or earlier.  Writing C<$date + 2>
+is much more convenient than writing C<< $date->clone->add( seconds =>
+2 ) >>.
 
-    	sub days { $_[0] * 86400 }
+If you are not concerned with perfect exactness, you can write
+
+  #!perl
+  sub days { $_[0] * 86400 }
 
 	my $tomorrow = $now + days(1);
-	my $one_week_from_now = $now + days(7);
 
-This will  be off by an hour if there is an intervening DST change, or
+This might be off by an hour if there is an intervening DST change, or
 by a second if there is an intervening leap second, but in many cases
-one simply doesn't care.  Writing C<$date + 2> is much more convenient
-than writing C<< $date->clone->add( seconds => 2 ) >>.
+one simply doesn't care.
 
-=item 3. The constructor is extended to accept an epoch time such as
+=item 3.
+
+The constructor is extended to accept an epoch time such as
 is returned by Perl's built-in C<time()> or C<stat()> functions.  This
 means that one can abbreviate this:
 
+        #!perl
         DateTime->from_epoch( epoch => $epoch )
 
 to this:
 
+        #!perl
         DateTime::Moonpig->new( $epoch )
 
 =item 4.
 
 The default time zone has been changed from M<DateTime>'s "floating"
-time zone to UTC. 
+time zone to UTC. I think the "floating" time zone is a mistake, and
+it has bad interactions with C<set_time_zome>, which
+C<DateTime::Moonpig> does I<not> disable.
 
 =item 5. 
 
@@ -120,21 +177,27 @@ I added a few additional methods I found convenient.
 
 =back
 
-Under the covers, it is just M<DateTime> objects, which seem to work
-well.  Other than the mutators, all the usual M<DateTime> methods
-work just the same; you are even free to use
-C<< ->subtract_datetime >> to obtain a M<DateTime::Duration> object if
-that is what you want.
+Under the covers, it is all just DateTime objects, which seem to do
+what one needs.  Other than the mutators, all the many DateTime
+methods work just the same; you are even free to use C<<
+->subtract_datetime >> to obtain a DateTime::Duration object if
+you enjoy being trapped in an absurdist theatre production.
 
 When I first started this module, I thought it was likely to be a
-failed experiment.  I expected that the C<Moonpig::DateTime> objects
-would break once ina while, or that som operation on them would return
-a C<DateTime> instead of a C<Moonpig::DateTime>, which would cause
+failed experiment.  I expected that the Moonpig::DateTime objects
+would break once ina while, or that some operation on them would return
+a DateTime instead of a Moonpig::DateTime, which would cause
 some later method call to fail.  But to my surprise, it worked well.
-It has been in regular use in I<Moonpig> for several years.  
+It has been in regular use in I<Moonpig> for several years.
 
 I recently split it out of I<Moonpig>, and released it to CPAN, and I
 will be interested to find out if it works well in other contexts.  I
 am worried that disabling the mutators has left a gap in functionality
 that needs to be filled by something else, for example.
 
+=head1 See Also
+
+=for :list
+* L<DateTime::Moonpig>
+* L<DateTime>
+* L<DateTime::Duration>
