@@ -37,7 +37,7 @@ using the overloaded minus operator:
 				 hour => 21, minute => 0, second => 0,
 				 time_zone => "America/New_York" ) ;
 
-	my $difference = $b - $a;
+	my $diff = $b - $a;
 
 Internally this invokes C<subtract_datetime> to yield a
 DateTime::Duration object for the difference.  The
@@ -48,12 +48,12 @@ seconds, a fact which seems to me to be of very limited usefulness.
 You might want to know how long this interval is, so you can compare
 it to similar intervals.  So you might want to know how many seconds
 this is.  It happens that the two times are exactly 1,411,669,328
-seconds apart, but there's no way to get the C<$difference> object to
+seconds apart, but there's no way to get the C<$diff> object to
 tell you this.
 
 It I<seems> like there are methods that will get you the actual
 elapsed time in seconds, but none of them will do it.  For example,
-C<< $difference->in_units('seconds') >> looks promising, but will
+C<< $diff->in_units('seconds') >> looks promising, but will
 return 43, which is the 43 seconds left over after you've thrown away
 the 536 months, 23 days, and 1101 minutes.  I don't know what the use
 case for this is supposed to be.
@@ -113,7 +113,7 @@ to call them.
 
 The overridden addition and subtraction operators have been changed to
 eliminate DateTime::Duration entirely.  Subtracting two
-DateTime::Moonpig object yields the difference in seconds, as an
+DateTime::Moonpig objects yields the difference in seconds, as an
 ordinary Perl number.  This means that instead of
 
         #!perl
@@ -128,7 +128,7 @@ From here it's easy to get the approximate number of days difference:
 just divide by 86400.  Similarly, dividing this by 3600 gets the number
 of hours difference.
 
-Also, an integer number of seconds can be added to or subtracted from
+An integer number of seconds can be added to or subtracted from
 a DateTime::Moonpig object; this yields a new object representing a
 time that is that many seconds later or earlier.  Writing C<$date + 2>
 is much more convenient than writing C<< $date->clone->add( seconds =>
@@ -145,6 +145,8 @@ This might be off by an hour if there is an intervening DST change, or
 by a second if there is an intervening leap second, but in many cases
 one simply doesn't care.
 
+There is nothing wrong with the way  DateTime overloads C<< < >> and
+C<< > >>, so DateTime::Moonpig leaves those alone.
 =item 3.
 
 The constructor is extended to accept an epoch time such as
@@ -163,12 +165,16 @@ to this:
 
 The default time zone has been changed from DateTime's "floating"
 time zone to UTC. I think the "floating" time zone is a mistake, and
-it has bad interactions with C<set_time_zone>, which
-C<DateTime::Moonpig> does I<not> disable.
+best avoided. It has bad interactions with C<set_time_zone>, which
+C<DateTime::Moonpig> does I<not> disable, because it is not actually a
+mutator—unless you use the "floating" time zone.
 
 =item 5. 
 
-I added a few additional methods I found convenient.
+I added a few additional methods I found convenient.  For example
+there is a C<< $date->st >> that returns the date and time in the
+format C< YYYY-MM-DD HH:MM::SS >, which is sometimes handy for quick
+debugging. (The C<st> is for "string".)
 
 =back
 
@@ -185,10 +191,10 @@ a DateTime instead of a Moonpig::DateTime, which would cause
 some later method call to fail.  But to my surprise, it worked well.
 It has been in regular use in I<Moonpig> for several years.
 
-I recently split it out of I<Moonpig>, and released it to CPAN, and I
+I recently split it out of I<Moonpig>, and released it to CPAN.  I
 will be interested to find out if it works well in other contexts.  I
 am worried that disabling the mutators has left a gap in functionality
-that needs to be filled by something else, for example.
+that needs to be filled by something else.
 
 =head1 See Also
 
