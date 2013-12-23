@@ -1,0 +1,58 @@
+Title: The Emergency Debugger
+Topic: Devel::cst
+Author: Leon Timmermans <fawaka@gmail.com>
+
+=head1 Devel::cst, the emergency debugger
+
+Imagine, some long running background job crashes with a segfault. What
+happens? Well, very little. It died without leaving the faintest
+explanation why. With a little bad luck, you're not even noticing it died,
+and a month later you see that your data is incomplete in some horrible way.
+
+This is why you should run such programs with what I like to call an
+emergency debugger. This means that you will always get at least a
+stacktrace on any serious fault. Something like this:
+
+ Segmentation fault (Address not mapped to object [0x1])
+ /lib/x86_64-linux-gnu/libc.so.6(+0x14e780)[0x7f944d90b780]
+ perl(Perl_sv_setpvn+0xb1)[0x511191]
+ perl(Perl_newSVpvn_flags+0x6c)[0x514b4c]
+ perl[0x5e8bec]
+ perl(Perl_unpackstring+0x112)[0x5f4012]
+ perl(Perl_pp_unpack+0x12a)[0x5f425a]
+ perl(Perl_runops_debug+0x48)[0x4b1688]
+ perl(perl_run+0x64e)[0x4423be]
+ perl(main+0x137)[0x41b207]
+ /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0xf5)[0x7f944d7deea5]
+ perl[0x41b241]
+
+Reading such a stack trace can be a bit of a black art, but even to the
+untrained eye it's obvious it crashed and burned. Importantly, this will
+end up in your error logs, so you can actually easily see that it crashed
+and burned.
+
+To a more trained eye it will tell that you dereferenced a null pointer in
+L<unpack|http://perldoc.perl.org/functions/unpack.html>.  I guess
+L<Acme::Boom|https://metacpan.org/pod/Acme::Boom> is a bit of a naughty
+module after all ;-). In other situations it could tell you for example
+that a specific XS module is being buggy. It's capable of handling tricky
+corner cases such as stack overflows (the signal handler needs a stack to
+run on, but during a stack overflow you really don't have any stack left…)
+and repeated faults (it won't go into an infinite recursion).
+
+Now obviously this is usually only the start of fixing the bug, but you
+can't run your entire production platform under gdb. You can easily run
+this debugger on any production platform. Just add C<-d:cst> to your perl
+invocation, e.g. C<perl -d:cst -MAcme::Boom -e0>. It has no CPU overhead
+and minimal memory overhead. It's a tiny thing in the background that goes
+by unnoticed until the worst happens. It does not require any external
+tools, though it currently only works on Linux (I'm hoping to add support
+for BSD/darwin soon). If you're really adventurous you could even add
+C<-d:cst> to your PERL5OPT environmental variable and have all your perl
+programs use this automatically (but be sure to have it installed properly
+first).
+
+=head1 See Also
+
+=for :list
+* L<Devel::cst>
