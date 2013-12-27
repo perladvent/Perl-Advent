@@ -1,0 +1,172 @@
+Title: Shake those gifts and figure out what's inside!
+Topic: DBIx::Introspector
+Author: Arthur Axel "fREW" Schmidt <frew@cpan.org>
+
+=head2 How does my database do this thing?
+
+Okay, so you write a library that talks to a database, but you don't control
+what kind.  You only got the DSN and the connection at runtime, and you want it
+to work all over the place.  That's hard!  What if you need to do something
+that's done differently on different database systems, like concatenate two
+strings?
+
+You can use DBIx::Introspector.
+
+  #!perl
+  my $d = DBIx::Introspector->new(drivers => '2013-12.01');
+
+  setup_standard_dialects($d); # we'll come back to this!
+
+  # This will tell us how to concatenate two strings!
+  my $concat = $d->get($dbh, $dsn, 'concat_sql');
+
+  $concat = sprintf($concat, 'first_name', 'last_name');
+  my $sth = $dbh->prepare("SELECT $concat AS name FROM people");
+
+If we were already using DBIx::Class, we could get the database handle from
+that:
+
+  #!perl
+  $d->get(
+    sub { $schema->storage->dbh },
+    $dsn,
+    'concat_sql',
+    { dbh_fallback_connect => sub { $schema->storage->ensure_connected } },
+  );
+
+  $concat = sprintf($concat, 'first_name', 'last_name');
+  $rs->search(undef, {
+     '+columns' => {
+        name => \$concat,
+     },
+  });
+
+=head2 Why DBIx::Introspector?
+
+A common (but rarely acknowledged) problem when writing portable SQL is
+accurately detecting what kind of database you are connected to and,
+sometimes, how you have connected.  The typical solution is to assume
+that your database driver has a one-to-one mapping to your database.
+This works for many cases, for example many people only use L<DBD::mysql>
+to connect to mysql, L<DBD::Pg> to connect to Postgres, and L<DBD::SQLite> to
+connect to SQLite.
+
+The problem comes when you use a more generic driver.  For example
+L<DBD::ODBC> can connect to any database that supports ODBC (which
+includes mysql, Postgres, Oracle, and probably most importantly SQL
+Server.)  Often users assume that ODBC means SQL Server but, that's
+clearly not correct.
+
+L<DBIx::Introspector> solves this
+problem (as well as one other).  It has a basic but mostly complete set of
+detection methods.  If, after it is released, there are problems discovered in
+the detection methods, the user can easily swap in new detection methods.  The
+other feature that DBIx::Introspector gives the user is a way to query database
+handles (or DSNs) for various pieces of information.
+
+=head2 How can I use it?
+
+For starters, you need to define a new DBIx::Introspector.  Let's pretend we
+are writing some program that needs to concatenate stuff in the database, and
+should support some major databases.  This code is probably sufficient, and is
+what we'd do in the imaginary C<setup_standard_dialects> mentioned in the code
+above:
+
+  #!perl
+  my $d = DBIx::Introspector->new(drivers => '2013-12.01');
+
+  # standard dialects
+  $d->decorate_driver_unconnected(Pg     => concat_sql => '%s || %s');
+  $d->decorate_driver_unconnected(SQLite => concat_sql => '%s || %s');
+
+  # non-standard
+  $d->decorate_driver_unconnected(MSSQL  => concat_sql => '%s + %s');
+  $d->decorate_driver_unconnected(mysql  => concat_sql => 'CONCAT( %s, %s )');
+
+First, note that we specify a string (C<2013-12.01>) for drivers.
+In order to maintain backwards compatibility DBIx::Introspector
+forces the user to request a driver set.  Currently just one set exists,
+which attempts to match what L<DBIx::Class> does internally at the time
+of release.
+
+Next, the C<decorate_driver_unconnected> call; "unconnected" is because these
+facts could be determined whether we were connected to the database or not.  An
+example of a connected fact might be the following:
+
+  #!perl
+  $d->decorate_driver_connected(
+    MSSQL => full_version => sub {
+      my (undef, $dbh) = @_;
+      my ($ret) = $dbh->selectcol_arrayref('SELECT @@VERSION');
+      return $ret
+    },
+  );
+
+The above code uses a connected C<$dbh> to ask SQL Server what the versions are
+of the database, OS, patchlevel, etc.
+
+Because this is basically a prototype object system you can easily add and
+replace drivers:
+
+  #!perl
+  $d->replace_driver({
+    name => 'MSSQL',
+    connected_determination_strategy => sub {
+       my %to = (
+          11 => '2012',
+          10 => '2008',
+          9 => '2005',
+       );
+       my ($ver) =
+          $_[1]->selectcol_arrayref(q(SELECT SERVERPROPERTY('ProductVersion')));
+       my ($major) = $ver =~ m/^(\d+)\./;
+       my $to = $to{$ver} || '-OlderThanDirt', # or newer, but it's a demo
+       return "MSSQL$to"
+    },
+  });
+
+  $d->add_driver($_) for qw({
+    name => 'MSSQL2000',
+    unconnected_options => { pagination_method => 'top' },
+  },{
+    name => 'MSSQL2005',
+    unconnected_options => { pagination_method => 'rno' },
+  },{
+    name => 'MSSQL2008',
+    unconnected_options => { pagination_method => 'rno' },
+  },{
+    name => 'MSSQL2012',
+    unconnected_options => { pagination_method => 'sql2012' },
+  },{
+    name => 'MSSQL-OlderThanDirt',
+    # documentation doesn't get this old, so who knows!
+  });
+
+This code replaces the MSSQL driver with one that has another layer of detection
+based on version, and then adds drivers for each (sensible) version.  The
+C<unconnected_options> define a known pagination methods for reasonably recent
+versions of SQL Server.
+
+=head2 What's next?
+
+For DBIx::Introspector, there are probably more drivers that could be
+defined.  Additionally a standard set of facts would be very handy.  Caching the
+detection might be worthwhile, but I'd rather wait until someone notices a speed
+issue before doing that.
+
+On top of that, a number of doors are opened by DBIx::Introspector.  For
+example, the long dormant
+L<DBIx::Exceptions|https://github.com/frioux/DBIx-Exceptions>
+has been blocking on exactly this problem.  Furthermore a
+number of already existing modules could be improved by the use of
+DBIx::Introspector, most notably L<DBIx::Connector>, which doesn't
+work for anything using ODBC, ADO, and other non-one-to-one drives.
+
+=head1 See Also
+
+=for :list
+* L<DBIx::Introspector>
+* L<DBIx::Connector>
+* L<DBIx::Exceptions|https://github.com/frioux/DBIx-Exceptions>
+* L<DBIx::Class>
+

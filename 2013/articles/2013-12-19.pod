@@ -1,0 +1,133 @@
+Title: More Moose, More Discipline
+Topic: MooseX::StrictConstructor
+Author: Ricardo Signes <rjbs@cpan.org>
+
+One of the things that makes Moose so convenient is that it makes it easy to
+validate data without much effort.  Perl code tends to be I<extremely>
+permissive.  That is: it's quite common not to find much type checking code, so
+if bad data is passed in, it's not caught until it's used, at which point the
+error message can be pretty weird.  I know I<I> have seen "C<not an ARRAY
+reference>" from weird places more times than I'd like to remember.
+
+The reason, at least in part, is simple: type checking is a pain.
+
+Moose makes it easy by associating type data with attributes.  When your class
+includes:
+
+  #!perl
+  package Thing;
+  # ⋮
+  has weight => (
+    is  => 'ro',
+    isa => PositiveInt,
+    required => 1,
+  );
+
+...then you can feel confident at any point in your program that an object's
+C<weight> is a positive integer.  Either the constructor will have thrown a
+clear exception when the object was constructed or it got the right kind of
+data.
+
+Types can even be re-used outside the context of attribute definition to keep
+making data validation really pervasive.
+
+  #!perl
+  sub eat_pies {
+    my ($self, $how_many) = @_;
+    PositiveInt->assert_valid($how_many);
+    # ⋮
+  }
+
+=head2 Except...
+
+Unfortunately, Moose has a gaping hole into which bad data can fall: the
+constructor.
+
+  #!perl
+  package Gift {
+    use Moose;
+    use Moose::Util::TypeConstraints;
+
+    has wrapping_paper => (
+      is  => 'ro',
+      isa => enum([ qw( festive sombre amazon.com ) ]),
+      default => 'amazon.com',
+    );
+
+    # ⋮
+  }
+
+So, we've got code representing the gift we're carefully picking out and
+painstakingly wrapping, but we stupidly do this:
+
+  #!perl
+  my $gift = Gift->new(..., wrappingpaper => 'sombre');
+
+Not only do we get no error, but our friend gets a package wrapped in
+thoughtless-seeming Amazon wrapping paper.  Argh!
+
+Only one change is needed:
+
+  #!perl
+  package Gift {
+    use Moose;
+    use Moose::Util::TypeConstraints;
+    use MooseX::StrictConstructor; # ← just add this!
+
+    has wrapping_paper => (
+      is  => 'ro',
+      isa => enum([ qw( festive sombre amazon.com ) ]),
+      default => 'amazon.com',
+    );
+
+    # ⋮
+  }
+
+L<MooseX::StrictConstructor> causes the constructor to throw an exception on
+unknown input.  For example, our bogus C<wrappingpaper> argument, above, would
+get us the exception:
+
+  Found unknown attribute(s) init_arg passed to the constructor: wrappingpaper
+
+=head2 Except...
+
+Sometimes, it's useful to accept an unknown set of extra arguments to your
+constructor.  Maybe you do something like this:
+
+  #!perl
+  package Gift {
+    # ⋮
+
+    has shipping_cost => (
+      is  => 'rw',
+      isa => Money,
+      default  => sub { ...something with size and weight... },
+      init_arg => undef,
+    );
+
+    sub BUILD {
+      my ($self, $arg) = @_;
+      $self->carrier('UPS'), $self->shipping_cost(0) if $arg->{free_shipping};
+    }
+  }
+
+Now you can pass C<< free_shipping => 1 >> to your constructor to clear out the
+otherwise-computed shipping cost… but it won't work with
+MooseX::StrictConstructor, because C<free_shipping> isn't the C<init_arg> of
+any attribute.  Fortunately, there's a trivial fix.  If you want to accept an
+argument for use in C<BUILD> just delete it so that it's not there anymore when
+C<BUILD> is done:
+
+  #!perl
+  sub BUILD {
+    my ($self, $arg) = @_;
+    $self->carrier('UPS'), $self->shipping_cost(0) if delete $arg->{free_shipping};
+                                                    #   ^- no more exception!
+  }
+
+=head1 See Also
+
+=for :list
+* L<MooseX::StrictConstructor>
+* L<Moose>
+* L<fields>

@@ -1,0 +1,70 @@
+Title: Present Confusion
+Topic: Devel::CompiledCalls
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+"I was born in 270", proclaimed St Nick, "and I thought I'd seen
+everything.  Until now that was."
+
+Santa was staring into the source code for creating the naughty or nice list.
+The very definition of legacy system, the codebase hadn't faired well when the
+latest round of refactoring had been outsourced to the tooth fairies.
+
+"This just shows we should never again go with the lowest bidder…" the Wise
+Old Elf sagely commented.  "…even if they do only want payment in an excessive
+number of candy canes for unspecified purposes."
+
+"Ho ho ho!  The problem is we've now got two functions called 'present'. One
+that renders out part of the list, and one that refers to if the child should
+get a gift or coal.  I suppose you've got a plan that's better than working
+out by hand which is which during the big search and replace?"
+
+"Of course, your Jollyness, I'm going to use Perl to print out which one is
+used where", the Wise Old Elf explained.
+
+"Ah the old 'caller' technique where you alter the functions to say where
+they're being called from"
+
+    #!perl
+    # in Santa::NaughtyOrNice::Gift
+    sub present {
+        {
+            my ($package, $filename, $line) = caller;
+            say STDERR "present (as in gift) called at $filename line $line";
+        }
+        ...
+    }
+
+    # in Santa::NaughtyOrNice::Render
+    sub present {
+        {
+            my ($package, $filename, $line) = caller;
+            say STDERR "present (as in render) called at $filename line $line";
+        }
+        ...
+    }
+
+"No, your Festiveness", the Wise Old Elf replied, "That'd only print out when
+the functions in question are executed.  But there's functions that aren't
+called every run of the program — why, here's some code that declares someone as
+naughty if they troll on MySpace.  I bet that doesn't come up every day
+anymore".
+
+"My intention", the Wise Old Elf continued, "is to instead hook the compilation
+stage of Perl to print out when the subroutine is used as soon it's compiled.
+There's a module for that you know…
+
+  perl -c \
+       -MDevel::CompiledCalls=Santa::NaughtyOrNice::Render::present \
+       -MDevel::CompiledCalls=Santa::NaughtyOrNice::Gift::present \
+       naughty_or_nice.pl
+   Santa::NaughtyOrNice::Render::Gift::present call at /santa/lib/Santa/NaughtyOrNice/HairPulling.pm line 13
+   Santa::NaughtyOrNice::Render::Gift::present call at /santa/lib/Santa/NaughtyOrNice/HairPulling.pm line 49
+   Santa::NaughtyOrNice::Render::Render::present call at /santa/lib/Santa/NaughtyOrNice/Report.pm line 41
+   Santa::NaughtyOrNice::Render::Gift::present call at /santa/lib/Santa/NaughtyOrNice/SignificantWhitespace.pm line 134
+   Santa::NaughtyOrNice::Render::Gift::present call at /santa/lib/Santa/NaughtyOrNice/BadOrGood.pm line 1041
+   ...
+
+=head1 See Also
+
+=for :list
+* L<Devel::CompiledCalls>

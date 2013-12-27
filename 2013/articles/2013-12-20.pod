@@ -1,0 +1,188 @@
+Title: Pretty Pretty Pod
+Topic: PPI::HTML and Text::VimColor
+Author: Ricardo Signes <rjbs@cpan.org>
+
+=head1 Why is the Advent calendar's code so good looking?
+
+I know some people don't like seeing their code in color.  Someone once said to
+me, "I stopped needing color in my books when I was a child, and I certainly
+don't need it in my code."  This, I thought, was nuts.
+
+If I was going to write a bunch of articles about code (when I started
+publishing an L<Advent calendar in 2009|http://advent.rjbs.manxome.org/2009/>)
+I didn't want to see this:
+
+  #!code
+  my @animals = ("camel", "llama", "owl");
+  my @numbers = (23, 42, 69);
+  my @mixed   = ("camel", 42, 1.23);
+
+I wanted to see this:
+
+  #!perl
+  my @animals = ("camel", "llama", "owl");
+  my @numbers = (23, 42, 69);
+  my @mixed   = ("camel", 42, 1.23);
+
+…and I really wanted writing article to be like writing normal Pod.
+
+Oh, and sometimes I wanted to do something other than Perl:
+
+  #!vim yaml
+  dsn: "dbi:SQLite:/home/rjbs/.awesome-stuff.sqlite"
+  lbj: { guid: 275dc6e0-6926-11e3-a944-0f63e4cda179 }
+  alerts:
+    hdr_from: 'Alerty <alerts@example.com>'
+    hdr_to  : '"Ricardo Signes" <rjbs@cpan.org>'
+
+Those two blocks above look, in the Pod, like this:
+
+  #!code
+  #!perl
+  my @animals = ("camel", "llama", "owl");
+  my @numbers = (23, 42, 69);
+  my @mixed   = ("camel", 42, 1.23);
+
+and
+
+  #!code
+  #!vim yaml
+  dsn: "dbi:SQLite:/home/rjbs/.awesome-stuff.sqlite"
+  lbj: { guid: 275dc6e0-6926-11e3-a944-0f63e4cda179 }
+  alerts:
+    hdr_from: 'Alerty <alerts@example.com>'
+    hdr_to  : '"Ricardo Signes" <rjbs@cpan.org>'
+
+Those C<#!perl> and C<#!vim> lines are to blame for the garish spread of color!
+What are they doing?
+
+=head1 PPI::HTML
+
+The C<#!perl> marker is picked up by L<Pod::Elemental::Transformer::PPIHTML>,
+and passes the rest of the code block to L<PPI::HTML>.  PPI::HTML uses L<PPI>,
+a library for mostly-parsing Perl without running it, and turns Perl documents
+into HTML documents.  For example, the simple Perl snippet above becomes this
+HTML:
+
+  #!vim html
+  <span class="keyword">my</span> <span class="symbol">@animals</span>
+  <span class="operator">=</span> <span class=
+  "structure">(</span><span class="double">"camel"</span><span class=
+  "operator">,</span> <span class="double">"llama"</span><span class=
+  "operator">,</span> <span class="double">"owl"</span><span class=
+  "structure">);</span><br>
+  <span class="keyword">my</span> <span class="symbol">@numbers</span>
+  <span class="operator">=</span> <span class=
+  "structure">(</span><span class="number">23</span><span class=
+  "operator">,</span> <span class="number">42</span><span class=
+  "operator">,</span> <span class="number">69</span><span class=
+  "structure">);</span><br>
+  <span class="keyword">my</span> <span class="symbol">@mixed</span>
+  <span class="operator">=</span> <span class=
+  "structure">(</span><span class="double">"camel"</span><span class=
+  "operator">,</span> <span class="number">42</span><span class=
+  "operator">,</span> <span class="float">1.23</span><span class=
+  "structure">);</span><br>
+
+It's a bit gross, but the key thing is that distinct bit of syntax gets its own
+C<< <span> >> with a class indicating what it is.  PPI::HTML plus a bit of CSS
+gives you easy syntax highlighting for Perl.
+
+Getting that HTML is trivial, too:
+
+  #!perl
+  my $ppi_doc  = PPI::Document->new( \$source_code );
+  my $ppi_html = PPI::HTML->new;
+  print $ppi_html->html( $ppi_doc );
+
+=head1 Text::VimColor
+
+PPI, of course, only parses Perl documents.  For almost everything else,
+there's Text::VimColor.  I spent a lot of time looking for generic, pluggable
+syntax highlighting before finally realizing that the only thing that ever did
+a good job for me was my text editor.  It turned out that I could get my text
+editor to do the work for me here, too!
+
+The YAML above becomes roughly this HTML:
+
+  #!vim html
+  <span class="synIdentifier">dsn</span><span class="synSpecial">:</span> 
+  <span class="synConstant">&quot;dbi:SQLite:/home/rjbs/.awesome-stuff.sqlite&quot;</span>
+  <span class="synIdentifier">lbj</span><span class="synSpecial">:</span> 
+  <span class="synSpecial">{</span>
+    <span class="synIdentifier">guid</span><span class="synSpecial">:</span> 
+    275dc6e0-6926-11e3-a944-0f63e4cda179 <span class="synSpecial">}</span>
+  <span class="synIdentifier">alerts</span><span class="synSpecial">:</span>
+  <span class="synIdentifier">hdr_from</span><span class="synSpecial">:</span> 
+  <span class="synConstant">'Alerty &lt;alerts@example.com&gt;'</span>
+  <span class="synIdentifier">hdr_to</span><span class="synSpecial">  :</span> 
+  <span class="synConstant">'&quot;Ricardo Signes&quot; &lt;rjbs@cpan.org&gt;'</span>
+
+…once again from a trivial program:
+
+  #!perl
+  use Text::VimColor;
+  my $syntax = Text::VimColor->new(
+    string   => $yaml_octets,
+    filetype => 'yaml',
+    vim_options => [
+      qw( -RXZ -i NONE -u NONE -N -n ), "+set nomodeline", '+set fenc=utf-8',
+    ],
+  );
+
+  print $syntax->html;
+
+The only cryptic thing here might be the Vim options:
+
+  -R       -- read only
+  -X       -- no X11
+  -Z       -- restricted mode; no running the shell!
+  -N       -- not vi-compatible
+  -n       -- no swapfile
+  -i NONE  -- no viminfo
+  -u NONE  -- no vimrc
+
+…and the fact that we need to provide the string of source as octets, not a
+character string, and provide the encoding to Vim.  Otherwise, you may
+encounter some unwanted cleverness.
+
+=head1 The CSS
+
+The CSS used for this is also dead simple:
+
+  #!vim css
+  /* PPI HTML Style */
+
+  .code-listing .keyword   { color: #89f; }
+  .code-listing .match     { color: #ff0; }
+  /* ... */
+  .code-listing .single,
+  .code-listing .double    { color: #0cf; }
+
+  /* Vim Syntax Style */
+
+  .code-listing .synComment    { color: #0f0; }
+  .code-listing .synConstant   { color: #0ff; }
+  /* ... */
+  .code-listing .synError      { color: #f00; }
+  .code-listing .synTodo       { color: #aa0; }
+
+It's generated, of course, by
+L<Color::Palette|http://xn--8dbbfrx.rjbs.manxome.org/2011/2011-12-21.html>.
+
+=head1 Highlight everything!
+
+Now that you see how easy it is to get nicely syntax highlighted HTML for any
+hunk of code you have lying around, I<do it!>  It can often help make bland
+documentation or other writing much easier to skim.  Even better, since the
+output is pretty simple HTML, you can edit the output as needed to fix glitches
+or add further highlighting.
+
+=head1 See Also
+
+=for :list
+* L<Text::VimColor>
+* L<PPI::HTML>
+* L<Pod::Elemental::Transformer::VimHTML>
+* L<Pod::Elemental::Transformer::PPIHTML>
+* L<WWW::AdventCalendar>

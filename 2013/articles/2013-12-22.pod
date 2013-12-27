@@ -1,0 +1,114 @@
+Title: Throw Now, Describe Later
+Topic: String::Errf
+Author: Ricardo Signes <rjbs@cpan.org>
+
+A few years ago, I
+L<wrote about Throwable::X|http://advent.rjbs.manxome.org/2010/2010-12-03.html>,
+a set of tools for making exceptions easier to work with.  Part of the goal was
+to make it easy for catching code to identify the exception.  That meant that
+rather than saying:
+
+  #!perl
+  die "you can't set $attr to $value prior to $ready_date";
+
+You say:
+
+  #!perl
+  OurException->throw(ident => "tried to set attribute before ready");
+
+The big deal is that later, your code can be clearer about identifying the
+exception.  Instead of saying:
+
+  #!perl
+  if ($error =~ /you can't set \S+ to \S+ prior to \S+/) { ... }
+
+You can say:
+
+  #!perl
+  if ($error->$_isa('OurException') && $error->ident eq 'tried to set attr before ready') { ... }
+
+…or if you're thinking ahead…
+
+  #!perl
+  if ($error->$_is_err('tried to set attr before ready')) { ... }
+
+This works because we give each kind of exception a unique enough name.
+There's an obvious cost, though.  The exception, when a string, contained three
+useful pieces of information that are now lost.  We had to ditch them to make
+the string unique, no matter when it happened.  The article on Throwable::X
+glossed over the solution.  The idea is that in addition to an unchanging
+C<ident>, the exception has a C<payload> and maybe a C<message>.
+
+  #!perl
+  OurException->throw(
+    ident   => "tried to set attribute before ready",
+    message => "you can't set %{attr}s to %{value}i before %{ready_date}t",
+    payload => { attr => $attr, value => $value, ready_date => $ready_date },
+  );
+
+The new parameters let us get the same data into the printed form of the
+exception that we had originally, without compromising its identifiability.
+What's up with that C<message> string, though?
+
+=head1 Errf!
+
+That string is an C<errf> string.  It's like the kind of thing you pass to
+C<sprintf>, but different.  It's meant to be simple to implement and to cover
+just the basic data you might need to stick in an error description.
+
+Like Python's C<%> operator, it can format based on a set of named parameters.
+It takes a totally different set of parameters, though.  Above you see a
+demonstration of C<%s>, for strings, C<%i>, for integers, and C<%t> for
+timestamps.
+
+There are other codes, of course, each with its own options.  There's C<%f>
+for floats:
+
+  #!perl
+  errf "%{x;prefix=+;precision=.2}f", { x => 10.1234 }; # returns "+10.12";
+
+…and there are a number of useful options not seen for C<%t>:
+
+  #!perl
+  my $t = 1280530906;
+  errf "%{x}t",               { x => $t }; # "2010-07-30 19:01:46"
+  errf "%{x;type=date}t",     { x => $t }; # "2010-07-30"
+  errf "%{x;type=time}t",     { x => $t }; # "19:01:46"
+  errf "%{x;type=datetime}t", { x => $t }; # "2010-07-30 19:01:46"
+
+  errf "%{x;tz=UTC}t",               { x => $t }; # "2010-07-30 23:01:46 UTC"
+  errf "%{x;tz=UTC;type=date}t",     { x => $t }; # "2010-07-30 UTC"
+  errf "%{x;tz=UTC;type=time}t",     { x => $t }; # "23:01:46 UTC"
+  errf "%{x;tz=UTC;type=datetime}t", { x => $t }; # "2010-07-30 23:01:46 UTC"
+
+The goal of errf strings isn't just to allow exceptions to be self-describing
+when caught and displayed, but to make their description easy to change in the
+presentation layer of code, which might not be handled by exactly the same team
+as the business logic.  Presentation layer here might sound ominous, like these
+strings might be getting used to give reports to users — and they are!  Many of
+our exceptions are flagged as user visible, and we show their description right
+to the user.  That means it needs to be possible to make them look… well, not
+stupid.
+
+  You can't add a new account.  You have 1 accounts already.
+
+Ugh!  Nobody likes an inflection bug.  String::Errf has a fix for that:
+
+  #!perl
+  errf "You can't add a new account.  You have %{count;singular=account}n already.",
+    { count => 1 };
+
+The C<%n> code will let you inflect words based on a count, including the
+count.  C<%N> is the same, but omits the number.
+
+A secondary goal of String::Errf was to produce a format simple enough that it
+could be implemented in other languages, especially JavaScript, so that API
+errors could be provided with errf-format errors, then formated at the client
+side.  So far this hasn't been done, but possibly soon…
+
+=head1 See Also
+
+=for :list
+* L<String::Errf>
+* L<Role::HasPayload::Merged>
+* L<RJBS Advent Article on Throwable-X|http://advent.rjbs.manxome.org/2010/2010-12-03.html>

@@ -1,0 +1,162 @@
+Title: The little module that keeps on giving
+Topic: Path::Tiny
+Author: Karen Etheridge <ether@cpan.org>
+
+=head1 Path::Tiny: The little module that keeps on giving
+
+Do you have difficulty remembering all of the core modules that help you work
+with path names and contents, their interfaces, and all the little edge cases
+that you have to watch out for?  I sure do! But I have a new tool in my
+toolbox that lets me forget about L<File::Spec>, L<File::Copy>, L<File::Path>,
+L<File::Temp> and the rest — L<Path::Tiny>, by David Golden.  It's amazingly
+full-featured for a module that can still rightfully claim the Tiny name.
+
+For instance, you may be aware that it lets you deal with path strings in an
+architecture-agnostic way, and stringifies as needed:
+
+    #!perl
+    my $path = path(qw(master_list 2013 North_America));
+
+    # prints 'master_list/2013/North_America';
+    say $path;
+
+    # prints 'master_list/2013/North_America' on unix,
+    #        'master_list\2013\North_America' on win32
+    say $path->canonpath;
+
+    # prints /home/santa/master_list/2013/North_America when $CWD is /home/santa
+    say $path->absolute;
+
+    # prints 'master_list/2013'
+    say $path->parent;
+
+    # prints 'master_list/2013/North_America/Vancouver/ETHER'
+    say $path->child('Vancouver', 'ETHER');
+
+Did you also know it can help you with creating temporary directories and
+files, automatically respecting the C<TMPDIR> environment variable?
+
+    #!perl
+    my $tempdir = Path::Tiny->tempdir('delivery_list_XXXXXX');
+    my $tempfile = Path::Tiny->tempfile(TEMPLATE => 'delivery_list_XXXXXX', suffix => '.bin');
+
+Or that you can use it to easily process your files?
+
+    #!perl
+    foreach my $city_dir (path(qw(master_list 2013 North_America))->children)
+    {
+        foreach my $gift_path ($city_dir->children)
+        {
+            # $gift_path will be the same as from path(qw(master_list 2013 North_America Vancouver ETHER))
+            process_giftlist($gift_path);
+        }
+    }
+
+You can even traverse directories recursively:
+
+    #!perl
+    my @naughty;
+    my $iter = path(qw(master_list 2013))->iterator({ recurse => 1 });
+    while (my $path = $iter->())
+    {
+        # skip over directories
+        next unless $path->is_file;
+
+        push @naughty, $path and next if $path->parent->child('.naughty')->is_file;
+
+        plan_delivery($path);
+    }
+
+And remove entire trees:
+
+    #!perl
+    # no gifts for you!
+    foreach my $naughty_path (@naughty)
+    {
+        send_lump_of_coal_to($path->basename);
+        $naughty_path->remove_tree;
+    }
+
+L<Path::Tiny> also makes creating files and directories a breeze:
+
+    #!perl
+    my $year = (localtime)[5] + 1900;    # or '2013'
+    foreach my $child (keys %census)
+    {
+        my $gift_path = path('master_list', $year, $child->{region}, $child->{city}, $child->{name});
+
+        # creates full directory heirarchy if it does not already exist
+        $gift_path->mkpath;
+
+        # append to existing file, or create a new one as needed
+        my @gift_list = consult_elves_regarding($child);
+        $gift_path->append_utf8({ locked => 1 }, \@gift_list);
+    }
+
+But what about processing file contents?  That's also a joy:
+
+    #!perl
+    sub process_giftlist
+    {
+        my $gift_path = shift;
+
+        my $fh = $gift_path->openr_utf8;
+        while (my $line = <$fh>) { ... }
+    }
+
+What a about a few more stocking stuffers?
+
+Keep your filesystem clean by ensuring that locally-created scratch files are
+in the tempdir:
+
+    #!perl
+    # Don't chdir if we're already in a descendant of the tempdir!
+    chdir $tempdir unless $tempdir->subsumes(Path::Tiny->cwd);
+
+Create a file anywhere in the system, without having to create intermediary
+files:
+
+    #!perl
+    my $scratch_file = $tempdir->child('batch_01', 'scratchfile.txt')->touchpath;
+
+Move a file for safe-keeping into a directory that may not yet exist:
+
+    #!perl
+    $scratch_file->move(Path::Tiny->rootdir('master_list', '2013', 'extras')->mkpath));
+
+Create a digest of the file, for easily watching for other things changing the
+file:
+
+    #!perl
+    foreach my $path (...)
+    {
+        my $digest = $path->digest;
+        reprocess_file($path) if $digest ne ($digest{$path} // '');
+        $digest{$path} = $digest;
+    }
+
+
+But this is my favourite feature of all, because it rolls up so many concerns
+into one tidy little package... never again will you have to have to worry
+about error-checking, encoding, line endings or anything else that might
+distract us from gift preparation:
+
+    #!perl
+    my $file_contents = $gift_path->slurp_utf8;
+
+Mmm, tasty L<Path::Tiny>!
+
+=head1 See Also
+
+=for :list
+* L<Path::Tiny>
+* L<Path::Iterator::Rule>
+* L<File::Spec>
+* L<File::Copy>
+* L<File::Find>
+* L<File::Path>
+* L<File::stat>
+* L<File::Temp>
+* L<File::Basename>
+* L<Path::Class>
+* ugh
