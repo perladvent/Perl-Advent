@@ -1,0 +1,141 @@
+#!perl
+use 5.19.9;
+use warnings;
+
+use feature qw(postderef postderef_qq);
+no warnings 'experimental::postderef';
+
+use YAML::XS qw(LoadFile);
+
+my $out = $ARGV[0];
+die "usage: mkarchives OUTDIR\n" unless length $out and -d $out;
+
+my $MAIN_TEMPLATE = <<'END';
+<html><head><title>Perl Advent Calendar Archives</title></head>
+<body>
+<h1>Perl Advent Calendar Archives</h1>
+
+<h2>Previous Calendars</h2>
+<ul>
+%LIST%
+</ul>
+
+<h3><a href="archives-AZ.html">Alphabetical Module Listing</a></h3>
+<h3><a href="archives-Yd.html">Chronological Module Listing</a></h3>
+</body></html>
+END
+
+my ($archives) = LoadFile('archives.yaml');
+
+{
+  my $lis = join qq{\n},
+            map {; "<li><a href='/$_'>$_</a></li>" }
+            sort keys %$archives;
+
+  my $main = $MAIN_TEMPLATE =~ s/%LIST%/$lis/r;
+
+  open my $main_out, '>', "$out/archives.html" or die "error opening: $!";
+  print $main_out $main;
+  close $main_out or die "error closing archive.html: $!"
+}
+
+my $AZ_TEMPLATE = <<'END';
+<html><head><title>Perl Advent Calendar Archives</title></head>
+<body>
+<h1>Perl Advent Calendar Archives</h1>
+
+<ul>
+%LIST%
+</ul>
+
+<h3><a href="archives.html">Listing of All Years</a></h3>
+<h3><a href="archives-Yd.html">Chronological Topic Listing</a></h3>
+</body></html>
+END
+
+my $DATE_TEMPLATE = <<'END';
+<html><head><title>Perl Advent Calendar Archives</title></head>
+<body>
+<h1>Perl Advent Calendar Archives</h1>
+
+<ul>
+%LIST%
+</ul>
+
+<h3><a href="archives.html">Listing of All Years</a></h3>
+<h3><a href="archives-AZ.html">Alphabetical Topic Listing</a></h3>
+</body></html>
+END
+
+{
+  my %by_name;
+  my %by_date;
+
+  for my $year (sort keys $archives->%*) {
+    for my $day (sort keys $archives->{ $year }->%*) {
+      my $link = ($year >= 2011)
+               ? sprintf("%d/%d-12-%02d.html", $year, $year, $day)
+               : sprintf("%d/%02d", $year, $day);
+
+      ENTRY: for my $entry ($archives->{$year}{$day}->@*) {
+        my $date = sprintf('%d-12-%02d', $year, $day);
+
+        my $item = {
+          article_link => $link,
+          date => $date,
+        };
+
+        if ($entry->{module}) {
+          $item->{title} = $entry->{module};
+          $item->{href}  = "https://metacpan.org/module/$entry->{module}";
+        } elsif ($entry->{topic}) {
+          $item->{title} = $entry->{topic};
+          $item->{href}  = $entry->{href} if $entry->{href};
+        } else {
+          # ???
+          next ENTRY;
+        }
+
+        push $by_name{ $item->{title} }->@*, $item;
+        push $by_date{ $item->{date} }->@*, $item;
+      }
+    }
+  }
+
+  my ($az_lis, $date_lis) = (q{}) x 2;
+
+  for my $name (sort { fc $a cmp fc $b } keys %by_name) {
+    for my $item ($by_name{$name}->@*) {
+      # XXX: need to entity encode -- rjbs, 2014-03-11
+      $az_lis .= "<li><a href='$item->{article_link}'>$item->{date}</a>"
+              .  " &mdash; "
+              .  ($item->{href}
+                 ? "<a href='$item->{href}'>$item->{title}</a>"
+                 : $item->{title})
+              . "\n";
+    }
+  }
+
+  for my $date (sort keys %by_date) {
+    # XXX crude duplication of code above -- rjbs, 2014-03-11
+    for my $item ($by_date{$date}->@*) {
+      # XXX: need to entity encode -- rjbs, 2014-03-11
+      $date_lis .= "<li><a href='$item->{article_link}'>$item->{date}</a>"
+                .  " &mdash; "
+                .  ($item->{href}
+                   ? "<a href='$item->{href}'>$item->{title}</a>"
+                   : $item->{title})
+                . "\n";
+    }
+  }
+
+  my $az = $AZ_TEMPLATE =~ s/%LIST%/$az_lis/r;
+  open my $az_out, '>', "$out/archives-AZ.html" or die "error opening: $!";
+  print $az_out $az;
+  close $az_out or die "error closing archive-AZ.html: $!";
+
+  my $date = $DATE_TEMPLATE =~ s/%LIST%/$date_lis/r;
+  open my $date_out, '>', "$out/archives-Yd.html" or die "error opening: $!";
+  print $date_out $date;
+  close $date_out or die "error closing archive-Yd.html: $!";
+}
