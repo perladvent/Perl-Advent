@@ -1,0 +1,136 @@
+Title: Making a list, checking it twice...
+Topic: Mac::Safari::JavaScript
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Christmas is coming.  There aren't many shopping days left, and it's
+time to get organized when it comes to gift buying!
+
+This year I decided I wanted to create an on-disk database of all the present
+ideas that I had for people.  It's nothing more than a single table database
+schema that looks like this:
+
+   CREATE TABLE gifts (
+   	  name TEXT,
+   	  recipient TEXT,
+   	  url TEXT,
+   	  price_in_cents INTEGER
+   );
+
+Turning this SQL into a working database is a one liner involving the sqlite3
+command line utility that C<sqlite3> that ships with OS X.
+
+   bash$ sqlite3 xmas.db < xmas.sql
+
+This creates a simple file based sqlite3 database which has more that
+sufficient performance for my usage, doesn't require installing any long
+running daemons (like say PostgreSQL or MySQL do), and can be talked to easily
+to Perl from DBI via the DBD::SQLite module.
+
+=head2 Building the Perl ORM
+
+Okay, now we need to be able to talk to it from Perl.  While talking via
+DBI is easy, using a object relational mapper like DBIx::Class allows us
+to skip the SQL writing entirely.
+
+First we need to write a bunch of Perl classes that handle the mapping.
+Or rather, we can use the C<dbicdump> command line utility that ships
+with DBIx::Class::Schema::Loader to do it all for us:
+
+   bash$ dbicdump -o dump_directory=lib XmasList dbi:SQLite:xmas.db
+
+The C<dbicdump> command inspects the database and writes out a
+bunch of files for us:
+
+	bash$ find lib
+	lib
+	lib/XmasList
+	lib/XmasList/Result
+	lib/XmasList/Result/Gift.pm
+	lib/XmasList.pm
+
+Now we can easily write a script to put things in the database without
+having to write any SQL:
+
+	#!/usr/bin/perl
+
+	use strict;
+	use warnings;
+
+	use lib qw(lib);
+	use XmasList;
+
+	my $schema = XmasList->connect("dbi:SQLite:xmas.db");
+
+	$schema->resultset('Gift')->create({
+	   name => "Donation to the Perl 5 Core Maintenance Fund",
+	   url => "http://www.perlfoundation.org/perl_5_core_maintenance_fund",
+	   price_in_cents => 100_00,
+	   recipient => "Leon",
+	});
+
+=head2 Populating Directly From Safari
+
+Of course, writing Perl code to insert stuff into my database is still too
+much work for the lazy programmer that I am.  What I really want is the
+ability to take what I'm directly looking at in my web browser and put it into
+the database at the click of a button.
+
+Actually, it so happens I can easily write a chunk of JavaScript to work out
+these details for me.  For example, here's a snippet of JavaScript that
+creates an object with those details for any listing on Esty.
+
+	{
+		"name" : $("h1").text(),
+		"price_in_cents" : parseFloat( $("#listing-price .currency-value").text() ) * 100,
+		"recipient" : window.prompt("Who is this for?"),
+		"url" : document.location.href
+	};
+
+What I need is a way to get this data from JavaScript into my database, ideally
+via Perl.  There's a module for that:
+
+	#!/usr/bin/perl
+
+	use strict;
+	use warnings;
+
+	use lib qw(lib);
+	use XmasList;
+
+	use Mac::Safari::JavaScript qw(safari_js);
+
+	# run some JavaScript in Safari, and then put the results in a Perl variable
+	my $data = safari_js <<'END_OF_JAVASCRIPT';
+		return {
+			"name" : $("h1").text(),
+			"price_in_cents" : parseFloat( $("#listing-price .currency-value").text() ) * 100,
+			"recipient" : window.prompt("Who is this for?"),
+			"url" : document.location.href
+		};
+	END_OF_JAVASCRIPT
+
+	# put that data in the Database
+	my $schema = XmasList->connect("dbi:SQLite:xmas.db");
+	$schema->resultset('Gift')->create(%{ $data });
+
+This uses the fact that you can execute arbitary JavaScript in the current
+Safari window via AppleScript.  Of course, this involves several layers of
+encoding and decoding (from Perl to AppleScript, then from AppleScript to
+JavaScript, then from JavaScript back to AppleScript and finally AppleScript
+back to Perl) and several steps so that errors properly propagate, which is
+the complexity the module handles for us.
+
+While I can trigger the above script by executing it in the terminal, the
+really really lazy programmer in me just uses a third party application
+like KeyboardMaestro to trigger the script from a keyboard shortcut.
+
+Okay, enough work.  Let's go shopping!
+
+=head1 See Also
+
+=for :list
+* L<Mac::Safari::JavaScript>
+* L<DBIx::Class>
+* L<DBIx::Class::SchemaLoader>
+* L<dbicdump>
+* L<http://www.keyboardmaestro.com/>

@@ -1,0 +1,148 @@
+Title: No Room At The I.N.N.
+Topic: Test::Tempdir::Tiny
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+"INN's DOWN!"
+
+It was not the cry that Joseph wanted to hear from the developers' cubicals.
+I.N.N. (Integration Now & Nightly) was the continuous integration server at
+Bethlehem LLC - responsible for testing the Perl code needed for their tax
+auditing application.  If Joseph didn't get the system up and running soon,
+they were going to miss their deadline.
+
+With a sigh, Joseph logged onto INN, and instantly he realized what the
+problem was.  There was no room at the INN root filesystem.
+
+Out of space on a CI server?  How is that even possible? But wait, what was
+this, a directory for each test script run, each containing megabytes of
+verbose logs, test excel spreadsheets, and pngs of graphs.
+
+Given that the tests were run hundreds of times a day...it was surprising that
+things hadn't got out of control before now.
+
+=head2 The Problem With Temp Dirs
+
+Joseph couldn't blame the developer for having a temp directory.  Often a test
+needs to write out a bunch of things during a test run.  Just a few uses of
+temp directories in tests are:
+
+=over
+
+=item Providing a place to put test-generated config files that must be created on a per-run basis
+
+=item A place you can store files your module produces in order to re-read them back in and check they were created properly (or have them hanging around after the test run to poke at if things go wrong)
+
+=item A place to write copious logs and any other data that might help you work out what caused your test to fail
+
+=back
+
+All in all very useful.  But how should the developers code a temp directory
+in order not to ruin Joseph's afternoon?
+
+A naive approach might be something along the lines of:
+
+   #!/usr/bin/perl
+
+   use strict;
+   use warnings;
+   
+   use Test::More;
+   use File::Temp qw( tempdir );
+   my $dir = tempdir();
+   note "Tempdir is $dir";
+
+   ...
+
+The problem with this is that a new temp dir is created for each and every run
+of the test suite.  And poor old Joseph found out the hard way that this means
+on a server that runs the test a lot of times that disk space can be exhausted
+if the test produces many megabytes of logs or output data.
+
+One simple solution would be to have the test automatically tidy up after
+itself.  This is a trivial change:
+
+   #!/usr/bin/perl
+
+   use strict;
+   use warnings;
+   
+   use Test::More;
+   use File::Temp qw( tempdir );
+   my $dir = tempdir( CLEANUP => 1 );
+   note "Tempdir is $dir";
+
+   ...
+
+The C<< CLEANUP => 1 >> causes the test directory to automatically be deleted
+when the program exits.  Of course, the problem is that this happens as soon
+as the program exits even if the tests fail.  You can't go dig through logs
+for why a failure happened if the directory where the logs have been written
+to has just been deleted!
+
+Both 'solutions' also suffer from the problem that a different path is created
+each time the script runs,  which can be very tedious to work with when you're
+trying to repeatedly get a test script to run and have to copy and paste the
+name of the directory your logs are in this run from the diagnostic output.
+
+=head2 Test::TempDir::Tiny to the rescue
+
+Test::TempDir::Tiny isn't any more complicated to use than File::Temp:
+
+   #!/usr/bin/perl
+
+   use strict;
+   use warnings;
+   
+   use Test::More tests => 1;
+   use Test::TempDir::Tiny qw( tempdir );
+   my $dir = tempdir();
+   note "Tempdir is $dir";
+
+   ...
+
+But now the location of the tests is always the same.  For the test
+C<t/mary/babyj.t> the first tempdir created with C<tempdir> will be created at
+C<tmp/t_mary_babyj_t/default_1>.
+
+   bash$ perl t/mary/babyj.t
+   1..1
+   # Tempdir is /home/ci/build/tmp/t_mary_babyj_t/default_1
+   not ok 1 - onto this day a child process is forked
+   #   Failed test 'onto this day a child process is forked'
+   #   at t/mary/babyj.t line 11.
+   # Looks like you failed 1 test of 1.
+
+Each time time the script executes the test directory is cleared out
+automatically.  Now we only have one copy of the script output on the
+server!
+
+But even better, see what happens when the tests in the scripts
+pass:
+
+   bash$ perl t/mary/babyj.t
+   1..1
+   # Tempdir is /home/ci/build/tmp/t_mary_babyj_t/default_1
+   ok 1 - onto this day a child process is forked
+   bash$ ls /home/ci/build/tmp/t_mary_babyj_t/default_1
+   ls: /home/ci/build/tmp/t_mary_babyj_t: No such file or directory
+
+The temp directory is removed!  If no other test script temp
+directories remain in C<tmp> that directory is removed too:
+
+   bash$ ls /home/ci/build/tmp
+   ls: /home/ci/build/tmp: No such file or directory
+
+This means on a successful run the server is left in a "clean"
+state.  Awesome.
+
+=head2 Stuck in the stable
+
+Joseph sent an email to the developers to tell them to switch to
+Test::TempDir::Tiny while he cleaned up INN.  Until there was room on INN the
+code would be stuck in whatever had been promoted to the stable branch.
+
+=head1 See Also
+
+=for :list
+* L<Test::Tempdir::Tiny>
+* L<File::Temp>

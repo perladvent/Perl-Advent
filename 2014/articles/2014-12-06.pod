@@ -1,0 +1,220 @@
+Title: Testing The Naughty Or Nice Database
+Topic: Test::DatabaseRow
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+"Why", asked the Wise Old Elf, "are there three seperate Santa users in the
+production database?"
+
+The question was directed at Baubles MacTinsle, the hotshot new elf that
+had joined the team a few weeks ago.  Baubles had been working on the
+rewrite of the code that interfaced with the Christmas database, and the
+Wise Old Elf wasn't happy with what he saw.
+
+"Ah, well, er, you..um, see", Baubles started unpromisingly, "there was a bug
+in the new code.  You know how it is.  You never know if it's going to work
+right until you run it on the live database.  No worries though, we got it all
+fixed up right away.  And we thought we'd cleaned up all the data.  Obviously
+missed a few..."
+
+"This database can't have any errors in it!" spluttered the Wise Old Elf,
+"This is the canonical record of who's been naughty or nice!  Big data? Humans
+have no idea.  Do you have I<any> idea how many times the average human child
+is naughty in a day?  Rebuilding this would take weeks! Let me see the tests."
+
+"Ah, tests....they're tedious to write you see.  We...sorta skipped that bit
+on account of how long it takes..."
+
+"Ah", exclaimed the Wise Old Elf.  "I'll have to show you Test::DatabaseRow"
+
+=head2 Test::DatabaseRow
+
+"Let me show you how to write a simple test", the Wise Old Elf began. "First
+we start the tests like any normal test suite.  Turning on strictures, loading
+Test::More and of course Test::DatabaseRow itself"
+
+  #!/usr/bin/perl
+
+  use strict;
+  use warnings;
+  
+  use Test::More;
+  use Test::DatabaseRow;
+
+"Next we we need to hook up Test::DatabaseRow to our database"
+
+  use DBI;
+  local $Test::DatabaseRow::dbh = DBI->connect("dbi:SQLite:dbname=test.db","","");
+
+"The local statement sets the default database handle that all subsequent
+Test::DatabaseRow tests will use unless a C<dbh> argument is explicitly passed
+to them.  Since we're only testing one database we can save ourselves some
+typing if we set a default like this at the top of our script."
+
+Baubles was nodding enthusiastically.  He was all about typing less.
+
+"Well, here's the first test we're doing", the Wise Old Elf continued,
+"we're checking that there's exactly one row returned from a SQL statement
+that selects everyone that has the first name Santa"
+
+  all_row_ok(
+     sql     => "SELECT * FROM staff WHERE first_name = 'Santa'",
+     results => 1,
+  );
+
+"Oh oh, you'r not using bind parameters", the young elf shouted, "you're
+going to get us HACKED".
+
+"Well, no", the Wise Old Elf countered humorlessly.  "There's no
+variable.  But you right, bind parameters are a good idea, and this is
+how we use them".
+
+  all_row_ok(
+     sql     => [ "SELECT * FROM staff WHERE first_name = ?", 'Santa' ],
+     results => 1,
+  );
+
+"Er, thanks Sir, that's kinda nice, but...look, we just don't have time to
+write so much SQL."
+
+The Wise Old Elf sighed.  He was pretty sure Baubles would argue whatever he
+needed to avoid writing the tests.  Luckily, he had an answer.  "Well, you
+don't have to write the SQL if you don't want to.  Test::Database row is able
+to write the SQL for us too."
+
+  all_row_ok(
+     table   => "staff",
+     where   => [ first_name => 'Santa' ],
+     results => 1,
+  );
+
+The young elf looked despondent.  Then, it suddenly dawned on him, "But
+I still have to write SQL if I need to do a like, or say something is
+not something, right?"
+
+"We've got that covered too"
+
+  # check we've got all the original reindeer in the database
+  all_row_ok(
+     table => "staff",
+     where => {
+       '='  => {
+         species => 'Reindeer'
+       },
+       '!=' => {
+         nose_color => 'red'
+       },
+       'like' => {
+         address => '%North Pole%'
+       },
+     },
+     results => 7,
+  );
+
+MacTinsle threw his little elf arms up in the air in resignation.
+"Okay, okay, I give up.  I'll write the tests."
+
+=item Explicit Tests
+
+"All right, but let me show you a problem first.   Look at this
+test where we're checking Santa's last name is right."
+
+  all_row_ok(
+    table => "staff",
+    where => [
+      first_name => "Santa",
+      last_name  => "Claws"
+    ],
+    results => 1,
+  );
+
+"Can you see the problem?"
+
+The younger elf scratched his beard for a minute and then slowly
+started to shake his head.
+
+"The problem is my young friend that if the test fails you can't
+tell C<how>.  The database just doesn't return any results."
+
+  not ok 1 - simple db test
+  #   Failed test 'simple db test'
+  #   at test.pl line 11.
+  # Got the wrong number of rows back from the database.
+  #   got:      0 rows back
+  #   expected: 1 rows back
+
+"We'd be better off writing the test like so:"
+
+  all_row_ok(
+    table => "staff",
+    where => [
+      first_name => "Santa",
+    ],
+    tests => [
+      last_name => "Claws",
+    ],
+    results => 1,
+  );
+
+"This causes Perl to load the row that matchs the where parameters into memory
+and then compare in within Perl to see that the tests match. Because C<Claws>
+looks like a string not a number it'll do a string equality comparison.  And
+if something goes wrong you'll see something that tells you B<how> it went
+wrong:"
+
+  not ok 1 - simple db test
+  #   Failed test 'simple db test'
+  #   at test.pl line 11.
+  # While checking column 'last_name' on 1st row
+  #          got: 'Clause'
+  #     expected: 'Claws'
+  1..6
+  # Looks like you failed 
+
+"I like it.  But...wait, you said that Test::DatabaseRow essentially guesses
+if it should do a number comparison or a string comparison by what it's
+comparing the result against...what if it guesses wrong?
+
+"Just like the C<where> parameter, the C<tests> parameter can also take
+an explicit hashref of comparisons:"
+
+  all_row_ok(
+     table => "staff",
+     where => {
+       'first_name' => "Rudolph"
+     },
+     tests => {
+       'eq' => {
+         idcode => "480058686",    # must be exact string
+       },
+       '=~' => {
+         address => qr/North Pole/
+       },
+     },
+     results => 1,
+  );
+
+"And if you want to write something very complex, you can always capture the data
+from the test if you really need to:"
+
+  my %row;
+  all_row_ok(
+     table => "staff",
+     where => {
+       'first_name' => "Frosty"
+     },
+     store_row => \%row,
+     results => 1,
+  }
+
+  # don't care if we use snowman or snowperson
+  # but the last name should match the species
+  is($row->{last_name}, $row->{species});
+
+=head1 See Also
+
+=for :list
+* L<Test::DatabaseRow>
+* L<Test::More>
+* L<DBI>
+
+
