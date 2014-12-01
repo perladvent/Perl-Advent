@@ -16,6 +16,7 @@ in utf-8.
 
 This is easy enough, if you're prepared to be inefficent:
 
+    #!perl
     use Encode qw(encode_utf8);
 
     my @sorted = sort { 
@@ -28,6 +29,7 @@ against another string (which it has to do multiple times as it's sorting.)
 There's a standard trick that you can do in Perl to do this called a Swartzian
 transform to avoid this:
 
+    #!perl
     my @sorted = 
    	      map  { $_->[0] }
 	      sort { $a->[1] <=> $b->[1] }
@@ -38,6 +40,7 @@ structure on the fly that contains the weighting value, sort that, then
 extract the original (now sorted) values out again.  Easy to understand,
 right?  No?  Maybe we could abstract that away in a subroutine call?
 
+  #!perl
 	sub weighted_sort {
 		# the anonymous subroutine that calculates a weighting for whatever is
 		# in $_
@@ -51,6 +54,7 @@ right?  No?  Maybe we could abstract that away in a subroutine call?
 
 This can then be used like so:
 
+    #!perl
     my @sorted = weighted_sort(sub { length encode_utf8 $_ }, @strings);
 
 It's not the most pretty of syntax but it sure beats the confusing Schwartzian
@@ -59,12 +63,14 @@ subroutine is jarring, and there's lots of extra brackets.  Ideally we'd like
 to be able to call it like map where the subroutine looks just like a block of
 code in the middle of our statement:
 
+    #!perl
     my @sorted = weighted_sort { length encode_utf8 $_ } @strings;
 
 Which isn't that hard to do.  If we specify a prototype for our subroutine
 where the first argument is an anonymous subroutine (i.e. the C<&> prototype)
 and the remaining arguments are a list (i.e. the C<@> prototype) like so:
 
+    #!perl
     sub weighted_sort(&@) {
     	...
     }
@@ -81,6 +87,7 @@ stack traces!
 
 For example:
 
+  #!perl
    my @sorted = weighted_sort { karma_rating($_, 2 ) } @stuff;
 
    sub nautghtyness_rating {
@@ -105,6 +112,7 @@ nice if this had a name?
 This is where Sub::Util steps in, allowing us to name the subroutine anything we
 want:
 
+  #!perl
 	use Sub::Util qw(set_subname);
 
 	sub weighted_sort(&@) {
