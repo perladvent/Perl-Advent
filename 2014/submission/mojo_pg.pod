@@ -1,0 +1,87 @@
+# Async PostgreSQL with Mojo::PG
+
+Over the years, I have worked with many variants of the ORM concept in various libraries and languages. However in the end, I find they are in the way of writing clear and simple SQL powered web applications than they are helping. After all, SQL is designed to extract sets of data across tables, and not to be mapped to row objects.
+
+However DBI, the standard Perl database library, is rather old and archaic. It is not a very inviting interface to use directly.  I have been experimenting with various wrappers, but never really found one I liked.
+
+This fall, the Mojolicious project has launched a new sub-project,  Mojo::Pg. It also has useful features like migrations and Async, but first lets look at the simple case. 
+
+# Simple SQL Simply
+
+Database connections are handled with urls.
+
+   my $db=Mojo::Pg->new(‘postgresql://partridge')
+
+This simple format still fully supports the configuration of the underlying DBD::Pg driver
+
+	 my $db2=Mojo::Pg->new(postgresql://two:turtle@doves:5432/partrige?RaiseError=0&PrintError=1
+
+In addition this format has the advantage of being simple to define in an ENV variable for PAAS deployment. In fact it is already supported by Heroku addons.
+
+Mojo::Pg also provides a succinct wrapper around the Statement object for getting data out. You can use the DBI iterator, or you can wrap the entire result into a Mojo::Collection object.
+
+	my $res=$db->Mojo::Pg->query(’select three_french from hens’);
+	while(my $row=$res->hash) { say $row->{id } }
+	# or as a collection
+  $row->hashes->shuffle->first;
+
+There are also a couple of other convenience methods, and you can access the sth directly. Check out the [POD](http://mojolicio.us/perldoc/Mojo/Pg/Results) for more information.
+
+
+# Migrations 
+
+Keeping databases in sync is always a problem when developing databases. Mojo::Pg has a very straightforward solution. You define migrations in pure SQL, either in the DATA section of your file for simple apps, or a separate file, with each level of migrations separated by an SQL comment. Here is a simple illustration:
+
+     -- 1 up
+     create table rings (type varchar(255));
+     insert into rings values (‘Gold’);
+     -- 1 down
+     drop table rings;
+
+This retains all the benefits of systems like DBIx::DeploymentHandler and Rails migrations without any of the complexity. 
+  
+# Transactions 
+
+Mojo::Pg also provides a simple scope guard for transactions, so that if your code goes out of commit before it completes, it will automatically be rolled back.
+
+  {
+    my $tx=$db->begin;
+		$db->do(‘UPDATE birds SET calling=4’);
+		return if 1; # update is rolled back
+		$tx->commit;
+  }
+
+This also comes in very handy in async transactions, as you can very easily handle failure by rolling back.
+
+# ASync
+
+Finally, Mojo::Pg allows you to perform async/long poll operations against a PostgreSQL database.
+
+This works just as you would expect, by passing a callback as the last argument to query. Typically we combine this with Mojo::Delay, to allow better callback control:
+
+      Mojo::IOLoop->delay(
+        sub { 
+					$db->query(‘select laying from goose’ 
+							=> shift->begin);
+        },
+        sub {
+          my ($delay, $err, $results) = @_;
+          $results->arrays
+                  ->map(sub { [ $a—>{0} + $b->[0] ] })->say;
+        }
+      )->wait;
+
+The async support uses Mojo::IOLoop under the hood, but  Mojo::IOLoop can also interact with AnyEvent through the EV compatibility layer.
+
+Mojo::Pg also supports async waiting for notifications. This is a common pattern for web sockets.
+
+     $db->on(notification => sub {
+        my ($db, $bird, $pid, $swimming) = @_;
+					$res->write(‘<div id=“candy”/>’) if $bird == ‘swans’;
+      });
+      $db->listen(‘swans’);
+      Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
+
+I hope this has got you excited about the possibilities of Mojo::Pg. It’s still early days for this library, but it has already got a rather unique feature set. 
+
+If you want to learn more about the Mojolicious stack, stay tuned for an exciting announcement coming soon from the Mojolicious team.
