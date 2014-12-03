@@ -42,34 +42,35 @@ thing.  Several providers allow you to request an email send with nothing more
 than a HTTP request.  One such provider is Mandrill, who currently offer a
 large number of free emails on their trial account.
 
-	#!/usr/bin/perl
+    #!perl
+    #!/usr/bin/perl
 
-	use strict;
-	use warnings;
+    use strict;
+    use warnings;
 
-	use HTTP::Tiny;
-	use JSON::PP qw(encode_json);
+    use HTTP::Tiny;
+    use JSON::PP qw(encode_json);
 
-	my $text = join " ", @ARGV;
+    my $text = join " ", @ARGV;
 
-	my $API_KEY = '<redacted>';
-	my $FROM    = 'mark@example.com';
-	my $TO      = 'mark@example.com';
+    my $API_KEY = '<redacted>';
+    my $FROM    = 'mark@example.com';
+    my $TO      = 'mark@example.com';
 
-	HTTP::Tiny->new()->post(
-		'https://mandrillapp.com/api/1.0/messages/send.json', {
-			content => encode_json({
-	    		key => $API_KEY,
-	    		message => {
-	        	    text => $text,
-	        	    subject => "Email notification",
-	        	    from_name => "Email notifier",
-	        	    from_email => $FROM,
-		            to => [ { email => $TO } ],
-	            }
-	        }),
-	    }
-	);
+    HTTP::Tiny->new()->post(
+        'https://mandrillapp.com/api/1.0/messages/send.json', {
+            content => encode_json({
+                key => $API_KEY,
+                message => {
+                    text => $text,
+                    subject => "Email notification",
+                    from_name => "Email notifier",
+                    from_email => $FROM,
+                    to => [ { email => $TO } ],
+                }
+            }),
+        }
+    );
 
 =head2 Cut me some Slack
 
@@ -88,26 +89,27 @@ that pretty much never leaves my side.
 By leveraging this notification system o ntop of a free account I can
 send messages to my cell phone.
 
-	#!/usr/bin/perl
+    #!perl
+    #!/usr/bin/perl
 
-	use strict;
-	use warnings;
+    use strict;
+    use warnings;
 
-	use HTTP::Tiny;
-	use JSON::PP qw(encode_json);
+    use HTTP::Tiny;
+    use JSON::PP qw(encode_json);
 
-	my $text = join " ", @ARGV;
+    my $text = join " ", @ARGV;
 
-	my $SECRET_URL = 'https://hooks.slack.com/services/<redacted>';
+    my $SECRET_URL = 'https://hooks.slack.com/services/<redacted>';
 
-	HTTP::Tiny->new()->post_form(
-		$SECRET_URL,
-		{
-			payload => encode_json({
-				channel => "#test",
-				text => $text,
-			})
-		}
+    HTTP::Tiny->new()->post_form(
+        $SECRET_URL,
+        {
+            payload => encode_json({
+                channel => "#test",
+                text => $text,
+            })
+        }
     );
 
 =head2 Last ditch: all going to POTS
@@ -122,42 +124,43 @@ read you your message.  A free trial account will be able to call the number
 that you verified the account from (with a disclaimer played before your
 message is read to remind you that this is just a trial account.)
 
-	#!/usr/bin/perl
+    #!perl
+    #!/usr/bin/perl
 
-	use strict;
-	use warnings;
+    use strict;
+    use warnings;
 
-	use HTTP::Tiny;
+    use HTTP::Tiny;
 
-	my $ACCOUNT_SID = '<redacted>';
-	my $API_TOKEN   = '<redacted>';
-	my $FROM        = '+15185551234';
-	my $TO          = '+15185555678';
+    my $ACCOUNT_SID = '<redacted>';
+    my $API_TOKEN   = '<redacted>';
+    my $FROM        = '+15185551234';
+    my $TO          = '+15185555678';
 
-	# get the message
-	my $text = join " ", @ARGV;
+    # get the message
+    my $text = join " ", @ARGV;
 
-	# escape it to stick it in the xml
-	$text =~ s/</&lt;/g;
-	$text =~ s/&/&amp;/g;
+    # escape it to stick it in the xml
+    $text =~ s/</&lt;/g;
+    $text =~ s/&/&amp;/g;
 
-	# Create the Twillo XML containg what should be contained in the call
-	my $xml = "<Response><Say>$text</Say></Response>";
+    # Create the Twillo XML containg what should be contained in the call
+    my $xml = "<Response><Say>$text</Say></Response>";
 
-	# Twillo needs a URL to fetch XML that contains what should be said in the
-	# call.  This url just will contain whatever we send in it in the Twiml
-	# parameter
-	$xml =~ s/([^A-Za-z0-9])/"%".uc(sprintf("%2.2x",ord($1)))/eg;
-	my $url = "http://twimlets.com/echo?Twiml=".$xml;
+    # Twillo needs a URL to fetch XML that contains what should be said in the
+    # call.  This url just will contain whatever we send in it in the Twiml
+    # parameter
+    $xml =~ s/([^A-Za-z0-9])/"%".uc(sprintf("%2.2x",ord($1)))/eg;
+    my $url = "http://twimlets.com/echo?Twiml=".$xml;
 
-	# make the call
-	HTTP::Tiny->new()->post_form(
-		"https://$ACCOUNT_SID:$API_TOKEN\@api.twilio.com/2010-04-01/Accounts/$ACCOUNT_SID/Calls.json", {
-	        Url => $url,
-	        To => $TO,
-	        From => $FROM,
-	    }
-	);
+    # make the call
+    HTTP::Tiny->new()->post_form(
+        "https://$ACCOUNT_SID:$API_TOKEN\@api.twilio.com/2010-04-01/Accounts/$ACCOUNT_SID/Calls.json", {
+            Url => $url,
+            To => $TO,
+            From => $FROM,
+        }
+    );
 
 =head2 Installing the utilities on the remote server.
 
@@ -169,37 +172,38 @@ free way?
 
 First I need to run some code locally to package up my scripts into one
 single installer script:
-  
-	#!/usr/bin/perl
 
-	use 5.012;
-	use warnings;
-	use autodie;
+    #!perl
+    #!/usr/bin/perl
 
-	my @filenames = qw(
-		emailnotify
-		slacknotify
-		phonenotify
-	);
+    use 5.012;
+    use warnings;
+    use autodie;
 
-	print <<'ENDOFHEADER';
-	use autodie;
-	chdir($ENV{HOME});
-	mkdir("bin") unless -d "bin";
-	chdir("bin");
-	ENDOFHEADER
+    my @filenames = qw(
+        emailnotify
+        slacknotify
+        phonenotify
+    );
 
-	foreach my $filename (@filenames) {
-		say "{";
-		say q!open my $fh, ">", "!.$filename.'";';
-		say q!print $fh <<'ENDOFSCRIPT';!;
-		open my $fh, "<", $filename;
-		while (<$fh>) { print }
-		say "";
-		say q!ENDOFSCRIPT!;
-		say qq!chmod(0775,"$filename");!;	
-		say "}";
-	}
+    print <<'ENDOFHEADER';
+    use autodie;
+    chdir($ENV{HOME});
+    mkdir("bin") unless -d "bin";
+    chdir("bin");
+    ENDOFHEADER
+
+    foreach my $filename (@filenames) {
+        say "{";
+        say q!open my $fh, ">", "!.$filename.'";';
+        say q!print $fh <<'ENDOFSCRIPT';!;
+        open my $fh, "<", $filename;
+        while (<$fh>) { print }
+        say "";
+        say q!ENDOFSCRIPT!;
+        say qq!chmod(0775,"$filename");!;    
+        say "}";
+    }
 
 The output of this script itself is a Perl script, one that I can store on a
 secret gist from gist.github.com, and access again using the raw URL link from
