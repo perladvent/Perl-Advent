@@ -19,37 +19,38 @@ writes a new web framework, as long as it supports PSGI, then it'll work with
 any webserver.  Whenever someone writes a new webserver, as long as it
 supports PSGI (or has an adapter written for it like Apache and nginx do) they
 can support any of the web frameworks.
- 
+
 =head2 PSGI by example
 
 PSGI applications are surprisingly simple to write:
 
-    #!/usr/bin/perl
-  
-    use strict;
-    use warnings;
-      
-    my $app = sub {
-       	my $env = shift;
-      
-      	return [
-      		'200',
-      		[ 'Content-Type' => 'text/plain' ],
-      		[ "Merry Christmas from $env->{PATH_INFO}\n"]
-      	]
-    };
+  #!perl
+  #!/usr/bin/perl
+
+  use strict;
+  use warnings;
+
+  my $app = sub {
+      my $env = shift;
+
+      return [
+          '200',
+          [ 'Content-Type' => 'text/plain' ],
+          [ "Merry Christmas from $env->{PATH_INFO}\n"]
+      ]
+  };
 
 You can actually launch the application in the simple Perl script above as a
 functioning webserver with the C<plackup> command that comes with plack.
 
-  bash$ plackup merryxmas.pl 
+  bash$ plackup merryxmas.pl
   HTTP::Server::PSGI: Accepting connections at http://0:5000/
 
 Plackup expects the last thing in the script to be the subroutine reference
 that is the PSGI application.  And it works just as you might expect:
 
-    bash$ curl http://127.0.0.1:5000/santa/and/the/elves
-    Merry Christmas from /santa/and/the/elves
+  bash$ curl http://127.0.0.1:5000/santa/and/the/elves
+  Merry Christmas from /santa/and/the/elves
 
 This all works because at its most basic a PSGI compatible web application is
 a simple subroutine. The subroutine is passed one argument - a hashref
@@ -88,43 +89,46 @@ Plack provides a B<Plack::Request> and B<Plack::Response> classes that can
 be constructed from the incoming C<$env> hash and be used to build the
 array ref response respectively.
 
-    #!/usr/bin/perl
-  
-    use strict;
-    use warnings;
+  #!perl
+  #!/usr/bin/perl
 
-	use Plack::Request;
-      
-    my $app = sub {
-       	my $request = Plack::Request->new(shift);
+  use strict;
+  use warnings;
 
-       	# get who is saying merry christmas
-      	my $who = $request->param('who');
+  use Plack::Request;
 
-		# did they come back a second time?
-		my $again = "";
-		$again = " again" if $request->cookies->{again};
+  my $app = sub {
+      my $request = Plack::Request->new(shift);
 
-		# create a response in a much more friendly way
-      	my $response = $request->new_response;
-      	$response->status(200);
-      	$response->content_type("text/plain");
-      	$response->body("Merry Christmas$again from $who");
-      	$response->cookies->{again} = 1;
+      # get who is saying merry christmas
+      my $who = $request->param('who');
 
-		# convert the response back into an array ref
-		# and return it
-		return $response->finalize;
-    };
+      # did they come back a second time?
+      my $again = "";
+      $again = " again" if $request->cookies->{again};
 
-	bash$ plackup merryxmas2.pl 
-	HTTP::Server::PSGI: Accepting connections at http://0:5000/
+      # create a response in a much more friendly way
+      my $response = $request->new_response;
+      $response->status(200);
+      $response->content_type("text/plain");
+      $response->body("Merry Christmas$again from $who");
+      $response->cookies->{again} = 1;
 
-    bash$ curl -b jar -c jar http://127.0.0.1:5000?who=Santa+and+the+elves
-    Merry Christmas from Santa and the elves
+      # convert the response back into an array ref
+      # and return it
+      return $response->finalize;
+  };
 
-    bash$ curl -b jar -c jar http://127.0.0.1:5000?who=Santa+and+the+elves
-    Merry Christmas again from Santa and the elves
+Z<>
+
+  bash$ plackup merryxmas2.pl
+  HTTP::Server::PSGI: Accepting connections at http://0:5000/
+
+  bash$ curl -b jar -c jar http://127.0.0.1:5000?who=Santa+and+the+elves
+  Merry Christmas from Santa and the elves
+
+  bash$ curl -b jar -c jar http://127.0.0.1:5000?who=Santa+and+the+elves
+  Merry Christmas again from Santa and the elves
 
 =head2 Plack Middleware
 
@@ -138,32 +142,33 @@ up to the so-called I<real> web server.
 For example, we could easily adapt our previous script to give
 a Very Special Christmas Message from Mr Hankey:
 
-    #!/usr/bin/perl
-  
-    use strict;
-    use warnings;
+  #!perl
+  #!/usr/bin/perl
 
-	use Plack::Request;
-      
-    my $app = sub {
-       ... # as before
-    };
+  use strict;
+  use warnings;
 
-    my $app2 = sub {
-	    my $env = shift;
-	    my $request = Plack::Request->new($env);
-			   
- 	    # If Mr Hankey is saying Merry Christmas, send them to the
- 	    # video instead.
- 	    if ($request->param('who') eq "Mr Hankey") {
-		    my $response = $request->new_response;
-		    $response->redirect("http://www.hulu.com/watch/249828");
-		    return $response->finalize();
-		}
-	
-	  	# otherwise chain through to the original app
-	    return $app->($env);
-    }
+  use Plack::Request;
+
+  my $app = sub {
+     ... # as before
+  };
+
+  my $app2 = sub {
+      my $env = shift;
+      my $request = Plack::Request->new($env);
+
+      # If Mr Hankey is saying Merry Christmas, send them to the
+      # video instead.
+      if ($request->param('who') eq "Mr Hankey") {
+          my $response = $request->new_response;
+          $response->redirect("http://www.hulu.com/watch/249828");
+          return $response->finalize();
+      }
+
+       # otherwise chain through to the original app
+      return $app->($env);
+  }
 
 Because we're just wrapping the original application we don't have to alter
 the application in any way.  Of course, in this example, we have the source
@@ -176,68 +181,71 @@ modifying the response easier, and along with B<Plack::Util> helps us
 deal with the slightly more complex cases where there's a callback for
 a response from our inner class:
 
-    package Plack::Middleware::XReindeer;
-    use base qw(Plack::Middleware);
+  #!perl
+  package Plack::Middleware::XReindeer;
+  use base qw(Plack::Middleware);
 
-	use strict;
-	use warnings;
+  use strict;
+  use warnings;
 
-    use Plack::Util;
-    use Acme::MetaSyntactic::reindeer qw(metareindeer);
+  use Plack::Util;
+  use Acme::MetaSyntactic::reindeer qw(metareindeer);
 
-    sub call {
-        my($self, $env) = @_;
+  sub call {
+      my($self, $env) = @_;
 
-        # run the original application
-        my $res  = $self->app->($env);
+      # run the original application
+      my $res  = $self->app->($env);
 
-        # now modify the response.  Use response_cb to turn
-        # any response into the three-item list before we process it
-        Plack::Util::response_cb($res, sub {
-			# get the three item arrayref
-            my $res = shift;
+      # now modify the response.  Use response_cb to turn
+      # any response into the three-item list before we process it
+      Plack::Util::response_cb($res, sub {
+          # get the three item arrayref
+          my $res = shift;
 
-            # add an extra header with some random reindeer
-            push @{ $res->[1] },
-                "X-Reindeer" => metareindeer;
+          # add an extra header with some random reindeer
+          push @{ $res->[1] },
+              "X-Reindeer" => metareindeer;
 
-            # return nothing;  It doesn't matter what we return, we
-            # always directly modify the original arrayref
-            return;
-        });
-     }
+          # return nothing;  It doesn't matter what we return, we
+          # always directly modify the original arrayref
+          return;
+      });
+   }
 
-     1;
+   1;
 
 By turning our middleware into a B<Plack::Middleware> subclass we can easily
 make use of the C<Plack::Builder> module to glue our applications together:
 
-   #!/usr/bin/perl
+  #!perl
+  #!/usr/bin/perl
 
-   use strict;
-   use warnings;
+  use strict;
+  use warnings;
 
-   use Plack::Builder;
-   
-   my $app = sub { ... };
+  use Plack::Builder;
 
-   # builder returns a new app annoymous sub that wraps $app with the
-   # middleware we specify
+  my $app = sub { ... };
 
-   builder {
+  # builder returns a new app annoymous sub that wraps $app with the
+  # middleware we specify
+
+  builder {
       enable "XReindeer";
       $app;
-   }
+  }
 
 Plenty of pre-existing middleware modules exist on CPAN.  For example
 we could have implemented gzip compression on our application as well
 just by wrapping the output with B<Plack::Middleware::Deflater>.
 
-   builder {
-   	  enable "Deflater";
+  #!perl
+  builder {
+      enable "Deflater";
       enable "XReindeer";
       $app;
-   }
+  }
 
 =head2 Plack::Test
 
@@ -257,35 +265,36 @@ Plack ships with the Plack::Test module that can perform the job of the
 external server.  Designed to have LWP style requests thrown at it and LWP
 style responses coming back, it gets the job done with minimal fuss:
 
-   #!/usr/bin/perl
-   
-   use strict;
-   use warnings;
-   
-   use Test::More tests => 4;
-   use Plack::Test;
-   use HTTP::Request::Common qw(GET);
+  #!perl
+  #!/usr/bin/perl
 
-   # load the application from the other script
-   my $app = do 'merryxmas3.pl';
+  use strict;
+  use warnings;
 
-   test_psgi
+  use Test::More tests => 4;
+  use Plack::Test;
+  use HTTP::Request::Common qw(GET);
+
+  # load the application from the other script
+  my $app = do 'merryxmas3.pl';
+
+  test_psgi
        app => $app,
        client => sub {
-			my $response = shift->(GET '/?who=Santa');
-			is $response->status, 200;
-			is $response->content, "Merry Christmas from Santa\n";
+            my $response = shift->(GET '/?who=Santa');
+            is $response->status, 200;
+            is $response->content, "Merry Christmas from Santa\n";
        };
 
-   test_psgi
+  test_psgi
        app => $app,
        client => sub {
-			my $response = shift->(GET '/?who=Mr+Hankey');
-			is $response->status, 302;
-			like $response->header('Location'), qr/hulu[.]com/;
+            my $response = shift->(GET '/?who=Mr+Hankey');
+            is $response->status, 302;
+            like $response->header('Location'), qr/hulu[.]com/;
        };
-   
-   done_testing;
+
+  done_testing;
 
 =head2 In Conclusion
 
