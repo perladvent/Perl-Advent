@@ -20,7 +20,7 @@ This is easy enough, if you're prepared to be inefficent:
     use Encode qw(encode_utf8);
 
     my @sorted = sort { 
-    	length encode_utf8 $a <=> length encode_utf8 $b
+        length encode_utf8 $a <=> length encode_utf8 $b
     } @strings;
 
 The problem with this is that Perl has to recalcuate the utf-8 encoding of the
@@ -31,9 +31,9 @@ transform to avoid this:
 
     #!perl
     my @sorted = 
-   	      map  { $_->[0] }
-	      sort { $a->[1] <=> $b->[1] }
-	      map  { [$_, length encode_utf8 $_ ] } @_;
+          map  { $_->[0] }
+          sort { $a->[1] <=> $b->[1] }
+          map  { [$_, length encode_utf8 $_ ] } @_;
 
 This rather ugly syntax was created by Randal Schwartz to build a data
 structure on the fly that contains the weighting value, sort that, then
@@ -41,16 +41,16 @@ extract the original (now sorted) values out again.  Easy to understand,
 right?  No?  Maybe we could abstract that away in a subroutine call?
 
   #!perl
-	sub weighted_sort {
-		# the anonymous subroutine that calculates a weighting for whatever is
-		# in $_
-		my $weighter = shift;
+  sub weighted_sort {
+      # the anonymous subroutine that calculates a weighting for whatever is
+      # in $_
+      my $weighter = shift;
 
-	    return 
-	      map  { $_->[0] }
-	      sort { $a->[1] <=> $b->[1] }
-	      map  { [$_, $weighter->() ] } @_;
-	}
+      return 
+        map  { $_->[0] }
+        sort { $a->[1] <=> $b->[1] }
+        map  { [$_, $weighter->() ] } @_;
+  }
 
 This can then be used like so:
 
@@ -72,7 +72,7 @@ and the remaining arguments are a list (i.e. the C<@> prototype) like so:
 
     #!perl
     sub weighted_sort(&@) {
-    	...
+        ...
     }
 
 Then Perl is smart enough to let us remove the surrounding C<()> and leave out
@@ -88,20 +88,20 @@ stack traces!
 For example:
 
   #!perl
-   my @sorted = weighted_sort { karma_rating($_, 2 ) } @stuff;
+  my @sorted = weighted_sort { karma_rating($_, 2 ) } @stuff;
 
-   sub nautghtyness_rating {
+  sub nautghtyness_rating {
       print STDERR Devel::StackTrace->new if $DEBUG_NAUGHTYNESS;
       ...
-   }
+  }
 
 This prints out:
 
-	Trace begun at karma.pl line 22
-	main::karma_rating('1,2,3,4', 2) called at karma.pl line 19
-	main::__ANON__ at karma.pl line 16
-	main::weighted_sort('CODE(0x7fd91b02a240)', 'a', 'b', 'c', 'd') called at karma.pl line 19
-	...
+  Trace begun at karma.pl line 22
+  main::karma_rating('1,2,3,4', 2) called at karma.pl line 19
+  main::__ANON__ at karma.pl line 16
+  main::weighted_sort('CODE(0x7fd91b02a240)', 'a', 'b', 'c', 'd') called at karma.pl line 19
+  ...
 
 Wait, that makes no sense.  What's this C<__ANON__> in the middle of our code?
 Oh, right, that's the C<{ karma_rating($_, 2 ) }> subroutine.  Wouldn't it be
@@ -113,25 +113,25 @@ This is where Sub::Util steps in, allowing us to name the subroutine anything we
 want:
 
   #!perl
-	use Sub::Util qw(set_subname);
+  use Sub::Util qw(set_subname);
 
-	sub weighted_sort(&@) {
-		# the anonymous subroutine that calculates a weighting for whatever is
-        # in $_
-		my $weighter = set_subname("weighted_sort_weighting_block", shift);
+  sub weighted_sort(&@) {
+      # the anonymous subroutine that calculates a weighting for whatever is
+      # in $_
+      my $weighter = set_subname("weighted_sort_weighting_block", shift);
 
-	    return 
-  	        map  { $_->[0] }
-	        sort { $a->[1] <=> $b->[1] }
-	        map  { [$_, $weighter->() ] } @_;
-	}
+      return 
+          map  { $_->[0] }
+          sort { $a->[1] <=> $b->[1] }
+          map  { [$_, $weighter->() ] } @_;
+  }
 
 And now when we run out code we get this:
 
-	Trace begun at karma.pl line 22
-	main::karma_rating('a', 2) called at karma.pl line 19
-	main::weighted_sort_weighting_block at karma.pl line 16
-	main::weighted_sort('CODE(0x7f926b02f9b0)', 'a', 'b', 'c', 'd') called at karma.pl line 19
+    Trace begun at karma.pl line 22
+    main::karma_rating('a', 2) called at karma.pl line 19
+    main::weighted_sort_weighting_block at karma.pl line 16
+    main::weighted_sort('CODE(0x7f926b02f9b0)', 'a', 'b', 'c', 'd') called at karma.pl line 19
     ...
 
 Which makes our stack traces that little bit more readable!
