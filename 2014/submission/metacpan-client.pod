@@ -1,0 +1,138 @@
+Title: Finding CPAN distributions with github repositories
+Topic: MetaCPAN::Client
+Author: Neil Bowers <neil@bowers.com>
+
+Blink the elf wasn't happy, because Father C wasn't happy. Blink had been
+told to send presents to every CPAN author who released a new distribution
+(aka I<neocpanism>)
+to CPAN this year, regardless of who had done the most recent release
+of the distribution.
+But the distribution had to still be on CPAN.
+
+"Does SHARYANTO get one for I<every> dist?!", Blink had asked,
+but got a cuff round the ear for that.
+
+He thought he'd done a good job, but the Senior Elf had just been to tell him
+that some authors had missed out.
+
+Father C doesn't like it when people don't get the presents they should.
+
+=head2 What went wrong?
+
+Blink had remembered that they have their own CPAN mirror at the North Pole,
+so he just used L<Path::Iterator::Rule> to iterate over it, looking
+for the C<META.yml> files which hold the metadata for each distribution.
+From those he pulled out the
+L<name|https://metacpan.org/pod/CPAN::Meta::Spec#name> key,
+which holds the distribution's name.
+
+He'd remembered that they have a database of CPAN authors and their
+L<neocpanisms|http://neilb.org/neocpanisms/>,
+so he'd used that get the other information he needed.
+
+But on closer inspection, he discovered that not all distribution names
+from metadata files matched those in the database.
+"Sort it out, and send some pull requests!", the Senior Elf had chastised him.
+
+=head2 Distribution names
+
+When you create a module C<Foo::Bar>, you would normally release it to CPAN
+as part of a distribution called C<Foo-Bar>. You can specify the distribution
+name yourself, but distribution builders like L<ExtUtils::MakeMaker>
+will produce the dist name for you, based on the module name.
+The distribution name ends up in the metadata file.
+
+When you release a version of your distribution, the I<tarball> usually
+has a name built up from the distribution name, the version, and whatever
+extension is used for the archiving method you used. So Foo::Bar 0.01
+would probably be released in B<Foo-Bar-0.01.tar.gz>. If Blink had released
+this, the location of this release on CPAN would be:
+
+ B/BL/BLINK/Foo-Bar-0.01.tar.gz
+
+These paths turn up everywhere in the CPAN ecosystem, so
+there's a module L<CPAN::DistnameInfo> which takes a path and picks it apart.
+As a result, most parts of the ecosystem assume that the dist name inferred
+by L<CPAN::DistnameInfo> is the right distribution name.
+
+The problem can arise where the release name isn't based on the distribution
+name, which might be for a variety of reasons. Sometimes the filename
+has the right dist name, and it's the metadata that doesn't.
+
+=head2 Finding the problem distributions
+
+"Talk to Olaf", Senior Elf had told Blink. But after a frustrating ten
+minutes, Blink went back to SE, complaining that Olaf just sang about
+summer.
+"No, not L<Olaf the Snowman|http://en.wikipedia.org/wiki/Olaf_(Disney)>,
+I meant L<Olaf Alders|https://metacpan.org/author/OALDERS>!".
+
+With Olaf's help, Blink wrote the following, to iterate over all
+CPAN distributions, using the MetaCPAN API:
+
+ use MetaCPAN::Client;
+ my $client = MetaCPAN::Client->new();
+ my $query  = { all => [
+                   { status   => 'latest' },
+                   { maturity => 'released' },
+              ]};
+ my $params     = { fields => [qw/ metadata download_url /] };
+ my $result_set = $client->release($query, $params);
+ my $scroller   = $result_set->scroller;
+
+ while (my $result = $scroller->next) {
+    my $release = $result->{fields};
+ }
+
+You can look at the release data for a distribution using the API in
+a browser, for example L<https://api.metacpan.org/release/URI-Title>.
+You'll see there's a lot of information. If you're only interested in some
+of it, you can just request specific fields (the C<$params> hashref above,
+passed to the C<release> method. The C<$release> above is a hashref,
+which contains slices of the data you saw from the API.
+
+The two bits of interest here are:
+
+ my $distname = $release->{metadata}->{name};
+ # "URI-Title"
+
+ my $path     = $release->{download_url};
+ # "http://cpan.metacpan.org/authors/id/B/BO/BOOK/URI-Title-1.89.tar.gz"
+
+You can then give that C<$path> to L<CPAN::DistnameInfo>, and the C<dist>
+method tells you what it thinks the distribution name is.
+So Blink could compare that with the name from the metadata file,
+which handily is also available:
+
+ use CPAN::DistnameInfo;
+ my $dinfo = CPAN::DistnameInfo->new($path);
+ push(@bad, $path) if $dinfo->dist ne $distname;
+
+So now Blink could build a list of problem distributions, but he'd been
+told to send some pull requests as penance. How could he find out which
+of the distributions were on github?
+
+He found an L<article|http://perlmaven.com/how-to-add-link-to-version-control-system-of-a-cpan-distributions> which explained how the github repository
+can be recorded in a distribution's metadata.
+If you look in L<that API output|https://api.metacpan.org/release/URI-Title>,
+you'll find it under the C<resources> key.
+
+You can use this fact to constrain your MetaCPAN search, so that you
+only consider distributions with a github repo in their metadata:
+
+ my $query  = { all => [
+                   {                     status => 'latest'   },
+                   {                   maturity => 'released' },
+                   { 'resources.repository.url' => '*github*' },
+              ]};
+
+Blink completed his task,
+and L<TEODESIAN|https://metacpan.org/author/TEODESIAN>
+got his gifts, amongst others.
+
+=head1 See Also
+
+=for :list
+* L<MetaCPAN::Client>
+* L<CPAN::DistnameInfo>
+
