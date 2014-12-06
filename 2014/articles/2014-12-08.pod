@@ -1,0 +1,175 @@
+Title: The Complexity of Perl
+Topic: Perl::Metrics::Simple
+Author: Dave Cross <dave@perlhacks.com>
+
+=head1 The Complexity of Perl
+
+When you're writing code, one of your goals should be to make your code as
+simple as possible. It seems self-evident that simple code will be easier
+to understand and easier to maintain and will therefore contain fewer bugs
+than complex code.
+
+Of course, we want to write software that does complex things. And this
+apparent paradox is easy enough to resolve. We just need to create a lot
+of very simple software and join it together in complex ways.
+
+But what constitutes "complex code"? Can we measure the complexity of an
+arbitrary piece of code? And what level of complexity should we be aiming at?
+
+Luckily for us, this is a solved problem. Back in 1976 Thomas J. McCabe
+came up with the idea of "cyclometric complexity". McCabe's idea was to
+measure the complexity of a piece of code by counting the number of possible
+execution paths that can be traced through the code.
+
+Let's look at this with an example. Here's some arbitrary Perl code:
+
+    sub foo {                               # 1: for non-empty code
+        if ( @list ) {                      # 1: "if"
+            foreach my $x ( @list ) {       # 1: "foreach"
+                if ( ! $x ) {               # 2: 1 for "if" and 1 for "!"
+                    do_something($x);
+                }
+                else {                      # 1 for "else"
+                    do_something_else($x);
+                }
+            }
+        }
+        return;
+    }
+
+This subroutine has a complexity of 6, which is calculated from the following
+elements:
+
+=over 4
+
+=item * 1 for having some code in the subroutine
+
+=item * 1 for the first 'if' statement
+
+=item * 1 for the 'foreach' statement
+
+=item * 1 for the second 'if' statement
+
+=item * 1 for the '!' in the second 'if' statement
+
+=item * 1 for the 'else' statement
+
+=back
+
+Calculating this for any given subroutine is relatively simple. We just analyse
+the source code looking for certain tokens. But, as with so many things in
+Perl. we don't need to do it ourselves as someone has already written the code
+and put it on CPAN.
+
+In this case, the module is called Perl::Metrics::Simple and it was written by
+Matisse Enzer. The code is based on PPI which is a handy way to extract useful
+information about Perl source code.
+
+There are a couple of ways to use Perl::Metrics::Simple. The simple case is
+handled by a command line program called C<countperl>. You pass it the name
+of a directory and it analyses any Perl files that it finds under that
+directory. To test it, I used my Perl module Symbol::Approx::Sub. The results
+start by giving some high-level stats about the code:
+
+    Perl files found: 6
+
+    Counts
+    ------
+    total code lines:         213
+    lines of non-sub code:    55
+    packages found:           6
+    subs/methods:             8
+
+    Subroutine/Method Size
+    ----------------------
+    min:                      3
+    max:                      87
+    mean:                     19.75
+    std. deviation:           28.08
+    median:                   6.50
+
+That subroutine with 87 lines looks like it might be worth looking at further.
+It makes up over a third of the code in the distribution.
+
+The program then looks at the McCabe Complexity measures. You'll notice that
+the analysis differentiates between code in subroutines and code that exists
+at the file level (outside of any subroutines.
+
+    McCabe Complexity
+    -----------------
+    Code not in any subroutine
+    min:                      2
+    max:                      2
+    mean:                     2.00
+    std. deviation:           0.00
+    median:                   2.00
+
+    Subroutines/Methods
+    min:                      1
+    max:                      37
+    mean:                     8.50
+    std. deviation:           11.99
+    median:                   2.50
+
+The code outside of the subroutines looks fine. A McCabe measure of 2 means that
+the code is very simple. The subroutine code shows some more interesting
+numbers. But how do we interpret these numbers? A good rule of thumb seems to
+be to keep your code complexity under 20 and to get really worried if it goes
+over 30. So that maximum value of 37 should be a cause for concern.
+
+The output then shows us the McCabe scores for each subroutine it found.
+
+    List of subroutines, with most complex at top
+    ---------------------------------------------
+    complexity  sub             path                      size
+    37          import          lib/Symbol/Approx/Sub.pm  87
+    18          _make_AUTOLOAD  lib/Symbol/Approx/Sub.pm  41
+    ...
+
+I've only shown the first couple of lines here, as that shows the most
+interesting subroutines. The whole file is online at
+L<http://perlhacks.com/symbol-approx-sub.txt> if you'd like to see more.
+
+As you might suspect, the subroutine with the highest complexity is also the
+one with the most lines of code. That's really one that I should take a closer
+look at. Refactoring it to move a lot of the functionality into separate
+subroutines would make it simpler and, therefore, easier to maintain.
+
+The C<countperl> program has one more useful feature. If you run it with
+the "--html" command line option, it produces the same output in HTML format.
+You can see this version at L<http://perlhacks.com/symbol-approx-sub.html>.
+Helpfully, in this version, the values are colour-coded which makes it easier
+to see the ones that require attention.
+
+The C<countperl> program is probably useful enough that it covers most
+requirements. You point it at code and it tells you the complexity of that code.
+If you want to do anything more complex, then you'll need to look at the
+documentation for Perl::Metrics::Simple itself. It's not complicated. You
+create a Perl::Metrics::Simple object.
+
+  my $analyzer = Perl::Metrics::Simple->new;
+
+And then call the C<analyze_files> method, passing it a list of directories
+to analyse. This returns a Perl::Metrics::Simple::Analysis object
+
+  my $analysis = $analyzer->analyze_files('./lib');
+
+You can then call various methods on this object to get the actual data back.
+A good way to see how the methods are used is to look at the source of the
+C<countperl> program. It's not, however, a great example of generating HTML -
+the source is littered with chunks of raw HTML and the whole thing would
+benefit greatly from being rewritten to use a templating engine.
+
+One warning about working with Perl::Metrics::Simple. The objects it creates
+are inside-out objects. That means that the actual data is stored in lexical
+variables within the class's package. That can make debugging your code a
+little frustrating.
+
+Since starting to work with Perl::Metrics::Simple, I've seen that there is also
+a Perl::Metrics distribution on CPAN. I plan to investigate that in near
+future.
+
+Once you start measuring the complexity of code, it quickly becomes addictive.
+I'm constantly searching for subroutines with high complexity scores. So far,
+the highest score I've found is 209 (not my code, I hasten to add). I'd be
+interested to hear about any high scores that you find.
