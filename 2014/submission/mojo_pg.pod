@@ -3,48 +3,86 @@ Topic: Mojo::Pg
 Author: Marcus Ramberg <marcus@nordaaker.com>
 
 Over the years, I have worked with many variants of the ORM concept in various
-libraries and languages. However in the end, I find they are in the way of
-writing clear and simple SQL powered web applications than they are helping.
-After all, SQL is designed to extract sets of data across tables, and not to
-be mapped to row objects.
+libraries and languages. However in the end, I find they often get in the way of
+writing clear and simple SQL powered web applications more than they are
+helping. After all, SQL is designed to extract sets of data across tables, not
+to just be mapped to objects representing rows.
 
-However DBI, the standard Perl database library, is rather old and archaic. It
-is not a very inviting interface to use directly.  I have been experimenting
-with various wrappers, but never really found one I liked.
+However DBI, the standard Perl database library for executing staight SQL, is
+rather old and archaic. It is not a very inviting interface to use directly.  I
+have experimented with various wrappers, but never really found one I
+liked...until now.
 
-This fall, the Mojolicious project has launched a new sub-project,  Mojo::Pg.
-It also has useful features like migrations and Async, but first lets look at
-the simple case.
+This fall, the Mojolicious project launched a new sub-project for accessing
+PostgreSQL databases: Mojo::Pg. It has powerful features like migrations and
+Async, but first lets look at the simple case:
 
 =head2 Simple SQL Simply
 
-Database connections are handled with urls.
+With Mojo::Pg database connections are handled with URLs:
 
   #!perl
-  my $db=Mojo::Pg->new(‘postgresql://partridge')
+  my $pg = Mojo::Pg->new(‘postgresql://partridge')
 
 This simple format still fully supports the configuration of the underlying
-DBD::Pg driver
+DBD::Pg driver:
 
   #!perl
-  my $db2=Mojo::Pg->new(postgresql://two:turtle@doves:5432/partrige?RaiseError=0&PrintError=1
+  # connect as user 'two' with password 'turtle' to the 'partrige'
+  # database running on port 5432 on the 'dove' server
+  my $pg2 = Mojo::Pg->new('postgresql://two:turtle@doves:5432/partrige?RaiseError=0&PrintError=1');
 
-In addition this format has the advantage of being simple to define in an ENV
-variable for PAAS deployment. In fact it is already supported by Heroku
-addons.
+The URL format has the advantage of being simple to define in an C<%ENV>
+variable for PaaS deployment. In fact it is already supported by Heroku addons.
 
 Mojo::Pg also provides a succinct wrapper around the Statement object for
 getting data out. You can use the DBI iterator, or you can wrap the entire
 result into a Mojo::Collection object.
 
   #!perl
-  my $res=$db->Mojo::Pg->query(’select three_french from hens’);
-  while(my $row=$res->hash) { say $row->{id } }
-  # or as a collection
-  $row->hashes->shuffle->first;
+  # Get the db
+  my $db = $pg->db;
 
-There are also a couple of other convenience methods, and you can access the
-sth directly.
+  # Using results as an itterator
+  my $res = $db->query('SELECT day, gift FROM twelvedays ORDER BY day');
+  while (my $row = $res->hash) { say "$row->{day}: $row->{gift}" }
+  
+  # Using a collection as an array of hashes
+  my $res = $db->query('SELECT day, gift FROM twelvedays ORDER BY day');
+  foreach my $row ($res->hashes) { say "$row->{day}: $row->{gift}" }
+  
+  # Using a collection as an object
+  my $res = $db->query('SELECT day, gift FROM twelvedays ORDER BY day');
+  my $hashes = $res->hashes;
+  say "First gift was: " . $hashes->first->{gift};
+  say "Last gift was: " . $hashes->last->{gift};
+
+The ability to for Mojo::Pg::Result to return the data structure in collections
+of whatever you want - hashes, arrays, etc - and Mojo::Collection to allow
+you to access the data either using standard Perl array operations or via
+expressive method calls makes writing what would otherwise very tricky
+with plain old DBI simple with Mojo::Pg.
+
+=head2 Transactions
+
+Mojo::Pg also provides a simple scope guard for transactions, so that if your
+guard variable goes out of scope before commit is called on it the transaction
+will automatically be rolled back.
+
+  #!perl
+  {
+    my $tx = $db->begin;
+    $db->do(‘UPDATE birds SET bird_count = bird_count + 4’);
+
+    # return if invoidce_true_love_for_calling_birds returned false, which
+    # means the transaction will automatically be rolled back
+    invoice_true_love_for_calling_birds() or return;
+
+    $tx->commit;
+  }
+
+This also comes in very handy in async transactions, as you can very easily
+handle failure by rolling back.
 
 =head2 Migrations
 
@@ -64,27 +102,21 @@ simple illustration:
 This retains all the benefits of systems like DBIx::DeploymentHandler and
 Rails migrations without any of the complexity.
 
-=head2 Transactions
+Bringing your database up to the latest schema version is a single straight
+forward command:
 
-Mojo::Pg also provides a simple scope guard for transactions, so that if your
-code goes out of commit before it completes, it will automatically be rolled
-back.
+  $db->migrations->from_file('migrations.sql')->migrate;
 
-  #!perl
-  {
-    my $tx=$db->begin;
-    $db->do(‘UPDATE birds SET calling=4’);
-    return if 1; # update is rolled back
-    $tx->commit;
-  }
-
-This also comes in very handy in async transactions, as you can very easily
-handle failure by rolling back.
+This will cause Mojo::Pg to examine the C<mojo_migrations> table (creating it if
+needed) to work out what version the target database is currently running and
+then to execute all the statements needed to bring it up to the latest
+version
 
 =head2 ASync
 
 Finally, Mojo::Pg allows you to perform async/long poll operations against a
-PostgreSQL database.
+PostgreSQL database meaning that your code can do other things while waiting
+for the database to return instead of blocking.
 
 This works just as you would expect, by passing a callback as the last
 argument to query. Typically we combine this with Mojo::Delay, to allow better
@@ -93,8 +125,8 @@ callback control:
   #!perl
   Mojo::IOLoop->delay(
     sub {
-      $db->query(‘select laying from goose’
-          => shift->begin);
+      my $delay = shift;
+      $db->query(‘select laying from goose’ => $delay->begin);
     },
     sub {
       my ($delay, $err, $results) = @_;
@@ -111,11 +143,34 @@ pattern for web sockets.
 
   #!perl
   $db->on(notification => sub {
-    my ($db, $bird, $pid, $swimming) = @_;
-    $res->write(‘<div id=“candy”/>’) if $bird == ‘swans’;
+    my ($db, $bird, $pid, $arg) = @_;
+    $response->write("<div class='swan-update' data-id='$arg'/>’)
+       if $bird eq ‘swans’;
   });
   $db->listen(‘swans’);
   Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
+
+The notification can either be triggered manually from another process also
+connected to the PostgreSQL database:
+
+  $db->notify('swans','11');
+
+Or the notification could be fired by a database trigger (meaning, for example,
+that Perl code can get an async notification whenever a table is updated.)
+
+  #!vim sql
+  CREATE OR REPLACE FUNCTION swans_notify() RETURNS trigger AS $$
+  BEGIN
+    PERFORM pg_notify('swans',to_char(NEW.id,'9999999999'));
+    RETURN NULL;
+  END
+  $$ LANGUAGE plpgsql;
+
+  CREATE TRIGGER notify_about_swan_changes_trigger
+           AFTER INSERT
+              OR UPDATE
+              ON swans
+  FOR EACH ROW EXECUTE PROCEDURE swans_notify();
 
 I hope this has got you excited about the possibilities of Mojo::Pg. It’s
 still early days for this library, but it has already got a rather unique
@@ -128,4 +183,8 @@ exciting announcement coming soon from the Mojolicious team.
 
 =for :list
 * L<Mojo::Pg>
+* L<Mojo::Pg::Database>
 * L<Mojo::Pg::Results>
+* L<Mojo::Pg::Migrations>
+* L<Mojo::Collection>
+
