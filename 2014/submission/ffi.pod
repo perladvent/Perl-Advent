@@ -1,15 +1,17 @@
-=head1 FFI::Raw
+Title: Foreign Function Interface and Perl
+Topic: FFI::Raw
+Author: Graham Ollis <graham@wdlabs.com>
 
 C<libffi> is a Foreign Function Interface (FFI) used by a number of 
 scripting languages and virtual machine platforms to call native code.  
 It doesn't require a compiler, and as long as dynamic libraries can be 
 found, development packages aren't necessary either.
 
-For Perl, this means that L<FFI::Raw> (Perl bindings for C<libffi>) 
+For Perl, this means that FFI::Raw (Perl bindings for C<libffi>) 
 provides a viable alternative to the traditional Foreign Function 
 Interface, known as XS.  There are lots of reasons why you might not 
 want to implement something using XS.  For me the motivation is not 
-having to delve into L<perlapi> or L<perlxs>, both of which are a fine 
+having to delve into perlapi or perlxs, both of which are a fine 
 prescription for madness.  There are even some good reasons why you 
 might I<want> to use C<libffi> instead of XS; it should work with any 
 language that generates machine code, so go ahead and write your 
@@ -17,11 +19,12 @@ extensions if assembly or rust!
 
 =head2 Calling a function
 
-L<FFI::Raw> has a constructor that takes the name of the library, the 
+FFI::Raw has a constructor that takes the name of the library, the 
 name of the function that you want to bind to, the return type for that 
 function, and a list of the argument types.  For example, I can call the 
 C C<puts> function on my Linux system like this:
 
+ #!perl
  use FFI::Raw;
  my $lib = '/lib/x86_64-linux-gnu/libc.so.6';
  
@@ -36,12 +39,13 @@ C C<puts> function on my Linux system like this:
 I usually put the return value type and argument types on separate 
 lines, as above, to differentiate them.
 
-Recent versions of L<FFI::Raw> have a shortcut where if you pass 
+Recent versions of FFI::Raw have a shortcut where if you pass 
 C<undef> as the library argument it will search the currently running 
 process for symbols.  This is a good way to call functions in the 
 standard C library, which usually has a different name on every 
 platform.
 
+ #!perl
  my $puts = FFI::Raw->new(
    undef, 'puts',
    FFI::Raw::int,  # return value type
@@ -56,7 +60,7 @@ Unix systems and it provides an interface for determining the type of a
 file by its contents.
 
 The first thing that we need to do is find the path to the libmagic 
-library.  To do that we will use L<FFI::CheckLib>.
+library.  To do that we will use FFI::CheckLib.
 
  use FFI::CheckLib;
  my($lib) = find_lib( lib => 'magic' );
@@ -66,6 +70,7 @@ library.  To do that we will use L<FFI::CheckLib>.
 Now we need to create the bindings for the C<libmagic> library like we 
 did for C<puts> before.
 
+ #!perl
  my $open = FFI::Raw->new(
    $lib, 'magic_open',
    FFI::Raw::ptr,
@@ -89,6 +94,7 @@ did for C<puts> before.
 
 We also need some constants that are defined in C<magic.h>:
 
+ #!perl
  use constant MAGIC_NONE => 0x000;
  use constant MAGIC_MIME => 0x410;
 
@@ -99,7 +105,7 @@ mean installing development packages (if you recall one of the
 advantages of C<libffi> is that we don't need those installed).
 
 If the library that you are targeting changes its constants frequently 
-then L<FFI::Raw> may not be the tool that you want to use.  On the other 
+then FFI::Raw may not be the tool that you want to use.  On the other 
 hand, if your library is frequently changing its interface like that 
 then that library may not be the tool that you want to use either.
 
@@ -108,6 +114,7 @@ then that library may not be the tool that you want to use either.
 Now we can write a useful program using the bindings that we have 
 created.
 
+ #!perl
  # Create a handle for interacting with libmagic
  # replace MAGIC_NONE with MAGIC_MIME to get the
  # mime type instead of a description
@@ -133,12 +140,13 @@ created.
  # free up the resources used by the magic handle
  $close->call($magic);
 
-In this example we use L<FFI::Raw::MemPtr> to construct a memory pointer 
+In this example we use FFI::Raw::MemPtr to construct a memory pointer 
 and copy the content of the file into that pointer.  If you know that 
 the library that you are using is not going to do any funny busines, 
 like write into your buffer, then you can also skip the memory copy by 
 using L<FFI::Util>'s C<scalar_to_buffer> function:
 
+ #!perl
  my($ptr, $size) = scalar_to_buffer($content);
  say $buffer->call($magic, $ptr, $size);
 
@@ -147,10 +155,10 @@ the data stored.
 
 =head2 Speed
 
-L<FFI::Raw> provides a less complicated, more portable method for 
+FFI::Raw provides a less complicated, more portable method for 
 calling machine code from Perl.  Any FFI (calling one language from an 
 other) will inherently involve extra overhead, when you cross the 
-language barrier.  Because L<FFI::Raw> is implmented itself in XS, you 
+language barrier.  Because FFI::Raw is implmented itself in XS, you 
 are taking a hit from both XS and C<libffi> every time you call a 
 function in your target library.  Both XS and C<libffi> are relatively 
 fast, but XS will frequently be somewhat faster assuming you tune your 
@@ -158,17 +166,16 @@ XS correctly.  The question that you should ask yourself: is the time
 spent debugging code, tuning XS and reading L<perlapi> really worth it?  
 If more time is being spent in the library you are calling than in 
 crossing the language barrier, then you should definitely consider 
-L<FFI::Raw> and save yourself some programmer time at the expense of a 
+FFI::Raw and save yourself some programmer time at the expense of a 
 comparably small amout of CPU time.
 
-=head1 SEE ALSO
+=head1 See Also
 
-L<FFI::Util>
+=for :list
+* L<FFI::Raw>
+* L<FFI::Raw::MemPtr>
+* L<FFI::Util>
+* L<FFI::CheckLib>
+* L<Archive::Libarchive::FFI>
+* L<FFI::Sweet|https://github.com/merrilymeredith/p5-FFI-Sweet>
 
-L<FFI::CheckLib>
-
-L<Archive::Libarchive::FFI>
-
-L<FFI::Sweet|https://github.com/merrilymeredith/p5-FFI-Sweet>
-
-=cut
