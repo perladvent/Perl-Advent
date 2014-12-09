@@ -1,0 +1,368 @@
+Title: Type
+Topic: Type::Tiny
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Perl doesn't (yet) have a native type system built into it, but as is often the
+case, powerful solutions can be found on the CPAN. Type::Tiny is a small,
+lightweight type system for Perl that is compatible with Moose, Moo and Mouse.
+It ships with a useful set of standard types, and the underpinings you need to
+quickly define type libraries of your own.
+
+=head2 A Moo Contraints Recap
+
+Let's write a very simple Moo based object representing what we'll be leaving
+out for jolly old St Nick this Christmas.
+
+Accessors in Moo can be defined with a simple C<isa> keyword that accepts a
+subroutine reference that can validate whatever you're setting the attribute to:
+
+  #!perl
+  package StuffForSanta;
+
+  use Moo;
+
+  has mincepies => (
+    is => "rw",
+    isa => sub { die "invalid" unless $_[0] =~ /\A-?[0-9]+\z/ },
+  );
+
+So now StuffForSanta won't let us cheat:
+
+   #!perl
+   my $plate = StuffForSanta->new(
+      mincepies => "lots",
+   );
+
+Results in:
+
+   isa check for "mincepies" failed: invalid at StuffForSanta.pm line 7.
+
+There are numerous problems with this simple aproach however:
+
+=for html
+<ul>
+<li>The code isn't exactly what I'd call easy to read.  You have to actually
+parse the regular expression in your head each time to understand what's going
+on</li>
+<li>The error message doesn't actually tell you what's going wrong.  Good luck
+making sense of that during the production outage at 3:32am on Christmas Eve!
+</li>
+<li>Embedded like it is the contraint is hard to to test in isolation
+without having to instanciate the StuffForSanta object</li>
+<li>The code isn't reusable beyond the dreaded copy and paste</li>
+</ul>
+
+What we need instead is a library of constraints that we can reuse, that have
+tests, and have easiy to read names. In the Modern Perl world we call such
+reusable constraints I<types>.
+
+=head2 Introducting Type::Standard
+
+Handily, Type::Tiny comes with Type::Standard, a bunch of built-in types that
+can be directly used with Moo, no further coding required:
+
+  #!perl
+  package StuffForSanta;
+
+  use Moo;
+  use Types::Standard qw(:all);
+
+  # how many mince pies are there?
+  has mincepies => (
+      is => "rw",
+      isa => Int,
+      default => 0,
+  );
+
+  # how many carrots got left out?
+  has carrots => (
+      is => "rw",
+      isa => Int,
+      default => 0,
+  );
+
+  # and a drink
+  has drink => (
+      is => "rw",
+      isa => Enum["Milk","Sherry"],
+  );
+
+  1;
+
+You'll note that the type names themselves (C<Int>, C<Enum>, etc) are barewords,
+not quoted strings nor variables.  Under the hood Type::Tiny is doing clever
+things with subroutine prototypes and overloaded variables to provide the clear
+syntax you see above, none of which you need worry about in your day to day
+usage of the type system.
+
+Now if we attempt to define an invalid object
+
+   #!perl
+   my $plate = StuffForSanta->new(
+      carrots => 10,
+      drink => "Prune Juice",
+   );
+
+Our type system complains bitterly in a much more readable fashion when things go wrong:
+
+    Value "Prune Juice" did not pass type constraint "Enum["Milk","Sherry"]" (in $args->{"drink"}) at plate.pl line 8
+      "Enum["Milk","Sherry"]" requires that the value is equal to "Milk" or "Sherry"
+
+=head2 Writing your Own Types
+
+Writing your own type is very simple to do.  You can use Type::Tiny's
+constructor, or simplier yet, use the syntatic sugar for declaring
+types from Type::Utils:
+
+   #!perl
+   use Type::Utils -all;
+
+   declare "USTelephone",
+     where { /^(?:[+]?1-)?\d{3}-?\d{3}-?\d{4}$/a },
+     message { "$_ doesn't look like a US telephone number to me" };
+
+Since declaring a type also defines the handy C<is_Whatever> function call
+we can easily test the type:
+
+   #!perl
+   ok is_USTelephone("+1-202-456-1111"), "Whitehouse telephone number valid";
+   ok is_USTelephone("+7-495-695-37-76"), "Kremlin telephone number not valid";
+
+Rather than declaring your types in the class that you're going to
+be using them, you should put them in their own package that
+subclasses Type::Libary:
+
+  #!perl
+  package Type::USTelephone;
+  use base qw(Type::Library);
+
+  use 5.014;
+  use warnings;
+
+  use Type::Utils -all;
+
+  declare "USTelephone",
+     where { /^(?:1-)?\d{3}-?\d{3}-?\d{4}$/a },
+     message { "$_ doesn't look like a US telephone number to me" };
+
+  1;
+
+Then that type can be used in your object class:
+
+  #!perl
+  package AlbanyPMMember;
+
+  use Moo;
+  use Types::Standard qw(:all);
+  use Types::USTelephone qw(:all);
+
+  has name => (
+    is => "ro",
+    isa => Str,
+  );
+
+  has cell => (
+    is => "ro",
+    isa => USTelephone,
+  );
+
+  ...
+
+=head2 Coercion 
+
+Automatic coercion allows Perl to automatically convert one type from another
+type in situations where this might be benefical.
+
+For example, let's add a C<plate_color> attribute to our StuffForSanta
+Moo class:
+
+   #!perl
+   has plate_color => (
+     is => "rw",
+     isa => InstanceOf["Graphics::Color::RGB"],
+   );
+
+This is a standard type constraint from Types::Standard that insists that
+this attibute only accepts an argument that is the specified type (i.e.
+only something that C<<->isa("Graphics::Color::RGB")>>.)
+
+However, while this works:
+
+  #!perl
+  my $plate = StuffForSanta->new(
+     plate_color => Graphics::Color::RGB->new(
+        red   => 1,
+        green => 1,
+        blue => 0.9,
+     )
+     ...
+  );
+
+It'd be nice if this worked too:
+
+  #!perl
+  my $plate = StuffForSanta->new(
+     plate_color => "#ffffdd",
+     ...
+  );
+
+We'd like StuffForSanta to automatically create the Graphics::Color::RGB
+object for us from the string as needed.
+
+First, in our type library let's create a more readable version of the
+C<InstanceOf["Graphics::Color::RGB"]> type by creating a named type:
+
+ #!perl
+ class_type Color, { class => "Graphics::Color::RGB" };
+
+Now we can write:
+
+  #!perl
+  has plate_color => (
+    is => "rw",
+    isa => Color,
+  );
+
+Now let's create a named coercion:
+
+  #!perl
+  declare_coercion "ColorFromStr",
+        to_type Color,
+        from Str, via {
+           # unless this looks like #ffffff or #fff return the original
+           # string to indicate no coercion is possible
+           return $_ unless /\A # (?: [0-9a-f]{3} | [0-9a-f]{6} ) \z/ix;
+
+           # turn it into a G::C::RGB object
+           return Graphics::Color::RGB->from_hex_string( $_ );
+        };
+
+And add it to our Moo class attribute:
+
+  #!perl
+  has plate_color => (
+    is => "rw",
+    isa => Color,
+    coerce => ColorFromStr,
+  );
+
+Now we can write:
+
+  #!perl
+  my $plate = StuffForSanta->new(
+     plate_color => "#ffffdd",
+     ...
+  );
+
+  say $plate->plate_color->red;
+  say $plate->plate_color->green;
+  say $plate->plate_color->blue;
+
+One important thing to note that this coercion only has effect in this one
+accessor where we've set C<coercian> - we don't have to worry about accidentally
+triggering a coercian in other accessors and having spooky action at a distance.
+
+=head2 Per Accessor Moose Coercion
+
+Up until this point our Moo and Moose code looks essentially identical, but the
+way Moose handles coercions is different to Moo:  It has global coercions that
+apply any time a type is used in any accessor that has coercians enabled.  This
+can lead to unpredictable action at a distance if we're not careful.
+
+Type::Tiny has a solution to this issue;  Essentially it has a syntax
+for creating a one-off variant of a standard class with additional coercian
+ability.
+
+A similar Moose accessor would look like this:
+
+  #!perl
+  has plate_color => (
+    is => "rw",
+    isa => Color->plus_coercians(ColorFromStr),
+    coerce => 1,
+  );
+
+The C<<Color->plus_coercians(ColorFromStr)>> call actually returns a
+new one-off type that is a Color class with the additional ColorFromStr
+coercian.
+
+=head2 Speed Optimizations
+
+Because type systems often end up in I<hot> areas of code, every little
+speed improvement can help.  Up until now we've been declaring our code
+as simple subroutines, but we can optomize this further by giving our
+type system a string containing a snippet of code - the type system can
+directly compile this into the accessor routine.
+
+To demonstrate how much quicker this can be, let's do a quick benchmark.
+First let's declare a simple type class: 
+
+ #!perl
+ package MyTyps;
+  use base qw(Type::Library);
+
+  use 5.014;
+  use warnings;
+
+  use Type::Utils -all;
+
+  declare "ThreeChars",
+    where { defined && !ref && length == 3 },
+    message { "Not a three character string" };
+
+Now, let's create a simple object that uses it
+
+  #!perl
+  package Simple;
+
+  use Moo;
+  use MyTypes -all;
+
+  has three_chars => (
+      is => 'ro',
+      isa => ThreeChars,
+  );
+
+And time how long it takes to instanciate a million of these:
+
+   timethis 1000000: 10 wallclock secs (10.54 usr +  0.01 sys = 10.55 CPU) @ 94786.73/s (n=1000000)
+
+Now if we modify our constraint to have an C<inline_as> subroutine that can
+generate a bunch of Perl code as needed:
+
+  #!perl
+  declare "ThreeChars",
+    where { defined && !ref && length == 3 },
+    inline_as {
+       my ($constraint, $var) = @_;
+       return "defined $var && !ref $var && length $var == 3"
+    },
+    message { "Not a three character string" };
+
+This is signifcantly quicker:
+
+   timethis 1000000:  9 wallclock secs ( 8.83 usr +  0.01 sys =  8.84 CPU) @ 113122.17/s (n=1000000)
+
+=for html
+<br><center><img src="benchmark.png" width="391" height="323"></center>
+
+=head2 Conclusion
+
+Type::Tiny offers a deceptively simple aproach to creating types with Perl.
+Despite its C<::Tiny> name, it is a powerful system that allows you do do
+complex validation.  And unlike Moose based type systems Type::Tiny's entire
+dependancy chain involves only one Perl module (which is 100% Pure Perl) and
+does not require a compiler to build making it an excellent choice for code
+that needs to be easy to distribute.
+
+=head1 See Also
+
+=for :list
+* L<Type::Tiny>
+* L<Type::Tiny::Manual>
+* L<Type::Standard>
+* L<Type::Util>
+* L<Type::Library>
+* L<Moo>
+* L<Moose>
+* L<MooseX::Types>
