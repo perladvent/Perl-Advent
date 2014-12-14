@@ -1,0 +1,84 @@
+=head1 Wrapping output 
+
+Normally this is the time of year when people think about I<unwrapping> things.
+Today, we're going to talk about wrapping output into some buffers.
+
+Capturing output from other tools is something that Perl is pretty good at - and
+there are about eleventy billion modules on CPAN to help you do it. Which one
+should you pick? Which one will solve 95% of your problems and not tie you down
+with tons of external dependencies? Which ones work on all supported Perl
+platforms including Windows?
+
+For this advent entry, we are going to take a look at L<Capture::Tiny>, a module
+which offers two simple functions L<capture> and L<tee> and which delivers on
+the "Tiny" premise of not requiring B<any> dependencies outside of core perl.
+Yes, it works on Windows, too. As far as compatibility across Perl releases, 
+Capture::Tiny works as far back at Perl 5.6.1 but, seriously, try not to use
+such an ancient Perl if you can help it. (Especially not if you need Unicode
+support; Unicode before 5.8.1 is super dodgy.)
+
+=head1 External commands
+
+Most people think about capturing the output from external commands - and
+Capture::Tiny is great at that task.  It's a simple as something like this:
+
+  use Capture::Tiny qw(capture);
+
+  my ($out, $err, $exit) = capture {
+	  system("/bin/ls", ("-l", "/tmp"));
+  };
+
+It's important to note that none of the functions in Capture::Tiny are exported
+by default - you need to use C<:all> or directly import the functions from the
+module.
+
+=head1 Arbitrary code
+
+The interesting thing is we don't need to use C<system> above. We can put
+arbitrary Perl code in that code block and Capture::Tiny will just do the right
+thing.  Check it out:
+
+  use Capture::Tiny qw(capture);
+
+  my ($out, $err, @results) = capture {
+	  say for 'a' .. 'z';
+  };
+
+  say $out;
+  # prints
+  # a
+  # b
+  # c
+  # d
+  # ...
+
+=head1 Passing through
+
+OK, there's a Unix command called C<tee> that's been around for a long time. It
+saves standard out and standard error to a file, but also passes those sources
+through.  In that spirit, Capture::Tiny has a function named C<tee> which does
+the same thing.  Functionally, it's almost the same as capture but instead of
+swallowing the output streams, it stuffs them into two scalars you specify.
+
+  use Capture::Tiny qw(tee);
+
+  my ($out, $err) = tee {
+	  say for 1 .. 10;
+  };
+
+  say length($out);
+  # prints
+  # 1
+  # 2
+  # ...
+  # 21 - 10 integers followed by \n
+
+=head1 In summary
+
+L<Capture::Tiny> does everything you're likely to need in terms of grabbing
+standard output and/or standard error. It's easy to use, easy to install, has no
+non-core dependencies and works on every supported Perl platform.  Instead of
+one of the other many other CPAN modules, start using Capture::Tiny. It'll be
+a present to yourself you won't regret unwrapping.
+
+=cut
