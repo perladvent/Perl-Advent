@@ -1,0 +1,166 @@
+Title: Optional tests for optional requirements
+Topic: Test::Requires
+Author: Neil Bowers <neil@bowers.com>
+
+There are some modules on CPAN that provide optional features,
+where the availability of the feature is dependent on one or more other modules.
+One common example is optional support for export of data as an SQLite
+database, which is only supported if L<DBD::SQLite> is installed.
+
+Of course you want tests for all features of your module,
+and that means you need an optional test for your optional feature.
+And that's where L<Test::Requires> comes in.
+
+Let's say you've got some module that builds up information from the net,
+then can export it in a number of formats. There might be some core formats,
+like JSON and XML, but there might be some optional ones, such as SQLite.
+So in your test directory, you might have a file `export-as-sqlite.t`,
+which would start with:
+
+ #!perl
+ use Test::Requries qw/ DBD::SQLite /;
+ # write test that can safely assume that DBD::SQLite is available
+
+If L<DBD::SQLite> isn't available, then the entire test-suite will be skipped.
+Unless you're running release tests (for example when running `dzil release`),
+in which case the test-suite will bail out.
+
+You can also use L<Test::Requires>
+to require a particular version of Perl for a specific test-suite:
+
+ #!perl
+ use Test::Requires '5.010';
+
+=head1 How do people use it in real life?
+
+Sometimes you discover a new module that seems pretty groovy,
+but you can't imagine a use case where I<you> might actually use it.
+A handy tip for such situations: use L<grep.cpan.me|http://grep.cpan.me>
+to find out how other people use the module. In the search box just enter:
+
+ #!perl
+ use Test::Requires
+
+And you'll get a paged list of
+L<how existing modules use Test::Requires|http://grep.cpan.me/?q=use+Test%3A%3ARequires>. Let's look at some real-life examples for L<Test::Requires>!
+
+=head2 BPM::Engine
+
+L<BPM::Engine> is a "Business Process Execution Engine", which can use
+various database back-ends. It has a class C<t::TestUtils> used by all
+of the tests, and in there you'll see the line:
+
+ use Test::Requires 'DBD::SQLite';
+
+There's an additional small point illustrated here.
+To run this test you also need L<DBI> installed, but given that
+L<DBD::SQLite> depends on L<DBI>, you are essentially covering both
+with the above statement. In general, if there's a chain of dependencies,
+you only need to specify the last module in the chain.
+
+=head2 namespace::autoclean
+
+L<namespace::autoclean> is used to ensure that symbols imported
+into your module don't pollute your namespace.
+It has a test file
+L<moo.t|https://metacpan.org/source/ETHER/namespace-autoclean-0.22/t/moo.t>,
+which tests usage of L<namespace::autoclean> with L<Moo>.
+At the start of this file you'll see the following, which means that
+L<Moo> isn't required to install L<namespace::autoclean>
+
+ #!perl
+ use strict;
+ use warnings;
+ use Test::More 0.88;
+ {
+   package Temp1;
+   use Test::Requires {
+     'Moo' => 0,
+   };
+ }
+
+Why this funny-looking construct?
+Unfortunately C<use Test::Requires 'Foo::Bar'> ends up running
+C<eval "use Foo::Bar">, which means that if C<Foo::Bar> exports any
+symbols by default, then they'll end up in your namespace.
+Putting this in a sacrificial namespace avoids that problem.
+
+=head2 Kavorka
+
+L<Toby Inkster|https://metacpan.org/author/TOBYINK>'s L<Kavorka>
+provides function and method declaration keywords that support signatures.
+Typically for Toby, he's made sure it plays nicely with L<Moose>, L<Mouse>,
+and L<Moo>.
+So in the test-suite L<21modifiers-moose.t|https://metacpan.org/source/TOBYINK/Kavorka-0.036/t/21modifiers-moose.t#L1> you'll see:
+
+  #!perl
+ use Test::Requires { 'Moose' => '2.0000' };
+
+This shows the syntax for specifying a minimum required version of the module.
+
+=head2 ZeroMQ
+
+Above I said that you only need to use C<Test::Requires> on the last
+module in a dependency chain. But sometimes a test might require
+two independent modules. For example, L<ZeroMQ>'s
+L<006_anyevent.t|https://metacpan.org/source/DMAKI/ZeroMQ-0.23/t/006_anyevent.t>
+has the line:
+
+ #!perl
+ use Test::Requires qw( Test::TCP AnyEvent );
+
+Which means the test will be skipped unless both modules are installed.
+
+=head2 Tiffany
+
+L<TOKUHIROM|https://metacpan.org/author/TOKUHIROM>'s L<Tiffany>
+provides a generic interface to multiple templating engines.
+So by now you shouldn't be surprised to see the following line in a test:
+
+ #!perl
+ use Test::Requires 'Text::Xslate';
+
+=head2 Text::Xslate
+
+You really don't want memory leaks in your templating system,
+but not everyone will have modules like L<Test::LeakTrace> installed.
+So L<Text::Xslate>'s test file L<200_leaktrace.t|https://metacpan.org/source/SYOHEX/Text-Xslate-3.3.3/t/010_internals/200_leaktrace.t> has:
+
+ #!perl
+ use Test::Requires { 'Test::LeakTrace' => 0.13 };
+
+Similarly other modules have optional tests using L<Devel::Monitor>.
+
+=head1 Summary
+
+L<Test::Requires> is handy when writing tests for a distribution
+that provides optional features based on modules in other CPAN distributions.
+Some common examples are:
+
+=over 4
+
+=item * Supporting multiple database engines.
+
+=item * Supporting multiple template engines.
+
+=item * Where some things are only accessible via https, so you need L<IO::Socket::SSL>.
+
+=item * Supporting multiple serialisation modules, such as L<Storable>, L<Sereal>, or even L<SQLite|DBD::SQLite>.
+
+=item * Supporting multiple formats like YAML, JSON, XML.
+
+=item * Supporting multiple HTTP request user agents, such as L<HTTP::Tiny>, L<LWP>, L<WWW::Mechanize>.
+
+=item * Running some tests only if certain C<Devel::> modules are installed.
+
+=back
+
+One thing to be aware of:
+C<Test::Requires> ends up C<use>'ing the target modules.
+
+=head2 See Also
+
+=for :list
+* L<Test::RequiresInternet> - skip test if we can't access the interwebs
+* L<Test::Requires::Env> - skip tests if certain environment variables aren't set (optionally requiring specific values).
+
