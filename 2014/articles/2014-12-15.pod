@@ -66,6 +66,7 @@ Alders|https://metacpan.org/author/OALDERS>!".
 With Olaf's help, Blink wrote the following, to iterate over all CPAN
 distributions, using the MetaCPAN API:
 
+ #!perl
  use MetaCPAN::Client;
  my $client     = MetaCPAN::Client->new();
  my $query      = { all => [
@@ -78,8 +79,8 @@ distributions, using the MetaCPAN API:
  while (my $release = $result_set->next) {
  }
 
-The C<<maturity => 'released'>> says that you don't want developer releases, and
-C<<status => 'latest'>> says that you only want the latest release for each
+The C<< maturity => 'released' >> says that you don't want developer releases, and
+C<< status => 'latest' >> says that you only want the latest release for each
 distribution.
 
 You can look at the release data for a distribution using the API in a browser,
@@ -91,6 +92,7 @@ you saw from the API.
 
 The two bits of interest here are:
 
+ #!perl
  my $distname = $release->metadata->{name};
  # "URI-Title"
 
@@ -105,6 +107,7 @@ You can then give that C<$path> to L<CPAN::DistnameInfo>, and the C<dist> method
 tells you what it thinks the distribution name is. So Blink could compare that
 with the name from the metadata file, which handily is also available:
 
+ #!perl
  use CPAN::DistnameInfo;
  my $dinfo = CPAN::DistnameInfo->new($path);
  push(@bad, $path) if $dinfo->dist ne $distname;
@@ -114,6 +117,7 @@ name according to L<CPAN::DistnameInfo> is available in the C<distribution>
 field from the API, and the accessor of the same name. So the above code
 becomes:
 
+ #!perl
  push(@bad, $path) if $release->distribution ne $release->metadata->{name};
 
 So now Blink could build a list of problem distributions, but he'd been told to
@@ -129,6 +133,7 @@ C<resources> key.
 You can use this fact to further constrain your MetaCPAN search, so that you
 only consider distributions with a github repo in their metadata:
 
+ #!perl
  my $query  = { all => [
                    {                     status => 'latest'   },
                    {                   maturity => 'released' },
@@ -142,6 +147,7 @@ This results in a lot fewer bytes coming back over the wire.
 
 They paired up to refactor Blink's code, and ended up with this:
 
+ #!perl
  use MetaCPAN::Client;
  my $client     = MetaCPAN::Client->new();
  my $query      = { all => [
