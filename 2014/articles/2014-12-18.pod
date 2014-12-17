@@ -1,0 +1,205 @@
+Title: Christmas Timekeeping
+Topic: Data::ICal::DateTime
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+The key to doing Christmas right is proper planning of the day.  None of this
+wishy washy behavior that ends up with your pregnant wife giving birth in
+a manger.  No, no, we need B<organization>!  We need a B<schedule>!  We need
+a B<calendar>!
+
+In my normal working day I use a Perl script to create events on my calendar
+from templates, calculating backwards with DateTime from when known point where
+operations need to end to work out when the things need to happen.  I juggle
+time zones.  I have recurrences of the same event over and over.
+
+It's just these technical skills I need to apply to my Christmas Day calendar
+if I'm going to make it through in one piece.
+
+=head2 The iCal file
+
+The simplest way to put something into my calendar is to use Perl to create a
+ICal calendar file first, then open it in my calendar application.  Luckily
+there's a Perl module for that.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+    use autodie;
+
+    use File::Temp qw(tempfile);
+    use Data::ICal::DateTime;
+    use Data::ICal::Entry::Event;
+
+    my $cal = Data::ICal->new();
+
+    ...;
+
+    my ($fh, $filename) = tempfile(undef, SUFFIX => ".ics");
+    print $fh $cal->as_string;
+    close $fh;
+
+    # since my computer is a Mac I can open the calendar file
+    # in Calendar.app by just using the "open" command on it
+    system("open", $filename);
+
+Now all we need do is replace the C<...> with some actual code to add some
+events to our calendar.  We've loaded Data::ICal::DateTime which allows
+us to use the all powerful DateTime module to construct DateTime object
+from which we can create events.
+
+=head2 Turkey Dinner
+
+Even thought I now live in New York, since I was raised in England each year
+it's tradition to make sure that we cook a turkey dinner.  Let's add a entry for
+eating that to our calendar straight away:
+
+    #!perl
+    # Let's eat at 2PM
+    my $dinnertime = DateTime->new(
+       year       => 2014,
+       month      => 12,
+       day        => 25,
+       hour       => 15,
+       minute     => 00,
+       second     => 00,
+       time_zone  => 'America/New_York',
+    );
+
+    # And let's take two hours to eat
+    my $dinner_duration = DateTime::Duration->new( hours => 2 );
+
+    # create the event
+    my $dinner = Data::ICal::Entry::Event->new();
+    $dinner->summary("Christmas Dinner");
+    $dinner->description("Turkey with all the trimmings");
+    $dinner->start( $dinnertime );
+    $dinner->duration( $dinner_duration );
+    $cal->add_entry( $dinner );
+
+Of course, we'll need to cook the Turkey.  Let's work out when this should
+go in by working backwards from the time the dinner was meant to start.  Note
+how the overloaded operators for DateTime and DateTime::Duration allow us
+to simply use subtraction to create a new DateTime.
+
+    #!perl
+    # butterball says it'll take 4h for a 20lb Turkey
+    my $cooking_time = DateTime::Duration->new( hours => 4 );
+    my $in_the_oven = $dinnertime - $cooking_time;
+
+    # and it'll probably take me 45 minutes to prep the turkey
+    my $prep_time = DateTime::Duration->new( minutes => 45 );
+    my $prep_start = $in_the_oven - $prep_time;
+
+    # create the events
+    my $cooking = Data::ICal::Entry::Event->new();
+    $cooking->summary("Cooking Turkey");
+    $cooking->description("Cook at 325F using open pan method");
+    $cooking->start( $in_the_oven );
+    $cooking->end( $dinnertime );
+    $cal->add_entry( $cooking );
+
+    my $prep = Data::ICal::Entry::Event->new();
+    $prep->summary("Prep Turkey");
+    $prep->description("Wash, apply rub, stuff turkey, place in pan");
+    $prep->start( $prep_start );
+    $prep->end( $in_the_oven );
+    $cal->add_entry( $prep );
+
+We also need to put in the roast veg.  We can use multiplication to work
+out how long the prep time will be.
+
+    #!perl
+    my $people = 10;
+    my $time_per_person = DateTime::Duration->new( minutes => 5 );
+    my $veg_prep_time = $people * $time_per_person;
+
+    my $veg_cook_time = DateTime::Duration->new( minutes => 45 );
+
+    my $veg_prep = Data::ICal::Entry::Event->new();
+    $veg_prep->summary("Prep veg");
+    $veg_prep->description("Prep veg and then stick in oven");
+    $veg_prep->start( $dinnertime - ( $veg_cook_time + $veg_prep_time ) );
+    $veg_prep->duration( $veg_prep_time );
+    $cal->add_entry( $veg_prep );
+
+=head2 Fun with Time Zones 
+
+Like any loyal British Citizen I have to watch the Queen's speech (which these
+days can be found on YouTube for ex-pats like myself.)
+
+There's nothing stopping us adding an event to our calendar that's in another
+time zone:
+
+    #!perl
+    # The Queen's speech is broadcast at 3PM in the UK.  When I add
+    # this to my EST calendar, it shows up as happening at 10am.
+    my $speech_time = DateTime->new(
+       year       => 2014,
+       month      => 12,
+       day        => 25,
+       hour       => 15,
+       minute     => 00,
+       second     => 00,
+       time_zone  => 'Europe/London',  # note, different to where I live!
+    );
+    my $speech_duration = DateTime::Duration->new( minutes => 15 );
+
+    # create the event
+    my $speech = Data::ICal::Entry::Event->new();
+    $speech->summary("The Queen's Speech");
+    $speech->start( $speech_time );
+    $speech->duration( $speech_duration );
+    $cal->add_entry( $speech );
+
+=head2 Repeating Events
+
+At the end of a long day of celebrating we need each night to remember to turn
+off the Christmas lights before we go to bed.  We'll need to do this each night
+until twelfth night.
+
+  #!perl
+  my $ninepm = DateTime->new(
+    year       => 2014,
+    month      => 12,
+    day        => 25,
+    hour       => 21,
+    minute     => 00,
+    second     => 00,
+    time_zone  => 'America/New_York',
+  );
+
+  my $turn_off_lights = Data::ICal::Entry::Event->new();
+  $turn_off_lights->summary("Turn off lights");
+  $turn_off_lights->duration( DateTime::Duration->new( minutes => 15 ) );
+  $turn_off_lights->start( $ninepm );
+  $turn_off_lights->add_properties(
+      rrule => "FREQ=DAILY;COUNT=12"  # every day for 12 days
+  );
+  $cal->add_entry( $turn_off_lights );
+
+=head2 Ready to Go
+
+The final result looks awesome:
+
+=for html
+  <center><img src="cal.png"></center>
+
+Now I'm organized.  If only I'd had time with all this preparation to go
+out and buy presents...
+
+=head1 See Also
+
+=for :list
+* L<Data::ICal::DateTime>
+* L<Data::ICal>
+* L<DateTime>
+* L<DateTime::Format::ICal>
+* L<https://www.ietf.org/rfc/rfc2445.txt>
+* L<http://www.butterball.com/calculators-and-conversions>
+* L<https://www.youtube.com/user/TheRoyalChannel>
+
+
+
+
