@@ -1,0 +1,222 @@
+Title: A Holiday PAPR-ation
+Topic: Plack::App::Path::Router
+Author: John SJ Anderson <genehack@genehack.org>
+
+Jesse, Junior IT Elf Second Class grumbled to himself, "Who even
+thought this was a good idea anyway." He had grabbed a ticket out of
+the North Pole's ticketing system, thinking that adding a simple new
+endpoint to an existing RESTful API would be a fairly trivial task. He
+had hoped to get out of the office early today, and instead he was
+staring at a creeping horror and the possibility of working all
+weekend.
+
+Clearly, the code had originally started out as a very simple API of
+only a few endpoints. The original coder, either being in a hurry or
+just not knowing any better, had decided to implement it as a series
+of C< if >-C< elsif >-C< else > blocks based on the first element in
+the URL string.
+
+Now, 10 years later, there were dozens of C< elsif > blocks, each with
+its own specialized handling of the subsequent parts of the URL. There
+was no overall organization to the code -- it seemed as if every time
+a new endpoint was required, the elf doing the work had just slapped
+in an C< elsif > block whereever they felt like. The end result now
+had a structure something like this (only much worse -- the example is
+sanitized for a family audience):
+
+    #!perl
+    use CGI;
+
+    my $cgi = CGI->new();
+
+    my( $first , @rest ) = $cgi->path_info();
+
+    # /present/present_id/action
+    if( $first eq 'present' ) {
+      my( $id , $action ) = @rest;
+      validate_present_id( $id ) or return_error("bad id");
+      if( $action ) {
+        return_error("bad method") unless $ENV{REQUEST_METHOD} eq 'POST';
+        $action =~ /^(add|update|delete)$/ or return_error("bad action");
+        _handle_present_update( $id , $action );
+      }
+      else {
+        return_error("bad method") unless $ENV{REQUEST_METHOD} eq 'GET';
+        _handle_present_get( $id )
+      }
+    }
+    # /good_child/child_id/reason
+    elsif( $first eq 'good_child' ) {
+      my( $id , $reason ) = @rest;
+      validate_child_id( $id ) or return_error("bad id");
+      validate_reason( $reason) or return_error("bad reason");
+      return_error("bad method") unless $ENV{REQUEST_METHOD} eq 'POST';
+      _handle_child_update( 'good_child' , $id , $reason );
+    }
+    # /bad_child/child_id/reason
+    elsif( $first eq 'bad_child' ) {
+      my( $id , $reason ) = @rest;
+      validate_child_id( $id ) or return_error("bad id");
+      validate_reason( $reason) or return_error("bad reason");
+      return_error("bad method") unless $ENV{REQUEST_METHOD} eq 'POST';
+      _handle_child_update( 'bad_child' , $id , $reason );
+    }
+    else {
+      return_error("no match!")
+    }
+
+As Jesse sat and stared at screen after screen of cascading
+conditionals, grumbling and muttering to himself, his boss Margaret
+walked by and asked, "What's going on, Jesse?"
+
+Jesse started to rant about the API code, but Margaret cut him off
+quickly. "Listen, didn't you see the last memo that came out from the
+Big Guy? We're supposed to be replacing all those old CGIs with PSGIs
+when ever we have to make any changes to them. This is your lucky day,
+Junior! You get to clean up this mess. But we've got apps deployed in
+the field that rely on this API, so make sure you don't change any of
+the endpoints while you're porting it over, or there will be heck to
+pay."
+
+"Fine", Jesse sighed. "I guess I can go on
+L<MetaCPAN|https://metacpan.org/> and research the best way to..."
+
+Margaret cut him off again. "No need, kid. Just use PAPR --
+L<Plack::App::Path::Router>!"
+
+Jesse sighed again as he pulled up the documentation on MetaCPAN. He
+learned that L<Plack::App::Path::Router> provides a convenient way to
+take a L<Path::Router> specification and wrap it up as a PSGI. Jesse
+was quickly able to turn the existing conditional cascade into a much
+more declarative set of C< add_route > statements. He also quickly
+realized that he could replace all the custom validation routines in
+the old code with C<Path::Router>'s parameter extraction and
+L<Moose>-style validations.
+
+Within a few hours, Jesse had converted all the old style code to a form
+that looked like this:
+
+    #!perl
+
+    use Plack::App::Path::Router;
+    use Path::Router;
+
+    my $router = Path::Router->new();
+    # note - formerly handled by a single conditional stanza; now split into two
+    $router->add_route( '/present/:present_id' => (
+      validations => { present_id => 'Int' } ,
+      target      => sub {
+        # $request is a L<Plack::Request> object
+        my( $request , $id ) = @_;
+        return_error("bad method") unless $request->method() eq 'GET';
+        _handle_present_get( $id )
+      }
+    ));
+
+    $router->add_route( '/present/:present_id/:action' => (
+      validations => {
+        present_id => 'Int' ,
+        action     => qr/^(add|update|delete)$/ , # validations can also be plain regexps
+      },
+      target => sub {
+        my( $request , $id , $action ) = @_;
+        return_error("bad method") unless $request->method() eq 'POST';
+        _handle_present_update( $id , $action );
+      }
+    ));
+
+    # covers both /good_child/ and /bad_child/ endpoints
+    $router->add_route( '/:child_type/:child_id/:reason' ) => (
+      validations => {
+        child_type => qr/^(good|bad)_child/ ,
+        child_id   => 'Int' ,
+        reason     => 'Str' ,
+      } ,
+      target => sub {
+        my( $request , $type , $id , $reason ) = @_;
+        return_error("bad method") unless $request->method() eq 'POST';
+        _handle_child_update( $type , $id , $reason );
+      }
+    ));
+
+    # now create the Plack app
+    my $app = Plack::App::Path::Router->new( router => $router );
+
+He commited his changes, and then added in one more change that added
+the new endpoint that had originally started him down this path. Work
+all done, he pushed his branch, and moved the ticket into the code
+review stage. While it had taken him a little longer than he expected,
+it still looked like he'd be done early.
+
+As he made one last scan over his email, Jesse realized that Margaret
+had already responded to his code review request ... and worse, she'd
+rejected his changes! She was asking for something that was more
+data-driven and didn't have so much boilerplate code. Her suggestion
+was to look at L<Plack::App::Path::Router::Custom> -- which Jesse
+dutifully pulled up on MetaCPAN. After a few minutes of reading, he
+saw exactly what she was talking about. He rapidly converted the
+previous version into this completely data-driven form:
+
+    #!perl
+    use Path::Router;
+    use Plack::App::Path::Router;
+    use Plack::Request;
+
+    use SantasWorkshop::API;  # all the '_handle' methods were migrated to here
+
+    # each entry is 'route definition' => 'method' => 'hashref of options'
+    my @routes = (
+      [ '/present/:present_id' => 'handle_present_get' => {
+        methods     => { 'GET' => 1 } ,
+        validations => { present_id => 'Int' } ,
+      }] ,
+
+      [ '/present/:present_id/:action' => 'handle_present_update' => {
+        methods     => { 'POST' => 1 } ,
+        validations => {
+          present_id => 'Int' ,
+          action     => qr/^(add|update|delete)$/ , # validations can also be plain regexpsld
+        },
+      }] ,
+
+      # covers both /good_child/ and /bad_child/ endpoints
+      [ '/:child_type/:child_id/:reason' => 'handle_child_update' => {
+        methods     => { 'POST' => 1 } ,
+        validations => {
+          child_type => qr/^(good|bad)_child/ ,
+          child_id   => 'Int' ,
+          reason     => 'Str' ,
+        } ,
+      }] ,
+    )
+
+    # dynamically build the routing table based on the @routes data structure
+    my $router = Path::Router->new();
+    foreach (@routes) {
+      my ( $endpoint, $action, $options ) = @$_;
+
+      $router->add_route( $endpoint => (
+        target => sub {
+          my ( $request, @rest ) = @_;
+
+          if ( exists $options->{methods} ) {
+            my $request_method = $request->method();
+            return_error("bad method") unless $options->{methods}{$request_method};
+          }
+
+          return SantasWorkshop::API->new()->$action(@rest);
+        } ,
+        validations => $options->{validations} ,
+      ));
+    }
+
+    # once the routing table is all build, make the app using that router.
+    my $app = Plack::App::Path::Router::Custom->new(
+      router      => $router,
+      new_request => sub { Plack::Request->new(shift) } ,
+    );
+
+Jesse pushed the final revision up for code review and got
+notification of Margaret's merging of the code into the release branch
+only a few minutes later -- along with an IM saying, "Nice work, kid
+-- how about you take off early today."
