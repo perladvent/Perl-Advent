@@ -1,0 +1,209 @@
+Title: Beyond Grep
+Topic: App::ack
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Ack is a Perl based command line utility designed to replace "99% uses of
+grep" which is a fancy way of saying it's a much smarter version of grep
+designed to be used at the command line interactively rather than in scripts.
+
+=head2 The Advantages of Ack
+
+Whenever I get started on a big new project I need to familiarize myself
+with the codebase.  Typical questions I tend to ask are:
+
+=for html
+<ul>
+<li>Where are the Perl source files?  The JavaScript?  The HTML, etc?</li>
+<li>What files are using this subroutine?  Where is this method defined?</li>
+</ul>
+
+I used to use C<grep -r> to help me with this.  But I always found it was
+searching in the wrong places (Inside my version control files...in big log
+files and images rather than inside the Perl modules...)  And even when it did
+find the thing I was looking for in files I'd end up staring at the output
+trying to work out exactly where the bit of the string that matched was.
+
+Then I discovered C<ack>.  And my life became a lot easier.
+
+=for html
+  <center><img src="ack1.png"></center>
+
+At its most basic C<ack> can be thought of a version of grep that does
+the right things by default.  These include:
+
+=for html
+<ul>
+<li>Highlighting the matched text</li>
+<li>Automatically ignoring common version control, scratch, and temporary files.</li>
+<li>Searching recusively in the current directory by default when a filename isn't passed and it's not being used in a pipe.</li>
+<li>Showling clearly both filenames and line numbers of each match (and optionally column numbers)</li>
+<li>Easily allowing restrictions to seaching particlar types of files</li>
+<li>Using Perl's powerful regular expression engine</li>
+</ul>
+
+Or to put it another way, this C<grep>:
+
+    #!vim sh
+    grep --exclude-dir .git \
+         --include *.pl \
+         --include *.pm \
+         --include *,pod \
+         --include *.t \
+         --include *.psgi \
+         -r -n -E '(foo|bar)' .
+
+Could be better written as this C<ack>:
+
+    #!vim sh
+    ack --perl '(foo|bar)'
+
+(And C<ack> will also do highlighting of match and group matches within a file
+together in a readable form!)
+
+=head2 Ack file types
+
+One of the great advantages in using ack is that ability to only search files
+that of a particular type.  In addition to the large range of built in types you
+can easily add a specification for your own types to C<ack> or modify existing
+files by using extra command line arguments.
+
+For example, several places I have worked have had their own template system
+that can contain embedded Perl code, but because these files don't use the
+standard Perl extensions of C<.pl>,C<.pm>,C<.pod>, C<.t>, or C<.psgi>, nor start
+with a perl shebang line, ack invoked with C<--perl> won't search them.  I'd
+like ack to search within the C<.perlt> files also.  This can be done by adding
+another option to C<ack>:
+
+   #!vim sh
+   ack --type-add=perl:ext:perlt --perl foo
+
+Of course typing this every time I ran C<ack> would be extremely tiresome. For
+this reason I copy this arguments into my C<.ackrc> where C<ack> reads them in
+each time ack is invoked so I always have my perlt search available.
+
+   #!vim sh
+   echo '--type-add=perl:ext:perlt' >> ~/.ackrc
+   ack --perl foo
+
+We're not limited to file extensions here; For example, I can tell ack that
+any file that starts with C<{> on the first line should be considered JSON:
+
+   #!vim sh
+   ack '--type-add=json:firstlinematch:/^\s*\{/' --json foo
+
+=head2 Ack power use
+
+The above should probably be enough to convince you to switch to using ack on a
+day to day basis for interactive file grepping.  But what about some of the
+really crazy powerful things you can do with ack?
+
+=head3 Find all files of a particular type
+
+C<ack> is pretty smart about working out what files it should ignore, including
+things like version control files, editor backup files, and even things like
+minified versions of JavaScript.
+
+This makes it a good choice for simply getting a list of particular files of
+a given type in a project:
+
+  #!vim sh
+  # find all un-minified JavaScript files in your file tree
+  ack -f --js
+  bootstrap/js/bootstrap.js
+  js/main.js
+  js/jquery.js
+
+(This uses C<-f> to just print the filename that would be searched rather
+than actually searching the file and C<--js> to specify that we want
+JavaScript extensions)
+
+Once you've got a list of files like this you can start doing interesting
+things with them by using utilities like C<xargs>:
+
+  #!vim sh
+  # delete all php code!
+  ack -f --php --print0 | xargs -0 rm -f
+
+This works the same as the previous example but uses the C<--print0> argument to
+C<ack> and C<-0> argument to C<xargs> (so that the two communicate the filenames
+across the pipe delimited by a null character rather than whitespace preventing
+problems with filenames with whitespace in their names.)
+
+Replacing C<-f> with C<-l> means we will also search the files with our
+passed regex, and only list those files that match (but not show how we match
+like in traditional output.)  Combining this with C<xargs> again we can do
+even more powerful things:
+
+  #!vim sh
+  # commit all the code that have "use strict"
+  bash$ ack -l --perl --print0 'use strict' | xargs -0 git add
+  bash$ git commit -m 'add strictures'
+
+=head3 Using ack to highlight things in a file
+
+C<ack> can be used just to highlight a string in a file.  For
+example, everywhere that C<$jolly> is used:
+
+  #!vim sh
+  ack --passthru -Q '$jolly' lib/Santa.pm 
+
+The C<--passthru> option tells C<ack> to display all lines, matching or not.
+The C<-Q> tells ack to treat the string we're highlighting as a literal pattern
+rather than a regexp.
+
+We can even use this technique in a tail.  For example to highlight
+the string "Error" in our logfile:
+
+   #!vim sh
+   tail -n0 -f /tmp/log | ack --passthru Error
+
+=for html
+  <center><img src="tail.gif"></center>
+
+=head3 Custom Output
+
+Ack allows you to modify the output from the default I<matching line with match
+highlighted> output to something custom.  If we want to get a list of all the
+subroutines in our file tree we can easily do that:  We search for all the C<<
+sub I<something> >> but only display the C<< I<something> >> not the leading
+C<sub>.  By using C<--output> we can pass a Perl string that ack will C<eval>
+after each match and use the result for the output:
+
+=for html
+  <center><img src="ackcustom.png"></center>
+
+With a little imagination this can be used to very powerful things.  For
+example, the size of the URLs mentioned in a file:
+
+  #!vim sh
+  ack --output='$&: @{[ eval "use LWP::Simple; 1" && length LWP::Simple::get($&) ]} bytes' \
+      'https?://\S+' list.txt
+  http://google.com/: 19529 bytes
+  http://metacpan.org/: 7560 bytes
+  http://www.perladvent.org/: 5562 bytes
+
+However the smartest thing I've ever used the custom output for is to generate
+lines that look just like Perl error messages:
+
+   ack --no-filename --no-group \
+       --output 'at $filename line $line_no$/$line$/' \
+       'sub new'
+
+Why is this so helpful?  Because I use the L<PerlErrorSublime.popclipext|https://github.com/2shortplanks/PerlErrorSublime.popclipext>
+PopClip extension to allow me to highlight any perl-error like string in my
+terminal and open that line in Sublime Text:
+
+=for html
+  <center><img src="sublime.gif"></center>
+
+=head2 Conclusion
+
+Hopefully I've convinced you now not only that ack can be used as a basic
+replacement for grep, but also there's some very formidable things you can do
+with it if you take a little time to learn some of the more powerful options.
+
+=head1 See Also
+
+=for :list
+* L<App::ack>
+* L<http://beyondgrep.com/> 
