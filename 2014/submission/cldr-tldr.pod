@@ -1,0 +1,130 @@
+=encoding UTF-8
+
+Title: CLDR TL;DR
+Topic: Unicode CLDR 
+Author: Nick Patch <@nickpatch>
+
+2014 has been an exciting year for CLDR development on the CPAN. But first, what
+is the CLDR? The L<Unicode Common Locale Data Repository|http://cldr.unicode.org/>
+is a standardized repository of locale data along with a specification for its
+use and implementation. The simplest use case is easy access to translations for
+use in user interfaces, including month and day names, country and language
+names, and units of measure such as hours, bytes, meters, and even furlongs.
+More complex uses include localized lists of ranges of dates using the local
+calendaring and numbering systems.
+
+The L<CLDR specification|http://www.unicode.org/reports/tr35/>, however, is
+increasingly complex and the amount of data is increasingly large. This makes
+sense because natural languages are complex and each release supports additional
+minority locales. Fortunately, the CPAN has had more CLDR-based development this
+year than ever before. This means you don’t have to worry about reading complex
+specifications or manually parsing large XML data structures.
+
+=head2 What are locales?
+
+There are two parts to a locale: an identifier and data. The identifier is used
+to specify user preferences, generally based on languages and regions. The
+simplest locale is a language code alone, such as B<es> for Spanish and B<zh>
+for Chinese. Including the user’s country in the locale can provide additional
+valuable information. For example there are many differences in displaying dates
+and even numbers between European Spanish (B<es-ES>) and Mexican Spanish
+(B<es-MX>). Much additional information can be explicitly included in the
+locale, but most of the time it’s implicitly derived from the language and
+region. For example, many locales default to the Gregorian calendar while some
+to the Buddhist calendar or others; B<zh-CN> defaults to Simplified Han script
+while B<zh-TW> defaults to Traditional Han. However, if you want to get really
+explicit, you could say B<tlh-Hira-AQ-u-ca-julian-nu-roman> for Klingon in the
+Hiragana script as used in Antarctica with the Julian calendar and Roman
+numerals.
+
+Whenever possible, include the user’s language and country when constructing a
+locale identifier in order to provide the most localized experience.
+
+Now let’s take a tour of some simple solutions to common localization problems
+using CPAN modules.
+
+=head2 CLDR::Number
+
+L<CLDR::Number> is a new module that become stable early this year and provides
+localized formatting of numbers, prices, and even percents and ranges of
+numbers. Full disclosure: I wrote this module and it powers Shutterstock in 20
+languages, 150+ countries, and many currencies.
+
+Here’s an example of simple number formatting:
+
+    my $cldr = CLDR::Number->new(locale => $locale);
+    my $decf = $cldr->decimal_formatter;
+    say "$locale: ", $decf->format(123456.7);
+
+Now let’s see the results in European Spanish, Mexican Spanish, and Bengali:
+
+=for :list
+* C<es-ES: 123 456,7>
+* C<es-MX: 123,456.7>
+* C<bn-IN: ১,২৩,৪৫৬.৭>
+
+This demonstrates that both the language and the country can significantly
+change the results of even simple number formatting. Now let’s see this applied
+to prices in different currencies.
+
+    my $curf = $cldr->currency_formatter(currency_code => $currency);
+    say "$locale / $currency: ", $curf->format(9.99);
+
+Here are the results in American English and Canadian English for both US
+Dollars and Canadian Dollars.
+
+=for :list
+* C<en-US / USD: $9.99>
+* C<en-CA / USD: US$9.99>
+* C<en-CA / CAD: $9.99>
+* C<en-US / CAD: CA$9.99>
+
+This demonstrates that localized formatting is important even when your only
+supported language is English. When it comes to currency formatting, the
+language, country, and currency each can significantly change the results.
+
+=head2 Locale::CLDR
+
+L<Locale::CLDR> is another new module released earlier this year by John Imrie,
+with the goal of providing access to all of the CLDR via locale objects—an
+impressive task!
+
+Different locales use different punctuation and this is commonly ignored even in
+applications with translations in many languages. Fortunately, Locale::CLDR
+makes this aspect of localization easy.
+
+Here is a simple solution to formatting a list of strings for the user:
+
+    my $cldr = Locale::CLDR->new($locale);
+    my @stuff = qw( foo bar baz );
+    say "$locale: ", $cldr->list(map { $cldr->quote($_) } @stuff);
+
+The C<quote> method is used to quote each element and the C<list> method is used
+to format the entire list. Let’s take a look at the results in Portuguese,
+French, and German.
+
+=for :list
+* C<pt: “foo”, “bar” e “baz”>
+* C<fr: «foo», «bar» et «baz»>
+* C<de: „foo“, „bar“ und „baz“>
+
+Note that for support of all locales, you currently have to use the Locale::CLDR
+v0.25.x release on CPAN instead of v0.26.x because the latter is in the process
+of being broken into locale bundles and that work is ongoing.
+
+=head2 New year, new development
+
+We’ve had a great year for Perl localization and I hope 2015 will be even
+better. Once the most important L<CLDR::Number::TODO> tasks are completed,
+L<DateTime::Locale> will receive some much needed love. The top gift on my
+wishlist is a Perl wrapper for L<ICU4C|http://site.icu-project.org/>
+(International Components for Unicode), which is a mature project providing full
+CLDR support. I’m confident that if I continue to fill my uncle’s boots with
+coleslaw on Yaksmas Eve, the Gilded Yak may finally deliver.
+
+=head1 See Also
+
+=for :list
+* L<Locales> provides much of the simple CLDR data, such as names of countries and languages.
+* L<DateTime> provides CLDR-based formatting using L<DateTime::Locale>.
+* L<Geo::Region> provides UN M.49 and CLDR geographical region and grouping data.
