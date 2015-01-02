@@ -1,0 +1,174 @@
+Title: Dumb In-struct-ions
+Topic: Struct::Dumb
+Author: Paul "LeoNerd" Evans <leonerd@leonerd.org.uk>
+
+Do you ever find yourself using plain hash references to store little
+collections of data, always with the same fields, internally in your code? Or
+maybe you return them to callers to represent little collections of information?
+
+   #!perl
+   sub get_reindeers {
+     return (
+       { name => "Rudolph", nose => "red", height => 1.25 },
+       { name => "Comet", nose => "green", height => 1.27 },
+       ...
+     );
+   }
+
+Convenient as these are, they always run the risk that just spelling a key name
+wrong (or inventing new key names by mistake) doesn't cause an immediate error -
+either you'll end up reading undef, or worse, you'll create a new field in the
+structure.
+
+Of course you could create an entire object class for these, but an
+entire class in its own file just for a few pieces of structural data
+with no "exciting behaviour" methods seems somewhat overkill.
+
+=head2 Enter Struct::Dumb
+
+In this sort of situation when you just have dumb structural data with
+no other methods you can use Struct::Dumb to represent them.
+
+  #!perl
+  use Struct::Dumb 'struct';
+
+  struct Reindeer => [qw( name nose height )];
+
+This helpful little one line of code creates a constructor function
+which returns objects having all those fields:
+
+   #!perl
+   sub get_reindeers {
+      return (
+        Reindeer("Rudolph", "red", 1.25),
+        Reindeer("Comet", "green", 1.27),
+        ...
+      );
+   }
+
+Your caller can now read the fields of the struct as if they were methods
+on an object:
+
+  #!perl
+  my @reindeer = get_reindeers();
+  say "A reindeer called " . $_->name foreach @reindeer;
+
+Though just like hash references these fields are updatable. They act as lvalue
+methods:
+
+  #!perl
+  my $rudolph = $reindeer[0];
+  $rudolph->height *= 2;
+
+  say $rudolph->name, " is now twice as tall";
+
+However, unlike hash references instances give a helpful error if you try to
+access a field that doesn't exist:
+
+  #!perl
+  say $reindeer[0]->weight;
+
+  main::Reindeer does not have a 'weight' field at foo.pl line 123.
+
+This makes them just as convenient as plain hash references for
+internal data inside your modules or classes. 
+
+=head2 Read-Only Structs
+
+If you want to create structures that cannot be mutated after construction, you
+can instead use C<readonly_struct> to declare them:
+
+  #!perl
+  use Struct::Dumb 'readonly_struct';
+  readonly_struct Reindeer => [qw( name nose height )];
+
+  my $vixen = Reindeer("Vixen", "silver", 1.19);
+
+  # try to change it
+  $vixen->name = "VIXEN";
+
+  Can't modify non-lvalue subroutine call at foo.pl line 123.
+
+=head2 Constructor Cleverness
+
+The constructor function helpfully reminds you of missing fields if you invoked
+it incorrectly:
+
+  #!perl
+  return Reindeer("Dancer","grey")
+
+  usage: main::Reindeer($name, $nose, $height) at foo.pl line 123.
+
+Of course, this doesn't help you if you pass the right number of arguments but
+mix up the order of them:
+
+   #!perl
+   my $rudy = Reindeer("Rudolph", 1.25, "red");
+   say $rudy->height;  # prints "red", ooops
+
+One thing that can help here is to instead have Struct::Dumb create a
+constructor that uses named parameters rather than positional arguments - in
+other words instead of passing in an ordered list of parameters you pass in
+key/value pairs much more like traditional hash creation.  This looks something
+like this:
+
+   #!perl
+   struct Reindeer => [qw( name nose height )], named_constructor => 1;
+
+   my $rudy = Reindeer(
+     name => "Rudolph",
+     height => 1.25,
+     nose => "red",
+   );
+
+It's even possible to enable defaulting to named parameters on a per-package
+basis:
+
+  #!perl
+  use Struct::Dumb -named_constructors, 'struct';
+
+  struct Reindeer => [qw( name nose height )];
+
+  my $rudy = Reindeer(
+    name => "Rudolph",
+    height => 1.25,
+    nose => "red",
+  );
+
+=head2 Space Efficiency
+
+Under the hood Struct::Dumb uses arrays to store the data.  This means that
+these data structures can be much smaller:
+
+  #!perl
+  use Struct::Dumb -named_constructors, 'struct';
+  struct Reindeer => [qw( name nose height )];
+
+  my @args = (
+      name => "Rudolph",
+      height => 1.25,
+      nose => "red",
+  );
+
+  use Devel::Size qw(total_size);
+  say total_size({@args});
+  say total_size(Reindeer(@args));
+
+=for html
+  <center><img src="space.png"></center>
+
+If you're using a vast number of identically keyed hashes then Struct::Dumb
+can save a significant amount of memory.
+
+=head2 In Conclusion
+
+In certain situations Struct::Dumb can provide a more strict and smaller
+alternative to simple hash usage with minimal code overhead.  With a pure
+Perl implementation requiring no dependencies, there's very little reason
+you shouldn't start using it in your code today.
+
+=head1 See Also
+
+=for :list
+* L<Struct::Dumb>
+* L<Devel::Size>

@@ -1,0 +1,144 @@
+Title: A Subroutine By Any Other Name
+Topic: Sub::Util
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Perl's function prototypes can be used in clever ways to create new syntax,
+but abusing anonymous subroutines in this fashion can often result in hard
+to read stacktraces which make your code hard to debug.  One simple solution
+is to manually name all your anonymous subroutines using the handy
+Sub::Util module
+
+=head2 Creating New Syntax With Perl
+
+Often I find myself having to sort a list by some property of the item I'm
+sorting, for example the number of bytes the strings would take to encode
+in utf-8.
+
+This is easy enough, if you're prepared to be inefficent:
+
+    #!perl
+    use Encode qw(encode_utf8);
+
+    my @sorted = sort { 
+        length encode_utf8 $a <=> length encode_utf8 $b
+    } @strings;
+
+The problem with this is that Perl has to recalcuate the utf-8 encoding of the
+string multiple times: Every time it wants to compare the length of a string
+against another string (which it has to do multiple times as it's sorting.)
+There's a standard trick that you can do in Perl to avoid this called a Schwartzian
+transform:
+
+    #!perl
+    my @sorted = 
+          map  { $_->[0] }
+          sort { $a->[1] <=> $b->[1] }
+          map  { [$_, length encode_utf8 $_ ] } @_;
+
+This rather ugly syntax was created by Randal Schwartz to build a data
+structure on the fly that contains the weighting value, sort that, then
+extract the original (now sorted) values out again.  Easy to understand,
+right?  No?  Maybe we could abstract that away in a subroutine call?
+
+  #!perl
+  sub weighted_sort {
+      # the anonymous subroutine that calculates a weighting for whatever is
+      # in $_
+      my $weighter = shift;
+
+      return 
+        map  { $_->[0] }
+        sort { $a->[1] <=> $b->[1] }
+        map  { [$_, $weighter->() ] } @_;
+  }
+
+This can then be used like so:
+
+    #!perl
+    my @sorted = weighted_sort(sub { length encode_utf8 $_ }, @strings);
+
+It's not the most pretty of syntax but it sure beats the confusing Schwartzian
+transform we had in the middle of our code before.  However, The anonymous
+subroutine is jarring, and there's lots of extra brackets.  Ideally we'd like
+to be able to call it like map where the subroutine looks just like a block of
+code in the middle of our statement:
+
+    #!perl
+    my @sorted = weighted_sort { length encode_utf8 $_ } @strings;
+
+Which isn't that hard to do.  If we specify a prototype for our subroutine
+where the first argument is an anonymous subroutine (i.e. the C<&> prototype)
+and the remaining arguments are a list (i.e. the C<@> prototype) like so:
+
+    #!perl
+    sub weighted_sort(&@) {
+        ...
+    }
+
+Then Perl is smart enough to let us remove the surrounding C<()> and leave out
+the C<sub> before and C<,> after the anonymous subroutine.  And then we have
+what amounts to new syntax.  Wonderful!
+
+=head2 The Debug Problem With New Syntax
+
+The major problem with using anonymous subroutines to synthesize new syntax is
+that they remain anonymous when we really need to know what they are - in
+stack traces!
+
+For example:
+
+  #!perl
+  my @sorted = weighted_sort { karma_rating($_, 2 ) } @stuff;
+
+  sub nautghtyness_rating {
+      print STDERR Devel::StackTrace->new if $DEBUG_NAUGHTYNESS;
+      ...
+  }
+
+This prints out:
+
+  Trace begun at karma.pl line 22
+  main::karma_rating('1,2,3,4', 2) called at karma.pl line 19
+  main::__ANON__ at karma.pl line 16
+  main::weighted_sort('CODE(0x7fd91b02a240)', 'a', 'b', 'c', 'd') called at karma.pl line 19
+  ...
+
+Wait, that makes no sense.  What's this C<__ANON__> in the middle of our code?
+Oh, right, that's the C<{ karma_rating($_, 2 ) }> subroutine.  Wouldn't it be
+nice if this had a name?
+
+=head2 Sub::Util to the rescue.
+
+This is where Sub::Util steps in, allowing us to name the subroutine anything we
+want:
+
+  #!perl
+  use Sub::Util qw(set_subname);
+
+  sub weighted_sort(&@) {
+      # the anonymous subroutine that calculates a weighting for whatever is
+      # in $_
+      my $weighter = set_subname("weighted_sort_weighting_block", shift);
+
+      return 
+          map  { $_->[0] }
+          sort { $a->[1] <=> $b->[1] }
+          map  { [$_, $weighter->() ] } @_;
+  }
+
+And now when we run our code we get this:
+
+    Trace begun at karma.pl line 22
+    main::karma_rating('a', 2) called at karma.pl line 19
+    main::weighted_sort_weighting_block at karma.pl line 16
+    main::weighted_sort('CODE(0x7f926b02f9b0)', 'a', 'b', 'c', 'd') called at karma.pl line 19
+    ...
+
+Which makes our stack traces that little bit more readable!
+
+=head1 See Also
+
+=for :list
+* L<Sub::Util>
+* L<Sub::Name>
+* L<List::UtilsBy>

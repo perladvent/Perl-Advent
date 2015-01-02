@@ -1,0 +1,102 @@
+Title: Out of Time
+Topic: Time::Limit
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=head1 NAME
+
+Time::Limit
+
+=head1 SYNOPSIS
+
+Computer programs can go wrong in unexpected ways out of their control;
+Time::Limit can be used to limit how long a Perl script can run for and force
+it to exit in a predictable way cleaning up as much as possible after itself
+as it does so.
+
+=head2 Bob's Tale
+
+Poor Bob.  Stuck working on Christmas Eve because his pointy-haired-boss
+Ebinezer wouldn't let him go home until the server creating the TPS reports
+was done.  At this rate he'd never leave in time to get to the post office
+and his little boy Tim wouldn't be getting his Christmas present after all.
+
+The problem was that the TPS reports couldn't be left to run on their own. The
+custom binary that had been provided by TPS Solutions INC would randomly hang
+- not quit, not die - just sit there doing nothing. An infinite loop or
+something, Bob imagined, but it wasn't like he had the source code to debug
+it.  A normal run would take about an hour, but if it was still going after
+that then standard operating procedure was to restart the script that executed
+it with a Ctrl-C and hope it worked next time (it usually did.)  So Bob was
+stuck sitting there babysitting the computer while the minutes ticked away
+until the post office closed.
+
+It wasn't as if it was a complicated script:
+
+   #!perl
+   #!/usr/bin/perl
+
+   use strict;
+   use warnings;
+   use autodie;
+
+   use TPS::Util qw(tps_mangle tps_email);
+   
+   # run the custom tps binary
+   system "tps-generate";
+
+   # mangle and email the reports
+   tps_mangle();
+   tps_email('escrooge@example.com');
+
+   # exit cleanly
+   exit;
+
+If only there was a sensible way to kill the script automatically if it went
+wrong and restart it, then Bob would be able to leave it running and go
+home.
+
+Simplistic solutions wouldn't work properly;  Bob would need to be careful not
+only to kill the main script, but also kill the tps-generate binary as well if
+it was still running.  Goodness only knows what would happen if two of those
+were running at once!
+
+Also, Bob was worried about killing the script too harshly...if the mangling
+code was running then there were certain files to clean up on disk.  It'd be
+nice to kill the script in such a way the signal handler attached to the
+process would get a chance to run.  But Bob also worried about not killing
+the script hard enough...what if the signal handlers themselves also got
+into an infinite loop?
+
+=head2 Introducting Time::Limit
+
+What Bob needs is Time::Limit.
+
+All Bob needs to do is install the module from the CPAN and then stick
+just one line of code at the top of the script:
+
+    #!perl
+    # kill everything, including child processes, after 63 minutes
+    use Time::Limit -group, (60 + 3) * 60;
+
+After that Bob can just run the program repeatedly until it's done.
+
+    bash$ until perl tps.pl; do echo "Trying again"; done
+
+Time::Limit handles the rest.  Not only would it exit after 63 minutes if it
+ended up running that long, but the exit code it returned would let bash know
+to run it again.
+
+In addition to this Time::Limit would kill the child processes, attempt to
+run cleanup code with a clean exit, or if after a time it still hadn't killed
+itself, send an untrappable signal to cause instant death.  Pretty much handle
+everything how you'd hope it would.
+
+As long as the server stays up, Bob's report is going to eventually run now.
+Get home to Tim, Bob!  Who knows, your boss might be pleased enough to send
+someone round with a big turkey in the morning.
+
+=head1 See Also
+
+=for :list
+* L<Time::Limit>
+* L<http://www.gutenberg.org/ebooks/46>

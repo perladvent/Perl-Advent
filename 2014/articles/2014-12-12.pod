@@ -1,0 +1,72 @@
+Title: If if, use use if
+Topic: if
+Author: Ricardo Signes <rjbs@cpan.org>
+
+There's a common newbie mistake that looks something like this:
+
+  #!perl
+  if ($ENV{ADVENT_DEBUG}) {
+    use Devel::ecember 12.25.14;
+  }
+
+(I call this a newbie mistake to remind myself that I am still, now, and
+forever a newbie.  I still make this mistake when I'm not paying attention.)
+
+The problem, here, is that C<use> happens at compile time, but C<if> only
+controls the flow of the program at I<run> time.  This means that our debugger
+is loaded regardless of the environment.  Whoops!
+
+The instinct on how to fix this is often to use a C<BEGIN> block, but it's not
+a very good instinct.  In Perl, "compile time" and "run time" are relative.
+Once you've got your C<if> in a C<BEGIN> block, your C<use> is in there too,
+and now it's still going to run earlier than your conditional!
+
+So, what's a programmer to do?
+
+This is where C<if> comes in.
+
+  #!perl
+  use if $ENV{ADVENT_DEBUG}, 'Devel::ecember';
+
+This might look like some weird new form of Perl's postfix conditionals, but
+it's not weird at all.  Or, at least, it's not weird syntax.  It's a
+rarely-seen core library for solving this problem, and it works just like any
+other module:  when you C<use> it, its C<import> method is called, and decides
+what to do next: either use the library you wanted, or not.
+
+You may have noticed that we left something out of our code!  We wanted to
+specify a version number for our debugger: v12.25.14.  C<if> doesn't let us do
+that, but L<Exporter> comes to our rescue, at least somewhat, here:
+
+  #!perl
+  use if $ENV{ADVENT_DEBUG}, 'Devel::ecember', '12.25.13';
+
+It's important to realize that C<if> isn't doing the equivalent of including a
+version number in a C<use> statement.  What's actually happening is that the
+string C<12.25.13> is being passed to Devel::ecember's C<import> routine.  A
+little-known feature in Exporter notices when the first argument to C<import>
+is version-like, and converts it to a call to the C<VERSION> method.
+
+What happens if the library you're conditionally loading doesn't use Exporter?
+Who knows!  Probably nothing very good.
+
+There's another complication, too.  You can't tell C<if> to load the library
+without calling its C<import> routine.  This doesn't come up often,
+fortunately!
+
+On the other hand, there's another important use case for C<if>.  You can use
+if when you want to I<un>import stuff, too.  The canonical, gross example of
+this is:
+
+  #!perl
+  no if $] >= 5.020, warnings => "experimental::signatures";
+
+Fortunately, that's been rendered obsolete by L<experimental>!  Instead,
+consider:
+
+  #!perl
+  # It's Christmas!  Live a little!
+  no if (localtime)[4] == 12 - 1 && (localtime)[3] == 25, 'strict';
+
+=for :list
+* L<if>
