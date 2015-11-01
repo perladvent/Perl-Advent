@@ -1,0 +1,193 @@
+Title: Live programming perl with Reply
+Topic: Reply
+Author: James Laver <james.laver@gmail.com>
+
+Of all the things Perl is and is not, it is most definitely a dynamic language. We don't run Perl through a compiler and then run the resulting executable, we just give perl some code and it runs it. In a language like C or Java, we'd have to rebuild every time we wanted to run a test, but Perl allows me to hit 'save' in my editor, alt-tab to my terminal and hit C<< <up><enter> >> to rerun my test.
+
+Obviously this helps speed up my test workflow enormously, but we can still do better. What if we could edit our application while it was running? This is the promise of a REPL (Read Eval Print Loop). In this article we'll be exploring a new REPL for Perl called C<Reply> to do some live-coding.
+
+You'll need a recent-ish perl installed as well as git if you're going to follow along
+
+=head2 Installation
+
+Let's try installing Reply through cpanminus with the C<cpanm> utility (my prompt is the simple C<%>):
+
+    % cpanm Reply Term::ReadLine::Gnu Proc::InvokeEditor
+    --> Working on Reply
+    Fetching http://www.cpan.org/authors/id/D/DO/DOY/Reply-0.37.tar.gz ... OK
+    Configuring Reply-0.37 ... OK
+    ==> Found dependencies: Config::INI::Reader::Ordered
+    --> Working on Config::INI::Reader::Ordered
+    Fetching http://www.cpan.org/authors/id/R/RJ/RJBS/Config-INI-Reader-Ordered-0.020.tar.gz ... OK
+    Configuring Config-INI-Reader-Ordered-0.020 ... OK
+    Building and testing Config-INI-Reader-Ordered-0.020 ... OK
+    Successfully installed Config-INI-Reader-Ordered-0.020
+    Building and testing Reply-0.37 ... OK
+    Successfully installed Reply-0.37
+    2 distributions installed
+
+Don't worry if your output looks different, so long as the modules installed successfully, you're good to go! We're also installing a bunch of other modules that are required for some of the plugins we'll try later to work.
+
+=head2 Getting Started
+
+Let's open a repl with the `reply` command:
+
+    % reply
+    /Users/user/.replyrc not found. Generating a default...
+    0>
+
+Okay, looks good so far. Let's try running some basic Perl:
+
+    0>  $i = "foo"
+    Global symbol "$i" requires explicit package name at reply input line 1.
+    BEGIN not safe after errors--compilation aborted at reply input line 7.
+
+Okay, so we're running under I<strict>. Excellent! I also notice that readline bindings work, so you can use the arrow keys and standard readline shortcuts easily to edit your input. Autocomplete 'just works'(tm) as well (it's on the C<TAB> key)
+
+    1> my $i = "foo"
+    $res[0] = 'foo'
+
+Okay, the basics work. Note also that we don't need to put a semicolon at the end of a line. When you hit enter, it will treat it as a complete statement. That's an important limitation that's worth mentioning.
+
+Let's see if we can load it into an existing project. Quit reply with C<Ctrl-c> and find some code.
+
+    % cd ~/code/asset-pack # my local copy of https://github.com/jjl/asset-pack.git
+    % reply -Ilib # -Ilib = add 'lib' to @INC so we can see those perl modules
+    0> use Asset::Pack;
+    1> 
+
+Hurray, that worked. Sadly Asset::Pack isn't useful unless you want to package an asset as a Perl file, so let's use the repl to explore `List::Util`:
+
+    1> use List::Util qw(first);
+    2> first {/abc/} "def", "hij"
+    $res[0] = undef
+    3> first {/abc/} "abc", "def"
+    $res[1] = 'abc'
+
+These two simple examples show off 'first', which takes a block. Let's look at its prototype:
+
+    4> prototype(\&first)
+    $res[2] = '&@'
+
+=head2 Plugins Intro
+
+At this point you can already do a fair amount. Now let's look at that `.replyrc` file that reply said it wrote earlier:
+
+    # less ~/.replyrc
+    script_line1 = use strict
+    script_line2 = use warnings
+    script_line3 = use 5.020001
+    
+    [Interrupt]
+    [FancyPrompt]
+    [DataDumper]
+    [Colors]
+    [ReadLine]
+    [Hints]
+    [Packages]
+    [LexicalPersistence]
+    [ResultCache]
+    [Autocomplete::Packages]
+    [Autocomplete::Lexicals]
+    [Autocomplete::Functions]
+    [Autocomplete::Globals]
+    [Autocomplete::Methods]
+    [Autocomplete::Commands]
+
+Wow, that's quite a lot. Comparing against L<https://metacpan.org/release/Reply>, I see that's most of the plugins that ship in the core distribution!
+
+Here's what these plugins do (and what you're getting out of the box!)
+
+=begin html
+
+<table>
+
+<tr>
+<td>Name</td>
+<td>Purpose</td>
+</tr>
+
+<tr>
+<td>Interrupt</td>
+<td>Stop long-running code with <code>ctrl-c</code></td>
+</tr>
+
+<tr>
+<td>FancyPrompt</td>
+<td>Adds a line counter to the prompt</td>
+</tr>
+
+<tr>
+<td>DataDumper</td>
+<td>Formats results with <code>Data::Dumper</code></td>
+</tr>
+
+<tr>
+<td>Colors</td>
+<td>Colors results</td>
+</tr>
+
+<tr>
+<td>ReadLine</td>
+<td>Enables ReadLine input method (keybindings)</td>
+</tr>
+
+<tr>
+<td>Hints</td>
+<td>Enables <code>strict</code> to work, among others (persists hints)</td>
+</tr>
+
+<tr>
+<td>Packages</td>
+<td>Makes <code>package</code> declarations work</td>
+</tr>
+
+<tr>
+<td>LexicalPersistence</td>
+<td>Makes <code>my</code> declarations work</td>
+</tr>
+
+<tr>
+<td>ResultCache</td>
+<td>Results are put into <code>@res</code> for later use</td>
+</tr>
+
+<tr>
+<td>Autocomplete::*</td>
+<td>Autocompletion of various types</td>
+</tr>
+
+</table>
+
+=end html
+
+If you don't want some of those, simply delete those lines from your config file and they won't be loaded next time you start a repl.
+
+Take a look at L<https://metacpan.org/release/Reply> to see all the basic plugins.
+
+=head2 Editing multiple lines
+
+One of the handier plugins is L<Reply::Plugin::Editor>, which allows you to edit multiple lines in your text editor of choice. Add this to the bottom of your C<.replyrc>:
+
+    [Editor]
+    editor=emacs # or vim, nano etc...
+
+Now when you're in reply and you type C<#e>, your editor will open. When you save the file and quit your editor, the code will be evaluated all at once. This allows you to define subroutines more easily because now you can split statements over multiple lines.
+
+    0> #e
+    <editor opens>
+    sub hello {
+      "Hello, @{[shift]}.";
+    }
+    <save and close>
+    1> hello("world")
+    $res[0]="Hello, world."
+
+=head2 SEE ALSO
+
+=for :list
+* L<Reply> - Reply documentation
+* L<Reply::Plugin::AutoRefresh> - Automatic code reloading when files change
+* L<Reply::Plugin::CollapseStack> - Truncate stack traces by default
+* L<Reply::Plugin::CarpReply> - Get a repl on uncaught exception
+* L<Reply::Plugin> - Base class for Reply plugins (develop your own!)
