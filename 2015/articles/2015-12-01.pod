@@ -1,0 +1,184 @@
+Title: Where in the World?
+Topic: GeoIP2
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=for html
+  <iframe src="map.html" style="width: 100%; height: 300px"></iframe>
+
+Santa had a problem, and the problem was I<kids>.  Not that he didn't love the
+children - far from it, their happyness was why he did what he did after all -
+but now there were more than ever of them.  World population had grown to the
+point where there were 2.2 billion children that potentially wanted a gift, and
+that was a lot of mince pies to get through in one night!
+
+To ensure that he'd have time to make all the deliveries he'd taken the
+unprecidented step of installing agents in homes around the world - elves that
+sat on shelves - who were able to report on any problem, from waking children to
+adverse weather conditions, that might slow him down.  Traditionally an Shelf
+Elf would report by flying home each night leading up to Christmas, but on the
+big night itself the elf would have to report back in real time.  Luckily for
+Santa, so many houses had internet connections the Elf could use to report
+issues via a simple web form the Wise Old Elf had set up on the north pole
+extranet.
+
+This is where our hero Candy Cane comes in.  Candy Cane sighed as he read the
+story in the latest Elf development sprint: "A proof of concept exists that
+displays the Shelf Elf reports on a map so that Central Elf Command can
+coordinate them as Santa moves around the world".  2 points.
+    
+I<Should be straight forward>, thought Candy Cane to himself, I<We agreed in
+estimatation all I have to do is take the location from each report and feed it
+to the MapBox JavaScript library, and we'll have a nice map.  Easy peasy>.
+With Elf joy in his heart from working on something he loved, he opened up the
+database schema to see how to get the location from the reports table.
+
+The joy was short lived.  With a sinking heart Candy realized that the reports
+didn't actually contain a location.  They just contained the child's name the
+Elf was responsible for: Fine for giving to the magical reindeer who
+instinctivley knew the way to every chimney top, but useless for plotting on a
+map.
+
+The elf cast his gaze over the other columns, trying to figure out what to do
+when his eyes settled on the IP address that the report was submitted from.
+I<Hmmm>, he thought, I<just maybe...>
+
+=head2 GeoIP2
+
+GeoIP2 is the Perl interface to the MaxMind geolocation services, providing a
+way to map an IP address to, amongst other things, a physical location in the
+world - perfect for plotting Elf reports on a map based on an IP address alone.
+MaxMind offer the GeoLite2 databases which anyone can periodically download
+for free from their website to do offline geolocation.
+
+From Perl this is relatively straight forward to use.  First create the reader
+with the database:
+
+    #!perl
+    my $reader = GeoIP2::Database::Reader->new(
+        file    => $MMDB_DATABASE_LOCATION,
+        locales => [ 'en' ],
+    );
+
+Then do a lookup on an IP address:
+
+    #!perl
+    # lookup where the IP is with the "city" level of precision
+    my $where = $reader->city( ip => $ip );
+
+From this model you can ask for various things, for example the location of the
+IP:
+
+    #!perl
+    my $location = $where->location;
+    my ($lat, $long) = ($location->latitude, $location->longitude);
+
+Or information on the nearest city:
+
+    #!perl
+    my $nearest_city = $where->city;
+    my $city_name = $nearest_city->name;
+
+All kinds of things that you can render on a map.
+
+=head2 MapBox
+
+Now the hard work is out of the way, Candy Cane had the relatively simple job of
+rendering the reports on a map.  While a complicated version would come later
+Candy decided for the proof of concept a simple Mojolicious::Lite application
+that used the MapBox API would be sufficient:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use Mojolicious::Lite;
+    use 5.18.0;
+    use GeoIP2::Database::Reader;
+    use File::Spec::Functions qw(:ALL);
+    use File::Basename qw(dirname);
+
+    my $MAPBOX_TOKEN = 'pk.eyJ1IjoiMnNob3J0cGxhbmtzIiwiYSI6ImNpZmw1ZzdnMTV5aXBpdWx4dDhpbjF6ZGQifQ.C3lPhZeBCapfVSQhpcGsLA';
+    my $MMDB_DATABASE_LOCATION = catfile(dirname(__FILE__),'GeoLite2-City.mmdb');   
+
+    sub report_to_point {
+        my $report = shift;
+
+        state $reader = GeoIP2::Database::Reader->new(
+            file    => $MMDB_DATABASE_LOCATION,
+            locales => [ 'en' ],
+        );
+
+        # lookup where the IP is with the "city" level of precision
+        my $where = $reader->city( ip => $report->{ip} );
+
+        # define a "point feature" data structure that MapBox understands
+        return {
+            type => 'Feature',
+            properties => {
+                title => $where->city->name,
+                description => $report->{description},
+            },
+            geometry => {
+                type => 'Point',
+                coordinates => [ $where->location->longitude, $where->location->latitude ],
+            }
+        };
+    }
+
+    get '/' => sub {
+      my $c = shift;
+
+      # get the reports from the database, and turn them into mapbox "points"
+      state $pg = Mojo::Pg->new('postgresql://postgres@/test');
+      my $features = $pg->db
+                        ->query('SELECT * FROM reports')
+                        ->hashes
+                        ->map(sub { report_to_point($_) });
+
+      $c->render(
+        features => $features,
+        token => $MAPBOX_TOKEN,
+      );
+    } => 'index';
+
+    app->start;
+
+    __DATA__
+
+    @@ index.html.ep
+    % use Mojo::JSON qw(j);
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset=utf-8 />
+    <title>Shelf Elf Reports</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script src='https://api.mapbox.com/mapbox.js/v2.2.2/mapbox.js'></script>
+    <link href='https://api.mapbox.com/mapbox.js/v2.2.2/mapbox.css' rel='stylesheet' />
+    <style>
+      body { margin:0; padding:0; }
+      #map { position:absolute; top:0; bottom:0; width:100%; }
+    </style>
+    </head>
+    <body>
+    <div id='map'></div>
+    <script>
+    L.mapbox.accessToken = '<%= $token %>';
+
+    var map = L.mapbox.map('map', 'mapbox.light').setView([29, -26], 2);
+
+    var myLayer = L.mapbox.featureLayer().addTo(map);
+    myLayer.setGeoJSON({
+        type: 'FeatureCollection',
+        features: <%== j $features %>
+    });
+
+    </script>
+    </body>
+    </html>
+
+
+=head1 SEE ALSO
+
+=for :list
+* L<https://metacpan.org/pod/GeoIP2::Database::Reader>
+* L<http://dev.maxmind.com/geoip/geoip2/geolite2/> offers download of the GeoLite2 databases
