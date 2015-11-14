@@ -1,0 +1,304 @@
+Title: Inflecting Correctly
+Topic: Lingua::EN::Inflexion
+Author: Dave Cross <dave@perlhacks.com>
+
+=head1 Replacing Lingua::EN::Inflect
+
+A couple of months ago I had some plural nouns that I wanted to get the
+singular versions of. As I always do in cases like this, I reached for
+Lingua::EN::Inflect, only to find a two interesting things.
+
+Firstly, Lingua::EN::Inflect doesn't convert plural to singular - it only
+goes the other way. And secondly, Lingua::EN::Inflect is now in
+maintenance mode. It has been superceded by a new module called
+Lingua::EN::Inflexion which is more powerful and has a more flexible
+interface. I spent a few hours playing with the new module and was very
+impressed. It's written by Damian Conway, so it's really rather
+clever. Let me show you some of its features.
+
+=head1 Singulars and Plurals
+
+We'll start with my original requirement. The module exports a
+C<noun()> function which creates an object. You can then call the
+C<singular()> method on that object.
+
+    use Lingua::EN::Inflexion;
+
+    my @plurals = qw[cows pigs sheep];
+
+    foreach (@plurals) {
+      say "$_ -> ", noun($_)->singular;
+    }
+
+This outputs:
+
+    cows -> cow
+    pigs -> pig
+    sheep -> sheep
+
+The string that you pass to C<noun()> can be either the singular or
+plural version. So you can use a very similar approach to go the other
+way.
+
+    use Lingua::EN::Inflexion;
+
+    my @singulars = qw[cow pig sheep];
+
+    foreach (@singulars) {
+      say "$_ -> ", noun($_)->plural;
+    }
+
+Which gives us:
+
+    cow -> cows
+    pig -> pigs
+    sheep -> sheep
+
+You can also ask the object whether its invocant was singular or
+plural.
+
+    use Lingua::EN::Inflexion;
+
+    my @nouns = qw[cow pigs sheep];
+
+    foreach (@nouns) {
+      say "$_ is singular" if noun($_)->is_singular;
+      say "$_ is plural"   if noun($_)->is_plural;
+    }
+
+This will tell us:
+
+    cow is singular
+    pigs is plural
+    sheep is singular
+    sheep is plural
+
+Notice that, unsurprisingly, "sheep" is both singular and plural.
+
+You can also use the C<as_regex()> to get a regex that matches both
+the singular and plural versions of the noun.
+
+    use Lingua::EN::Inflexion;
+
+    my $string = 'Ermintrude is the best of all the cows';
+
+    if ($string =~ noun('cow')->as_regex) {
+      say $&;
+    }
+
+$& will contain "cows", not "cow". And it's even cleverer than that.
+
+    use Lingua::EN::Inflexion;
+
+    my $string = 'Ermintrude is ye best of all ye kine';
+
+    if ($string =~ noun('cow')->as_regex) {
+      say $&;
+    }
+
+Because "kine" is an obscure old plural for "cow".
+
+If you print the value returned from C<noun('cow')->as_regex>, you'll
+see that it is C<(?^i:kine|cows|cow)> - so it's case insensitive too.
+
+=head1 Verbs and Adjectives
+
+Lingua::EN::Inflexion doesn't just work on nouns. You can inflect
+verbs and adjectives too using the C<verb()> and C<adj()> constructors.
+
+    my @verbs = qw[is has sits];
+
+    for (@verbs) {
+      say "The plural of $_ is " . verb($_)->plural;
+    }
+
+Which produces:
+
+    The plural of is is are
+    The plural of has is have
+    The plural of sits is sit
+
+And
+
+    my @adjectives = qw[my your his];
+
+    for (@adjectives) {
+      say "The plural of $_ is " . adj($_)->plural;
+    }
+
+Which gives:
+
+    The plural of my is our
+    The plural of your is your
+    The plural of his is their
+
+For more complex requirements, you can get the present participle, past
+tense and past participle of verbs.
+
+    my @verbs = qw[is has sits];
+
+    for (@verbs) {
+      say "The present participle of $_ is " . verb($_)->pres_part;
+      say "The past tense of $_ is " . verb($_)->past;
+      say "The part participle of $_ is " . verb($_)->past_part. "\n";
+    }
+
+Which produces:
+
+    The present participle of is is being
+    The past tense of is is was
+    The part participle of is is been
+    
+    The present participle of has is having
+    The past tense of has is had
+    The part participle of has is had
+    
+    The present participle of sits is sitting
+    The past tense of sits is sat
+    The part participle of sits is sat
+
+=head1 Inflecting Sentences
+
+The module exports four routines. We've seen three of them (C<noun()>,
+C<verb()>, and C<adj()>). The fourth one is called "inflect()" and
+it's the one that you are likely to find most useful. You know all
+those annoying responses from software that say things like "1
+error(s) was found"? Well, C<inflect()> is your one-stop solution to
+irritating messages like that. The subroutine takes a single string
+argument, where the string contains some special markup defining how
+you wan the string processed. This string is expanded into a new
+string which is then returned. 
+
+In the simplest case, you would use it like this:
+
+    use Lingua::EN::Inflexion;
+
+    for (0 .. 3) {
+      say inflect("<#:$_> <N:error> <V:was> found");
+    }
+
+The output is:
+
+    0 errors were found
+    1 error was found
+    2 errors were found
+    3 errors were found
+
+Simply by changing the number that is interpolated into the string,
+the noun and verb have both been changed appropriately.
+
+We have used three of C<inflect()>'s special mark-up tags
+here. C<< <#:...> >> sets the number which will be used in the rest of
+the output and C<< <N:...> >> and C<< <V:...> >> can be used to insert
+nouns and verbs which will be inflected. There's a fourth tag,
+"<A:...>" which can be used for adjectives, as you can see in this
+(slightly contrived) example.
+
+    use Lingua::EN::Inflexion;
+
+    for (1 .. 3) {
+      say inflect("The report had <#:$_> <N:authors> " .
+                  "<A:our> recommendations are ... ");
+    }
+
+Which produces the following output:
+
+    The report had 1 author my recommendations are ... 
+    The report had 2 authors our recommendations are ... 
+    The report had 3 authors our recommendations are ...
+
+=head1 Improving the Output
+
+This is already much better than the output than you get from many
+programs, but there are easy ways to make it better. We can start by
+displaying "No" rather than "0". This is achieved by adding an C<n>
+option to the C<< <#:...> >> tags. Options are added between the
+command character (the C<#>, C<N>, C<V> or C<A>) and the colon.
+
+    use Lingua::EN::Inflexion;
+
+    for (0 .. 3) {
+      say inflect("<#n:$_> <N:error> <V:was> found");
+    }
+
+This gives us:
+
+    no errors were found
+    1 error was found
+    2 errors were found
+    3 errors were found
+
+Some people prefer that zero items are displayed as singular rather
+than plural. We can accomodate that by using C<s> instead of C<n>.
+
+    use Lingua::EN::Inflexion;
+
+    for (0 .. 3) {
+      say inflect("<#s:$_> <N:error> <V:was> found");
+    }
+
+The output then changes to:
+
+    no error was found
+    1 error was found
+    2 errors were found
+    3 errors were found
+
+If you would rather have "a" or "an" when the count is one, then you
+can use C<a> (and you can stack options, so you can use it in addition
+to either C<n> or C<s>).
+
+    use Lingua::EN::Inflexion;
+
+    for (0 .. 3) {
+      say inflect("<#na:$_> <N:error> <V:was> found");
+    }
+
+Which gives us:
+
+    no errors were found
+    an error was found
+    2 errors were found
+    3 errors were found
+
+It's quite common to spell out the numbers when the count is small. If
+you use the C<w> option, then C<inflect()> will do that for numbers up
+to 10.
+
+    use Lingua::EN::Inflexion;
+
+    for (0 .. 2, 9 .. 11) {
+      say inflect("<#naw:$_> <N:error> <V:was> found");
+    }
+
+The output is:
+
+    no errors were found
+    an error was found
+    two errors were found
+    nine errors were found
+    ten errors were found
+    11 errors were found
+
+Finally, you can use C<f> to get fuzzy descriptions of the numbers.
+
+    use Lingua::EN::Inflexion;
+
+    for (0, 1, 2, 4, 7, 10) {
+      say inflect("<#f:$_> <N:error> <V:was> found");
+    }
+
+
+Which gives us:
+
+    no errors were found
+    one error was found
+    a couple of errors were found
+    a few errors were found
+    several errors were found
+    many errors were found
+
+I often hear people excusing the "1 error(s) found" style of message
+by saying that it was too much trouble to do anything cleverer. I hope
+you agree that Lingua::EN::Inflexion makes it almost trivial to do the
+right thing. I hope to see it in all of your programs in the coming months.
