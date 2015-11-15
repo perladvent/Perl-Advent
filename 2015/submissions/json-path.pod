@@ -1,0 +1,106 @@
+Title: (JSON::)Paths in the snow
+Topic: JSON::Path
+Author: Yanick Champoux (yanick@cpan.org)
+
+One thing IT elves do a lot, is to munge data structures. In some departments, sources tell us, they use L<JSON::Path> for it.
+It's not an extensive tool, but it can come in handy.
+
+Despite its name, L<JSON::Path> does not have much to do with JSON itself. It is rather an XPath-like query 
+mini-language for querying structured data.
+
+For example, taking a data structure all elves are rather familiar with:
+
+    my $master_list = { children => [
+        {
+            name => 'Xavier',
+            status => 'nice',
+            wants => [
+                { label => 'T.S. Moe',      price => 9.99 },
+                { label => 'coloring book', price => 5.45 },
+            ],
+        },
+        {
+            name => 'Alex',
+            status => 'naughty',
+            wants => [
+                { label => 'rubber duck', price => 6.57 },
+            ],
+        },
+        {
+            name => 'Elo',
+            status => 'nice',
+            wants => [
+                { label => 'battle tiara',   price => 22.12},
+                { label => 'climbing gears', price => 12.33},
+            ],
+        },
+    ] };
+
+
+We could extract the name of all naughty children via:
+
+    
+    use JSON::Path qw/ jpath /;
+
+    $JSON::Path::Safe = 0;
+
+    my @naughty = jpath $master_list => '$.children[?($_->{status} eq "naughty" )].name';
+
+    # @naughty is now [ "Alex" ]
+   
+Or get the first gift request of all nice children:
+
+    my @gifts = jpath $master_list => '$.children[?($_->{status} eq "nice" )].wants[0]';
+
+    # @gifts is now [ "T.S. Moe", "battle tiara" ]
+
+
+There is also the possibility to alter the structure directly via C<jpath_map>. For example,
+if we wanted to remove the naughty children and limit the wishlist of all nice children to their least
+expensive item (hey, it's a tough economy for everybody), one could do:
+
+    use JSON::Path qw/ jpath_map /;
+
+    # buh-bye naughty boys and naughty girls
+
+    jpath_map { 
+        [ grep { $_->{status} eq 'nice' } @$_ ] 
+    } $master_list => '$.children';
+    
+    # remove the status, as they are all nice, now
+
+    jpath_map {
+        delete $_->{status}; $_        
+    } $master_list => '$.children[*]';
+
+    #  let's be reasonable...
+    
+    use List::MoreUtils qw/ sort_by /;
+
+    jpath_map {
+        ( sort_by { $_->{price} } @$_ )[0]
+    } $master_list => '$.children[*].wants';
+
+    # $master_list is now
+    #    {
+    #        children   [
+    #            {
+    #                name    "Xavier",
+    #                wants   {
+    #                    label   "coloring book",
+    #                    price   5.45
+    #                }
+    #            },
+    #            {
+    #                name    "Elo",
+    #                wants   {
+    #                    label   "climbing gears",
+    #                    price   12.33
+    #                }
+    #            }
+    #        ]
+    #    }
+
+
+
+
