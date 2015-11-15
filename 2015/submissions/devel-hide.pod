@@ -1,0 +1,162 @@
+Title: Help! Rudolf's Nose Won't Light Up!
+Topic: Devel::Hide
+Author: David Cantrell <david@cantrell.org.uk>
+
+=head2 Devel::Hide
+
+At the north pole Cyber-Santa was in a bit of a pickle because he'd forgotten to charge the batteries for his new Robo-Reindeer's light-up nose. How would he find his way through the dark and deliver techno-toys to all the good programmers and sysadmins?
+
+He was stressing out and whining on Twitter when one of his older elves reminded him that cost over-runs on the Reindeer Upgrade Project meant that he was still using the old sleigh, and that still had mounting brackets for old oil lamps.
+
+"But how do we know that those lamps still work? Are they bright enough?"
+
+"Oh yes", replied the elf. "Don't you remember, last Christmas we weren't sure whether all the new Robo-Reindeer would be ready in time, so we did our L<test run|https://en.wikipedia.org/wiki/Sinterklaas> both with and without cybernetic cervids, and everything worked just fine."
+
+"Let me show you how we tested this", said the elf.
+
+"I'll take you step by step through what we normally do. First, we dig the sleigh out from under that snowdrift. Would you mind doing it, only my poor old back is giving me gyp right now."
+
+"And then could you fetch the reindeer and attach them to the sleigh"
+
+So Santa dug out the sleigh, fetched the reindeer, got kicked by the reindeer, harnessed them and finally climbed up into the driver's seat, all sweaty and bruised and smelling of reindeer.
+
+"So at this point, we're ready to go, right?" asked the elf.
+
+"Yes", said Cyber-Santa. "But how do we know it'll work?"
+
+"Wrong", replied the elf, "we're not yet ready. If you turn to page two of your Sleigh Operations Manual you'll see the pre-flight checklist. The ninety fourth item on the list (after 'are the presents tied down?' and 'do you have L<banging choonz|https://en.wikipedia.org/wiki/A_Twisted_Christmas> queued up on your iPod?') is 'is the headlight working?'".
+
+And so Santa checked, and the headlight wasn't working because of that flat battery.
+
+"And after checklist item ninety four it tells you that if it isn't working you should use an oil lamp, doesn't it", scolded the elf.
+
+Santa looked a bit sheepish and apologised, muttering something about being too eager to get his deliveries done so he could relax with a pint and some pork scratchings.
+
+"I'll let you off this time", scolded the elf, "but don't do it again."
+
+"But ... but ..." Santa said hesitantly "how do we know it will work?"
+
+"Oh, right, I was going to show you how we tested this wasn't I. Sorry, I'm getting forgetful in my old age. Let's go indoors and simulate it on your laptop where it'll be nice and warm" smirked the elf, who really preferred the previous Santa, because the elf's children got to play with left over toys and far preferred traditional wooden blocks and balls and things instead of the modern nonsense that Cyber-Santa was obsessed with.
+
+So they went inside, and Santa started mucking about of Facebook, but eventually the elf got him to stop that and get on with something useful.
+
+"First let's simulate what you just did", said the elf. "We'll create a sleigh object, and a factory class to simulate the field that the reindeer come from.
+
+  my $sleigh = Sleigh->new();
+  my @reindeer = ReindeerFactory->fetch(6);
+
+"Then we'll harness the reindeer to the sleigh and have the sleigh run through the pre-flight checks because you're so forgetful. Then, once the pre-flight checks are complete we can get going:
+
+  $sleigh->harness(@reindeer);
+  if($sleigh->pre_flight()) {
+    # FIXME, deliver presents here
+  }
+
+"So far, so simple. Now, consider that right now your pasture contains Robo-Reindeer, but previously it contained normal reindeer. So the ReindeerFactory has to look something like this:
+
+  package ReindeerFactory;
+
+  my $reindeer_class = eval "use RoboReindeer" ? "RoboReindeer" :
+                       eval "use BioReindeer"  ? "BioReindeer"  :
+                       die("No reindeer found\n");
+
+  sub fetch {
+    my $number_wanted = shift;
+    return (($reindeer_class->new()) x $number_wanted);
+  }
+
+"I see", said Santa, "so if the RoboReindeer module is installed (or if in real life I've got RoboReindeer in the pasture) then the factory will give me those, otherwise it'll give me BioReindeer. Very clever. That looks like a pain to test though."
+
+"Yes, unfortunately it is" admitted the elf. "We had to run through the whole damned process twice, once for Robo Reindeer, once for normal ones, being very careful to keep the two completely seperate."
+
+Santa was very thankful that he had elves to do that sort of hard work for him, but thought that it looked like a jolly useful technique for some of his hobby projects. "If only I could automate that in perl..." mused Santa. But he put that aside, because he had a busy two days ahead of him.
+
+=head2 Magic in @INC
+
+After he'd done his two days work for the whole year, and was stretched out on the sofa with a glass of brandy and some mince pies, Santa was still wondering how to automate that. Obviously he could wrap all his tests in a shell script that would install/uninstall modules as appropriate, but that seemed terribly inelegant. But then it dawned on him - all he needed to do was interfere with how perl loaded modules.
+
+Normally the C<@INC> array is just a list of directories in which perl will look, one directory after another, for modules that you try to C<use>. But you can also put code-refs in it. For example:
+
+  $ perl -E '
+    BEGIN { unshift @INC, sub { say "Hello World" } }
+    use Foo;
+  '
+  Hello World
+  [loud complaining from perl]
+
+(NB the BEGIN block is required so that we get to diddle C<@INC> at compile-time. The complaining from perl is because C<say> returns something that perl doesn't know what to do with)
+
+When perl finds a code-ref in C<@INC> it passes the desired module to the code-ref, with its name reformatted from something like C<Foo::Bar> to a filename like C<Foo/Bar.pm>. Your code-ref can then decide not to do anything, thus making perl look in the next place listed in C<@INC>, or it can return the source code for a module:
+
+To have your sub-routine do nothing and have perl carry on to the next entry in C<@INC> have it return C<undef>:
+
+  $ perl -E '
+    BEGIN { unshift @INC, sub { undef } }
+    use File::Temp;
+  '
+
+That code-ref has absolutely no effect - when perl tries to C<use File::Temp> it first executes our subroutine, which returns C<undef>, so perl then tries to load it from the directories that make up the rest of the list, and eventually succeeds. So what if we want to prevent C<File::Temp> from loading? We have to return some code that dies instead, which perl will then read and execute as if it were the C<File::Temp> module:
+
+  $ perl -E '
+    BEGIN { unshift @INC, sub {
+      if($_[1] eq "File/Temp.pm") {
+        open my $fh, "<", \"die(qq{$_[1] is hidden})";
+        return $fh;
+      } else { return undef }
+    } }
+    use File::Temp;
+  '
+  File/Temp.pm is hidden at /loader/0x7ffe498186e8/File/Temp.pm line 1.
+  Compilation failed in require at -e line 8.
+  BEGIN failed--compilation aborted at -e line 8.
+
+=head2 PERL5OPT and -M
+
+Santa was very happy and wrapped this up in a module:
+
+  package Without;
+  
+  sub import {
+    shift;
+    # translate a list of modules to a list of filenames
+    my @hidden = map {
+      s/::/\//g;
+      "$_.pm";
+    } @_;
+  
+    unshift @INC, sub {
+      # $_[0] is this sub-routine itself.
+      my $wanted = $_[1];
+      if(grep { $wanted eq $_ } @hidden) {
+        open my $fh, "<", \"die(qq{$wanted is hidden})";
+        return $fh
+      } else {
+        return undef;
+      }
+    }
+  }
+  
+  1;
+
+so that he could invoke like this to test his code with both RoboReindeer and BioReindeer, with one but not the other, and even without both:
+
+  make test &&
+  PERL5OPT=-MWithout=RoboReindeer make test &&
+  PERL5OPT=-MWithout=BiooReindeer make test &&
+  PERL5OPT=-MWithout=RoboReindeer,BiooReindeer make test
+
+PERL5OPT is an environment variable that contains extra command line arguments that will be passed to any perl process. -M is used to load a module on the command line, but using it to pass arguments to the module's C<import()>method is less well known.
+
+=head2 A few days later
+
+Santa was very pleased with himself and later that week he went to his local Perl Mongers meeting, with his laptop, so that he could show everyone his nifty new trick.
+
+"Oh, you wanted L<Devel::Hide>", they told him, adding that C<PERL5OPT> isn't used in taint-mode and that the trick of using open to turn a scalar into a filehandle didn't work in some really old perls.
+
+"Bother", said Santa, as he deleted his code and installed Devel::Hide from the CPAN. "Ah well, it was fun anyway."
+
+=head2 SEE ALSO
+
+For details on C<PERL5OPT> and C<-M>, see L<perlrun>.
+
+For details on magical @INC, see L<perlfunc/require>.
