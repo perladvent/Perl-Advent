@@ -2,43 +2,32 @@ Title: Inflecting Correctly
 Topic: Lingua::EN::Inflexion
 Author: Dave Cross <dave@perlhacks.com>
 
-=head1 Replacing Lingua::EN::Inflect
+=head1 Better Messages Please
 
-A couple of months ago I had some plural nouns that I wanted to get the
-singular versions of. As I always do in cases like this, I reached for
-Lingua::EN::Inflect, only to find a two interesting things.
+The new product owner was determined to make an impression on the site
+as quickly as possible, so she produced a list of "quick wins" for us
+to work on. Number one on her list was the quality of our error messages.
 
-Firstly, Lingua::EN::Inflect doesn't convert plural to singular - it only
-goes the other way. And secondly, Lingua::EN::Inflect is now in
-maintenance mode. It has been superceded by a new module called
-Lingua::EN::Inflexion which is more powerful and has a more flexible
-interface. I spent a few hours playing with the new module and was very
-impressed. It's written by Damian Conway, so it's really rather
-clever. Let me show you some of its features.
+Like pretty much every piece of software, our error messages suck. When
+users enter data, we validate it and tell them if there were any problems.
+We display messages like "1 error(s) were found". It's down to
+programmer laziness of course. And the wrong kind of laziness at that.
+But it seemed to be a simple enough thing to fix.
+
+I moved the ticket into "in progress" and reached for
+Lingua::EN::Inflect. Only to find something interesting.
+Lingua::EN::Inflect is now in maintenance mode and has been superceded
+by a new module called Lingua::EN::Inflexion which claims to be more
+powerful and to have a more flexible interface. It's written by Damian
+Conway, so those claims seem likely to be accurate. I settled down to
+read the documentation.
 
 =head1 Singulars and Plurals
 
-We'll start with my original requirement. The module exports a
-C<noun()> function which creates an object. You can then call the
-C<singular()> method on that object.
-
-    use Lingua::EN::Inflexion;
-
-    my @plurals = qw[cows pigs sheep];
-
-    foreach (@plurals) {
-      say "$_ -> ", noun($_)->singular;
-    }
-
-This outputs:
-
-    cows -> cow
-    pigs -> pig
-    sheep -> sheep
-
-The string that you pass to C<noun()> can be either the singular or
-plural version. So you can use a very similar approach to go the other
-way.
+The problem with the message is that it doesn't know whether it needs
+to use singular or plural versions of the words in the text.
+Lingua::EN::Inflexion makes it easy to start with a singular noun and
+get the plural version.
 
     use Lingua::EN::Inflexion;
 
@@ -52,6 +41,22 @@ Which gives us:
 
     cow -> cows
     pig -> pigs
+    sheep -> sheep
+
+We can also go in the other direction.
+
+    use Lingua::EN::Inflexion;
+
+    my @plurals = qw[cows pigs sheep];
+
+    foreach (@plurals) {
+      say "$_ -> ", noun($_)->singular;
+    }
+
+This outputs:
+
+    cows -> cow
+    pigs -> pig
     sheep -> sheep
 
 You can also ask the object whether its invocant was singular or
@@ -98,7 +103,7 @@ $& will contain "cows", not "cow". And it's even cleverer than that.
 
 Because "kine" is an obscure old plural for "cow".
 
-If you print the value returned from C<noun('cow')->as_regex>, you'll
+If you print the value returned from C<< noun('cow')->as_regex >>, you'll
 see that it is C<(?^i:kine|cows|cow)> - so it's case insensitive too.
 
 =head1 Verbs and Adjectives
@@ -157,17 +162,54 @@ Which produces:
     The past tense of sits is sat
     The part participle of sits is sat
 
+=head1 Building a Message
+
+So now we have all of the pieces that we need to construct our message.
+We need to know how many errors were found. Let's assume that's in
+C<$count>. Then our code looks like this:
+
+    my $msg = "$count ";
+
+    if ($count == 1) {
+      $msg .= noun('error')->singular;
+    } else {
+      $msg .= noun('error')->plural'
+    }
+    $msg =. ' ';
+    if ($count == 1) {
+      $msg .= verb('was')->singular;
+    } else {
+      $msg .= verb('was')->plural'
+    }
+    $msg =. ' found';
+
+Now you can start to see why so many systems make do with the terrible
+messages that we are trying to get rid of here. It's just too
+complicated to write code like this every time you want to display a
+message to the user.
+
+You can try to make it a little simpler, I suppose.
+
+    my $cardinality = ($count == 1 ? 'singular' : 'plural');
+    my $msg = "$count "
+            . noun('error')->$cardinality
+            . ' '
+            . verb('was')->$cardinality
+            . ' was found';
+
+But it's really not that much better. There has to be a better way.
+And, of course, that's really why I'm writing this article.
+
 =head1 Inflecting Sentences
 
-The module exports four routines. We've seen three of them (C<noun()>,
-C<verb()>, and C<adj()>). The fourth one is called "inflect()" and
-it's the one that you are likely to find most useful. You know all
-those annoying responses from software that say things like "1
-error(s) was found"? Well, C<inflect()> is your one-stop solution to
-irritating messages like that. The subroutine takes a single string
-argument, where the string contains some special markup defining how
-you wan the string processed. This string is expanded into a new
-string which is then returned. 
+Lingua::EN::Inflexion exports four routines. We've seen three of them
+(C<noun()>, C<verb()>, and C<adj()>). The fourth one is called
+"inflect()" and that's the one which solves our problem and gives us
+our "quick win".
+
+The subroutine takes a single string argument, where the string contains
+some special markup defining how you want the string processed. This
+string is expanded into a new string which is then returned. 
 
 In the simplest case, you would use it like this:
 
@@ -188,10 +230,10 @@ Simply by changing the number that is interpolated into the string,
 the noun and verb have both been changed appropriately.
 
 We have used three of C<inflect()>'s special mark-up tags
-here. C<< <#:...> >> sets the number which will be used in the rest of
-the output and C<< <N:...> >> and C<< <V:...> >> can be used to insert
-nouns and verbs which will be inflected. There's a fourth tag,
-"<A:...>" which can be used for adjectives, as you can see in this
+here. C<< <#:...> >> sets and displays the number which will be used in
+the rest of the output and C<< <N:...> >> and C<< <V:...> >> can be
+used to insert nouns and verbs which will be inflected. There's a fourth
+tag, "<A:...>" which can be used for adjectives, as you can see in this
 (slightly contrived) example.
 
     use Lingua::EN::Inflexion;
@@ -298,7 +340,22 @@ Which gives us:
     several errors were found
     many errors were found
 
-I often hear people excusing the "1 error(s) found" style of message
-by saying that it was too much trouble to do anything cleverer. I hope
-you agree that Lingua::EN::Inflexion makes it almost trivial to do the
-right thing. I hope to see it in all of your programs in the coming months.
+=head1 Finally - A Real Quick Win
+
+Users have become used to the "1 error(s) was found" style of message
+because it is ubiquitous. And that's because fixing the problem isn't
+exactly hard, it's just tedious. There's too much code to write to
+fix one small niggle in the user experience. Mostly, we think it's
+not worth the effort.
+
+But the C<inflect()> subroutine fixes that. Now getting it right is
+as trivial as it should be. That's the right kind of laziness. Damian
+was obviously getting bored of writing all of that code time he
+wanted a grammatically satisfying user message, so he decided to fix
+the problem by writing a solution that he (and, through the wonder of
+CPAN, everyone else) could use to easily produce vastly improved
+messages.
+
+So our product manager got her quick win. And now yours can too.
+
+And your users will get a much better user experience.
