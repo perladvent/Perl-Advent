@@ -5,7 +5,7 @@ Author: David Precious <davidp@preshweb.co.uk>
 We've all been there when cooking - you have one thing that should be cooked at
 200C for 30 minutes, another that asks for 220C for 35 minutes, and something 
 else that only wants 180C for 26 minutes.  However, you only have the one oven,
-so there's going to have to be compromises.
+so there's going to have to be compromises!
 
 After one too many times guessing appropriate adjustments in my head, I decided
 "this sounds like something a computer can be doing for me quickly".  So, enter
@@ -17,28 +17,59 @@ present a list of instructions telling you what temperature to pre-heat the oven
 to, and what should be put in and when, for everything to end up done at the
 same time.
 
-So, let's say we're doing a nice tasty Christmas dinner.
+So, let's say we're doing a nice tasty English Christmas dinner:
 
-    my ($temperature, @steps) = Convert::CookingTimes->adjust_times(
+    #!perl
+    my ($temperature, $steps) = Convert::CookingTimes->adjust_times(
         { name => 'Turkey',      temp => 180, time => 120, },
         { name => 'Roast spuds', temp => 200, time => 45,  },
         { name => 'Stuffing',    temp => 210, time => 15,  },
     );
 
-The instructions are returned as a set of hashrefs with the keys C<name>,
-C<adjusted_time> (how long to cook that thing for in total) and
-C<time_until_next> (the amount of time to wait before the next item is added in
-order for everything to be done at the same time).
+The steps are returned as a refernce to an array of hashrefs with the keys
+C<name>, C<adjusted_time> (how long to cook that thing for in total) and, for
+convience, C<time_until_next> (the amount of time to wait before the next item
+in the list is added to the oven in order for everything to be done at the same
+time):
 
-For convenience, that set of hashrefs can be passed to C<summarise_instructions>
-to produce a set of human-readable summarised instructions, like:
+          #!perl
+          [
+            {
+              'name' => 'Turkey',
+              'adjusted_time' => 108
+              'time_until_next' => 63,
+            },
+            {
+              'name' => 'Roast spuds'
+              'adjusted_time' => 45,
+              'time_until_next' => 29,
+            },
+            {
+              'name' => 'Stuffing',
+              'adjusted_time' => 16
+            }
+          ]
 
+For convenience, the ourput of C<adjust_times> can be passed to
+C<summarise_instructions> to produce a set of human-readable summarised
+instructions like so:
 
-  "Warm oven up to 200 degrees.",
-  "Cooking the whole meal will take 108 minutes.",
-  "Add Turkey and cook for 63 minutes",
-  "Add Roast spuds and cook for 29 minutes",
-  "Add Stuffing and cook for 16 minutes",
+  #!perl
+  say for Convert::CookingTimes->summarise_instructions(
+      Convert::CookingTimes->adjust_times(
+          { name => 'Turkey',      temp => 180, time => 120, },
+          { name => 'Roast spuds', temp => 200, time => 45,  },
+          { name => 'Stuffing',    temp => 210, time => 15,  },
+      )
+  );
+
+Which produces the highly readable output:
+
+  Warm oven up to 200 degrees.
+  Cooking the whole meal will take 108 minutes.
+  Add Turkey and cook for 63 minutes
+  Add Roast spuds and cook for 29 minutes
+  Add Stuffing and cook for 16 minutes
 
 Of course, it's an algorithm, not a cook, so you'll want to use a bit of common
 sense especially if the range of temperatures was particularly wide - maybe use
@@ -48,7 +79,11 @@ For ultimate laziness, I have a little web interface on my home server which
 presents various stats and CRUD interfaces etc - including one to store the
 cooking times and temperatures for things I cook commonly, along with a page I
 can go and tick the things I'm planning to cook, hit submit, and the stored
-times and temperatures are passed to L<Convert::CookingTimes> to produce a list
+times and temperatures are passed to Convert::CookingTimes to produce a list
 of steps to follow easily.  Now, if I can just automate the actual cooking away
 too... hmm, I wonder if Just Eat have an API...
+
+=head1 SEE ALSO
+
+L<Convert::CookingTimes>
 
