@@ -1,0 +1,104 @@
+Title: Scrape the Halls
+Topic: Web::Query
+Author: Yanick Champoux <yanick@cpan.org>
+
+Here's a shocker: the Santa Factories doesn't manufacture
+all of the children's toys for Christmas. For particulary toys and
+special requests, the elves will buy the toys, and just take care
+of the wrapping and delivery. But don't you think they are going around with this outsourcing 
+in a indiscrimate manner; the Big Man in Red made it very clear that toys should not be bought from
+big mega-corporations, but only
+from Mom'n'Pop shops, where they are build out of love and honest desire to make children happy.
+
+Noble sentiments. But one that throws some wrenches in the finely-tuned North Pole's
+toy managing software. Megacorporations might be soulless, but they usually have systems 
+backed by solid REST APIs. Mom and Pop shops? A website front-page is usually all you get.
+It's not pretty, but for those develfopers have to revert to crude but effective web scraping.
+
+One of their tools is L<Web::Query>, which is heavily inspired by the ubiquitous jQuery.
+With it, they can use CSS selectors, or even XPath expressions, to access and munge 
+their target websites.
+
+For example, one of the shops making dolls and plush toys have a site that looks like this:
+
+        <h2>Dolls</h2>
+            <table>
+                <tr>
+                    <td></td>
+                    <td>Price</td>
+                </tr>
+                <tr>
+                    <td>My Pretty Porcupine</td>
+                    <td>$29.99</td>
+                </tr>
+                <tr>
+                    <td>T.S. Moe</td>
+                    <td>$18.99</td>
+                </tr>
+            </table>
+        <h2>Teddy Bears</h2>
+            <table>
+                <tr>
+                    <td></td>
+                    <td>Price</td>
+                </tr>
+                <tr>
+                    <td>Grizzled Adams</td>
+                    <td>$99.99</td>
+                </tr>
+                <tr>
+                    <td>Cravebear</td>
+                    <td>$54.99</td>
+                </tr>
+            </table>
+
+Using L<Web::Query>, the elves are able to retrieve all the information on that page
+rather easily:
+
+    use 5.20.0;
+    use experimental 'postderef';
+
+    use Data::Printer;
+    use Web::Query;
+
+    my %toys = wq( 'http://momnpop.com/' )
+        ->find('h2')
+        ->map(sub{
+            $_->text => {
+                    # find all table rows until the next h2 section
+                $_->next_until('h2')->find( 'tr' )
+                    ->filter(sub{
+                        # *sigh* Shop owner never heard of <thead>, it seems...
+                        # Skip the first row
+                        $_[0] > 0;
+                    })->map(sub{ 
+                        # get the text in the  cells
+                        $_->find('td')->map(sub{ $_->text })->@*
+                    })->@*
+            }
+        })->@*;
+
+    p %toys;
+
+And, indeed, running that script produces the right data as advertised:
+
+    # perl get_dolls_and_bears.pl
+    {
+        Dolls           {
+            'My Pretty Porcupine'   "$29.99",
+            'T.S. Moe'              "$18.99"
+        },
+        'Teddy Bears'   {
+            Cravebear          "$54.99",
+            'Grizzled Adams'   "$99.99"
+        }
+    }
+
+And because elves are consciencious, they also want to make sure that
+the shops can see that it's their web scrapers that visited their sites.
+So for the official scripts, they always make sure to 
+tweak the user agent used by C<Web::Query>:
+
+    $web::Query::UserAgent = LWP::UserAgent->new( 
+        agent => 'SnowReindeer/4.0.0.0', # pronounced "four-HO-HO-HO!"
+    );
