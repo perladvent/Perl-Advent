@@ -1,0 +1,232 @@
+Title: crash kayo zamm splatt
+Topic: Acme::MetaSyntactic
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=pod
+
+=for html
+  <center><img src="pow.png" width="400" height="204"></center>
+
+Would it shock you to know that despite having created one hundred and fifteen
+(and counting) Perl Advent Calendar entries over the years, I've never written
+an article on one of the smallest, silliest, modules that I rely on every day?
+A module that I can't debug my code without?
+
+And the name of that module?  B<Acme::MetaSyntactic>.  Yes, that's right.  An
+I<Acme> module, from the namespace on the CPAN that's traditionally reserved for
+joke modules.  I'd better explain why I rely so heavily on one of these,
+shouldn't I?
+
+There was a time when, like a chump, I'd write statments like this thoughtout
+my code:
+
+    #!perl
+    print STDERR "Here!\n";
+
+And
+
+    #!perl
+    print STDERR "Got Here Also!\n";
+
+This I<poor man's debugger> technique is supprising effective.  Unlike a real
+debugger it works well with web applications, it doesn't require an external
+module support (so in a pinch you can even use it on one of the production
+servers you've temporarily stopped the load balancer sending live traffic to)
+and can be left unattended to generate output on minutes long scripts while you
+go and fetch a hot beverage.
+
+So if this is so effective, why was I a chump for using it?  All that I<typing>.
+Having to come up with I<unique new strings> to print out all the time...I can't
+tell you the number of times I'd copy and pasted a C<print STDERR "Here!"> from
+one place to another and then scratched my head wondering which I<Here> was
+printing.
+
+Lazyness is one of the virtues of a Perl programmer.  Surely we can automate
+this?  You bet we can.
+
+Acme::MetaSyntactic is a module that can create random memorable strings for
+us and the Acme-MetaSyntactic-Themes distribution on the CPAN contains a vast
+range of themes for it.  For example, using the gems theme:
+
+    #!perl
+    use Acme::MetaSyntactic qw(gems);
+    say join ' ', metagems(3) for 1..5;
+
+Produces output like so:
+
+    ruby amethyst girasol
+    moonstone ivory sugilite
+    jadeite tiger_s_eye jasper
+    beryl lapis_lazuli diamond
+
+We can easily use this technique to write a tiny little Perl script that
+outputs a print statement that contains unique-ish strings
+
+    #!perl
+    use Acme::MetaSyntactic qw(batman);
+    say 'print STDERR "'. join(q{ }, metabatman(2)) . '";\\n';
+
+Executing this we can see our print statement with awesome 60s Batman type
+sound effects.
+
+    print STDERR "wham_eth klonk\n";
+
+But how do we automate inserting this in our Perl code?
+
+=head2 Configuring Your Editor
+
+Modern editors are amazing things, turing complete little bundles of wonder
+that can be configured to do almost anything, including executing a shell
+script and inserting the output of the script into your source code.
+
+I won't tell you what editor to use (and you emacs and vim users probably know
+how to do this already) but I'll let you in on the secret of how I do this with
+Sublime Text 3, my editor of choice.
+
+Sublime Text 3 has a complex plugin system written in Python in which I've
+written many a tool.  But, fear not, I need not concern myself with a non-Perl
+language in this Advent Calendar entry, for many existing plugins that can shell
+out exist that can be installed with Package Control without having to write a
+line of code.  Using the
+L<External Command|https://packagecontrol.io/packages/External%20Command> plugin
+we can get our script to insert at the cursor every time we hit C<alt-shift-b>.
+
+    #!vim json
+    {
+        "keys": ["alt+shift+b"],
+        "caption": "print STDERR meta batman",
+        "command": "insert_command_output",
+        "args": { "cmdline": "/Users/mark/bin/printmetabatman" }
+    }
+
+=head2 Configuring Your Terminal Emulatator
+
+So, why isn't running this in an editor sufficent?  If you only ever edit code
+on your own box then everything is good...but what if you're logged into
+a remote server via ssh that either doesn't run your editor or choice or isn't
+configured to have Acme::MetaSyntactic or your editor configuration?
+
+Rather than using the Terminal application bundled with OS X, these days I use
+an open source replacement called L<iTerm 2|https://www.iterm2.com/>. As well as
+having cool features like being able to open files you C<ls> with a click,
+configurable highlighting of terminal output (to show where all the errors are
+when you tail a log), and allowing programs you run in it to pop up
+notifications outside the window, it also allows I<co-processes>.  In iTerm
+parlance, co- processes are scripts that once launched get sent everything that
+the terminal is outputting and and anything they output is typed back into the
+terminal.
+
+In our case, we want to simply want to execute our same two line Perl script as
+a co-process so its output is typed at the terminal.  That can be done from
+withing the C<Keys> tab of the application's preferences:
+
+=for html
+  <center><img src="iTerm2.png" width="500" height="294"></center>
+
+=head2 Making A OS X Service
+
+What if we want to take it even further?  Have a keyboard shortcut that doesn't
+insert the text in a particular appplication but inserts the text I<anywhere> on
+OS X that OS X thinks it can take text input?
+
+OS X Services are global menu items that can be triggered by clicking on the
+title of the current running application next to the apple logo in the top left
+corner of the screen and selecting them from the C<Services> menu underneith.
+More importantly, they can also be assigned global keyboard shortcuts.
+
+The Automator application that is provided by Apple can be used to create
+Services that run Perl scripts:  Launch Automator and select "Service" to create
+a new service.  Seach for the C<Run Shell Script> action then configure it to
+run the Perl script (you can write Perl code directly in this box and configure
+it to be executed with C</usr/bin/perl>, but we're re-using the same script as
+in the previous examples.)  Finally set it so the Service takes C<no input> and
+tick the box so that C<Output replaces selected text>.
+
+=for html
+  <center><img src="automator.png" width="500" height="294"></center>
+
+The service is installed as soon as you save it.
+
+Once you have created the service you can then assign a keyboard shortcut to
+it in System Preferences.  Select the C<Keyboard> icon, click on the C<Shortcuts>
+tab and then pick C<Services> on the left.  Scroll down till you find your
+service under C<Text> and click on the space to the right of the name to
+assign the shortcut.
+
+=for html
+  <center><img src="prefs.png" width="368" height="322"></center>
+
+=head2 Keybord Maestro
+
+You'll notice we If you were paying close attention you'll notice that
+previously I said that a service can be used "anywhere on OS X that I<OS X
+thinks it can take text input>". What does that mean?  It means that they can be
+used anywhere that the application is using the standard libraries to create a
+text input area. But not all applications use that (for example the previously
+mentioned iTerm2 and Sublime Text don't use those, and the service cannot be
+used within them.)
+
+L<Keyboard Maestro|https://www.keyboardmaestro.com/main/> is a commercial
+utility that can be used to control your Mac, and one of the many things it can
+do is trigger a workflow whenever a key combination is pressed.  That workflow
+can execute an external script and Keyboard Maestro can then simulate the keys
+on your keyboard being pressed, meaning that the output from that script can
+be typed anywhere in any application running on your Mac, if its explicitly
+expecting it or not.
+
+=for html
+  <center><img src="km.png" width="476" height="277"></center>
+
+=head2 Typing Autocompletion
+
+Another option to insert the text is to use a text expansion utility.  For
+example, using the L<TextExpander|https://smilesoftware.com/textexpander>
+program I can configure my computer so every time I type C<metaqq> it deletes
+that text and quickly types the output of my Perl script:
+
+=for html
+  <center><img src="te.gif" width="355" height="130"></center>
+
+Setting this kind of script up with TextExpander is trivial;  You just
+create a new macro and click on the C<content> header and select C<Shell Script>
+then enter the path to our existing script in the shebang line (or, you could
+write the Perl shell script here, directly in the text box.)
+
+=for html
+  <center><img src="te.png" width="360" height="275"></center>
+
+Keyboard Maestro is a little more complex to use than Text Expander but can also
+be configured to do text expansion with a shell script.  It can even be
+configured to match what typed text triggers the macro with regular expressions,
+which allows you to have a very crude way to type in variables.  For example, to
+produce a macro where we can type C<< meta<theme>qq >> to select any of the
+intalled Acme::MetaSyntactic themes:
+
+=for html
+  <center><img src="km.gif"></center>
+
+In order to work out what was typed in the script we need to set a variable
+to the C<%TypedText%> temporary variable, and then access it via an enviroment
+variable in our Perl script:
+
+=for html
+  <center><img src="km2.png" width="494" height="438"></center>
+
+=head2 The True Perl Laziness
+
+So today we have truly embraced the Perl concept of laziness.  Rather than have
+to spend five seconds typing in a print statement, we've developed a Perl script
+that generates suitable output for us and investigated at least six different
+ways to trigger it on a Mac.  I'm sure you'll all agree that that's time
+well spent.  
+
+swish bloop ker_sploosh thwape aiieee!
+
+=head2 SEE ALSO:
+
+=for :list
+* L<Acme::MetaSyntatic>
+* L<iTerm 2|https://www.iterm2.com/>
+* L<Keyboard Maestro|https://www.keyboardmaestro.com/main/>
+* L<TextExpander|https://smilesoftware.com/textexpander>
+
