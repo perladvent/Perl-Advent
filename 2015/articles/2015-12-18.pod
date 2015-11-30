@@ -1,0 +1,73 @@
+Title: Christmas letters
+Topic: Sereal
+Author: Ivan Kruglov <ivan.kruglov@yahoo.com>
+
+As Christams becomes closer by every day, hour and minute people start sending congratulations to theirs relatives and friends or even just everyone. They say 'Merry Christmas!'.
+But not everyone having fun during this time. Communications channels are geting flooded which make task of delivering messages on time be a hard one.
+
+Let's see how Sereal, a binary serialization protocol, can make live a bit easier :-)
+
+=head2 Compression
+
+Sereal has builtin compression. Snappy compression should be enough if a
+particular segment of network has modest load:
+
+   #!perl
+
+   use strict;
+   use warnings;
+
+   use Sereal::Encoder qw(encode_sereal SRL_SNAPPY);
+
+   my $message = {
+       from => 'Bob',
+       to   => 'Alice',
+       message => 'Merry Christmas dear Alice!'
+   };
+
+   my $encoded = encode_sereal(
+      $message,
+      {
+          compress => SRL_SNAPPY,
+          compress_threshold => 0
+      }
+   );
+
+for better compression we can use Zlib:
+
+   ...
+
+   my $encoded = encode_sereal(
+      $message,
+      {
+          compress => SRL_ZLIB,
+          compress_threshold => 0
+      }
+   );
+
+=head2 More compression
+
+Delivering one message at a time might not be good idea for various reasons. 
+
+Likely, Sereal can dedupe hash keys. And it does it almost for free. Moreover, it can dedupe values with moderate penalty. As result, particular key of value string will be dumped only once; all other occuriences of same string is encoded as 2-3 bytes sequence.
+
+   #!perl
+
+   use strict;
+   use warnings;
+
+   use Sereal::Encoder qw(encode_sereal SRL_SNAPPY);
+
+   my $messages = [
+      { from => 'Bob', to => 'Alice', message => 'Merry Christmas!' },
+      { from => 'Alice', to => 'Bob', message => 'Merry Christmas!' },
+      ... # more similar messages
+   ];
+
+   my $encoded = encode_sereal(
+      $messages
+      {
+          compress => SRL_SNAPPY,
+          dedupe_strings => 1,
+      }
+   );
