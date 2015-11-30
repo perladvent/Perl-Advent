@@ -7,36 +7,35 @@ that you want to automate from one place, so you use Perl.  You put the
 programs carefully in position, grab the bottle of Krazy Glue, drizzle it
 everywhere, and bask in the glow of what you've accomplished.
 
-Only then, in evitably, you can't put down the glue.  It's not that you've gone
+Only then, in evitably, you can't put down the glue bottle.  It's not that you've gone
 mad with a need to automate all the things — although that's a possibility,
-too.  This time, though, you've glued the glue to your hand, and no matter what
+too.  This time, though, you've glued the glue bottle to your hand, and no matter what
 those people on the GlueGaffes subreddit tell you, the only way to get that
 bottle off your hands is to become some sort of snake monster and shed your
 skin.  This, presumably, is how Python programmers come to be.
 
-Well, the leak in our gluey Perl might not be so bad, but it's still a big
-annoyance.  It's all those places where Perl reminds you, "Hey!  Hey!  Lots of
-me is just a little wrapper around C library stuff!"  Isn't that great?
+Well, the abstratction leak in our Perl glue layer might not be so bad, but it's
+still a big annoyance.  It's all those places where Perl reminds you, "Hey!
+Hey!  Lots of me is just a little wrapper around C library stuff!"  Isn't that
+great? This is why you end up with C<stat> returning a thirteen element list, for
+example (wait, the Perl Advent Calendar has never featured an article on
+L<File::stat>? Well, check it out later, because that's not the problem we're
+talking about right now.)
 
-This is why you end up with `stat` returning a thirteen element list, for
-example. Wait, the Perl Advent Calendar has never mentioned L<File::stat>?
-Well, check it out later, because that's not the problem we're talking about
-right now.
-
-Right now, I'm thinking about running subprocesses.  There are a number of ways
-to do this.  You might use C<system>.  You might use C<open>.  You might use
+Right now the problem we're talking about is running subprocesses.  There are a number of ways
+to do this;  You might use C<system>.  You might use C<open>.  You might use
 C<fork>.  They all have one thing in common: when the process you started via
 those means exits, you get its exit status in the same place: C<$?>
 
 C<$?> (known by devotees of the L<Way of the
 Dog|http://www.amazon.com/Perl-Best-Practices-Damian-Conway/dp/0596001738> as
-C<$CHILD_STATUS>) gets populated with the numeric status of the ex-process.
+C<$CHILD_STATUS>) is a global variable that gets populated with the numeric status of the ex-process.
 It's supposed to be easy to remember C<$?> because it's the same name as in
-shell programming… but in the shell, C<$?> is the exit value of the program.
-If a program exits 75, then C<$?> is 75.  In Perl, that would be 19200... and
+shell programming...but in the shell, C<$?> is the exit value of the program.
+If a program exits 75, then C<$?> is 75.  In Perl, that would be 19200...and
 now you just glued your finger to the keyboard.
 
-Perl is leaking the way that status day is packed into the status integer in C:
+Perl is leaking the way that status code is packed into the status integer in C:
 eight bits of exit value, seven bits of signal identifier, and one bit to flag
 whether the process dumped core.  Instead of giving you three variables, you
 get one number between 0 and 65535.  Great!
@@ -48,38 +47,48 @@ In C, there are macros for getting the data you wanted.
   signal      = WTERMSIG(status);
   exit_status = WCOREDUMP(status);
 
-In Perl, you typically find people doing this:
+In Perl, you typically find people using bit-shift operators to extract the part
+of the return code they care about:
 
   #!perl
   return unless system($some_command);
-
   die sprintf "program exited %i", $? << 8;
 
-...which we tend to recognize at a glance, and don't notice how ridiculous it
-is to type this all the time.
+...which the hardened Perl programmer tends to recognize at a glance (and
+doesn't even notice how ridiculous it is to type this all the time).
 
-We also probably don't notice when the code accidentally uses C<<< << >>>
-instead of C<<< >> >>>, either.  Did you?
-
-We I<also> also probably don't think about the fact that we might care about
-the signal, but totally failed to check or print it there.  Why did we fail to
-do that?  Maybe because it was more work, and maybe because we have a quota of
-one bitwise operation allowed per Perl program per day, and we hit it with the
-first one.
-
-Of course, we can eliminate these stupid errors with everyone's favorite core
-module… POSIX!
+Speaking of things we even Perl vetrans fail to notice:  When the code
+accidentally uses C<<< << >>> instead of C<<< >> >>>.  Ooops.  Did you notice I
+should have actually written the above code as:
 
   #!perl
+  return unless system($some_command);
+  die sprintf "program exited %i", $? >> 8;
+
+But that's the problem when you're using non-obvious syntax.  It's non-obvious!
+And even when someone does a proper code review they don't catch that kind of
+thing.
+
+We I<also> also probably don't catch the situtations where we might care about
+the signal but then we totally forget to check or print it in our code.  Why did
+we fail to do that?  Maybe because it was more work, and maybe because we have a
+quota of one bitwise operation allowed per Perl program per day and we hit it
+with the first one.
+
+Of course, we can eliminate these stupid errors with everyone's favorite core
+module... POSIX!
+
+  #!perl
+  # ARGH MY EYES
   use POSIX qw(WEXITSTATUS);
 
   return unless system($some_command);
-
   die sprintf "program exited %i", WEXITSTATUS($?);
 
 Ha ha just kidding.  I mean, you I<could> do that, but then you'd be using
-POSIX.pm, and you'd have to hit shift a whole lot, I<and> you'd have to
-remember to add that code for signals!  Also, seriously, I<POSIX.pm>.
+POSIX.pm, and you'd have to hold down the shift keys a whole lot when typing,
+I<and> you'd have to remember to add that code for signals!  Also, seriously,
+I<POSIX.pm>.
 
 This is why Process::Status exists.  It's such a useful module that Ruby stole
 it from us, then traveled back in time 15 years to make it look like they wrote
@@ -108,3 +117,11 @@ If you ever run subprocesses from Perl, use Process::Status.
 
 If you don't ever run subprocesses from Perl, I don't even understand your
 life.
+
+=head1 SEE ALSO
+
+=for :list
+* L<Process::Status>
+* L<File::stat>
+* L<POSIX>
+
