@@ -2,48 +2,59 @@ Title: Help! Rudolf's Nose Won't Light Up!
 Topic: Devel::Hide
 Author: David Cantrell <david@cantrell.org.uk>
 
-=head2 Devel::Hide
+=pod
+
+Often we find ourselves writing code that copes with I<optional> dependencies;
+Code that will use a module to do amazing things if it's installed, but will
+muddle through with some lesser code path if that dependency is missing or
+unavailable on the system. When developing this code we need to test how the
+code works in both situations, preferably without breaking parts of our system
+setup just to check that the alternative code paths still work!
+
+How can we do this?  Gather round, I have a story to tell...
+
+=head2 A Christmas Tale
 
 At the north pole Cyber-Santa was in a bit of a pickle because he'd forgotten to
-charge the batteries for his new Robo-Reindeer's light-up nose. How would he
-find his way through the dark and deliver techno-toys to all the good
+charge the batteries for his new Robo-Reindeer's light-up nose! How would he be
+able to find his way through the dark and deliver techno-toys to all the good
 programmers and sysadmins?
 
-He was stressing out and whining on Twitter when one of his older elves reminded
-him that cost over-runs on the Reindeer Upgrade Project meant that he was still
-using the old sleigh, and that still had mounting brackets for old oil lamps.
+Cyber-Santa was stressing out and whining on Twitter when one of his older elves
+reminded him that cost over-runs on the Reindeer Upgrade Project meant that he
+was still using the old sleigh, and that still had mounting brackets for old oil
+lamps.
 
-"But how do we know that those lamps still work? Are they bright enough?"
+"But do we know that those lamps still work? Are they bright enough?",
+Cyber-Santa asked
 
 "Oh yes", replied the elf. "Don't you remember, last Christmas we weren't sure
 whether all the new Robo-Reindeer would be ready in time, so we did our
 L<test run|https://en.wikipedia.org/wiki/Sinterklaas> both with and without
 cybernetic cervids, and everything worked just fine."
 
-"Let me show you how we tested this", said the elf.
-
-"I'll take you step by step through what we normally do. First, we dig the
-sleigh out from under that snowdrift. Would you mind doing it, only my poor old
-back is giving me gyp right now."
-
-"And then could you fetch the reindeer and attach them to the sleigh"
+"Let me show you how we tested this", said the elf elaborated, "I'll take you
+step by step through what we normally do. First, we dig the sleigh out from
+under that snowdrift. Would you mind doing it, only my poor old back is giving
+me gyp right now....and then could you fetch the reindeer and attach them to the
+sleigh?",
 
 So Santa dug out the sleigh, fetched the reindeer, got kicked by the reindeer,
-harnessed them and finally climbed up into the driver's seat, all sweaty and
+harnessed them and I<finally> climbed up into the driver's seat, all sweaty and
 bruised and smelling of reindeer.
 
 "So at this point, we're ready to go, right?" asked the elf.
 
-"Yes", said Cyber-Santa. "But how do we know it'll work?"
+"Yes!", said Cyber-Santa.
 
-"Wrong", replied the elf, "we're not yet ready. If you turn to page two of your
+"Wrong!", replied the elf, "We're not yet ready. If you turn to page two of your
 Sleigh Operations Manual you'll see the pre-flight checklist. The ninety fourth
-item on the list (after 'are the presents tied down?' and 'do you have
-L<banging choonz|https://en.wikipedia.org/wiki/A_Twisted_Christmas> queued up on
-your iPod?') is 'is the headlight working?'".
+item on the list (after 'are the presents tied down?' and 'do you have L<banging
+choonz|https://en.wikipedia.org/wiki/A_Twisted_Christmas> queued up on your
+iPod?') is 'is the robot providing sufficient lighting to navigate by?'".
 
-And so Santa checked, and the headlight wasn't working because of that flat
-battery.
+And so Santa checked, and the glowing Robo-NoZeE<0x2122> wasn't working because
+of that flat battery.
 
 "And after checklist item ninety four it tells you that if it isn't working you
 should use an oil lamp, doesn't it", scolded the elf.
@@ -63,15 +74,14 @@ Santa, because the elf's children got to play with left over toys and far
 preferred traditional wooden blocks and balls and things instead of the modern
 nonsense that Cyber-Santa was obsessed with.
 
-So they went inside, and Santa started mucking about on Facebook, but eventually
-the elf got him to stop that and get on with something useful.
+=head2 Modeling With Perl
 
 "First let's simulate what you just did", said the elf. "We'll create a sleigh
 object, and a factory class to simulate the field that the reindeer come from.
 
   #!perl
-  my $sleigh = Sleigh->new();
-  my @reindeer = ReindeerFactory->fetch(6);
+  my $sleigh   = Sleigh->new();
+  my @reindeer = ReindeerFactory->fetch(9);
 
 "Then we'll harness the reindeer to the sleigh and have the sleigh run through
 the pre-flight checks because you're so forgetful. Then, once the pre-flight
@@ -79,13 +89,13 @@ checks are complete we can get going:
 
   #!perl
   $sleigh->harness(@reindeer);
-  if($sleigh->pre_flight()) {
+  if ($sleigh->pre_flight()) {
     # FIXME, deliver presents here
   }
 
-"So far, so simple. Now, consider that right now your pasture contains Robo-
-Reindeer, but previously it contained normal reindeer. So the ReindeerFactory
-has to look something like this:
+"So far, so simple. Now, consider that right now your pasture contains
+Robo-Reindeer, but previously it contained normal reindeer. So the
+ReindeerFactory has to look something like this:
 
   #!perl
   package ReindeerFactory;
@@ -105,7 +115,7 @@ otherwise it'll give me BioReindeer. Very clever. That looks like a pain to test
 though."
 
 "Yes, unfortunately it is" admitted the elf. "We had to run through the whole
-damned process twice, once for Robo Reindeer, once for normal ones, being very
+damned process twice, once for Robo-Reindeer, once for normal ones, being very
 careful to keep the two completely separate."
 
 Santa was very thankful that he had elves to do that sort of hard work for him,
@@ -137,33 +147,40 @@ can also put code-refs in it. For example:
 time. The complaining from perl is because C<say> returns something that perl
 doesn't know what to do with)
 
-When Perl finds a code-ref in C<@INC> it passes the desired module to the code-
-ref, with its name reformatted from something like C<Foo::Bar> to a filename
-like C<Foo/Bar.pm>. Your code-ref can then decide not to do anything, thus
-making perl look in the next place listed in C<@INC>, or it can return the
+When Perl finds a code-ref in C<@INC> it passes the desired module to the
+code- ref, with its name reformatted from something like C<Foo::Bar> to a
+filename like C<Foo/Bar.pm>. Your code-ref can then decide not to do anything,
+thus making perl look in the next place listed in C<@INC>, or it can return the
 source code for a module:
 
 To have your sub-routine do nothing and have Perl carry on to the next entry in
 C<@INC> have it return C<undef>:
 
   $ perl -E '
-    BEGIN { unshift @INC, sub { undef } }
+    BEGIN { unshift @INC, sub { return undef } }
     use File::Temp;
   '
 
 That code-ref has absolutely no effect - when Perl tries to C<use File::Temp> it
 first executes our subroutine, which returns C<undef>, so Perl then tries to
 load it from the directories that make up the rest of the list, and eventually
-succeeds. So what if we want to prevent C<File::Temp> from loading? We have to
-return some code that dies instead, which Perl will then read and execute as if
-it were the C<File::Temp> module:
+succeeds.
+
+So what if we want to prevent C<File::Temp> from loading? Our C<@INC>
+hook has to return an open filehandle which Perl can read the module code from,
+and the code we return (which Perl will then read and execute as if it were the
+C<File::Temp> module) should just die instead:
 
   $ perl -E '
     BEGIN { unshift @INC, sub {
-      if($_[1] eq "File/Temp.pm") {
+      # is this what we're hiding?  return an alternative file-handle
+      if ($_[1] eq "File/Temp.pm") {
         open my $fh, "<", \"die(qq{$_[1] is hidden})";
         return $fh;
-      } else { return undef }
+      }
+
+      # not something we're hiding, return undef so Perl will continue as normal
+      return undef;
     } }
     use File::Temp;
   '
@@ -182,7 +199,7 @@ Santa was very happy and wrapped this up in a module:
     shift;
     # translate a list of modules to a list of filenames
     my @hidden = map {
-      s/::/\//g;
+      s!::!/!g;
       "$_.pm";
     } @_;
   
@@ -192,9 +209,8 @@ Santa was very happy and wrapped this up in a module:
       if(grep { $wanted eq $_ } @hidden) {
         open my $fh, "<", \"die(qq{$wanted is hidden})";
         return $fh
-      } else {
-        return undef;
       }
+      return undef;
     }
   }
   
@@ -225,6 +241,11 @@ filehandle didn't work in some really old perls.
 
 "Bother", said Santa, as he deleted his code and installed Devel::Hide from the
 CPAN. "Ah well, it was fun anyway."
+
+  make test &&
+  PERL5OPT=-MDevel::Hide=RoboReindeer             make test &&
+  PERL5OPT=-MDevel::Hide=BioReindeer              make test &&
+  PERL5OPT=-MDevel::Hide=RoboReindeer,BioReindeer make test
 
 =head2 SEE ALSO
 
