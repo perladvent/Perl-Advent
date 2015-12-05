@@ -2,57 +2,81 @@ Title: Sharing templates will get you on the nice list
 Topic: Text::Hogan
 Author: Alex Balhatchet <kaoru@slackwise.net>
 
-As always towards the end of the year, the elves in Santa's Grotto were typing
-away on their keyboards getting ready for the big day in December.
-Unfortunately the day had started badly - the elves in the QA department had
-reported three bugs in quick succession.
+It was the night before Christmas even and the elves in Santa's Grotto were
+typing away on their keyboards getting ready for the tomorrow night, making sure
+the last minute issues were fixed.  Unfortunately the day had started badly -
+the elves in the QA department had reported three bugs in quick succession with
+their website.  If the elves didn't address the problems in the next few hours,
+Christmas would be runined!
 
 =head2 The Problems
 
+The QA elves had identified three problems with the website the team packing
+the sleigh use to record their work:
+
 =for html
  <ol>
-  <li>If I filter the text is in German, but if I hit F5 it's English</li>
-  <li>If I browse to the page it looks great, but if I refresh it goes bad</li>
+  <li>If I filter with the widget the text is in suddenly in English, but if I hit reload it's Elvish as it should be!</li>
+  <li>If I browse to the page it looks great, but if I refresh it goes bad!</li>
   <li>The total at the bottom of this table is wrong! Aren't there tests?</li>
  </ol>
 
-The elvish front-end development team scratched their heads for a moment. The
-first two seemed to be similar bugs, but in one case the "client side" was
+=head3 Pronto the Front End DevI<elf>oper
+
+The leader of elvish front-end development team scratched her head for a moment.
+The first two seemed to be similar bugs, but in one case the "client side" was
 wrong and in the other the "server side" was wrong.
 
-Meanwhile the back-end team looked for the source of that table total bug. They
-grepped as hard as they could around C<lib/SantasWorkshop/> but the table logic
-was nowhere to be found. Finally, one of the team had a realisation - the logic
-wasn't in the modules, it was in the templates themselves! And he was right,
-the addition - and the bug - was in the template file. The team shook their
-heads; no wonder there wasn't a test for it. They quickly fixed the bug and
-pushed out a new release, but none of them felt right about not being able to
-add a regression test.
+After six cups of elf eggnog, the answer finally hit her!  The JavaScript code
+that ran on the client side had its own templating language, and so the changes
+to the templates had to be made to both templates that generated the output. The
+templates that generate the page on the server side and the JavaScript templates
+that create HTML from the JSON loaded from the server in AJAJ requests need to
+be identical!  Any differences would end up with the bugs they were seeing.
 
-The front-end team had also discovered the cause of their bugs. The JavaScript
-code that ran on the client side had its own templating language, and so the
-templates had to be duplicated to run on the server side and the client side.
-They quickly fixed the bugs and pushed out a new release, but they all felt
-that the same kind of bug would likely come up again.
+After much cross referencing between the two templating languages (and worrying
+about the minutia of the different syntaxes) Pronto managed to commit a fix
+just a few hours before the deadline.
 
-=head2 Mustache
+Sighing, Proto thought I<having to maintain two templating languages and two
+sets of identical templates is always going to be a huge pain for my team>
 
-When Santa talked to his team leads about the projects they were working on that
-week he heard about the bugs, and the likelihood of regressions, his
-forehead wrinkled under his red hat. He sat quietly for a moment, stroking his
-mustache...
+=head3 Retro the Back-End DevI<elf>oper
+
+Meanwhile the lead of back-end team looked for the source of the third and final
+bug, the table total bug. Her team grepped as hard as they could around
+C<lib/SantasWorkshop/> but the table logic was nowhere to be found!
+
+Finally, one of the team had a realisation - the logic wasn't in the modules, it
+was in one of the back-end templates themselves! And he was right, the addition
+- and the bug - was in the template file. Retro shook her head; no wonder there
+wasn't a test for it!  Quickly she fixed the bug and pushed out a new release,
+but no-one in her team felt right about not being able to add a regression test
+for the code.
+
+Sighing, Retro thought I<having all this logic in the templates where it can't
+be tested is always going to be a huge pain for my team>
+
+=head2 Santa's Mustache
+
+When Santa finally got back from his around the world dash, he scheduled
+debriefing meetings with his developers to learn about what could be improved
+from next year. When he heard all about the last minute problems that had nearly
+ended in worldwide disappointment for the children his forehead wrinkled under
+his big red hat. He sat quietly for a moment, stroking his mustache...
 
 A smile crept across Santa's face. "Ho ho ho, I know of a solution to both your
-problems", he said, his grin widening. Have you heard of Mustache? The elves
-shook their head, but one of them brought up the website on his icePhone 6.
+problems", he said, his grin widening. "Have you heard of B<Mustache>?" The
+elves shook their head, but one of them brought up the website on his icePhone
+6.
 
 L<Mustache|http://mustache.github.io/> provides logic-less templates and has
 parsers for multiple languages including JavaScript and Perl!
 
-By being logic-less you're forced to put your logic into your Perl modules
+=for :list
+* By being logic-less you're forced to put your logic into your Perl modules
 where it's easy to write unit tests for your subroutines.
-
-By being usable in JavaScript and Perl you can write one set of templates and
+* By being usable in JavaScript and Perl you can write one set of templates and
 render them on the server side or the client side as needed.
 
 =head2 Hogan.js and Text::Hogan
@@ -118,12 +142,12 @@ constructs you can use for optional blocks or looping blocks.
 As you can see C<#> is used for ifs and loops, and C<^> is used for negative
 checks. For more details see the L<mustache(5)|http://mustache.github.io/mustache.5.html> man page.
 
-=head2 One more bug
+=head2 One more issue
 
-The elves had gleefully replaced all their old templates with new mustache
-based ones, and written tests for all their code that was previously locked
-away in template files. Hooray! But then one day, shortly before Christmas,
-another bug report came in:
+The elves had gleefully replaced all their old templates with new mustache based
+ones, and written tests for all their code that was previously locked away in
+template files. Hooray! But then one day, shortly before next Christmas, another
+bug report came in:
 
 "I don't think we can use these new templates during the Christmas rush. Our
 metrics show that the site has gotten much slower since we switched."
@@ -131,6 +155,11 @@ metrics show that the site has gotten much slower since we switched."
 Luckily one of the elvish development team was ready for this. Not wanting to
 fall into the trap of premature optimization he hadn't yet used one of hogan.js
 and Text::Hogan's most powerful features: pre-rendering.
+
+Using Text::Hogan::Compiler's C<compile> method (like in the examples above)
+means you only compile a template to Perl code once per process (due to clever
+internal caching.)  Using pre-rendering however, you can actually get at the
+generated Perl code and cache it somewhere on disk / in memcache, etc.
 
     #!perl
     use Text::Hogan::Compiler;
@@ -144,11 +173,18 @@ and Text::Hogan's most powerful features: pre-rendering.
     say $perl_code;
 
 The Perl code that comes out the other end isn't pretty, but it renders really
-quickly. The JavaScript library hogan.js can pull the same trick with its
+quickly:
+
+    #!perl
+    { code => sub { my ($self,$c,$p,$i) = @_; $t->b($i = $i || "");
+    $t->b("Hello, ");$t->b($t->v($t->f("name",$c,$p,0)));$t->b("!");
+    return $t->fl(); }, "partials" => {  }, "subs" => {  } }
+
+The JavaScript library hogan.js can pull the same trick with its
 "hulk" command-line tool or with various grunt, gulp or webpack plugins.
 
-The change to pre-compile the templates went live, and the site was even faster
-than it was on the old templates. Christmas was saved!
+Once the change to pre-compile the templates went live, and the site was even
+faster than it was on the old templates. Christmas was saved again!
 
 =head1 SEE ALSO:
 
