@@ -8,11 +8,11 @@ add_stopwords(<DATA>);
 all_pod_files_spelling_ok(@ARGV);
 __DATA__
 aiieee
+AJAJ
 amongst
 ansible
 Ansible
 AnsibleModule
-AJAJ
 apologised
 Autocomplete
 Autocompletion
@@ -100,4 +100,3 @@ VivaGraph
 WebGL
 webpack
 Zlib
-
