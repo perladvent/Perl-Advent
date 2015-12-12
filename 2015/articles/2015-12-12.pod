@@ -2,8 +2,6 @@ Title: Configuration Station
 Topic: Config::Station
 Author: Arthur Axel "fREW" Schmidt <frew@cpan.org>
 
-=head1 Config::Station
-
 The B<best> option for configuration.
 
 I wrote Config::Station after implementing a pattern I wrote about L<a while
@@ -11,7 +9,7 @@ ago|https://blog.afoolishmanifesto.com/posts/configuration-station/> another
 time or two.
 
 The overall gist of L<Config::Station> is that you define a simple configuration
-class:
+class that knows nothing about the file the config is loaded from:
 
  #!perl
  package MyApp::Config;
@@ -30,8 +28,9 @@ class:
    default => '/var/myapp',
  );
 
-And then you "inflate" it:
+And then you "inflate" it with Config::Station:
 
+ #!perl
  my $station = Config::Station->new(
    config_class => 'MyApp::Config',
    env_key      => 'MYAPP',
@@ -87,18 +86,22 @@ again using L<Moo> as the object system backing the configuration class:
    },
  )
 
+We're adding smarts here:  If the value passed to us isn't exactly in the format
+we want, we're coercing it into the right format.
+
 You may not have heard of L<JSONY>; it's a weird thing but it's great in cases
 like this.  Here is how you could use it:
 
  $ MYAPP_DSN='dbi:ODBC:server=10.6.6.17 frew Password1!' myapp_server.pl
 
-In this example, C<JSONY> is parsing our string into an arrayref with three
-values, suitable for passing to L<DBI> or L<DBIx::Class>.
+In this example, the attribute's coercion uses C<JSONY> to parse our string into
+an arrayref with three values, suitable for passing to L<DBI> or L<DBIx::Class>.
 
 Of course, nothing requires you to use C<Moo> or C<Moose>.  The only requirement
 is that your class take a flat hashref as it's sole argument.  So if you wanted
 to do something really crazy you could go with raw OO:
 
+ #!perl
  package MyApp::Config;
 
  use strict;
@@ -125,3 +128,10 @@ Honestly I struggle to come up with an example that would warrant non-C<Moo>
 OO, but it is explicitly supported nonetheless.  Maybe if you wanted to do some
 crazy OO like L<IO::All> does where you do
 C<< bless Symbol::gensym(), $class >>?
+
+=head1 SEE ALSO
+
+=for :list
+* L<Config::Station>
+* L<JSONY>
+
