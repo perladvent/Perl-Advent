@@ -1,0 +1,124 @@
+Title: The Perl Powered Christmas Tree
+Topic: Device::Chip::Adapter
+Author: Olaf Alders <olaf@wundersolutions.com>
+
+So, you want to run some Christmas tree lights. Not just any lights, but
+flashy blinky ones. And while you're at it, give them some nice pretty
+patterns using a few separate chains of lamps. Maybe Perl can help run
+those patterns?
+
+It's simple enough of course to define some blinky patterns, perhaps by
+naming the light chains A to D, and using a sequence of strings to
+define the patterns of which ones should be on or off:
+
+ #!perl
+ my @patterns = qw(
+    AB CD AB CD AB CD AC BD AC BD AC BD BC AD BC AD BC AD ...
+ );
+
+We could then use this string of patterns to drive the lights in some
+manner. For example, we could do something simple:
+
+ #!perl
+ use Time::HiRes 'sleep';
+
+ while(1) {
+    foreach my $pattern ( @patterns ) {
+       set_lights( $pattern );
+       sleep 0.5;
+    }
+ }
+
+Here we've got a nice simple repeating pattern that just runs all day
+long. But how might we implement this C<set_lights> function? We'll have
+to actually communicate with the outside world somehow; some actual
+piece of hardware.
+
+Two specific pieces of hardware that could be useful here are the FTDI FT232H
+(most conveniently on a breakout board, such as the
+L<one made by Adafruit|https://www.adafruit.com/products/2264>) and the Bus
+Pirate Made by
+L<Dangerous Prototypes|http://dangerousprototypes.com/docs/Bus_Pirate>,
+available from several places
+     
+These two devices are somewhat different in many respects, but both of
+them may be described as a USB-attached board, which has several
+digital logic IO pins on board. They each support a mode of operation
+whereby several pins on the board (16 in the FTDI's case, 5 in the Bus
+Pirate) can be controlled directly by the computer, setting them
+directly high or low as required by the program. 
+
+The L<Device::Chip> module on CPAN describes an abstraction layer
+around various mechanisms that might be employed to talk to real
+hardware. It's still in its early phases yet, so it doesn't have too
+many actual implementations, but it does support these two hardware
+boards, exposing in each case an interface called a GPIO adapter (a
+"General Purpose Input/Output" - the most basic form of digital IO pin control),
+which allows us to directly control the high or low state of these pins.
+
+
+Using this module, we can obtain a object that represents the GPIO
+ability of the hardware, and use the C<write_gpios> method on it, to set
+the state of each GPIO pin. As a little technicality, because the
+Device::Chip distribution uses L<Future> to make it possible to use
+asynchronously, we'll just have to call the C<get> method on the Future
+returned by C<write_gpios> to actually force it to run. We'll also have
+to make sure to use names of the GPIO pins that the particular device
+will recognise.
+
+ #!perl
+ # Convert names of our strings of lights to GPIO pin names on
+ # the adapter
+ my %CHAIN_TO_GPIO = (
+    # If we're using the FT232H
+    A => "D0", B => "D1", C => "D2", D => "D3",
+
+    # If we're using the Bus Pirate
+    A => "MISO", B => "CS", C => "MOSI", D => "CLK",
+ );
+
+ sub set_lights
+ {
+    my ( $pattern ) = @_;
+
+    # $pattern says what light chains to turn on; we'll also\
+    # have to turn the others off
+
+    my %want_chains = map { $_ => 0 } qw( A B C D );
+    $want_chains{$_} = 1 for split //, $pattern;
+
+    # Now convert to the pin names required by Device::Chip
+    my %gpios = map { $CHAIN_TO_GPIO{$_} => $want_chains{$_} }
+                keys %want_chains;
+
+    $gpio->write_gpios( \%gpios )->get;
+ }
+
+All we need now to make our program complete, is to initialise this
+C<$gpio> object at the beginning, by opening the actual hardware object.
+This too comes from Device::Chip, using the handy utility constructor
+on the Device::Chip::Adapter class called C<new_from_description> to
+first obtain an object representing the hardware adapter itself, and
+then calling its C<make_protocol> method to switch it into GPIO mode and
+obtain an object specifically representing that.
+
+ #!perl
+ use Device::Chip::Adapter;
+
+ my $adapter = Device::Chip::Adapter->new_from_description(
+    "FTDI",  # Or BusPirate, or whatever...
+ );
+
+ my $gpio = $adapter->make_protocol( "GPIO" )->get;
+
+=head2 The Hardware
+
+
+
+=head1 SEE ALSO
+
+=for :list
+* L<Device::Chip>
+* L<Device::Chip::Adapter>
+* L<FT232H on AdaFruit|https://www.adafruit.com/products/2264>
+* L<The Bus Pirate|http://dangerousprototypes.com/docs/Bus_Pirate>
