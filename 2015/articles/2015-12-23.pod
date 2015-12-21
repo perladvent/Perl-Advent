@@ -71,31 +71,29 @@ with it to pretend to be him in Perl:
 
     # Use the standard synchronous HTTP API get a websocket URL to connect to
     sub rtm_ws_url {
-        my $tx = $ua->get('https://slack.com/api/rtm.start' => form => { token => $TOKEN });
-        my $res = $tx->success or die "Can't connect!";
-        return $res->json->{url};
+      my $tx = $ua->get('https://slack.com/api/rtm.start' => form => { token => $TOKEN });
+      my $res = $tx->success or die "Can't connect!";
+      return $res->json->{url};
     }
 
-    # connect to the websocket and handle any messages via callback events
+    # connect to the websocket
     sub rtm_start($url) {
-        my $id = 1;
+      my $id = 1;
 
-        # connect to the websocket URL asynchronously, and when we connect (or
-        # fail to conncet for any reason) run the callback registered to start
-        my $tx = $ua->build_websocket_tx($url);
-        $ua->start($tx => sub ($ua, $tx) {
-          say 'WebSocket handshake failed!' and return unless $tx->is_websocket;
+      # connect to the websocket URL asynchronously and then call callback
+      my $tx = $ua->websocket($url => sub ($ua, $tx) {
+        say 'WebSocket handshake failed!' and return unless $tx->is_websocket;
 
-          # handle JSON messages sent to us from the server
-          $tx->on(json => sub ($tx,$msg) {
-              ...
-          });
-
-          # keep pinging every five seconds to not get disconnected
-          Mojo::IOLoop->recurring(5 => sub {
-            $tx->send({ json => { id => $id++, type => "ping" } });
-          });
+        # handle JSON messages sent to us from the server
+        $tx->on(json => sub ($tx,$msg) {
+          ...
         });
+
+        # keep pinging every five seconds to not get disconnected
+        Mojo::IOLoop->recurring(5 => sub {
+          $tx->send({ json => { id => $id++, type => "ping" } });
+        });
+      });
     }
 
     my $url = rtm_ws_url();
@@ -115,24 +113,24 @@ problem that came his way:
     #!perl
     # handle JSON messages sent to us from the server
     $tx->on(json => sub ($tx,$msg) {
-        # ignore anything but actual messages
-        return unless $msg->{type} eq "message";
+      # ignore anything but actual messages
+      return unless $msg->{type} eq "message";
 
-        # ignore anything but direct messages
-        my $channel = $msg->{channel};
-        return unless $channel && $channel =~ /\AD/;
+      # ignore anything but direct messages
+      my $channel = $msg->{channel};
+      return unless $channel && $channel =~ /\AD/;
 
-        # don't speak twice
-        state %already_replied;
-        return if $already_replied{ $channel };
-        $already_replied{ $channel } = 1;
+      # don't speak twice
+      state %already_replied;
+      return if $already_replied{ $channel };
+      $already_replied{ $channel } = 1;
 
-        $tx->send({ json => {
-            id => $id++,
-            type => 'message',
-            channel => $channel,
-            text => 'Have you tried turning it off and on again?'
-        }});
+      $tx->send({ json => {
+        id => $id++,
+        type => 'message',
+        channel => $channel,
+        text => 'Have you tried turning it off and on again?'
+      }});
     });
 
 Roy didn't have to wait long before someone triggered his script:
@@ -155,21 +153,21 @@ Roy figured if they were swearing at him, he'd better pay attention!
     #!perl
     # handle JSON messages sent to us from the server
     $tx->on(json => sub ($tx,$msg) {
-        ...
+      ...
 
-        use Regexp::Common qw(RE_profanity);
-        if ($msg->{text} =~ RE_profanity) {
-            $tx->send({ json => {
-                id => $id++,
-                type => 'message',
-                channel => $channel,
-                text => "Hold on, I'm looking into it",
-            }});
-            notify('CODE RED ROY! YOU NEED TO DEAL WITH THIS!');
-            return;
-        }
+      use Regexp::Common qw(RE_profanity);
+      if ($msg->{text} =~ RE_profanity) {
+        $tx->send({ json => {
+          id => $id++,
+          type => 'message',
+          channel => $channel,
+          text => "Hold on, I'm looking into it",
+        }});
+        notify('CODE RED ROY! YOU NEED TO DEAL WITH THIS!');
+        return;
+      }
 
-        ...
+      ...
     });
 
 Now when the boss man complained, he should be tempoarly soothed while his
@@ -186,14 +184,14 @@ asynchronous posts to that whenever he wanted to notify himself.
 
     #!perl
     my $SLACKBOT_URL =
-       'https://reynholm-industries.slack.com/services/hooks/slackbot'
-         . '?token=hWa13Ndj32Ajoz2jnaoqu42X'
-         . '&channel=%23roytrenneman';
+      'https://reynholm-industries.slack.com/services/hooks/slackbot'
+       . '?token=hWa13Ndj32Ajoz2jnaoqu42X'
+       . '&channel=%23roytrenneman';
 
     sub notify($message) {
-        # send non-blocking post
-        my $tx = $ua->build_tx(POST => $SLACKBOT_URL => $message);
-        $ua->start($tx => sub {});
+      # send non-blocking post
+      my $tx = $ua->build_tx(POST => $SLACKBOT_URL => $message);
+      $ua->start($tx => sub {});
     }
 
 If he could just avoid drinking enough to lose his phone all would be great!
