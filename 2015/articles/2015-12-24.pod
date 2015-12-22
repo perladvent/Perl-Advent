@@ -113,7 +113,55 @@ obtain an object specifically representing that.
 
 =head2 The Hardware
 
+Now we've got a method of controlling these digital IO lines from perl,
+we can now consider how to actually attach to the actual light chains
+to it. These IO lines are only capable of controlling 3.3V or 5V up to
+about 20mA or so, nowhere near enough for some lights. "Low voltage"
+lights are likely 12 or 24V, and mains ones will run at either 230V or
+110V, depending on local supply.
 
+To do this we'll need some kind of adapting interface between the
+digital IO line and the light chain. For a low voltage chain of
+moderate current (such as a string of LEDs) we can probably use a
+single NPN transistor, along with current-limiting resistor on the base:
+
+=for html
+  <center><img src="advent-f1.png" width="284" height="331"/></center>
+
+When the digital IO line is high, it drives a current through the
+transistor (Q1) to ground, which allows the transistor to conduct a
+larger current through the lamp chain, making it light up. When the
+line is low, the base current stops and so the lamp chain goes off.
+
+There's a limit to how much current we can switch using this
+arrangement though - any transistor acts much like a current
+multiplier; allowing a collector-emitter current to flow that is some
+multiple of the base-emitter current (usually of the order of 10 to 50
+times as much). Because the digital IO line on our controller is
+probably only capable of 20mA or so, that limits our ability to switch
+lamps up to about 1A.
+
+To achieve a higher current (perhaps because we have low-voltage
+incandescent bulbes) we'd likely want to use a pair of transistors in a
+Darlington arrangement. This arrangement has the effect of multiplying
+the current up twice - once through each transistor - meaning we could
+switch a much larger current; maybe up to 10A or so. This should be
+adequate most low-voltage lamps.
+
+=for html
+  <center><img src="advent-f2.png" width="356" height="347"/></center>
+
+These solutions will only work for low-voltage DC switching, not mains
+power. For mains-power switching you might consider using a relay,
+though they tend not to cope so well with faster switching such as
+required by these kinds of lights. The easiest and safest way to switch
+a mains-voltage but fairly low-current load is to use an opto-isolated
+triac. A full discussion of those is probably beyond the scope of this
+little article, but if you want to read more about that I'd suggest
+looking up "Arduino isolated triac", or other variants on that theme.
+Any sort of Arduino-related article is likely to be fairly relevant,
+being just digital IO switching at 3.3V or 5V; much as you'd get from
+these control boards presented above.
 
 =head1 SEE ALSO
 
