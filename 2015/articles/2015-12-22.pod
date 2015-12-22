@@ -42,13 +42,13 @@ needed:
   #!/usr/bin/env perl
   use AnsibleModule;
 
-  my $module = AnsibleModule->new( 
-    argument_spec => {
-      rserver => { required => 1 },
-      enabled => { default => 'yes' }
-    }
+  my $module = AnsibleModule->new(
+      argument_spec => {
+          rserver => { required => 1 },
+          enabled => { default  => 'yes' }
+      }
   );
-  $module->exit_json({ msg => 'wheeee' });
+  $module->exit_json( { msg => 'wheeee' } );
 
 Make sure it's executable, and we can test it with the ansible-perl script
 shipped with AnsibleModule:
@@ -104,18 +104,24 @@ quick script to test the https interface of the ACE:
 
   my $passwd = prompt 'Enter your password: ', -echo => '';
 
-  my $ua=Mojo::UserAgent->new;
-  my @commands=('conf t','rserver host test3','ip address 10.10.11.11','end','show run');
-  my $command= '<request_raw>'.join("\n", @commands).'</request_raw>';
+  my $ua       = Mojo::UserAgent->new;
+  my @commands = (
+      'conf t', 'rserver host test3', 'ip address 10.10.11.11', 'end',
+      'show run'
+  );
+  my $command = '<request_raw>' . join( "\n", @commands ) . '</request_raw>';
 
-  my $tx=$ua->post("https://$ENV{USER}:$passwd\@mrom-ip/bin/xml_agent", form => {xml_cmd => $command } );
-  if($res=$tx->success) {
-    warn "Got ".$res->body;
+  my $tx = $ua->post(
+      "https://$ENV{USER}:$passwd\@mrom-ip/bin/xml_agent",
+      form => { xml_cmd => $command }
+  );
+  if ( $res = $tx->success ) {
+      warn 'Got ' . $res->body;
   }
   else {
-    my $err=$tx->error;
-    die "$err->{code} response: $err->{message}" if $err->{code};
-    die "Connection error: $err->{message}";
+      my $err = $tx->error;
+      die "$err->{code} response: $err->{message}" if $err->{code};
+      die "Connection error: $err->{message}";
   }
 
 Integrating that into our Ansible module shouldn't be too hard. We need a little
@@ -125,44 +131,59 @@ enabled, Docker will just skip this module in check mode.
   #!perl
   my $module = AnsibleModule->new(
       argument_spec => {
-  			rserver => {required => 1}, 
-  			enabled => {type=>'bool', default => 'yes'},
-  			ace_host => { required=> 0}, 
-  			ace_user => {required=>1}, 
-  			ace_pass => {required=>1},
-  		},
+          rserver  => { required => 1 },
+          enabled  => { type     => 'bool', default => 'yes' },
+          ace_host => { required => 0 },
+          ace_user => { required => 1 },
+          ace_pass => { required => 1 },
+      },
       supports_check_mode => 1
-    );
+  );
 
 First, let's do a quick sub to run a sequence of raw command and return the output:
 
   #!perl
   sub _ace_command {
-    my @commands=@_;
-    my $tx=$ua->post("https://$ENV{ACE_USER}:$ENV{ACE_PASS}\@ENV{ACE_HOST}/bin/xml_agent", 
-      form => {xml_cmd => "<request_raw>".join("\n",@commands)."</request_raw>"});
-    my $res=$tx->success;
-    return $res->dom->at('xml_show_result')->text,undef if $res;
-    return undef,$tx->err;
+      my @commands = @_;
+      my $tx       = $ua->post(
+          "https://$ENV{ACE_USER}:$ENV{ACE_PASS}\@ENV{ACE_HOST}/bin/xml_agent",
+          form => {
+                    xml_cmd => '<request_raw>'
+                  . join( "\n", @commands )
+                  . '</request_raw>'
+          }
+      );
+      my $res = $tx->success;
+      return $res->dom->at('xml_show_result')->text, undef if $res;
+      return undef, $tx->err;
   }
 
 Sorry about the golang-style error-handling scheme. :) Now we can easily use
 this to check that our rserver exists:
 
   #!perl
-  my ($res,$err)=_ace_command("show run rserver $rserver");
-  $module->fail_json(msg=>"Could not talk to ACE: ".$err->{messsage}.'('.$err->{code}.')') if $err;
-  $module->fail_json(msg=>"rserver $rserver not found") unless $res =~ /rserver host $rserver/;
+  my ( $res, $err ) = _ace_command("show run rserver $rserver");
+  $module->fail_json(
+      msg => "Could not talk to ACE: $err->{message} ($err->{code})" )
+      if $err;
+  $module->fail_json( msg => "rserver $rserver not found" )
+      unless $res =~ /rserver host $rserver/;
 
 And then continue to execute the changes specified in the arguments:
 
   #!perl
-  if($module->params->{enabled}) {
-    $module->exit_json(changed=>0) if $res =~ /\binservice\b/;
-    my ($res, $err)=_ace_command('conf t',"rserver host $rserver","no inservice"," end","show run rserver $rserver");
-    $module->fail_json(msg=>"Could not talk to ACE: ".$err->{messsage}.'('.$err->{code}.')') if $err;
-    $module->fail_json(msg=>"Could not take $rserver out of service") if $res =~ /\binservice\b/;
-    $module->exit_json(changed=>1);
+  if ( $module->params->{enabled} ) {
+      $module->exit_json( changed => 0 ) if $res =~ /\binservice\b/;
+      my ( $res, $err ) = _ace_command(
+          'conf t', "rserver host $rserver", 'no inservice',
+          ' end',   "show run rserver $rserver"
+      );
+      $module->fail_json(
+          msg => "Could not talk to ACE: $err->{message} ($err->{code})" )
+          if $err;
+      $module->fail_json( msg => "Could not take $rserver out of service" )
+          if $res =~ /\binservice\b/;
+      $module->exit_json( changed => 1 );
   }
 
 Note that AnsibleModule automatically handles trueish/falseish values for your
@@ -175,7 +196,7 @@ we turned on support for check mode in the constructor. To support this, just
 wrap the ace_command line and error handling in a  conditional.
 
   #!perl
-  unless ($module->check_mode) { ... } 
+  unless ( $module->check_mode ) {...}
 
 And everything should work as expected. And that should be everything we need.
 Have fun writing your own Ansible modules, and if you have any trouble or ideas
