@@ -1,0 +1,195 @@
+Title: Sharing templates will get you on the nice list
+Topic: Text::Hogan
+Author: Alex Balhatchet <kaoru@slackwise.net>
+
+It was the night before Christmas Eve and the elves in Santa's Grotto were
+typing away on their keyboards getting ready for the tomorrow night, making sure
+the last minute issues were fixed.  Unfortunately the day had started badly -
+the elves in the QA department had reported three bugs in quick succession with
+their website.  If the elves didn't address the problems in the next few hours,
+Christmas would be ruined!
+
+=head2 The Problems
+
+The QA elves had identified three problems with the website the team packing
+the sleigh use to record their work:
+
+=for html
+ <ol>
+  <li>If I filter with the widget the text is in suddenly in English, but if I hit reload it's Elvish as it should be!</li>
+  <li>If I browse to the page it looks great, but if I refresh it goes bad!</li>
+  <li>The total at the bottom of this table is wrong! Aren't there tests?</li>
+ </ol>
+
+=head3 Pronto the Front End DevI<elf>oper
+
+The leader of elvish front-end development team scratched her head for a moment.
+The first two seemed to be similar bugs, but in one case the "client side" was
+wrong and in the other the "server side" was wrong.
+
+After six cups of elf eggnog, the answer finally hit her!  The JavaScript code
+that ran on the client side had its own templating language, and so the changes
+to the templates had to be made to both templates that generated the output. The
+templates that generate the page on the server side and the JavaScript templates
+that create HTML from the JSON loaded from the server in
+L<AJAJ|https://en.wikipedia.org/wiki/AJAJ> requests need to be identical!  Any
+differences would end up with the bugs they were seeing.
+
+After much cross referencing between the two templating languages (and worrying
+about the minutiae of the different syntaxes) Pronto managed to commit a fix
+just a few hours before the deadline.
+
+Sighing, Proto thought I<having to maintain two templating languages and two
+sets of identical templates is always going to be a huge pain for my team>
+
+=head3 Retro the Back-End DevI<elf>oper
+
+Meanwhile the lead of back-end team looked for the source of the third and final
+bug, the table total bug. Her team grepped as hard as they could around
+C<lib/SantasWorkshop/> but the table logic was nowhere to be found!
+
+Finally, one of the team had a realisation - the logic wasn't in the modules, it
+was in one of the back-end templates themselves! And he was right, the addition
+- and the bug - was in the template file. Retro shook her head; no wonder there
+wasn't a test for it!  Quickly she fixed the bug and pushed out a new release,
+but no-one in her team felt right about not being able to add a regression test
+for the code.
+
+Sighing, Retro thought I<having all this logic in the templates where it can't
+be tested is always going to be a huge pain for my team>
+
+=head2 Santa's Mustache
+
+When Santa finally got back from his around the world dash, he scheduled
+debriefing meetings with his developers to learn about what could be improved
+for next year. When he heard all about the last minute problems that had nearly
+ended in worldwide disappointment for the children his forehead wrinkled under
+his big red hat. He sat quietly for a moment, stroking his mustache...
+
+A smile crept across Santa's face. "Ho ho ho, I know of a solution to both your
+problems", he said, his grin widening. "Have you heard of B<Mustache>?" The
+elves shook their head, but one of them brought up the website on his icePhone
+6.
+
+L<Mustache|http://mustache.github.io/> provides logic-less templates and has
+parsers for multiple languages including JavaScript and Perl!
+
+=for :list
+* By being logic-less you're forced to put your logic into your Perl modules
+where it's easy to write unit tests for your subroutines.
+* By being usable in JavaScript and Perl you can write one set of templates and
+render them on the server side or the client side as needed.
+
+=head2 Hogan.js and Text::Hogan
+
+There are actually a few options even within Perl and JavaScript for mustache
+libraries. The elves gave a few a try, and eventually settled on
+L<hogan.js|https://github.com/twitter/hogan.js> (from Twitter) and its Perl-ish
+clone L<Text::Hogan|https://metacpan.org/pod/Text::Hogan> (from your story-teller.)
+
+In Perl:
+
+    #!perl
+    use Text::Hogan::Compiler;
+
+    my $text = "Hello, {{name}}!";
+
+    my $template = Text::Hogan::Compiler->new->compile($text);
+
+    say $template->render({ name => "Santa" });
+
+In JavaScript:
+
+    #!vim javascript
+    var text = "Hello, {{name}}!";
+
+    var template = Hogan.compile(text);
+
+    console.log(template.render({name: "Santa"});
+
+Despite the "logic-less" claim Mustache templates do provide some simple
+constructs you can use for optional blocks or looping blocks.
+
+    #!perl
+    use Text::Hogan::Compiler;
+    use Time::Moment;
+
+    my $text = <<'END_MUSTACHE';
+    <h1>Santa's Dashboard</h1>
+
+    <h2>Nice/Naughty List</h2>
+    <ul>
+    {{#list}}
+    <li>{{name}} - {{nice}}</li>
+    {{/list}}
+
+    <h2>Is it Christmas yet?</h2>
+    {{#is_it_christmas_yet}}<p>Yes, it's Christmas!</p>{{/is_it_christmas_yet}}
+    {{^is_it_christmas_yet}}<p>No, it's not Christmas yet.</p>{{/is_it_christmas_yet}}
+    END_MUSTACHE
+
+    my %data = (
+        list => [
+            sort { $a->{name} cmp $b->{name} }
+            ( map { +{ name => $_, nice => "nice"    } } qw(Fred Betty)   ),
+            ( map { +{ name => $_, nice => "naughty" } } qw(Barney Wilma) ),
+        ],
+        is_it_christmas_yet => Time::Moment->now->strftime("%m-%d") eq '12-25',
+    );
+
+    my $template = Text::Hogan::Compiler->new->compile($text);
+    say $template->render(\%data);
+
+As you can see C<#> is used for ifs and loops, and C<^> is used for negative
+checks. For more details see the L<mustache(5)|http://mustache.github.io/mustache.5.html> man page.
+
+=head2 One more issue
+
+The elves had gleefully replaced all their old templates with new mustache based
+ones, and written tests for all their code that was previously locked away in
+template files. Hooray! But then one day, shortly before next Christmas, another
+bug report came in:
+
+"I don't think we can use these new templates during the Christmas rush. Our
+metrics show that the site has gotten much slower since we switched."
+
+Luckily one of the elvish development team was ready for this. Not wanting to
+fall into the trap of premature optimization he hadn't yet used one of hogan.js
+and Text::Hogan's most powerful features: pre-rendering.
+
+Using Text::Hogan::Compiler's C<compile> method (like in the examples above)
+means you only compile a template to Perl code once per process (due to clever
+internal caching.)  Using pre-rendering however, you can actually get at the
+generated Perl code and cache it somewhere on disk / in memcache, etc.
+
+    #!perl
+    use Text::Hogan::Compiler;
+
+    my $text = "Hello, {{name}}!";
+
+    my $perl_code = Text::Hogan::Compiler->new->compile(
+        $text, { as_string => 1 }
+    );
+
+    say $perl_code;
+
+The Perl code that comes out the other end isn't pretty, but it renders really
+quickly:
+
+    #!perl
+    { code => sub { my ($self,$c,$p,$i) = @_; $t->b($i = $i || "");
+    $t->b("Hello, ");$t->b($t->v($t->f("name",$c,$p,0)));$t->b("!");
+    return $t->fl(); }, "partials" => {  }, "subs" => {  } }
+
+The JavaScript library hogan.js can pull the same trick with its
+"hulk" command-line tool or with various grunt, gulp or webpack plugins.
+
+Once the change to pre-compile the templates went live the site was even
+faster than it was on the old templates. Christmas was saved again!
+
+=head1 SEE ALSO:
+
+=for :list
+* L<Text::Hogan>
+* L<Text::Hogan::Compiler>
+* L<http://mustache.github.io/mustache.5.html>

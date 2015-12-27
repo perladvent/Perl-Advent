@@ -1,0 +1,119 @@
+Title: Calculating cooking times the easy way
+Topic: Convert::CookingTimes
+Author: David Precious <davidp@preshweb.co.uk>
+
+We've all been there when cooking - you have one thing that should be cooked at
+200E<0x2103> for 30 minutes, another that asks for 220E<0x2103> for 35 minutes,
+and something else that only wants 180E<0x2103> for 26 minutes.  However, you
+only have the one oven, so there's going to have to be compromises!
+
+After one too many times guessing appropriate adjustments in my head, I decided
+"this sounds like something a computer can be doing for me quickly".  So, enter
+L<Convert::CookingTimes>.  Given a set of item names, temperatures and
+durations, it works out the average of the temperatures requested, then adjusts
+the cooking times to suit (so things being cooked at a higher temperature than
+normal will get their cooking times reduced and vice-versa).  It will then
+present a list of instructions telling you what temperature to pre-heat the oven
+to, and what should be put in and when, for everything to end up done at the
+same time.
+
+So, let's say we're doing a nice tasty English Christmas dinner.  We have:
+
+=for :list
+* A bunch of potatoes that need roasting for 45 minutes at 200E<0x2103>
+* A turkey that's meant to be cooked for two hours at 180E<0x2103>
+* And the stuffing that needs to go in for quartre of an hour at 210E<0x2103>
+
+On a chart this looks something like this:
+
+=for html
+  <center><img src="before-meal.png" width="567" height="380"></center>
+
+However, since we need to cook them all at the same temperature we need to
+adjust the cooking times to compensate.  Let's use our Perl module:
+
+    #!perl
+    my ($temperature, $steps) = Convert::CookingTimes->adjust_times(
+        { name => 'Roast spuds', temp => 200, time => 45,  },
+        { name => 'Turkey',      temp => 180, time => 120, },
+        { name => 'Stuffing',    temp => 210, time => 15,  },
+    );
+
+    print Dumper {
+      temperature => $temperature,
+      steps => $steps,
+    };
+
+The steps are returned from C<adjust_times> as a reference to an array of
+hashrefs.  These are the same items as passed in, reordered to be in the order
+you need to put them in the oven.  Each of them is a hashref with the keys
+C<name>, C<adjusted_time> (how long to cook that thing for in total) and, for
+convenience, C<time_until_next> (the amount of time to wait before the next item
+in the list is added to the oven in order for everything to be done at the same
+time).  When we run our little script we get this handy output:
+
+          #!perl
+          $VAR1 = {
+                    'steps' => [
+                                 {
+                                   'name' => 'Turkey',
+                                   'adjusted_time' => 108,
+                                   'time_until_next' => 63
+                                 },
+                                 {
+                                   'time_until_next' => 29,
+                                   'adjusted_time' => 45,
+                                   'name' => 'Roast spuds'
+                                 },
+                                 {
+                                   'name' => 'Stuffing',
+                                   'adjusted_time' => 16
+                                 }
+                               ],
+                    'temperature' => 200
+                  };
+
+Plotting these on a chart shows us how the time and temperature for the potatoes
+and stuffings have been adjusted from the original values (marked with the blue
+circles):
+
+=for html
+  <center><img src="after-meal.png" width="567" height="380"></center>
+
+To make our lives even easier, the output of C<adjust_times> can be passed to
+C<summarise_instructions> to produce a set of human-readable summarised
+instructions like so:
+
+  #!perl
+  say for Convert::CookingTimes->summarise_instructions(
+      Convert::CookingTimes->adjust_times(
+          { name => 'Roast spuds', temp => 200, time => 45,  },
+          { name => 'Turkey',      temp => 180, time => 120, },
+          { name => 'Stuffing',    temp => 210, time => 15,  },
+      )
+  );
+
+Which produces the highly readable output:
+
+  Warm oven up to 200 degrees.
+  Cooking the whole meal will take 108 minutes.
+  Add Turkey and cook for 63 minutes
+  Add Roast spuds and cook for 29 minutes
+  Add Stuffing and cook for 16 minutes
+
+Of course, it's an algorithm, not a cook, so you'll want to use a bit of common
+sense especially if the range of temperatures was particularly wide - maybe use
+a meat thermometer to check for a safe internal temperature if you're unsure!
+
+For ultimate laziness, I have a little web interface on my home server which
+presents various stats and CRUD interfaces etc - including one to store the
+cooking times and temperatures for things I cook commonly, along with a page I
+can go and tick the things I'm planning to cook, hit submit, and the stored
+times and temperatures are passed to Convert::CookingTimes to produce a list
+of steps to follow easily.  Now, if I can just automate the actual cooking away
+too... hmm, I wonder if that food delivery website Just Eat has an API...
+
+=head1 SEE ALSO
+
+L<Convert::CookingTimes>
+

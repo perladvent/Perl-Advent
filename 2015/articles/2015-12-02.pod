@@ -1,0 +1,124 @@
+Title: Fast CPAN Module Installation
+Topic: App::cpm
+Author: Shoichi Kaji <skaji@cpan.org>
+
+=pod
+
+"This build is taking I<forever>", complained Cookie Cutter, the newest elf
+to join Santa's Continuous Integration team, "We'll be lucky if it's done by
+I<next> Christmas, let alone this one!".
+
+"Well, we do use a I<lot> of CPAN modules", Snowstorm, head of the team,
+explained.  "They take a while to install on a new machine, but we're certainly
+not going to re-write all that code ourselves.  I just wish it would install
+quicker."
+
+"Well," Cookie Cutter smiled, "I might have a way..."
+
+=head2 Solving Cookie Cutter's Problem
+
+I write Perl everyday with great CPAN modules.
+
+To install modules from the CPAN, I was using L<cpanm>. I love it because it
+just works.  One command not only installs the module, but first installs all
+the dependencies of that module that aren't already installed, and all the
+dependencies of those modules, and so on and so on
+
+   shell> cpanm Catalyst
+
+If you develop a serious Perl software, it often depends on hundreds of CPAN
+modules. In fact, dependence on Catalyst implies dependence on 100+ CPAN modules
+at least.
+
+Because of this it can take quite a lot of time to install a module with
+C<cpanm>. This is because C<cpanm> installs them in series, downloading one
+and examining one module at a time.
+
+Like Cookie Cutter, I always hoped I could install CPAN modules faster.
+
+In Perl QA Hackathon 2015, Tatsuhiko Miyagawa, the author of C<cpanm>, developed
+Menlo (the code name of cpanm 2.0). And he announced that Menlo would be
+maintained and released as a regular Perl module in L<his blog
+post|http://weblog.bulknews.net/post/117034550339/cpanm-towards-20-menlo>. This
+allows us to write Perl code that depends on Menlo. This is exciting, isn't it?
+
+Using Menlo I was finally able to write a CPAN module installer called C<cpm>
+which installed in parallel. Rather than downloading one module and examining
+each module one at a time like C<cpanm> does, as soon as C<cpm> has identified
+multiple dependencies it starts download and install more than one module at
+once.  This parallelism makes C<cpm> faster than any other CPAN module
+installer.
+
+=head2 Are you sure cpm is fast?
+
+As C<cpm> is a module just like any other on the CPAN, its installation is
+straightforward:
+
+   $ cpanm App::cpm
+
+Now you have C<cpm>! Let's try installing Plack with both C<cpanm> and C<cpm>,
+and compare their elapsed times.  Because C<cpm> does not run test cases,
+we need to execute C<cpanm> with C<--notest> option in order to get a fair test:
+
+   $ time cpanm -L extlib --notest --quiet Plack
+   ...
+   real    0m47.705s
+
+Next cpm:
+
+   $ time cpm install Plack
+   ...
+   real    0m16.629s
+
+Wow, this shows cpm (16sec) is about 3 times faster than cpanm (47sec)!
+
+=for html
+  <center><img src="cpm.png" width="460" height="321"></center>
+
+Of course results will change depending on the situation, so why don't you try
+it yourself?
+
+=head2 TODO
+
+In YAPC::Asia 2015, I could talked with miyagawa about cpanm. Then he said the
+parallel feature might be merged into cpanm itself. I was really happy to hear
+that.
+
+To merge cpm into cpanm, there are some TODOs or issues that must be resolved:
+
+=over 4
+
+=item *
+
+C<cpm> will need to support platforms that do not have fork(2) system call.
+Currently C<cpm> doesn't work on such platforms.
+
+=item *
+
+Messy log output (a big issue!) Currently cpm uses Menlo in parallel and the
+outputs of all the Menlos are just redirected to one file. So outputs are mixed
+and really messy. I believe the logging is important for stable software. Do
+you accept the messiness, or do you have any ideas to resolve this?
+
+=back
+
+=head2 Meanwhile, back at the North Pole...
+
+"You see", said Cookie Cutter, "cpm is a CPAN module installer which is faster
+than other CPAN module installers."
+
+"And we can install it just with 'cpanm App::cpm'?", asked Snowstorm, "That's
+it?"
+
+"Yep!  All we need to do is change one line in our installer script to start
+using it.  And hopefully if we and other people find cpm useful and stable, then
+it may be merged into cpanm itself!""
+
+=head2 SEE ALSO
+
+=for :list
+* L<App::cpm>
+* L<App::cpanminus>
+* L<Menlo>
+
+=cut

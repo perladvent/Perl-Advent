@@ -1,0 +1,204 @@
+Title: Escaping the Basement For Christmas
+Topic: Mojo::UserAgent
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=pod
+
+The Christmas Party on the fourth floor of Reynholm Industries was in full
+swing.  It was the party legends would be made of, something that would be talked
+about around the water cooler for years to come.  Anyone who wasn't there was
+sorely missing out.  And right now Roy was certainly missing out.
+
+At his desk in the IT department in the basement, Roy stared at his computer
+screen in dismay at the endless support requests that kept coming in on Slack.
+Moss was out at some sort of Countdown related Christmas party, and no-one had
+seen Richmond since he left for that job as a zoo keeper, leaving his boss Jen
+the choice between going to the office party or making Roy stay behind and
+answer support queries...she'd obviously chosen the latter option.  And now
+Roy was forced to endure things like this all evening long:
+
+=for html
+  <center><img src="ri1.jpg" width="867" height="672"></center>
+
+If only there was some way he could automate all of this so he could go
+upstairs and join the frivolity?
+
+=head2 Slack's API
+
+Slack has a fully featured customer accessible API that is able to do pretty
+much anything Roy could do in the web client.  In addition to a collection of
+normal HTTP GET / PUT / POST API calls Slack supports a websocket API to allow
+the program to retrieve and answer messages in real time just like the web
+client does.
+
+The normal way to use the rtm I<real time message> service is:
+
+=for html
+    <ol>
+      <li>Make a standard HTTP GET call to the <code>rtm.start</code> API method to get a unique websocket URL</li>
+      <li>Connect to that bi-directional websocket URL</li>
+      <li>Read JSON from / send JSON to that websocket to receive and send messages respectivly</li>
+    </ol>
+
+Handling asynchronous programming where your code is both listening and sending
+messages at the same time used to be complex, but now Perl has a bunch of really
+good event loop modules that abstract all this away.
+
+One such framework, Mojolicious, has excellent websocket handling right out of
+the box, supporting all the idiosyncrasies of connecting to the socket, handling
+the necessary HTTP socket upgrades specified in the protocols, and allows Roy to
+simply register callbacks that are triggered whenever the server has sent us a
+complete chunk of JSON down the socket.
+
+Given all of this, it shouldn't be too hard for Roy to use it to write something
+with it to pretend to be him in Perl:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.022;
+    use warnings;
+    use feature qw(signatures);
+    no warnings qw(experimental::signatures);
+
+    use Mojo::UserAgent;
+
+    # The per-user token is availble to logged-in users from the slack website
+    # to authenticate API users as them.  See https://api.slack.com/web
+    my $TOKEN = 'xoxp-3234159231-8529214522-1345812313-143531';
+
+    my $ua = Mojo::UserAgent->new;
+
+    # Use the standard synchronous HTTP API get a websocket URL to connect to
+    sub rtm_ws_url {
+      my $tx = $ua->get('https://slack.com/api/rtm.start' => form => { token => $TOKEN });
+      my $res = $tx->success or die "Can't connect!";
+      return $res->json->{url};
+    }
+
+    # connect to the websocket
+    sub rtm_start($url) {
+      my $id = 1;
+
+      # connect to the websocket URL asynchronously and then call callback
+      my $tx = $ua->websocket($url => sub ($ua, $tx) {
+        say 'WebSocket handshake failed!' and return unless $tx->is_websocket;
+
+        # handle JSON messages sent to us from the server
+        $tx->on(json => sub ($tx,$msg) {
+          ...
+        });
+
+        # keep pinging every five seconds to not get disconnected
+        Mojo::IOLoop->recurring(5 => sub {
+          $tx->send({ json => { id => $id++, type => "ping" } });
+        });
+      });
+    }
+
+    my $url = rtm_ws_url();
+    rtm_start( $url );
+    Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
+
+With the basics of connecting to the server (and staying connected by sending a
+ping every five seconds no matter what) done Roy needed to work out how to
+handle messages sent from the server.  Slack sends all kinds of messages: people
+leaving or joining channels, ping responses, even notifications that people are
+starting to type.  But in reality there was only one message Roy was interested
+in...someone starting to chat to him in a private one-on-one chat, presumably
+seeking support.  He decided to script his standard one-line response to the
+first time anyone ever asked him anything that seemed to solve almost every
+problem that came his way:
+
+    #!perl
+    # handle JSON messages sent to us from the server
+    $tx->on(json => sub ($tx,$msg) {
+      # ignore anything but actual messages
+      return unless $msg->{type} eq "message";
+
+      # ignore anything but direct messages
+      my $channel = $msg->{channel};
+      return unless $channel && $channel =~ /\AD/;
+
+      # don't speak twice
+      state %already_replied;
+      return if $already_replied{ $channel };
+      $already_replied{ $channel } = 1;
+
+      $tx->send({ json => {
+        id => $id++,
+        type => 'message',
+        channel => $channel,
+        text => 'Have you tried turning it off and on again?'
+      }});
+    });
+
+Roy didn't have to wait long before someone triggered his script:
+
+=for html
+  <center><img src="ri2.jpg" width="856" height="667"></center>
+
+It worked!  Roy ran gleefully upstairs to see if there was any
+eggnog left.
+
+=head2 Hey You $#%! Fix My Computer!
+
+Jen didn't seem to appreciate his clever solution when he bumped into her next to
+the punch bowl.  She thought it would make people very angry.  Normally Roy
+didn't listen to Jen too much, but he had to admit that she might be right about
+that.  Maybe he should have the script let him know if someone was truly upset?
+
+Roy figured if they were swearing at him, he'd better pay attention!
+
+    #!perl
+    # handle JSON messages sent to us from the server
+    $tx->on(json => sub ($tx,$msg) {
+      ...
+
+      use Regexp::Common qw(RE_profanity);
+      if ($msg->{text} =~ RE_profanity) {
+        $tx->send({ json => {
+          id => $id++,
+          type => 'message',
+          channel => $channel,
+          text => "Hold on, I'm looking into it",
+        }});
+        notify('CODE RED ROY! YOU NEED TO DEAL WITH THIS!');
+        return;
+      }
+
+      ...
+    });
+
+Now when the boss man complained, he should be tempoarly soothed while his
+script could summon him.
+
+=for html
+  <center><img src="ri3.jpg" width="883" height="691"></center>
+
+All that was needed was some way to notify himself.  Of course!  The Slack app
+on his mobile phone could be configured to buzz whenever a particular user -
+like slackbot, the Slack bot - messaged him.  Now all he had to do was lookup
+the secret slackbot URL for his account on the Slack web pages and make
+asynchronous posts to that whenever he wanted to notify himself.
+
+    #!perl
+    my $SLACKBOT_URL =
+      'https://reynholm-industries.slack.com/services/hooks/slackbot'
+       . '?token=hWa13Ndj32Ajoz2jnaoqu42X'
+       . '&channel=%23roytrenneman';
+
+    sub notify($message) {
+      # send non-blocking post
+      my $tx = $ua->build_tx(POST => $SLACKBOT_URL => $message);
+      $ua->start($tx => sub {});
+    }
+
+If he could just avoid drinking enough to lose his phone all would be great!
+
+=head1 SEE ALSO
+
+=for :list
+* L<Mojo::UserAgent>
+* L<Mojo::IOLoop>
+* L<Regexp::Common>

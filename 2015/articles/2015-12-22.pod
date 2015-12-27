@@ -1,0 +1,204 @@
+Title: Automate Christmas with Ansible and Perl
+Topic: AnsibleModule
+Author: Marcus Ramberg <marcus@nordaaker.com>
+
+=pod
+
+Ansible is a pretty great way to version control your infrastructure. It has
+powerful orchestration features that let you execute plays across any number of
+servers, and it works through SSH, so in most cases no setup is needed on the
+client. It comes with a wide range of modules that lets you handle most cases
+out of the box, like template generation for files, comprehensive rsync support,
+and even more advanced modules like the most common load balancers and network
+devices.
+
+Sometimes there's a piece in your infrastructure that you just can't handle with
+the built in modules like shell or get_url. Luckily it's easy to write your own
+modules, and bundle them with your playbooks. As Ansible is written in Python,
+it's a common choice, but you can write them in basically anything that can
+generate a JSON response.
+
+I've written a helper module called L<AnsibleModule> that brings the same
+convenience to Perl that Ansible provides to Python for writing modules,
+including input validation, automatic response handling, and fatpacking our
+module.
+
+Santa Claus inc are heavy users of the Cisco ACE load balancers, which are not
+supported out of the box in Ansible. During operations they often need to
+temporarily take one node out of the load balancer to do upgrades, so that every
+child gets their packages. Let's look at how we can write a module to help us
+with that.
+
+First, let's install AnsibleModule from CPAN:
+
+  $ cpanm AnsibleModule
+
+Next, let's start the source code of our project. I tend to keep them in the
+library/ folder of my playbooks repo. Ansible will automatically look there when
+you're running jobs. Let's make a ace_rserver.pl script now, with the basic code
+needed:
+
+  #!perl
+  #!/usr/bin/env perl
+  use AnsibleModule;
+
+  my $module = AnsibleModule->new(
+      argument_spec => {
+          rserver => { required => 1 },
+          enabled => { default  => 'yes' }
+      }
+  );
+  $module->exit_json( { msg => 'wheeee' } );
+
+Make sure it's executable, and we can test it with the ansible-perl script
+shipped with AnsibleModule:
+
+  $ ansible-perl -m library/ace_rserver.pl
+  Output from library/ace_rserver.pl: {
+    "failed" => 1,
+    "msg" => "missing required arguments: rserver"
+  }
+  Response code: 1
+
+Seems that argument validation is working, now let's try again with that
+argument included
+
+  $ ansible-perl -m library/ace_rserver -a '{"rserver":"test"}'
+  Output from library/ace_rserver.pl: {
+    "changed" => 0,
+    "msg" => "wheeee"
+  }
+  Response code: 0
+
+Pretty good, but ideally you would like to use this with Ansible as well. Of
+course modules are uploaded and run remotely on each host, so you need to have
+any perl module you use available on the remote host. Luckily there's a module
+called 'App::Fatpacker' that can package up your dependencies into one file.
+ansible-perl can use this to package up your script for you like this:
+
+  $ ansible-perl -m library/ace_rserver -p
+  Wrote library/ace_rserver.packed
+
+And now you can easily run it on a any host with a recent Perl. Lets test it
+with the ad hoc ansible command:
+
+
+  $ ansible -i'localhost local_connection,' -m ace_rserver.packed -a 'rserver=foo' localhost
+  localhost | success >> {
+      "changed": 0,
+      "msg": "wheeee"
+  }
+
+Pretty spiffy! Btw, note that you also need to pack it because it includes the
+WANT_JSON magic keyword in your module. If you want to use it unpacked, you have
+to include this yourself.
+
+But our Ansible module isn't doing very much useful yet. I already created a
+quick script to test the https interface of the ACE:
+
+  #!perl
+  #!/usr/bin/env perl
+
+  use Mojo::UserAgent;
+  use IO::Prompter;
+
+  my $passwd = prompt 'Enter your password: ', -echo => '';
+
+  my $ua       = Mojo::UserAgent->new;
+  my @commands = (
+      'conf t', 'rserver host test3', 'ip address 10.10.11.11', 'end',
+      'show run'
+  );
+  my $command = '<request_raw>' . join( "\n", @commands ) . '</request_raw>';
+
+  my $tx = $ua->post(
+      "https://$ENV{USER}:$passwd\@mrom-ip/bin/xml_agent",
+      form => { xml_cmd => $command }
+  );
+  if ( $res = $tx->success ) {
+      warn 'Got ' . $res->body;
+  }
+  else {
+      my $err = $tx->error;
+      die "$err->{code} response: $err->{message}" if $err->{code};
+      die "Connection error: $err->{message}";
+  }
+
+Integrating that into our Ansible module shouldn't be too hard. We need a little
+different arguments. Also let's turn on support for check mode (if it's not
+enabled, Docker will just skip this module in check mode.
+
+  #!perl
+  my $module = AnsibleModule->new(
+      argument_spec => {
+          rserver  => { required => 1 },
+          enabled  => { type     => 'bool', default => 'yes' },
+          ace_host => { required => 0 },
+          ace_user => { required => 1 },
+          ace_pass => { required => 1 },
+      },
+      supports_check_mode => 1
+  );
+
+First, let's do a quick sub to run a sequence of raw command and return the output:
+
+  #!perl
+  sub _ace_command {
+      my @commands = @_;
+      my $tx       = $ua->post(
+          "https://$ENV{ACE_USER}:$ENV{ACE_PASS}\@ENV{ACE_HOST}/bin/xml_agent",
+          form => {
+                    xml_cmd => '<request_raw>'
+                  . join( "\n", @commands )
+                  . '</request_raw>'
+          }
+      );
+      my $res = $tx->success;
+      return $res->dom->at('xml_show_result')->text, undef if $res;
+      return undef, $tx->err;
+  }
+
+Sorry about the golang-style error-handling scheme. :) Now we can easily use
+this to check that our rserver exists:
+
+  #!perl
+  my ( $res, $err ) = _ace_command("show run rserver $rserver");
+  $module->fail_json(
+      msg => "Could not talk to ACE: $err->{message} ($err->{code})" )
+      if $err;
+  $module->fail_json( msg => "rserver $rserver not found" )
+      unless $res =~ /rserver host $rserver/;
+
+And then continue to execute the changes specified in the arguments:
+
+  #!perl
+  if ( $module->params->{enabled} ) {
+      $module->exit_json( changed => 0 ) if $res =~ /\binservice\b/;
+      my ( $res, $err ) = _ace_command(
+          'conf t', "rserver host $rserver", 'no inservice',
+          ' end',   "show run rserver $rserver"
+      );
+      $module->fail_json(
+          msg => "Could not talk to ACE: $err->{message} ($err->{code})" )
+          if $err;
+      $module->fail_json( msg => "Could not take $rserver out of service" )
+          if $res =~ /\binservice\b/;
+      $module->exit_json( changed => 1 );
+  }
+
+Note that AnsibleModule automatically handles trueish/falseish values for your
+bools in the same fashion as the official Ansible modules. You can just treat
+them as normal Perlish values. fail_json will automatically stop processing, and
+return the relevant json struct to Ansible. note the changed value for
+exit_json; Of course, the else condition is just the reverse of this, I'll leave
+that as an exercise for you to figure out. We forgot something though. Earlier,
+we turned on support for check mode in the constructor. To support this, just
+wrap the ace_command line and error handling in a  conditional.
+
+  #!perl
+  unless ( $module->check_mode ) {...}
+
+And everything should work as expected. And that should be everything we need.
+Have fun writing your own Ansible modules, and if you have any trouble or ideas
+for improvements issues, and especially pull-requests are appreciated at the
+L<github repo|https://github.com/marcusramberg/AnsibleModule)>
