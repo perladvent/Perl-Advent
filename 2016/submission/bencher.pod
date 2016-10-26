@@ -1,0 +1,247 @@
+Title: Benchmarking with Bencher
+Topic: Bencher
+Author: perlancar <perlancar@cpan.org>
+
+=pod
+
+=encoding utf8
+
+Due to increased use of machine transcription, this year's list contains a
+relatively higher number of mispellings of children's names and really must be
+checked twice. Santa has ordered one of the elves to write a Perl script for
+this task. And since the list is long (it contains more than a billion names,
+mind you) it needs to run fast.
+
+The elf is evaluating several modules on CPAN that calculate L<Levenshtein edit
+distance|https://en.wikipedia.org/wiki/Levenshtein_distance> (among others:
+L<Text::Levenshtein>, L<Text::Levenshtein::XS>, L<Text::Levenshtein::Flexible>,
+L<Text::LevenshteinXS>) and trying to pick one to use for his script, preferably
+the fastest one.
+
+"I'll simply write a benchmark script to find out which one is the fastest," he
+thought to himself. Normally, the script would be something that uses the
+built-in L<Benchmark> module like this:
+
+   use Benchmark 'cmpthese';
+
+   use Text::Levenshtein ();
+   use Text::Levenshtein::XS ();
+   use Text::Levenshtein::Flexible ();
+   use Text::LevenshteinXS ();
+
+   cmpthese(
+       100_000,
+       {
+           'Text::Levenshtein' => sub { Text::Levenshtein::fastdistance("foo", "bar") },
+           'Text::Levenshtein::XS' => sub { Text::Levenshtein::XS::distance("foo", "bar") },
+           'Text::Levenshtein::Flexible' => sub { Text::Levenshtein::Flexible::levenshtein("foo", "bar") },
+           'Text::LevenshteinXS' => sub { Text::LevenshteinXS::distance("foo", "bar") },
+       }
+   );
+
+but I tricked, er, suggested that he tries the L<Bencher> framework for a
+change. He did. So here's what he wrote instead:
+
+   # lib/Bencher/Scenario/Levenshtein.pm
+   package Bencher::Scenario::Levenshtein;
+   our $scenario = {
+       summary => 'Benchmark modules that calculate Levenshtein edit distance',
+       participants => [
+           {fcall_template => "Text::Levenshtein::fastdistance(<word1>, <word2>)"},
+           {fcall_template => "Text::Levenshtein::XS::distance(<word1>, <word2>)"},
+           {fcall_template => "Text::Levenshtein::Flexible::levenshtein(<word1>, <word2>)"},
+           {fcall_template => "Text::LevenshteinXS::distance(<word1>, <word2>)"},
+       ],
+       datasets => [
+           { name => "foo", args => {word1=>"foo", word2=>"bar"}, result => 3 },
+       ],
+   };
+
+What's different between the two? First of all, the script is turned into a
+module containing a data structure called I<scenario>. The codes, called
+I<participants>, are turned into code templates, where variables are written
+inside angle brackets like this: C<< <name> >>. The variable values are put in
+the I<datasets> key.
+
+How do we run this scenario module? Install the L<bencher-tiny> script from the
+L<Bencher-Tiny|https://metacpan.org/release/Bencher-Tiny> distribution:
+
+   % cpanm -n Bencher::Tiny
+
+then run:
+
+   % PERL5OPT=-Ilib bencher-tiny -c 100000 Levenshtein
+
+The output will be identical to the output of the first script we saw, because
+C<bencher-tiny> also uses L<Benchmark> to benchmark the codes:
+
+               (warning: too few iterations for a reliable count)
+               (warning: too few iterations for a reliable count)
+               (warning: too few iterations for a reliable count)
+                                                 Rate Text::Levenshtein::fastdistance Text::Levenshtein::XS::distance Text::LevenshteinXS::distance Text::Levenshtein::Flexible::levenshtein
+   Text::Levenshtein::fastdistance            52083/s                              --                            -92%                          -99%                                     -99%
+   Text::Levenshtein::XS::distance           666667/s                           1180%                              --                          -87%                                     -87%
+   Text::LevenshteinXS::distance            5000000/s                           9500%                            650%                            --                                      -0%
+   Text::Levenshtein::Flexible::levenshtein 5000000/s                           9500%                            650%                            0%                                       --
+
+but by turning our benchmark script into a scenario module, there are a lot more
+things we can do with it. First of all, let's use the full-featured CLI
+L<bencher> (from the L<Bencher|https://metacpan.org/release/Bencher>
+distribution) instead of C<bencher-tiny>. Install it first from CPAN (might take
+a while due to quite a bit of dependencies):
+
+   % cpanm -n Bencher
+
+then run:
+
+   % bencher -Ilib -m Levenshtein
+   +------------------------------------------+-----------+-----------+------------+---------+---------+
+   | participant                              | rate (/s) | time (μs) | vs_slowest |  errors | samples |
+   +------------------------------------------+-----------+-----------+------------+---------+---------+
+   | Text::Levenshtein::fastdistance          |     51000 |    20     |        1   | 3.3e-08 |      20 |
+   | Text::Levenshtein::XS::distance          |    757000 |     1.32  |       14.8 | 1.8e-10 |      20 |
+   | Text::LevenshteinXS::distance            |   8500000 |     0.12  |      170   | 2.4e-10 |      20 |
+   | Text::Levenshtein::Flexible::levenshtein |   8850000 |     0.113 |      173   | 1.1e-10 |      20 |
+   +------------------------------------------+-----------+-----------+------------+---------+---------+
+
+You'll notice several things different. Instead of Benchmark.pm, the C<bencher>
+CLI by default uses L<Dumbbench> to benchmark the codes. It then presents the
+result as a table.
+
+You'll also notice that the script returns I<much> more quickly and the result
+is more accurate for the faster participants. Benchmark.pm did complain that we
+didn't use enough iterations for a reliable count. To avoid this warning, we
+would need to set count to something like 3_000_000, but imagine how long would
+the benchmark runs (~1 minute because Text::Levenshtein can only perform ~50k
+calculations per second). By contrast, if you look at the C<samples> result
+field, you'll see that Dumbbench only needs about 20 runs for each participant.
+You actually do not need to set count parameter because it will figure out the
+minimum sufficient number of runs.
+
+Aside from this different output, there are also quite a number of other things
+we can do.
+
+=head2 Adding more dataset
+
+Remember how we split the code and data when we construct the scenario? The
+benefit of doing this is that can we can add more data easily. Let's say we want
+to measure performance for some longer word. We'll just add this to our
+C<datasets>:
+
+   { name => "program", args => {word1=>"program", word2=>"porgram"}, result => 2 },
+
+then run:
+
+   % bencher -Ilib -m Levenshtein
+   +------------------------------------------+---------+-----------+-----------+------------+---------+---------+
+   | participant                              | dataset | rate (/s) | time (μs) | vs_slowest |  errors | samples |
+   +------------------------------------------+---------+-----------+-----------+------------+---------+---------+
+   | Text::Levenshtein::fastdistance          | program |     11000 |    89     |        1   | 1.1e-07 |      20 |
+   | Text::Levenshtein::fastdistance          | foo     |     52000 |    19     |        4.7 | 3.3e-08 |      20 |
+   | Text::Levenshtein::XS::distance          | program |    480000 |     2.1   |       43   | 3.3e-09 |      20 |
+   | Text::Levenshtein::XS::distance          | foo     |    738000 |     1.36  |       65.7 | 4.2e-10 |      20 |
+   | Text::LevenshteinXS::distance            | program |   3180000 |     0.314 |      284   | 9.7e-11 |      28 |
+   | Text::Levenshtein::Flexible::levenshtein | program |   4170000 |     0.24  |      371   | 1.7e-10 |      25 |
+   | Text::LevenshteinXS::distance            | foo     |   7300000 |     0.137 |      650   | 4.5e-11 |      20 |
+   | Text::Levenshtein::Flexible::levenshtein | foo     |   7660000 |     0.131 |      682   | 4.6e-11 |      20 |
+   +------------------------------------------+---------+-----------+-----------+------------+---------+---------+
+
+There's now a C<dataset> result field since we are running with multiple
+datasets.
+
+=head2 Filtering datasets, participants, modules, etc
+
+To just use a certain dataset:
+
+   % bencher -Ilib -m Levenshtein --include-dataset program
+
+To just include certain participants, there are also similar options:
+C<--include-participant>, C<--exclude-participant>,
+C<--include-participant-pattern>, and so on. We can also include/exclude certain
+modules. For example, let's just exclude all the pure-Perl modules because they
+have no hope of competing with XS:
+
+   % bencher -Ilib -m Levenshtein --include-dataset program --nopp
+   +------------------------------------------+-----------+-----------+------------+---------+---------+
+   | participant                              | rate (/s) | time (μs) | vs_slowest |  errors | samples |
+   +------------------------------------------+-----------+-----------+------------+---------+---------+
+   | Text::Levenshtein::XS::distance          |    410000 |     2.5   |        1   | 3.3e-09 |      20 |
+   | Text::LevenshteinXS::distance            |   2800000 |     0.357 |        6.9 | 3.3e-10 |      20 |
+   | Text::Levenshtein::Flexible::levenshtein |   3600000 |     0.28  |        8.9 | 4.3e-10 |      24 |
+   +------------------------------------------+-----------+-----------+------------+---------+---------+
+
+There are other kinds of filtering available, e.g. by tags, sequence, and so on.
+
+Instead of running the benchmark, you can also verify or inspect some stuffs
+first like listing participants (C<--list-participants>), datasets
+(C<--list-datasets>), or just running the codes once and displaying the result
+(C<--show-items-results>):
+
+   % bencher -Ilib -m Levenshtein --nopp --show-items-results
+   #0 (dataset=foo participant=Text::Levenshtein::XS::distance):
+   3
+
+   #1 (dataset=program participant=Text::Levenshtein::XS::distance):
+   2
+
+   #2 (dataset=foo participant=Text::Levenshtein::Flexible::levenshtein):
+   3
+
+   #3 (dataset=program participant=Text::Levenshtein::Flexible::levenshtein):
+   2
+
+   #4 (dataset=foo participant=Text::LevenshteinXS::distance):
+   3
+
+   #5 (dataset=program participant=Text::LevenshteinXS::distance):
+   2
+
+=head2 Checking the results first
+
+Notice that in each dataset, we added this:
+
+   result => 2
+
+or:
+
+   result => 3
+
+This is optional, but if we specify this then C<bencher> will first compare the
+result of the codes against the specified result to make sure that the code we
+are benchmarking returns the correct result. Fast but wrong code is useless,
+after all.
+
+=head1 More features
+
+L<bencher> can do other things like:
+
+=over
+
+=item * Benchmark module startup overhead
+
+=item * Benchmark against multiple perls
+
+=item * Benchmark against multiple module versions
+
+=item * Show data structure size, memory usage
+
+=item * Chart/graph result
+
+=item * Include CPU/other system information
+
+=item * Return raw structured data (--json) for easy manipulation or transport to servers
+
+=back
+
+I've also written plugins for Dist::Zilla and other CLI tools related to
+Bencher. For one-off benchmarking this might not mean much, but if you regularly
+use benchmarking when developing (for example to watch out for performance
+regression) Bencher can be a useful addition to your toolbox.
+
+=head1 SEE ALSO
+
+=for :list
+* L<Bencher>
+* L<Bencher::Scenario::LevenshteinModules>
+
+=cut
