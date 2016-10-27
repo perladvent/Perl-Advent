@@ -14,7 +14,7 @@ It goes like that:
 
 =over
 
-=item The parents receive a letter from santa with a report form.
+=item The parents receive a letter from santa with a report form in February
 
 =item The due date for the report form is the 1st of November
 
@@ -32,8 +32,106 @@ Stop panicking says Rudolf, I've found L<Schedule::LongSteps> on the CPAN!
 
 L<Schedule::LongSteps> is a small framework that enables you to program and to unit test the future with confidence, here's how to implement the Form gathering process.
 
+=head1 LETS IMPLEMENT
+
+For this implementation, we'll assume we have an object C<$santaHQ> that represent Santa's business and all the wonderful things it can do.
+
+In Schedule::LongSteps, it's quite simple, a process is just a class:
+
 =cut
 
+package My::Process::NicenessFeedback;
 
+use Moose; # There are a lot of them in Santa's land.
+extends qw/Schedule::LongSteps/;
+
+# The required context:
+has 'santaHQ' => ( is => 'ro', isa => 'My::SantaHQ', required => 1);
+
+__PACKAGE__->meta->make_immutable();
+1;
+
+=pod
+
+Each actual process is an instance of this that maintains a state. The state of the process serves both
+as the place to give the process parameters and the place that stores the current work in progress. It must
+only contain 'pure perl' data. So no objects.
+
+Because a process is about a child, we want to instanciate it like that:
+
+=cut
+
+my $sl = Schedule::LongSteps->new(); # Ok like this just for testing.
+
+$sl->instantiate_process('My::Process::NicenessFeedback', { santaHQ => $santaHQ }, # The context
+                                                          { child_id => 1234 } # Initial state
+                        );
+
+=pod
+
+Then in the process:
+
+=cut
+
+package My::Process::NicenessFeedback;
+...
+has 'child' => ( is => 'ro', lazy_build => 1 );
+sub _build_child{
+  my ($self) = @_;
+  return $self->santaHQ()->big_book_of_children->find( $self->state()->{child_id} );
+}
+
+=pod
+
+Good, the process now has got a child, we can define what it should do first.
+For this, we implement the method 'build_first_step'. This is mandatory.
+
+=cut
+
+sub build_first_step{
+    my ($self) = @_;
+    # At the beginning of Feb next year, send a form to parents.
+    return $self->new_step({ what => 'do_send_form_to_parents',
+                             run_at => DateTime->now()->add( year => 1 )->set_month(2)->truncate_to( to => 'month' )
+                         });
+}
+
+=pod
+
+Steps are just methods to implement. The convention is to name them 'do_'.. so they don't conflict
+with future methods.
+
+=cut
+
+sub do_send_form_to_parents{
+    my ($self) = @_;
+    my $form = $self->santaHQ()->santas_pa()->create_niceness_form( $self->child() );
+    $self->santaHQ()->outbox()->send_letter( $form , $self->child()->parental_address() );
+    # The following november, we want to check stuff.
+    return $self->new_step({ what => 'do_check_form_reception',
+                             run_at => DateTime->now()->set_month(11)->truncate_to( to => 'month' ),
+                             state => { %{$self->state()} , form_id => $form->id() }
+                         });
+}
+
+has 'form' => ( is => 'ro', isa => 'My::Form', lazy_build => 1);
+sub _build_form{
+    my ($self) = @_;
+    return $self->santaHQ()->forms_register()->find( $self->state()->{form_id} );
+}
+
+has 'received_form' => ( is => 'ro', isa => 'Maybe[My::Form]', lazy_build => 1 );
+sub _build_received_form{
+    my ($self) = @_;
+    return $self->santaHQ()->big_inbox()->lookup_received_form( $self->state()->{form_id} );
+}
+
+sub do_check_form_reception{
+    my ($self) = @_;
+    unless( $self->received_form() ){
+        # Ho noooo! The form was not received :/
+        $self->santaHQ()->santas_pa()->send_reminder_about( $self->form(), $self->child()->parents_email_address());
+    }
+}
 
 =head1 SEE ALSO
