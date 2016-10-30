@@ -4,9 +4,10 @@ Author: Jerome Eteve <jerome.eteve@gmail.com>
 
 =head1 ONCE UPON A TIME
 
-It is 2016 and in Scotland, near the North Pole, Santa Klaus is having his annual financial review. And it doesn't look fantastic.
+It is 2016 and near the North Pole in Scotland, Santa Klaus is having his annual financial review. And it doesn't look fantastic.
 
-Next year, Santa is planning for cost reduction and has decided he will only reward children who have been nice through the year.
+Next year, Santa is planning for cost reduction and has decided he will only reward children who have been nice through the year,
+as opposed to lavishly rewarding even the naughty ones like in the past decades.
 
 After consulting with the senior elves, they decide to implement a child niceness assessment process over the year.
 
@@ -18,9 +19,7 @@ It goes like that:
 
 =item The due date for the report form is the 1st of November
 
-=item If the filled-in form has not been received by this date, a reminder is sent by email
-
-=item If no form has been received 2 weeks after the reminder, the child is considered naugthty.
+=item If no form has been received, the child is considered naugthty.
 
 =item A form that has been filed needs to be assigned to an elf for assessment, and the assessment process starts, which is another story.
 
@@ -28,28 +27,26 @@ It goes like that:
 
 Santa's elves are not very enthousiastic with implementing this in Perl. How do design these processes so we minimize the mess? How do we unit test that so things don't randomly fail in the future?
 
-Stop panicking says Rudolf, I've found L<Schedule::LongSteps> on the CPAN!
+Stop panicking says Rudolf, the head of Santa's programming sweatshop, I've found L<Schedule::LongSteps> on the CPAN!
 
-L<Schedule::LongSteps> is a small framework that enables you to program and to unit test the future with confidence, here's how to implement the Form gathering process.
+L<Schedule::LongSteps> is a small framework that enables you to program the future with confidence, here's how to implement the form process we need.
 
-=head1 LETS IMPLEMENT
+=head1 LET'S IMPLEMENT
 
 For this implementation, we'll assume we have an object C<$santaHQ> that represent Santa's business and all the wonderful things it can do.
 
 In Schedule::LongSteps, it's quite simple, a process is just a class:
 
-=cut
+  package My::Process::NicenessFeedback;
 
-package My::Process::NicenessFeedback;
+  use Moose; # There are a lot of them in Santa's land.
+  extends qw/Schedule::LongSteps/;
 
-use Moose; # There are a lot of them in Santa's land.
-extends qw/Schedule::LongSteps/;
+  # The required context:
+  has 'santaHQ' => ( is => 'ro', isa => 'My::SantaHQ', required => 1);
 
-# The required context:
-has 'santaHQ' => ( is => 'ro', isa => 'My::SantaHQ', required => 1);
-
-__PACKAGE__->meta->make_immutable();
-1;
+  __PACKAGE__->meta->make_immutable();
+  1;
 
 =pod
 
@@ -59,79 +56,128 @@ only contain 'pure perl' data. So no objects.
 
 Because a process is about a child, we want to instanciate it like that:
 
-=cut
 
-my $sl = Schedule::LongSteps->new(); # Ok like this just for testing.
+  my $sl = Schedule::LongSteps->new();
 
-$sl->instantiate_process('My::Process::NicenessFeedback', { santaHQ => $santaHQ }, # The context
-                                                          { child_id => 1234 } # Initial state
-                        );
-
-=pod
+  $sl->instantiate_process('My::Process::NicenessFeedback', { santaHQ => $santaHQ }, # The context
+                                                            { child_id => 1234 } # Initial state
+                          );
 
 Then in the process:
 
-=cut
 
-package My::Process::NicenessFeedback;
-...
-has 'child' => ( is => 'ro', lazy_build => 1 );
-sub _build_child{
-  my ($self) = @_;
-  return $self->santaHQ()->big_book_of_children->find( $self->state()->{child_id} );
-}
+  package My::Process::NicenessFeedback;
+  ...
+  has 'child' => ( is => 'ro', lazy_build => 1 );
+  sub _build_child{
+    my ($self) = @_;
+    return $self->santaHQ()->big_book_of_children->find( $self->state()->{child_id} );
+  }
 
-=pod
 
 Good, the process now has got a child, we can define what it should do first.
 For this, we implement the method 'build_first_step'. This is mandatory.
 
-=cut
 
-sub build_first_step{
-    my ($self) = @_;
-    # At the beginning of Feb next year, send a form to parents.
-    return $self->new_step({ what => 'do_send_form_to_parents',
-                             run_at => DateTime->now()->add( year => 1 )->set_month(2)->truncate_to( to => 'month' )
-                         });
-}
+  sub build_first_step{
+      my ($self) = @_;
+      # At the beginning of Feb next year, send a form to parents.
+      return $self->new_step({ what => 'do_send_form_to_parents',
+                               run_at => DateTime->now()->add( year => 1 )->set_month(2)->truncate_to( to => 'month' )
+                           });
+  }
 
-=pod
 
 Steps are just methods to implement. The convention is to name them 'do_'.. so they don't conflict
 with future methods.
 
-=cut
+  sub do_send_form_to_parents{
+      my ($self) = @_;
+      my $form = $self->santaHQ()->santas_pa()->create_niceness_form( $self->child() );
+      $self->santaHQ()->outbox()->send_letter( $form , $self->child()->parental_address() );
+      # The following november, we want to check stuff.
+      return $self->new_step({ what => 'do_check_form_reception',
+                               run_at => DateTime->now()->set_month(11)->truncate_to( to => 'month' ),
+                               state => { %{$self->state()} , form_id => $form->id() }
+                           });
+  }
 
-sub do_send_form_to_parents{
-    my ($self) = @_;
-    my $form = $self->santaHQ()->santas_pa()->create_niceness_form( $self->child() );
-    $self->santaHQ()->outbox()->send_letter( $form , $self->child()->parental_address() );
-    # The following november, we want to check stuff.
-    return $self->new_step({ what => 'do_check_form_reception',
-                             run_at => DateTime->now()->set_month(11)->truncate_to( to => 'month' ),
-                             state => { %{$self->state()} , form_id => $form->id() }
-                         });
-}
+  has 'form' => ( is => 'ro', isa => 'My::Form', lazy_build => 1);
+  sub _build_form{
+      my ($self) = @_;
+      return $self->santaHQ()->forms_register()->find( $self->state()->{form_id} );
+  }
 
-has 'form' => ( is => 'ro', isa => 'My::Form', lazy_build => 1);
-sub _build_form{
-    my ($self) = @_;
-    return $self->santaHQ()->forms_register()->find( $self->state()->{form_id} );
-}
+  sub do_check_form_reception{
+      my ($self) = @_;
+      unless( $self->form()->is_back() ){
+          # Ho noooo! The form was not received. The child is considered naughty
+          # This is the end of the process.
+          $self->child->has_been_naughty_in( DateTime->now()->year() );
+          return $self->final_step({ state => { %{$self->state()} , reason => 'Missed deadline' } });
+      }
 
-has 'received_form' => ( is => 'ro', isa => 'Maybe[My::Form]', lazy_build => 1 );
-sub _build_received_form{
-    my ($self) = @_;
-    return $self->santaHQ()->big_inbox()->lookup_received_form( $self->state()->{form_id} );
-}
+      # Form is back, time to pick an elf and start the Review process.
+      my $reviewer_elf = $self->santaHQ()->most_available_elf();
+      $self->longsteps()->instantiate_process('My::Process::NicenessAssessment', { santaHQ => $self->santaHQ() },
+                                              { child_id => $self->child()->id(),
+                                                elf_id   => $reviewer_elf->id(),
+                                                form_id => $self->form()->id()
+                                            });
+  }
 
-sub do_check_form_reception{
-    my ($self) = @_;
-    unless( $self->received_form() ){
-        # Ho noooo! The form was not received :/
-        $self->santaHQ()->santas_pa()->send_reminder_about( $self->form(), $self->child()->parents_email_address());
-    }
-}
+
+'Erm Erm Erm, this is supposed to happen in the future. How do I make sure today
+that this process will work?'
+
+Well, this is where unit testing comes into play. Here's how to write a test:
+
+  use Test::MockDateTime;
+  my $longsteps = Schedule::LongSteps->new();
+
+  my $january = DateTime->now()->set_month(1)->truncate( to => 'month' );
+  my $february = DateTime->now()->set_month(2)->truncate( to => 'month' );
+  my $november = DateTime->now()->set_month(11)->truncate( to => 'month' );
+
+  my $p;
+
+  on $january => sub{
+      $p = $longsteps->instantiate_process('My::Process::NicenessFeedback', { santaHQ => $santaHQ },
+                                              { child_id => 1234 }
+                                          );
+  };
+
+  my $form;
+  on $february => sub{
+      $longsteps->run_due_processes({ santaHQ => $santaHQ });
+      $p = $longsteps->find_process( $p ); # Reload process.
+      $form = $santaHQ->forms_register()->find( $p->state()->{form_id} );
+      ok( $form->is_sent(), "Process should now have a form_id, and the form sent" );
+  };
+
+  # For this test, we assume the form was not sent back by november.
+  on $november => sub{
+      $longsteps->run_due_processes({ santaHQ => $santaHQ });
+      my $child = $santaHQ->big_book_of_children->find( $p->state()->{child_id} );
+      ok( $child->has_been_naughty() , "Child is marked as naugty");
+  };
+
+
+'By Odin Rudolf, this is jolly well' enthousiastically says Santa. So I just need to run
+C<$longsteps->run_due_process()> from time to time?
+
+'That's right' goes Rudolph, we'll stuff that in a cron job or in an Event loop watcher and we're good to go.
+We don't even need to worry about concurrency, so we can have as many machines as we want doing it.
+
+'Next year, I'll also automate the gifts returning procedure with this thing'.
+
+=head1 DISCLAIMER
+
+Of course there is no Santa Klaus, and this code has not been tested in any other place than dreamland.
+But what is the future if not our dreams made true?
 
 =head1 SEE ALSO
+
+L<BPM::Engine> A business Process engine based on XPDL
+
+=cut
