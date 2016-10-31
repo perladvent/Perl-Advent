@@ -1,0 +1,277 @@
+Title: Writing command line tools made easy
+Topic: App::Spec
+Author: Tina Müller <tinita@cpan.org>
+
+=pod
+
+=encoding utf8
+
+Dear Santa,
+
+I wanna eliminate programming. Well, the boring kind of programming, at
+least.
+
+Ok, that's a huge wish. Let's talk about commandline tools for a start.
+
+=head2 Command line options
+
+There's really good support in perl for reading options. See the well known
+modules L<Getopt::Long>,
+L<Getopt::Long::Descriptive>, L<Getopt::Long::DescriptivePod>,
+L<Pod::Usage> and probably more.
+
+L<Getopt::Long::Descriptive> is quite powerful.
+
+But I actually want subcommands, nested. And named parameters. And
+validation. And shell completion. And still be able to define it all
+in one place.
+
+I'll show what I want to have with code snippets.
+
+=head2 Subcommands
+
+So I wanna have nested subcommands:
+
+    % weather forecast
+    % weather list countries
+    % weather list cities
+
+with different options and parameters:
+
+    % weather forecast [(--show-temperature | -T)] \
+      [--celsius|--fahrenheit] <country> <city>
+    % weather list countries
+    % weather list cities [--country <country>]
+
+    sub forecast {
+        my ($self, $run) = @_;
+        my $country = $run->parameters->{country};
+        my $city = $run->parameters->{city};
+        my $temp = $run->options->{"show-temperature"};
+
+        $run->out("Snow in $city, $country");
+        if ($temp) {
+            my $symbol = "°C";
+            my $t = forecast(...);
+            if ($run->options->{fahrenheit}) {
+                $symbol = "°F";
+                $t = c2f($t);
+            }
+            $run->out("Temperature: $t$symbol");
+        }
+    }
+
+So there's L<App::Cmd>, L<MooseX::App>, L<MooseX::App::Cmd>, L<MouseX::App::Cmd>,
+L<MooX::Cmd> and possibly more.
+
+L<App::Cmd> has some nice ideas. For the options it uses L<Getopt::Long::Descriptive>.
+It doesn't support named parameters, though. I find the mix of writing pod
+and using methods a bit confusing, although it has the advantage of
+keeping the spec near the code. Shell tab completion integration is a bit
+complicated.
+
+L<MooseX::App> is also very nice and I stole some ideas from there also.
+I like the colorized output. Specification of options and parameters is
+of course very moosish. Disadvantage is that it's quite heavy.
+There was bash completion support and I wrote the port for zsh.
+
+=head2 Validation
+
+I want to specify a type or other constraints in the spec for options
+and parameters. If validation fails, the error messge and usage
+are generated. The usage output will color the invalid/missing item in red.
+
+    % multiply foo 23
+    Parameter x: invalid integer
+
+I also want the possibility to callback the app itself for validation.
+
+    % weather forecast Romania Cluj
+    ...
+    % weather forecast Northpole Santa
+    ...
+    % weather forecast Moon Darkside
+    Sorry, we don't have Darkside, Moon in our database
+
+Your app command is called with the information that the parameter C<country>
+is about to be validated. The app should return the list of possible
+countries, which will be automatically compared to the parameter.
+
+Your app command is called with the information that the parameter C<city>
+is about to be validated. Now your app takes the C<country> parameter and
+returns the list of cities in that coutry.
+
+    # in validation mode
+    my $country = $run->parameters->{country};
+
+    if ($param_to_validate eq 'country') {
+        return [ country_list() ];
+    }
+    elsif ($param_to_validate eq 'city') {
+        # Currently there's no way to add a custom error message
+        # like this:
+        # Sorry, we don't have Darkside, Moon in our database
+        return [ city_list($country) ];
+    }
+
+L<App::Cmd> and L<MooseX::App> both support types in their own way. I don't
+know about such callbacks though.
+
+=head2 Shell Tab Completion
+
+Tab is probably my most used keys when working on the commandline. Even more
+since I switched from bash to zsh a couple of years ago.
+
+Here are some simple things I want to have supported out of the box:
+
+    # Static completion
+    % weather <TAB>
+    forecast -- Show forecast
+    list     -- List countries or cities
+    % weather list <TAB>
+    cities    -- List cities
+    countries -- List countries
+    % weather list cities --<TAB>
+    --country  -- country name(s)
+    --help -h  -- help
+
+This gets a bit more complicated:
+
+    # Dynamic completion, calls back your app from the shell.
+    % weather list cities --country <TAB>
+    Romania Spain Netherlands
+    % weather forecast <TAB>
+    Romania Spain Netherlands
+    % weather forecast Netherlands <TAB>
+    Echt Amsterdam Rotterdam
+
+I wanna be able to specify some static values for completion and
+validation, but also be able to call back the app.
+
+Like in validation mode, your app is called with the information
+that a certain parameter is about to be completed.
+Like when completing the city in the last example. You have
+access to the country parameter and now you return the list of
+cities. Completion code will then be generated and
+returned to the shell.
+
+Additionally here you can also return a list of hashrefs so that the
+completion will be shown with a description.
+
+You can even output some dynamic information in the completion description.
+As an example see the convert example which takes a unit type, a source unit,
+a value and a target unit.
+
+    % convert distance foot 23 <TAB>
+    inch   -- 276.000in
+    meter  -- 7.010m
+
+So the convert app already calculates the corresponding values when
+doing completion.
+
+=head2 One place for specification and documentation
+
+It's the same idea as having an OpenAPI or similar specification for your
+REST API.
+
+You specify as most as you can in one document and add necessary
+additional documentation.
+
+This file can then be used by several tools. So I want a tool that
+I can simple give a spec file and generate completion and pod.
+Also it should validate my file against the schema.
+
+    % appspec validate myapp.yaml
+    % appspec completion myapp.yaml --zsh > dir/_myapp
+    % appspec pod myapp.yaml > myapp.pod
+
+If this framework is ported to another language, these things don't
+have to be ported, because there is alraedy this perl5 tool.
+
+Also, if you have an already existing command which lacks completion,
+you can write a spec for it and generate it without needing to touch
+the app itself.
+
+=head2 The new wheel
+
+So, To make the long story short, Santa said, there is no such module.
+I would have to write it myself.
+
+If you want something like that, too, please have a look at L<App::Spec>.
+There are many things that aren't fixed yet, but I hope, I have to make
+mostly internal changes.
+
+For completion, pod and schema validation, look at L<appspec> and
+L<App::AppSpec>.
+
+I don't know how to define types yet. For now, there's flag, string, integer,
+file, dir. C<file> automatically checks if the file exists. I wanna have some
+kind of alternation C<file|integer>. Maybe I can use L<Params::Validate>
+somehow, like L<Getopt::Long::Descriptive> does.
+
+The spec itself will have versioning, so that you can write a spec in an
+old format, and if there are changes, it will make the necessary conversions.
+
+=head2 Generating apps
+
+So I had another wish, which turned out to be related and was one of the
+reasons why I really had to reinvent the wheel.
+
+I like the command line, like you could guess by now, and I would like
+to be able to query an API from there.
+
+I don't wanna remember and type all the endpoints and possible options.
+I wanna do:
+
+    % githubcl <TAB>
+    DELETE  -- DELETE call
+    GET     -- GET call
+    PATCH   -- PATCH call
+    POST    -- POST call
+    PUT     -- PUT call
+    help    -- Show command help
+    % githubcl GET /<TAB>
+    zsh: do you wish to see all 568 possibilities (143 lines)? n
+    % githubcl GET /users/:username<TAB>
+    /users/:username                  -- Get a single user.
+    /users/:username/events           -- If you are authenticated as the given user, you wi...
+    /users/:username/events/orgs/:org -- This is the user's organization dashboard. You mus...
+    ...
+    % githubcl GET /issues --<TAB>
+    --q-direction
+    --q-sort
+    --q-labels    -- String list of comma separated Label names.
+    --q-filter    -- Issues assigned to you / created by you / mentioning you / ...
+    --q-since     -- Optional string of a timestamp in ISO 8601 format: ...
+
+As it turns out, there is an unofficial github OpenAPI spec.
+
+So, I have a document which describes the API very well. I can write a
+script to turn that into an App::Spec commandline app!
+
+When I played with MooseX::App, I tried to generate an app from an OpenAPI
+file. Every endpoint should be a separate subcommand, because the
+possible options and parameters depend on the endpoint.
+
+So I would have generated over 500 Moose classes for this example.
+That didn't seem right.
+
+In App::Spec, I can have a number of nested subcommands, but the
+command to be called can be the same for all.
+That's possible by defining the name of the op at the top command
+and leave the subcommands' op fields empty.
+
+So now I have a generic REST API CLI framework:
+L<https://github.com/perlpunk/API-CLI-p5>
+
+It's very experimental.
+
+=head2 SEE ALSO
+
+=over 4
+
+=item OpenAPI specs L<https://github.com/APIs-guru/openapi-directory>
+
+=back
+
+=cut
