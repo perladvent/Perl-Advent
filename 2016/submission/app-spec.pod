@@ -41,7 +41,9 @@ with different options and parameters:
     % weather forecast [(--show-temperature | -T)] \
       [--celsius|--fahrenheit] <country> <city>
     % weather list countries
-    % weather list cities [--country <country>]
+    % weather list cities [(--country | -c) <country>]
+
+In the App::Weather class:
 
     #!perl
     sub forecast {
@@ -50,7 +52,11 @@ with different options and parameters:
         my $city = $run->parameters->{city};
         my $temp = $run->options->{"show-temperature"};
 
+        # You can also use print directly. Using C<out> makes
+        # it easier to test the app, and give plugins the possibility
+        # to modify the output
         $run->out("Snow in $city, $country");
+
         if ($temp) {
             my $symbol = "°C";
             my $t = forecast(...);
@@ -62,14 +68,47 @@ with different options and parameters:
         }
     }
 
-So there's L<App::Cmd>, L<MooseX::App>, L<MooseX::App::Cmd>, L<MouseX::App::Cmd>,
-L<MooX::Cmd> and possibly more.
+The configuration of these commands looks like that:
+
+    name: weather
+    appspec: { version: '0.001' }
+    title: Weather forecast
+    class: App::Weather
+    # no global options; -h|--help will be there automatically
+    options: []
+    subcommands:
+      forecast:
+        summary: Show forecast for a city
+        op: forecast  # the method in App::Weather
+        parameters:
+          - spec: country=s --Country name
+          - spec: city=s    --City name
+        options:
+            - spec: show-temperature|T   --Display temperature
+            - spec: fahrenheit           --Temperature in Fahrenheit
+            - spec: celsius              --Temperature in Celsius
+      list:
+        subcommands:
+          countries:
+            summary: List countries
+            op: weather_countries
+          cities:
+            summary: List cities
+            op: weather_cities
+            options:
+              # The first element of the spec here is actually very similar
+              # to the syntax for Getopt::Long
+              - spec: country|c=s --Country name
+
+When searching for existing modules I found L<App::Cmd>, L<MooseX::App>,
+L<MooseX::App::Cmd>, L<MouseX::App::Cmd>, L<MooX::Cmd> and more.
 
 L<App::Cmd> has some nice ideas. For the options it uses L<Getopt::Long::Descriptive>.
 It doesn't support named parameters, though. I find the mix of writing pod
 and using methods a bit confusing, although it has the advantage of
 keeping the spec near the code. Shell tab completion integration is a bit
-complicated.
+complicated; I think I got it working for dzil and bash, no zsh, and still
+the completion seemed to do only basic things.
 
 L<MooseX::App> is also very nice and I stole some ideas from there also.
 I like the colorized output. Specification of options and parameters is
@@ -94,13 +133,12 @@ I also want the possibility to callback the app itself for validation.
     % weather forecast Moon Darkside
     Sorry, we don't have Darkside, Moon in our database
 
-Your app command is called with the information that the parameter C<country>
+My app command is called with the information that the parameter C<country>
 is about to be validated. The app should return the list of possible
 countries, which will be automatically compared to the parameter.
 
-Your app command is called with the information that the parameter C<city>
-is about to be validated. Now your app takes the C<country> parameter and
-returns the list of cities in that coutry.
+Then the same happens for the parameter C<city>. Now the app takes
+the C<country> parameter and returns the list of cities in that country.
 
     #!perl
     # in validation mode
@@ -116,12 +154,16 @@ returns the list of cities in that coutry.
         return [ city_list($country) ];
     }
 
+Of course, I could do that validation also myself, when the actual
+command is called, but this way I save the code for comparing the list
+with the given parameter, and for the error message.
+
 L<App::Cmd> and L<MooseX::App> both support types in their own way. I don't
 know about such callbacks though.
 
 =head2 Shell Tab Completion
 
-Tab is probably my most used keys when working on the commandline. Even more
+Tab is probably my most used key when working on the commandline. Even more
 since I switched from bash to zsh a couple of years ago.
 
 Here are some simple things I want to have supported out of the box:
@@ -139,7 +181,7 @@ Here are some simple things I want to have supported out of the box:
 
 This gets a bit more complicated:
 
-    # Dynamic completion, calls back your app from the shell.
+    # Dynamic completion, calls back the app from the shell.
     % weather list cities --country <TAB>
     Romania Spain Netherlands
     % weather forecast <TAB>
@@ -151,18 +193,18 @@ I wanna be able to specify some static values for completion and
 validation, but also be able to call back the app, like in the previous
 examples.
 
-Like in validation mode, your app is called with the information
+Like in validation mode, the app is called with the information
 that a certain parameter is about to be completed.
-For example when completing the city in the last example. You have
-access to the country parameter and now you return the list of
+For example when completing the city in the last example. I have
+access to the country parameter and now return the list of
 cities. Completion code will then be generated and
 returned to the shell.
 
-Additionally here you can also return a list of hashrefs so that the
+Additionally here I can also return a list of hashrefs so that the
 completion will be shown with a description.
 
-You can even output some dynamic information in the completion description.
-As an example see the convert example which takes a unit type, a source unit,
+I can even output some dynamic information in the completion description.
+As an example see the convert command which takes a unit type, a source unit,
 a value and a target unit.
 
     % convert distance foot 23 <TAB>
@@ -172,12 +214,31 @@ a value and a target unit.
 So the convert app already calculates the corresponding values when
 doing completion.
 
+    #!perl
+    # in completion mode
+    my $type = $run->parameters->{type};     # distance or temperature
+    my $source = $run->parameters->{source}; # source unit (meter, inch, ...)
+    my $value = $run->parameters->{value};
+    my $target = $run->parameters->{target}; # target unit
+
+    if ($param_to_complete eq 'target') {
+        return [ target_units_for($type, $source) ];
+
+        # alternatively here you can return a list of hashrefs with
+        # descriptions or any dynamic value
+        # depending on $type, $source and $value
+        # return [
+        #    { name => "inch", "276.000in" },
+        #    ...
+        # ];
+    }
+
 =head2 One place for specification and documentation
 
-It's the same idea as having an OpenAPI or similar specification for your
+It's the same idea as having an OpenAPI or similar specification for a
 REST API.
 
-You specify as much as you can in one document and add necessary
+I specify as much as I can in one document and add necessary
 additional documentation.
 
 This file can then be used by several tools. So I want a tool that
@@ -190,9 +251,10 @@ Also it should validate my file against the schema.
 
 If this framework is ported to another language, these things don't
 have to be ported, because there is already this perl5 tool.
+(Of course, validation might include language specific restrictions, though.)
 
-Also, if you have an existing command which lacks completion,
-you can write a spec for it and generate the completion files without
+Also, if I have an existing command which lacks completion,
+I can write a spec for it and generate the completion files without
 needing to touch the app itself.
 
 =head2 The new wheel
@@ -200,17 +262,44 @@ needing to touch the app itself.
 So, to make the long story short, Santa said, there is no such module.
 I would have to write it myself.
 
-If you want something like that, too, please have a look at L<App::Spec>.
+I called it L<App::Spec>.
+If this sounds interesting and useful, please have a look.
+
+The examples here are variations of the C<myapp> example command
+included in the distribution. I also use it for testing.
+
+The things I described are already working.
+
+For generating a quick start app, completion, pod and schema validation,
+look at L<appspec> and L<App::AppSpec>.
+
 There are many things that aren't fixed yet, but I hope most future changes
 will mostly concern the internals.
 
-For completion, pod and schema validation, look at L<appspec> and
-L<App::AppSpec>.
+=over 4
 
-I don't know how to define types yet. For now, there's flag, string, integer,
-file, dir. C<file> automatically checks if the file exists. I want to have some
-kind of alternation C<file|integer>. Maybe I can use L<Params::Validate>
-somehow, like L<Getopt::Long::Descriptive> does.
+=item Types
+
+I don't know how to define types for validation yet. For now, there's flag,
+string, integer, file, dir. C<file> automatically checks if the file exists.
+I want to have some kind of alternation C<file|integer>. Maybe I can use
+L<Params::Validate> somehow, like L<Getopt::Long::Descriptive> does.
+
+=item Classes and subcommands
+
+Currently an app consists of one class and one method per subcommand, and
+you have to specify the method name.
+Other frameworks use one class per subcommand.
+
+Both can make sense, so I want to suppprt both. I have to figure out how
+configuration would look like
+
+=item Plugins
+
+I started to work on plugins by converting the help subcommand to a plugin.
+I think I have to do some refactoring here.
+
+=back
 
 The spec itself will have versioning, so that you can write a spec in an
 old format, and if there are changes, it will make the necessary conversions.
@@ -264,7 +353,43 @@ command to be called can be the same for all.
 That's possible by defining the name of the op at the top command
 and leave the subcommands' op fields empty.
 
-So now I have a generic REST API CLI framework:
+    # appspec
+    name: githubcl
+    ...
+    subcommands:
+      GET:
+        op: request
+        subcommands:
+          /issues:
+            summary: List issues
+            # no op defined here
+            options: ...
+          /user:
+            summary: Info about the current authenticated user
+            ...
+      POST:
+        op: request
+        options:
+          - spec: data-file= +file --File with the input for the post request
+        subcommands:
+          /gists:
+            summary: Create a gist
+            options: ...
+      PATCH:
+        op: request
+        ...
+
+This way the C<request> method of the app will be called, with additional
+information which subcommands were called.
+
+    #!perl
+    sub request {
+        my ($self, $run) = @_;
+        my $commands = $run->commands;
+        # [ 'POST', '/gists' ]
+    }
+
+So now I have a generic REST API CLI framework. It can be found here:
 L<https://github.com/perlpunk/API-CLI-p5>
 
 It's very experimental and not on CPAN yet.
@@ -285,6 +410,8 @@ It's very experimental and not on CPAN yet.
 
 =item L<Getopt::Long::DescriptivePod>
 
+=item L<MooseX::Getopt>
+
 =item L<Pod::Usage>
 
 =item L<Applify>
@@ -298,6 +425,12 @@ It's very experimental and not on CPAN yet.
 =item L<MouseX::App::Cmd>
 
 =item L<MooX::Cmd>
+
+=item L<CLI::Framework>
+
+=item L<CLI::Dispatch>
+
+=item L<Term::ShellUI>
 
 =item OpenAPI specs L<https://github.com/APIs-guru/openapi-directory>
 
