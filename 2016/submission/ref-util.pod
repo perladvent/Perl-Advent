@@ -1,0 +1,66 @@
+Title: Jingle Refs, Jingle Refs, Jingle all the way
+Title: When the sled is not fast enough
+Topic: Ref::Util
+Author: Sawyer X (xsawyerx@cpan.org)
+
+=pod
+
+Keeping up with the growing world population, Santa is constantly seeking
+opportunities to squeeze more jingle out of the ol' bells.
+
+During the annual code-review, Santa had noticed a common pattern we all
+maintain: Checking the validity of references using the C<ref> function.
+
+    use Carp qw<croak>;
+
+    sub create_sled {
+        my ( $self, $args ) = @_;
+
+        ref $args eq 'HASH'
+            or croak('Sled expects arguments as a hashref');
+    }
+
+Luckily, Santa read an advent calendar article about this very pattern,
+and decided to try out a new module, L<Ref::Util>.
+
+L<Ref::Util> provides a set of helpful functions to determine what kind
+of reference a variable is. It turns this awkward pattern into a single
+function.
+
+    use Carp qw<croak>;
+
+    # before
+
+    ref $args eq 'HASH'
+        or croak('Sled expects arguments as a hashref');
+
+    # after
+    use Ref::Util qw<is_plain_hash>;
+
+    is_plain_hash($args)
+        or croak('Sled expects arguments as a hashref');
+
+Or maybe we want to check for a blessed array reference, making sure it
+isn't accidentally blessed:
+
+    use Carp qw<croak>;
+
+    # before
+    use Scalar::Util qw<blessed reftype>;
+
+    blessed $args && ref $args && reftype($args) eq 'ARRAY'
+        or Carp::croak('Uh oh, we require a blessed reference');
+
+    # after
+    use Ref::Util qw<is_blessed_arrayref>;
+
+    is_blessed_arrayref($args)
+        or Carp::croak('Uh oh, we require a blessed reference');
+
+Not writing a lot of code but still being accurate is something Santa
+appreciates, but that's not the best part.
+
+These functions get compiled using custom op codes into a single op in
+the tree. While Santa is not exactly sure what this means, an elf
+helpfully explained that "it makes the sled go faster." And we don't
+even need to put racing stripes on the sled!
