@@ -323,3 +323,191 @@ and found that C<csv ()> did support BOM.
 
 So, the only issue they needed to fix was the header names in order to combine
 the wish-lists.
+
+Instead of trying to translate all headers to a uniform language (be that elvish
+or English), it is easier to just define the headers and skip the localized name
+scheme. If all countries keep sending their wish-lists with the same columns, as
+they do, it does not really matter what the header states, so we choose our own
+tags.
+
+The csv function supports setting the header and skipping the header in the
+filter is also possible, so that problem can be tackled relatively easy. They
+can read all wish-list files in a single loop and collect all required data:
+
+  use Data::Peek;
+  binmode STDERR, ":encoding(utf-8)";
+  
+  use List::Util   qw( sum first );
+  use Text::CSV_XS qw( csv );
+  
+  my $props = csv (in => "presents.csv", key => "present");
+  my @presents = keys %$props;
+  
+  my %ship;
+  
+  my @wlh = qw( name birth pc address wish spec );
+  
+  my %count;
+  my %prod;
+  foreach my $wlfn (glob "wish-??.csv") {
+      my ($cc) = uc ($wlfn) =~ m/-(\w+)/;
+      my $aoa = csv (
+          in      => $wlfn,
+          bom     => 1,
+          headers => \@wlh,
+          filter  => { 1 => sub {
+              # Skip lacalized header
+              $_[0]->record_number == 1 and return 0;
+  
+              # For shipping/logistics
+              $count{$_{wish}}{$cc}{$_{pc} =~ s/\s.*//r}++;
+  
+              # For production
+              my $w = lc $_{wish};
+              my $p = $props->{$w} ? $w
+                    : (first { $_ } grep m/\b $w \b/x => @presents) ||
+                      (first {     $w =~ m/\b $_ \b/x }  @presents) || $w;
+              $prod{$p}{$w}{$_{spec}}++;
+  
+              # Don't store
+              0;
+              }
+          });
+      }
+  
+  foreach my $wish (keys %count) {
+      my $w = lc $wish;
+      my ($weight, $size, $p);
+      if ($p = $props->{$w}) {
+          ($weight, $size) = ($p->{weight}, $p->{size});
+          $p = $w;
+          }
+      elsif ($p = first { $_ } grep m/\b $w \b/x => @presents or
+             $p = first {     $w =~ m/\b $_ \b/x }  @presents) {
+          ($weight, $size) = ($props->{$p}{weight}, $props->{$p}->{size});
+          }
+      else {
+          ($weight, $size) = (1, 1);
+          }
+  
+      foreach my $cc (keys %{$count{$wish}}) {
+          foreach my $postal (keys %{$count{$wish}{$cc}}) {
+              my $n = $count{$wish}{$cc}{$postal};
+              $ship{$cc}{$postal}{presents}{$wish} = {
+                  present => $p // "unknown",
+                  weight  => $weight,
+                  size    => $size,
+                  count   => $n,
+                  };
+              $ship{$cc}{$postal}{count}  += $n;
+              $ship{$cc}{$postal}{size}   += $n * $size;
+              $ship{$cc}{$postal}{weight} += $n * $weight;
+              }
+          }
+      }
+  
+  DDumper { ship => \%ship, prod => \%prod };
+
+ =>
+
+  prod             => {
+      handbag          => {
+	  handbag          => {
+	      'Dior, black'    => 1,
+	      'pink size 12'   => 1
+	      },
+	  'magic beaded handbag' => {
+	      'Unlimited space' => 1
+	      }
+	  },
+      tattoo           => {
+	  tattoo           => {
+	      'the one with the hidden message' => 1
+	      }
+	  },
+      wand             => {
+	  wand             => {
+	      '10¾" Vine w/ dragon heartstring' => 1,
+	      'Crooked oak w/ Muggle blood' => 1
+	      }
+	  }
+      },
+  ship             => {
+      DE               => {
+	  80331            => {
+	      count            => 1,
+	      presents         => {
+		  Tattoo           => {
+		      count            => 1,
+		      present          => 'unknown',
+		      size             => 1,
+		      weight           => 1
+		      }
+		  },
+	      size             => 1,
+	      weight           => 1
+	      }
+	  },
+      NL               => {
+	  '1000AZ'         => {
+	      count            => 1,
+	      presents         => {
+		  handbag          => {
+		      count            => 1,
+		      present          => 'handbag',
+		      size             => 2,
+		      weight           => 1
+		      }
+		  },
+	      size             => 2,
+	      weight           => 1
+	      },
+	  '1071HW'         => {
+	      count            => 1,
+	      presents         => {
+		  handbag          => {
+		      count            => 1,
+		      present          => 'handbag',
+		      size             => 2,
+		      weight           => 1
+		      }
+		  },
+	      size             => 2,
+	      weight           => 1
+	      }
+	  },
+      UK               => {
+	  NE13             => {
+	      count            => 2,
+	      presents         => {
+		  'Magic beaded handbag' => {
+		      count            => 1,
+		      present          => 'handbag',
+		      size             => 2,
+		      weight           => 1
+		      },
+		  Wand             => {
+		      count            => 1,
+		      present          => 'wand',
+		      size             => 1,
+		      weight           => '0.2'
+		      }
+		  },
+	      size             => 3,
+	      weight           => '1.2'
+	      },
+	  NE66             => {
+	      count            => 1,
+	      presents         => {
+		  Wand             => {
+		      count            => 1,
+		      present          => 'wand',
+		      size             => 1,
+		      weight           => '0.2'
+		      }
+		  },
+	      size             => 1,
+	      weight           => '0.2'
+	      }
+	  }
+      }
