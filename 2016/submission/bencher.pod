@@ -6,21 +6,21 @@ Author: perlancar <perlancar@cpan.org>
 
 =encoding utf8
 
-Due to increased use of machine transcription, this year's list contains a
-relatively higher number of mispellings of children's names and really must be
-checked twice. Santa has ordered one of the elves to write a Perl script for
-this task. And since the list is long (it contains more than a billion names,
-mind you) it needs to run fast.
+Santa had a problem. Due to increased use of machine transcription, his list of children's names contained
+far more mispellings than previously, and really had to be
+checked twice. Santa ordered one of the elves to write a Perl script for
+this task, but there was a catch - with more than a billion names on the list,
+the script needed to be fast.
 
-The elf is evaluating several modules on CPAN that calculate L<Levenshtein edit
+The elf started off by evaluating several modules on CPAN that calculate L<Levenshtein edit
 distance|https://en.wikipedia.org/wiki/Levenshtein_distance> (among others:
 L<Text::Levenshtein>, L<Text::Levenshtein::XS>, L<Text::Levenshtein::Flexible>,
 L<Text::LevenshteinXS>) and trying to pick one to use for his script, preferably
 the fastest one.
 
 "I'll simply write a benchmark script to find out which one is the fastest," he
-thought to himself. Normally, the script would be something that uses the
-built-in L<Benchmark> module like this:
+thought to himself. Normally, that script would have used the
+built-in L<Benchmark> module, like this:
 
    use Benchmark 'cmpthese';
 
@@ -39,8 +39,8 @@ built-in L<Benchmark> module like this:
        }
    );
 
-but I tricked, er, suggested that he tries the L<Bencher> framework for a
-change. He did. So here's what he wrote instead:
+but I tricked him into, er, suggested, trying the L<Bencher> framework for a
+change. So here's what he wrote instead:
 
    # lib/Bencher/Scenario/Levenshtein.pm
    package Bencher::Scenario::Levenshtein;
@@ -58,8 +58,8 @@ change. He did. So here's what he wrote instead:
    };
 
 What's different between the two? First of all, the script is turned into a
-module containing a data structure called I<scenario>. The codes, called
-I<participants>, are turned into code templates, where variables are written
+module containing a data structure called I<scenario>. The code snippets, called
+I<participants>, are turned into code templates with variables written
 inside angle brackets like this: C<< <name> >>. The variable values are put in
 the I<datasets> key.
 
@@ -73,7 +73,7 @@ then run:
    % PERL5OPT=-Ilib bencher-tiny -c 100000 Levenshtein
 
 The output will be identical to the output of the first script we saw, because
-C<bencher-tiny> also uses L<Benchmark> to benchmark the codes:
+C<bencher-tiny> also uses L<Benchmark> to benchmark the code:
 
                (warning: too few iterations for a reliable count)
                (warning: too few iterations for a reliable count)
@@ -84,11 +84,11 @@ C<bencher-tiny> also uses L<Benchmark> to benchmark the codes:
    Text::LevenshteinXS::distance            5000000/s                           9500%                            650%                            --                                      -0%
    Text::Levenshtein::Flexible::levenshtein 5000000/s                           9500%                            650%                            0%                                       --
 
-but by turning our benchmark script into a scenario module, there are a lot more
-things we can do with it. First of all, let's use the full-featured CLI
+However, turning our benchmark script into a scenario module means we can do a lot more
+things with it. First of all, let's use the full-featured CLI
 L<bencher> (from the L<Bencher|https://metacpan.org/release/Bencher>
-distribution) instead of C<bencher-tiny>. Install it first from CPAN (might take
-a while due to quite a bit of dependencies):
+distribution) instead of C<bencher-tiny>. Install it from CPAN (this might take
+a while, as it has quite a lot of dependencies):
 
    % cpanm -n Bencher
 
@@ -104,27 +104,27 @@ then run:
    | Text::Levenshtein::Flexible::levenshtein |   8850000 |     0.113 |      173   | 1.1e-10 |      20 |
    +------------------------------------------+-----------+-----------+------------+---------+---------+
 
-You'll notice several things different. Instead of Benchmark.pm, the C<bencher>
-CLI by default uses L<Dumbbench> to benchmark the codes. It then presents the
-result as a table.
+You'll notice several things are different. Instead of L<Benchmark>, the C<bencher>
+CLI by default uses L<Dumbbench> to benchmark the code. It then presents the
+results as a table.
 
-You'll also notice that the script returns I<much> more quickly and the result
-is more accurate for the faster participants. Benchmark.pm did complain that we
+You'll also notice that the script returns I<much> more quickly, and the result
+is more accurate for the faster participants. Recall that L<Benchmark> complained above that we
 didn't use enough iterations for a reliable count. To avoid this warning, we
-would need to set count to something like 3_000_000, but imagine how long would
-the benchmark runs (~1 minute because Text::Levenshtein can only perform ~50k
+would need to set count to something like 3_000_000 - but imagine how long it would
+take for the benchmark to run in this case (~1 minute, because L<Text::Levenshtein> can only perform ~50k
 calculations per second). By contrast, if you look at the C<samples> result
-field, you'll see that Dumbbench only needs about 20 runs for each participant.
-You actually do not need to set count parameter because it will figure out the
+field, you'll see that L<Dumbbench> only needs about 20 runs for each participant.
+You don't actually even need to set the C<count> parameter, because it will figure out the
 minimum sufficient number of runs.
 
-Aside from this different output, there are also quite a number of other things
+Aside from this difference in output, there are quite a number of other things
 we can do.
 
-=head2 Adding more dataset
+=head2 Adding more datasets
 
-Remember how we split the code and data when we construct the scenario? The
-benefit of doing this is that can we can add more data easily. Let's say we want
+Remember how we split the code and data when we constructed the scenario? The
+benefit of doing this is that we can easily add more data. Let's say we want
 to measure performance for some longer word. We'll just add this to our
 C<datasets>:
 
@@ -146,16 +146,16 @@ then run:
    | Text::Levenshtein::Flexible::levenshtein | foo     |   7660000 |     0.131 |      682   | 4.6e-11 |      20 |
    +------------------------------------------+---------+-----------+-----------+------------+---------+---------+
 
-There's now a C<dataset> result field since we are running with multiple
+There's now a C<dataset> result field, since we are running with multiple
 datasets.
 
 =head2 Filtering datasets, participants, modules, etc
 
-To just use a certain dataset:
+To use only one specific dataset:
 
    % bencher -Ilib -m Levenshtein --include-dataset program
 
-To just include certain participants, there are also similar options:
+There are similar options to include only certain participants:
 C<--include-participant>, C<--exclude-participant>,
 C<--include-participant-pattern>, and so on. We can also include/exclude certain
 modules. For example, let's just exclude all the pure-Perl modules because they
@@ -170,11 +170,11 @@ have no hope of competing with XS:
    | Text::Levenshtein::Flexible::levenshtein |   3600000 |     0.28  |        8.9 | 4.3e-10 |      24 |
    +------------------------------------------+-----------+-----------+------------+---------+---------+
 
-There are other kinds of filtering available, e.g. by tags, sequence, and so on.
+There are other kinds of filtering available, for example by tags, sequence, and so on.
 
-Instead of running the benchmark, you can also verify or inspect some stuffs
-first like listing participants (C<--list-participants>), datasets
-(C<--list-datasets>), or just running the codes once and displaying the result
+Instead of running the benchmark, you can also verify or inspect the
+participants (C<--list-participants>) and datasets
+(C<--list-datasets>), or just run the code once and display the result
 (C<--show-items-results>):
 
    % bencher -Ilib -m Levenshtein --nopp --show-items-results
@@ -206,14 +206,14 @@ or:
 
    result => 3
 
-This is optional, but if we specify this then C<bencher> will first compare the
-result of the codes against the specified result to make sure that the code we
+This parameter is optional, but if we specify a value here then C<bencher> will first compare it
+to the results of running the code, to make sure that the code we
 are benchmarking returns the correct result. Fast but wrong code is useless,
 after all.
 
 =head1 More features
 
-L<bencher> can do other things like:
+L<Bencher> can do plenty of other things, for example:
 
 =over
 
@@ -223,25 +223,29 @@ L<bencher> can do other things like:
 
 =item * Benchmark against multiple module versions
 
-=item * Show data structure size, memory usage
+=item * Show data structure size and memory usage
 
-=item * Chart/graph result
+=item * Present the results as a chart or graph
 
 =item * Include CPU/other system information
 
-=item * Return raw structured data (--json) for easy manipulation or transport to servers
+=item * Return raw structured data (C<--json>) for easy manipulation or transport to servers
 
 =back
 
-I've also written plugins for Dist::Zilla and other CLI tools related to
+I've also written plugins for L<Dist::Zilla> and other CLI tools related to
 Bencher. For one-off benchmarking this might not mean much, but if you regularly
 use benchmarking when developing (for example to watch out for performance
-regression) Bencher can be a useful addition to your toolbox.
+regression), L<Bencher> can be a useful addition to your toolbox.
 
 =head1 SEE ALSO
 
-=for :list
-* L<Bencher>
-* L<Bencher::Scenario::LevenshteinModules>
+=over
+
+=item * L<Bencher>
+
+=item * L<Bencher::Scenario::LevenshteinModules>
+
+=back
 
 =cut
