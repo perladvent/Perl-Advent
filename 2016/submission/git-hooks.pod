@@ -95,7 +95,7 @@ general, a hook will work this way
 
 =item Check out stuff
 
- Look at what's going on. Check out its inputs and use them to
+Look at what's going on. Check out its inputs and use them to
 dig a bit deeper using plumbing commands, set the stage.
 
 =item Work
@@ -109,6 +109,34 @@ Return, possibly with a message, including an failure or success
 message if it is a C<pre>-class hook. 
 
 =back
+
+Let us see how it works in practice in this simple hook (which has
+actually been used in this repo)
+
+    lines_changed=$(git diff-index HEAD --cached -p | grep "^\+\w" | wc -l)
+    message="\nYou have changed $lines_changed lines"
+    grep -qs "^$message" "$1" || echo "$message" >> "$1"
+
+No Perl yet, but just wait there and you will see. These three lines
+have to be saved as C<prepare-commit-msg>, C<chmod +x>'ed and put into
+C<.git/hooks>. Since they are not C<pre> but C<prepare>-class, it does
+not have to return any value. By the way, you can find lots of
+L<examples as
+gists|https://www.google.es/search?client=ubuntu&channel=fs&q=prepare-commit-message&ie=utf-8&oe=utf-8&gfe_rd=cr&ei=EdcdWM-aGc6s8wfdqozoDw#safe=off&channel=fs&q=%22prepare-commit-msg%22>
+in google. Anyway, the first two lines compute first the number of
+lines changed. They use a plumbing command, C<git-diff-index>. This
+L<command|https://git-scm.com/docs/git-diff-index> 
+
+    Compare[s] a tree to the working tree or index
+
+Which one are we doing here? Since we are using C<--cached> we
+
+    compares the tree-ish and the index.
+
+In this case, C<HEAD>, that is, the last commit, is the
+I<tree-ish>. We are comparing it with the I<index>, that is, whatever
+files we have already added to this commit. Besides, C<-p> is putting
+everything in a I<patch> format, something like 
 
 
 
