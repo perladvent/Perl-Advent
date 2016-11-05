@@ -169,7 +169,48 @@ There are many ways of doing this in Perl. You didn'expect that, did you?
 
 First version would just move whatever is a bit more complicated to
 Perl itself. Let us run C<git> as an external command, since there's
-no other way round. 
+no other way round. Besides, now that we have a sensible language we
+might go a bit further and consider not only lines added, but also
+lines taken from the file. And we can do that not by counting lines
+with C<+> at the front, but parsing the L<diff
+format|https://www.gnu.org/software/diffutils/manual/html_node/Detailed-Unified.html#Detailed-Unified>
+which says how many lines have changed. The result is this program, a
+bit longish
+
+    #!/usr/bin/env perl
+    
+    use strict;
+    use warnings;
+    
+    use File::Slurp::Tiny qw(read_file write_file);
+    
+    use v5.14;
+    
+    my $commit_msg_fn = shift || die "No commit message file";
+    my $commit_msg = read_file( $commit_msg_fn );
+    die if !$commit_msg;
+    my $diff_output = `git diff-index HEAD --cached -p`;
+    my @lines_changed = ($diff_output =~ /-\d+,(\d+) \+\d*,?(\d+)/gs);
+    
+    my ($lines_added, $lines_taken);
+    
+    while ( @lines_changed ) {
+        $lines_taken += shift @lines_changed;
+        $lines_added += shift @lines_changed;
+    }
+    
+    my $message="\nYou have added $lines_added and taken $lines_taken lines";
+    
+    if ( $commit_msg !~ /$message/ ) {
+         write_file( $commit_msg_fn, $commit_msg.$message );
+    }
+    
+
+That's pretty much what we did above. But there is a caveat here, and that is the C<env> in the first line. If you are using like I do and you should  C<perlbrew> to set your Perl version, what that thing does is to set a shell PATH. That path is not going to be available in this spawned shell, which will then use the system Perl. That is why before running this you should do 
+
+    sudo cpan File::Slurp::Tiny
+
+and again for every new module that shows up. The results is more or less the same, and can be seen L<in action in the repo|https://github.com/JJ/git-hooks/commit/bd19c3b69f8fbcc592e2c312a15656d34317f16a>. But we are still not there. Running an external command brings all kind of trouble in particular setups. It is not Pure Perl either. 
 
 
 
