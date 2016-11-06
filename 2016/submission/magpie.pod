@@ -180,8 +180,136 @@ instead have multiple resources doing many things.
 As applications begin to scale it complexity it becomes increasingly important
 to keep the different pieces of complexity corraled into their own places.
 While you can do this with C<Web::Machine> and judicious use base classes and
-roles, C<Magpie> was designed to give you gudidance on where to put things in an
+roles, C<Magpie> was designed to give you guidance on where to put things in an
 increasingly more complicated application.
+
+As an example of how this would work, let's take a look at two of the output classes
+C<NP::Transformer::TT2> and C<NP::I18N::EN>.
+
+	package NP::Transformer::TT2;
+	use 5.24.0;
+	use Moose;
+	use experimental qw(signatures};
+
+	extends qw(Magpie::Transformer::TT2);
+
+	sub get_tt_conf($self, $ctxt) {
+		shift->tt_conf({ RELATIVE => 1 });
+		return OK;
+	}
+
+	sub get_template($self, $ctxt) {
+		return DECLINED if $self->parent_handler->has_error;
+
+		$self->template_file($ctxt->{template} // 'error.tt2');
+
+		$self->response->content_type('text/html');
+		return OK;
+
+	}
+
+	sub get_tt_vars($self, $ctxt) {
+		$self->tt_vars({
+			request  => $self->request,
+			resource => $self->resource,
+		});
+		return OK;
+	}
+
+	1;
+	__END__
+
+This looks a little more complicated than it really is. First we're inheriting
+from C<Magpie::Transformer::TT2> which handles building the L<Template
+Toolkit|https://metacpan.org/release/Template-Toolkit> object for us. We just
+need to provide some callback hooks. First C<get_tt_conf> provides the
+configuration block, then C<get_template> will look up the actual template
+name. We check for a C<template> key in the context object. The context object
+is a great way to pass out-of-band data that is important to processing but
+really isn't resource data. If we don't have a template with the right name, we
+use a default error template, but we could just as easily throw an exception here.
+
+Finally we set up the template variables. We pass in the request object
+(ususally a C<Plack::Request> object), and the Resource object (something
+similar to our C<WasteOfTime::Resource> class above). This means that we can
+access the resource data directly and write a template like:
+
+	<!DOCTYPE html>
+	<html>
+		<head><title>{The List}</title></head>
+		<body>
+			<h1>{The List}</h1>
+			<article>
+				<h2>{Nice}</h2>
+				<ul>
+					[% FOR child IN resource.data.niceList %]
+					<li>[% child.name %] &mdash; [% child.gift %]</li>
+					[% END %]
+				</ul>
+			</article>
+			<article>
+			<h2>{Naughty}</h2>
+				<ul>
+					[% FOR child IN resource.data.naughtyList %]
+					<li>[% child.name %] &mdash; [% child.coalAmount %] {lumps}</li>
+					[% END %]
+				</ul>
+			</article>
+		</body>
+	</html>
+
+Notice our text strings look like C<{Nice}>. This is because we expect the
+output from our template to be sent through a localization and
+internationalization (I18N) filter. The C<NP::I18N::EN> class looks something
+like this:
+
+	package NP::I18N::EN;
+	use 5.24.0;
+	use Moose;
+	use experimental qw(signatures);
+	extends 'Magpie::Transformer';
+	use Magpie::Constants;
+
+	use Local::Simple;
+
+	__PACKAGE__->register_events( qw( config transform ));
+
+	sub load_queue { return qw(config transform) }
+
+    sub config($self, $ctxt) {
+        l_lang('en_US');
+	    l_dir('locale');
+    }
+
+	sub transform($self, $ctxt) {
+		my $html = $self->resource->data;
+		$html 	=~ s|\{ 		# open brace
+						([^}]+) # anything not a closing brace
+					 \}  		# closing brace
+					|
+						l(\1) # translate it
+					|xgr;
+		$self->resource->data($html);
+	}
+
+	1;
+	__END__
+
+Because C<Magpie> doesn't currently ship with an I18N framework C<NP::I18N>
+classes inherit directly from teh C<Magpie::Transformer> class. This means
+they're exposed to a bit more of the low lying mechanics of setting up the
+state machine. This is what the call to C<register_events> and the
+C<load_queue> methods are for. They tell C<Magpie> that we have two methods in
+this pipline stage and the order in which to call them.
+
+Assuming we have our C<.po> files and what not setup properly, this will take
+any string in curly brances and replace it with the appropriate translation.
+Obviously this is a vastly simplified version, and Santa's real system probably
+uses a much more complex parsing system for pulling out the message IDs and
+tranlation strings so that things like the coal count can be translated
+properly. But this illustrates how a pipeline of pieces means that as we step
+through each piece of the application we can focus donw and work on each step
+individually.
 
 =head2 La gazza ladra
 
