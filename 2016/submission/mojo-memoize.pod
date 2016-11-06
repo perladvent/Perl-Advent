@@ -1,0 +1,109 @@
+Title: Getting Drunk with Mojolicious (working title)
+Topic: Mojolicious, Memoize
+Author: Zak B. Elep <zakame@cpan.org>
+
+=pod
+
+I've always wondered what Santa Claus and the elves do after the
+Christmas Eve's work.  Perhaps they'd go get smashed afterwards with a
+pub crawl finding the best egg milk punch all over the world, then
+perhaps spend the rest of the night recovering in a nearby hotel?  If
+they every do though, I think I could help them a bit, being the naughty
+boy and all...
+
+You see, last October, a friend and I joined a
+L<hackathon|http://www.booking.com/promotions/hah-manila.en-gb.html>
+that let me play around a couple of hotel I<and> microbrewery
+information APIs: the result is L<The Drunkery|http://drunkery.tk>, a
+webapp that Santa (and everyone else) can use to (hopefully) get
+inebriated.  For this, I used the awesome L<Mojolicious> framework for
+the backend API, powering a L<React|http://reactjs.org> frontend showing
+a Google Map with pins to hotels in a given city, with the nearest pubs
+or breweries.  We ran out of time trying to set up paths between the
+pins to visualize a pub crawl, but nevertheless we won, and hopefully we
+can get to improve it on the next stage :D
+
+In this story, let me tell you about a couple of things that we learned
+and used for this app:
+
+=head2 TODO A matter of search
+
+To start, writing the backend part with Mojolicious was the I<easiest>
+part, but only so when I<much thought> was put into the design of the
+backend's interface.  I ended up with providing only I<two> API
+endpoints for my partner's frontend:
+
+  use Mojolicious::Lite;
+  use Mojo::URL;
+  use Drunkery::Search;
+
+  helper search => sub {
+    state $search = Drunkery::Search->new( ua => shift->ua );
+  };
+
+  get '/search_by_city' => sub {
+    ...;
+  };
+
+  get '/search_by_endpoint' => sub {
+    ...;
+  };
+
+  app->start;
+
+These routes provide my frontend a way to search for hotels and and
+breweries in either a given city, or a given geolocation endpoint.  Both
+these routes emit an array containing a city object, a list of nearby
+breweries, and a list of nearby hotels, and are powered via a C<search>
+helper that uses the logic in C<Drunkery::Search>.
+
+Well, I<logic> might not be the right word.  At the time of the
+hackathon, the package was just as simple as this:
+
+  package Drunkery::Search;
+  use Mojo::Base -base;
+
+  has qw(ua);
+
+  sub fetch { shift->get(shift)->res->json }
+
+  1;
+
+=head2 TODO A matter of caching
+
+One of the subproblems I dealt with during this hackathon was the issue
+of making the Perl backend respond faster to the frontend, as the first
+iteration simply had the backend fetch the hotel and brewery information
+every time it was requested: in short, we needed to have caching.  I was
+loathe to set up another service like SQLite or Redis though, as I
+thought I didn't have enough time to wire those to the backend...
+
+Enter the real star of this story, L<Memoize>!
+
+  #package Drunkery::Search;
+  use Memoize;
+
+  sub normalize_url { shift->to_string }
+
+  memoize( 'fetch;, NORMALIZER => 'normalize_url' );
+
+This effectively gave me caching at nearly no cost (thanks, L<Higher
+Order Perl|http://hop.perl.plover.com/> for reminding me!)  Granted, it
+was imperfect (for starters, it was only an in-memory cache,) but at the
+time, it made sense.
+
+=head2 TODO But why? (or, what more could be done?)
+
+I joined this hackathon on a whim, with nary an idea for what to build
+at all, so instead of going all-out serious, I decided to wing this the
+L<-Ofun|http://o-fun.github.io/> way.  Indeed, it was very funny (and
+easy) to build a Perl backend in such short time, with still room to do
+for improvements.
+
+=head1 SEE ALSO
+
+=for :list
+* L<Mojolicious>
+* L<Memoize>
+* L<React|http://reactjs.org>
+* L<The Drunkery|http://drunkery.tk>
