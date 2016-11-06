@@ -288,6 +288,46 @@ We also add color for niceness, using the L<Term::ANSIColor> module. One of the 
 
 L<Git::Hooks> is written specifically to do this kind of thing. It lays a layer of goodness over other modules that deal with Git and allows us to work easily with the information that is available to us inside the hooks. Besides, and this is the nicest thing, it allows us to unify all hooks in a single script. Let's they unify the two files we have above in a single one. 
 
+This is the one program to rule them all:
+
+    #!/usr/bin/env perl
+    
+    use strict;
+    use warnings;
+    
+    use Git::Hooks;
+    use Term::ANSIColor;
+    
+    use File::Slurp::Tiny qw(read_file write_file);
+    
+    use v5.14;
+    
+    sub diff_output {
+        my $git = shift;
+        $git->command('diff-index', '--cached','-p','HEAD');
+    }
+    
+    PRE_COMMIT {
+        my ($git) = @_;
+    
+        my @files_changed = (diff_output( $git) =~ /\++\sb\/(\S+)/gs);
+  
+	#Same as before from here on, except for ->
+        return $syntax_ok;
+    };
+    
+    
+    PREPARE_COMMIT_MSG {
+    
+        my ($git, $commit_msg_fn) = @_;
+        my $commit_msg = read_file( $commit_msg_fn );
+        die if !$commit_msg;
+    
+        my @lines_changed = (diff_output( $git ) =~ /-\d+,(\d+) \+\d*,?(\d+)/gs);
+    #Same as before from here on, up to
+    };
+
+    run_hook($0, @ARGV);
 
 
 =head1 SEE ALSO
