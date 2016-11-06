@@ -1,15 +1,15 @@
-Title: REST-oring Christmas Tranqulity
+Title: REST-oring Christmas Tranquility
 Topic: Magpie
 Author: Chris Prather <chris@prather.org>
 
 =head1 REST-oring Christmas Tranqulity
 
-So you've been working for the last four years on the L<Flibber
-API|http://www.perladvent.org/2012/2012-12-24.html> your boss required that one
-time. Turns out that over that time you've added APIs for Jibber, Jabber, and
-Flubber as well. The code base has grown and you're starting to discover that
-you're duplicating a lot of code between the various L<Web::Machine>
-controllers you've built. Code like:
+So you've been working for the last four years on the
+L<Flibber API|http://www.perladvent.org/2012/2012-12-24.html> your boss
+required that one time. Turns out that over that time you've added APIs for
+Jibber, Jabber, and Flubber as well. The code base has grown and you're
+starting to discover that you're duplicating a lot of code between the various
+L<Web::Machine> controllers you've built. Code like:
 
     has json_encoder => (
         is      => 'bare',
@@ -108,19 +108,19 @@ doesn't automatically set up a PSGI application for you so we'll need
 C<Plack::Builder>. After that we build the same C<WasteOfTime::Resource> class but
 this time it's a C<Magpie::Resource>.
 
-Rather than splitting out the HTTP requst cycle into the state machine that
-C<Web::Machine> does, plack hands everything to methods named after the HTTP
+Rather than splitting out the HTTP request cycle into the state machine that
+C<Web::Machine> does, Plack hands everything to methods named after the HTTP
 Method. These methods take a copy of the instance (C<$self>) and a "context
 object" (C<$ctxt>). The context object is a hold over from Magpie's early days
 where it was much more generic. Another hold over from the generic days, we
 have to inform C<Magpie> that *this class* is the resource so we do that with the
 call to C<parent_resource>. Finally we need to respond with C<scalar localtime>
-like we did the last time. Becasue we're a pipeline we can't be stateless, so
-we save the localtime to our C<data> attribute. Set the response status, tell
+like we did the last time. Because we're a pipeline we can't be stateless, so
+we save the C<localtime> to our C<data> attribute. Set the response status, tell
 C<Magpie> everything went OK, and we're done.
 
-Notice at no point in the resource did we care what represnetations we could
-handle nor did we do any transformations. That's becasue that's handled in
+Notice at no point in the resource did we care what representations we could
+handle nor did we do any transformations. That's because that's handled in
 different stage in the pipeline by an entirely different class.
 
 After the class we build the app. The last time this was handled for us by
@@ -131,7 +131,7 @@ little domain specific language (DSL) that is based off of C<Plack::Builder>'s. 
 tell Plack we're enabling C<Magpie>. Then we set up the content types we can
 accept. Like before we look for Accept headers that match the
 C<application/json> content type. We tell magpie to call these C<json>. Next we
-setup the pipline Machine for teh application. The C<match> directive matches
+setup the pipeline Machine for the application. The C<match> directive matches
 the input URL (in this case the root '/') and adds our resource accordingly.
 Finally the C<match_accept> header matches the accept type we setup earlier and
 adds the JSON transformer. In this case the JSON transformer that ships with
@@ -155,7 +155,7 @@ instead have multiple resources doing many things.
                     [ html_de => 'text/html', undef, undef, 'de' ],
                 ],
                 pipeline => [
-					'NP::Authen::Passwd' => { limit_user => 'Santa' },
+                    'NP::Authen::Passwd' => { limit_user => 'Santa' },
                     machine {
                         match_template '/TheList/{kid}' =>
                           ['NP::Resource::TheList.pm'];
@@ -178,7 +178,7 @@ instead have multiple resources doing many things.
         };
 
 As applications begin to scale it complexity it becomes increasingly important
-to keep the different pieces of complexity corraled into their own places.
+to keep the different pieces of complexity corralled into their own places.
 While you can do this with C<Web::Machine> and judicious use base classes and
 roles, C<Magpie> was designed to give you guidance on where to put things in an
 increasingly more complicated application.
@@ -220,9 +220,9 @@ C<NP::Transformer::TT2> and C<NP::I18N::EN>.
 	__END__
 
 This looks a little more complicated than it really is. First we're inheriting
-from C<Magpie::Transformer::TT2> which handles building the L<Template
-Toolkit|https://metacpan.org/release/Template-Toolkit> object for us. We just
-need to provide some callback hooks. First C<get_tt_conf> provides the
+from C<Magpie::Transformer::TT2> which handles building the
+L<Template Toolkit|https://metacpan.org/release/Template-Toolkit> object for us.
+We just need to provide some callback hooks. First C<get_tt_conf> provides the
 configuration block, then C<get_template> will look up the actual template
 name. We check for a C<template> key in the context object. The context object
 is a great way to pass out-of-band data that is important to processing but
@@ -230,7 +230,7 @@ really isn't resource data. If we don't have a template with the right name, we
 use a default error template, but we could just as easily throw an exception here.
 
 Finally we set up the template variables. We pass in the request object
-(ususally a C<Plack::Request> object), and the Resource object (something
+(usually a C<Plack::Request> object), and the Resource object (something
 similar to our C<WasteOfTime::Resource> class above). This means that we can
 access the resource data directly and write a template like:
 
@@ -296,27 +296,27 @@ like this:
     __END__
 
 Because C<Magpie> doesn't currently ship with an I18N framework C<NP::I18N>
-classes inherit directly from teh C<Magpie::Transformer> class. This means
+classes inherit directly from the C<Magpie::Transformer> class. This means
 they're exposed to a bit more of the low lying mechanics of setting up the
 state machine. This is what the call to C<register_events> and the
 C<load_queue> methods are for. They tell C<Magpie> that we have two methods in
-this pipline stage and the order in which to call them.
+this pipeline stage and the order in which to call them.
 
 Assuming we have our C<.po> files and what not setup properly, this will take
-any string in curly brances and replace it with the appropriate translation.
+any string in curly branches and replace it with the appropriate translation.
 Obviously this is a vastly simplified version, and Santa's real system probably
 uses a much more complex parsing system for pulling out the message IDs and
-tranlation strings so that things like the coal count can be translated
+translation strings so that things like the coal count can be translated
 properly. But this illustrates how a pipeline of pieces means that as we step
-through each piece of the application we can focus donw and work on each step
+through each piece of the application we can focus down and work on each step
 individually.
 
 =head2 La gazza ladra
 
 C<Magpie> is heavily influenced by a number of different things. You may recognize
 some mod_perl and some Catalyst, we used both of those extensively before
-sitting down to write C<Magpie>. The C<match_template> directive matches on L<URI
-URI`Templates|https://tools.ietf.org/html/rfc6570>. It was also heavily
+sitting down to write C<Magpie>. The C<match_template> directive matches on
+L<URI`Templates|https://tools.ietf.org/html/rfc6570>. It was also heavily
 influenced by the book L<Rest In Practice|http://restinpractice.com/book/> and
 the work of L<Mike Amundsen|http://www.amundsen.com>.
 
