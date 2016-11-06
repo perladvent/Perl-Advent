@@ -351,7 +351,10 @@ ecosystems.
 However, we use plain old GitHub issues, and that is what we want to
 use: let's accept a commit message if and only if it addresses at
 least one valid issue. We will do this with that chunk of code, that
-is integrated along with the other hooks.
+is integrated along with the other hooks. Please go to L<the
+repo|https://github.com/JJ/git-hooks/blob/master/commit-hooks.pl> for
+the whole file, just the part including the new code has been included
+here. 
 
 
     COMMIT_MSG {
@@ -397,6 +400,34 @@ is integrated along with the other hooks.
         }
     };
 
+In order to use this, we will have first to create and copy an API key from GitHub. This key is going to be used to download the issues.  After getting the API token from your profile, write
+
+    git config --add github.apikey abcdeandmanylettersmoreandnumbers
+
+Since we cannot pass through environment variables to the hooks, and
+it is really not a good idea tosave the API key in a file, because you
+might accidentally add it to the repository, let's just handle it
+I<outside> the repository by placing it in an environment that is
+available to the hooks: the git configuration file. We are going to be
+using L<Git::More>, which is part of the L<Git::Hooks> repository, to
+retrieve that key, which we do in 
+
+    my $api_key = $git_repo->get_config( 'github','apikey' );
+
+We then use this key to open the API using yet another module,
+L<Net::GitHub>. We will need this one to access the issues, which is
+something we do in the next few lines using the
+C<$issue->repos_issues> function. 
+
+After that, the program creates a map with the issues, which makes
+them easier to check, and lets the commit pass if there are issues and
+they actually exist and are open, or not if it does not refer to any
+issue or to incorrect ones. 
+
+After I<hooking> this hook by symlinking it to the script, the result
+will be something like this: 
+
+=for HTML <p><img src="img/issues.png" alt="Screenshot of test pass" /></p>
 
 
 =head1 SEE ALSO
