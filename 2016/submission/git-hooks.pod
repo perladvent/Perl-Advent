@@ -225,7 +225,61 @@ That is not buying us much, except, well, we are kind of less worried about runn
 
 =head1 But now we have the full power of Perl
 
-So let us use it for the greater good. 
+So let us use it for the greater good. For instance, it would be nice
+to not allow anything that can't be compiled to be checked in. Many
+companies include C<pre-commit> policies that check that, and L<a host
+of other
+things|http://codeinthehole.com/writing/tips-for-using-a-git-pre-commit-hook/>,
+there are L<whole frameworks that allow management of this kind of
+policies, like this one written in Python by
+Yelp|http://pre-commit.com/>. We might want to check that out later on
+(or not, because Not Perl), but meanwhile we can run a simple syntax
+check on the Perl files before they are even committed. This would do
+the trick
+
+    #!/usr/bin/env perl
+    
+    use strict;
+    use warnings;
+    
+    use Git;
+    use Term::ANSIColor;
+    
+    use v5.14;
+    
+    my $repo = Git->repository();
+    
+    my $diff_output = $repo->command('diff-index', '--cached','-p','HEAD');
+    
+    my @files_changed = ($diff_output =~ /\++\sb\/(\S+)/gs);
+     
+    my $syntax_ok = 0;
+    foreach my $file ( @files_changed ) {
+      next if ( $file !~ /\.p[ml]/ );
+      print "Checking $file  ";
+      my $output = `perl -cw $file 2>&1`;
+      if ($output =~ /syntax error/ ) {
+        $syntax_ok = $syntax_ok || 1;
+        say color("red"), "✗", color("reset"), "\n\tThere's an error in $file:", color("red"),
+          join("",map( "\n\t$_", split("\n",$output))), color("reset");
+      } else {
+        say color("green"),"✓", color("reset");
+      }
+    }
+    
+    exit $syntax_ok;
+
+This script will be copied or symlinked to C<pre-commit> in the C<hooks> dir and will check syntax and warnings for any Perl file that has been modified during the commit. It uses the same git command as above for obtaining the files that have been modified, extracting the filenames from the diff output. That is why it is using
+
+     ($diff_output =~ /\++\sb\/(\S+)/gs);
+
+which will get filenames from lines such as this one
+
+    +++ b/2016/submission/git-hooks.pod
+
+(this will work as long as the filenames do not have any whitespace in them). Anyway for every file modified it will proceed to run C<perl -cw> on it. If it passes muster, it will give the go ahead, it does not, it will exit with a 1, which will indicate git the commit cannot proceed, printing at the same time the cause of the error. 
+
+![Screenshot of commit check](img/pass.png) 
 
 =head1 SEE ALSO
 
