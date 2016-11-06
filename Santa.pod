@@ -1,0 +1,513 @@
+=encoding utf-8
+
+=head2 New logistics
+
+With slavery being questioned all around the world, quite a few elves rioted and
+turned their back on Santa. He is now facing a downsized force of helpers and
+has to work even more efficient than ever before.
+
+Especially the logistics department was cut down to a number that made production
+of toys a nightmare, as the production department has no idea how many toys to
+make and with what specifications.
+
+The mail group already being reduced in size last year now works way more
+efficiently, as they are capable to control the annexes in the countries that
+collect the wish-lists. They now use CSV files. Or do they?
+
+Due to locales and local regulations, all the country annexes use their local
+settings to produce the CSV files with the gathered wish-lists. These are then
+sent to the North Pole where the mail department collects, sorts and distributes
+them to the logistics department that will then steer the production.
+
+That plan sounds fine, until they note that the Dutch use a semicolon for
+separation character, the Romanians use UTF-16LE encoding, the Spanish lists
+come with \r\n line endings and the Germans keep misspelling count as kount.
+They chose CSV as the definition was so easy nothing could go wrong. Well, now
+they have to think again.
+
+How many Red Fire Trucks will production have to make so logistics can set up a
+scheme for Santa to not have to return to the Pole if does not have enough red
+trucks to fulfill the children's wishes.
+
+=head2 Data received
+
+The master elf showed his programmers the format of the wish-list he got from
+the UK department, named wish-uk.csv:
+
+ Name,Date of Birth,Postal Code,Address,Wish,Specs
+ Hilbert Potter,20121220,NE66 1NQ,Alnwick Castle,Wand,"10¾"" Vine w/ dragon heartstring"
+ Jane Granger,20111111,NE13 6LY,"Random Edge, Warkworth Drive",Magic beaded handbag,Unlimited space
+ Wolff Weasly,20131211,NE13 5AX,The Grove,Wand,Crooked oak w/ Muggle blood
+
+=head3 Basic knowledge
+
+The logistic elves are fond of the features perl offers them, so they start out
+the simple way:
+
+ use Text::CSV_XS qw( csv );
+
+ my $aoa = csv (in => "wish-uk.csv");
+
+and they say all went well. They showed the master elf the content using
+
+ use Data::Peek;
+
+ DDumper ($aoa);
+
+and it showed
+
+  [
+      [   'Name',
+          'Date of Birth',
+          'Postal Code',
+          'Address',
+          'Wish',
+          'Specs'
+          ],
+      [   'Hilbert Potter',
+          20121220,
+          'NE66 1NQ',
+          'Alnwick Castle',
+          'Wand',
+          '10¾" Vine w/ dragon heartstring'
+          ],
+      [   'Jane Granger',
+          20111111,
+          'NE13 6LY',
+          'Random Edge, Warkworth Drive',
+          'Magic beaded handbag',
+          'Unlimited space'
+          ],
+      [   'Wolff Weasly',
+          20131211,
+          'NE13 5AX',
+          'The Grove',
+          'Wand',
+          'Crooked oak w/ Muggle blood'
+          ]
+      ]
+
+=head3 Advanced knowledge
+
+The master elf suggested to use the headers
+
+  DDumper csv (in => "wish-uk.csv", headers => "auto");
+
+  [
+      {   Address          => 'Alnwick Castle',
+          'Date of Birth'  => 20121220,
+          Name             => 'Hilbert Potter',
+          'Postal Code'    => 'NE66 1NQ',
+          Specs            => '10¾" Vine w/ dragon heartstring',
+          Wish             => 'Wand'
+          },
+      {   Address          => 'Random Edge, Warkworth Drive',
+          'Date of Birth'  => 20111111,
+          Name             => 'Jane Granger',
+          'Postal Code'    => 'NE13 6LY',
+          Specs            => 'Unlimited space',
+          Wish             => 'Magic beaded handbag'
+          },
+      {   Address          => 'The Grove',
+          'Date of Birth'  => 20131211,
+          Name             => 'Wolff Weasly',
+          'Postal Code'    => 'NE13 5AX',
+          Specs            => 'Crooked oak w/ Muggle blood',
+          Wish             => 'Wand'
+          }
+      ]
+
+and the programming elves were in awe for they did not expect the master elf to
+know about this magic. They then started to read the manual ...
+
+=head3 Planning the trips
+
+The sleigh is not of unlimited size - in contrary of common belief - and cannot
+hold unlimited weight (due to reindeer fatigue), so Santa must plan well in
+advance how many presents he can take on a single trip.
+
+The aim of the logistical elves was to count presents per region, so they were
+not interested in the personal data. Just the postal code and the wish-list
+item were important (for the planning department).  On their efforts they also
+decided that they just wanted to count on the first part of the postal code
+
+  my %count;
+  my $aoa = csv (in => "wish-uk.csv", headers => "auto", filter => {
+      1 => sub { $count{$_{Wish}}{$_{"Postal Code"} =~ s/\s.*//r}++; 0; }});
+
+  DDumper \%count;
+
+  {   'Magic beaded handbag' => {
+          NE13             => 1
+          },
+      Wand             => {
+          NE13             => 1,
+          NE66             => 1
+          }
+      }
+
+Happy with the result they now wanted to combine that with their own knowledge
+on the size and the weight of the presents, which they stored as
+
+  present,weight,size
+  wand,0.2,1
+  handbag,1,2
+
+They had a long session on how to match the wish description with the present
+data they had, and came up with what they think was accurate enough:
+
+  use List::Util   qw( sum first );
+  use Text::CSV_XS qw( csv );
+
+  my $props = csv (in => "presents.csv", key => "present");
+
+  my %count;
+  my $aoa = csv (in => "wish-uk.csv", headers => "auto", filter => {
+      1 => sub {
+          $count{$_{Wish}}{$_{"Postal Code"} =~ s/\s.*//r}++;
+          0;
+          }
+      });
+
+  my @presents = keys %$props;
+  my %ship;
+
+  foreach my $wish (keys %count) {
+      my $w = lc $wish;
+      my ($weight, $size, $p);
+      if ($p = $props->{$w}) {
+          ($weight, $size) = ($p->{weight}, $p->{size});
+          $p = $w;
+          }
+      elsif ($p = first { $_ } grep m/\b $w \b/x => @presents or
+             $p = first {     $w =~ m/\b $_ \b/x }  @presents) {
+          ($weight, $size) = ($props->{$p}{weight}, $props->{$p}->{size});
+          }
+      else {
+          ($weight, $size) = (1, 1);
+          }
+
+      foreach my $postal (keys %{$count{$wish}}) {
+          my $n = $count{$wish}{$postal};
+          $ship{$postal}{presents}{$wish} = {
+              present => $p // "unknown",
+              weight  => $weight,
+              size    => $size,
+              count   => $n,
+              };
+          $ship{$postal}{count}  += $n;
+          $ship{$postal}{size}   += $n * $size;
+          $ship{$postal}{weight} += $n * $weight;
+          }
+      }
+
+  DDumper \%ship;
+
+ =>
+
+  {   NE13             => {
+          count            => 2,
+          presents         => {
+              'Magic beaded handbag' => {
+                  count            => 1,
+                  present          => 'handbag',
+                  size             => 2,
+                  weight           => 1
+                  },
+              Wand             => {
+                  count            => 1,
+                  present          => 'wand',
+                  size             => 1,
+                  weight           => '0.2'
+                  }
+              },
+          size             => 3,
+          weight           => '1.2'
+          },
+      NE66             => {
+          count            => 1,
+          presents         => {
+              Wand             => {
+                  count            => 1,
+                  present          => 'wand',
+                  size             => 1,
+                  weight           => '0.2'
+                  }
+              },
+          size             => 1,
+          weight           => '0.2'
+          }
+      }
+
+=head3 Planning production
+
+Using the same wish-list data, they can control the production department. They
+just need to know how many presents they should manufacture and with what specs.
+They are not interested at all in where the presents will be shipped or who will
+be the happy child to receive the present.
+
+To get the right data to production they still need the present properties in
+order to categorize the presents. This turned out to be very easy:
+
+  my $props = csv (in => "presents.csv", key => "present");
+  my @presents = keys %$props;
+
+  my %count;
+  my $aoa = csv (in => "wish-uk.csv", headers => "auto", filter => {
+      1 => sub {
+          my $w = lc $_{Wish};
+          my $p = $props->{$w} ? $w
+                : (first { $_ } grep m/\b $w \b/x => @presents) ||
+                  (first {     $w =~ m/\b $_ \b/x }  @presents) || $w;
+          $count{$p}{$w}{$_{Specs}}++;
+          0;
+          },
+      });
+
+ =>
+
+  {   handbag          => {
+          'magic beaded handbag' => {
+              'Unlimited space' => 1
+              }
+          },
+      wand             => {
+          wand             => {
+              '10�" Vine w/ dragon heartstring' => 1,
+              'Crooked oak w/ Muggle blood' => 1
+              }
+          }
+      }
+
+=head2 More of Europe
+
+So, with the UK covered, let's see what the Dutch and the Germans sent to Santa.
+
+The Dutch sent Santa:
+
+ naam;geboortedatum;postcode;adres;wens;specificaties
+ Gordon;19680706;1000AZ;Blaricum;handbag;pink size 12
+ Chantal Janzen;19790215;1071HW;Willemsparkweg;handbag;Dior, black
+
+The Germans sent Santa:
+
+ Name,Geburtstag,PostLeitzahl,Adresse,Wunsch,Spezifikationen
+ Kurt Weller,20131211,80331,Unsöldstraße,Tattoo,the one with the hidden message
+
+What they see here is that the Dutch use a semi-colon instead of a colon and
+both the German and the Dutch use localized headers, but thankfully still use
+the English spelling for the presents.
+
+As for the separator, Text::CSV_XS' csv function has a ready to go no-brainer
+option available:
+
+ my $aoa = csv (in => "wish-nl.csv", sep_set => [ ",", ";" ]);
+
+problem solved :)
+
+When the elves were digging into the manual pages to find that option, they
+also discovered that they did not need to take any special action to deal with
+the different line-ending that the Dutch used (C<\r\n> instead of C<\n> as used
+in the UK version). It was already dealt with.
+
+When they parsed the German file, they were unable to find the C<Name> column
+and they got an empty last row. Puzzled by that, they used several tools to view
+the actual content to find that the file contained a lot of C<00> bytes and it
+started with two mystery bytes C<FE> and C<FF>.
+
+In despair they went to Santa, who explained them the meaning of the Byte Order
+Mark or short BOM.  Again in awe of Santa's wisdom, they reread the manual pages
+and found that C<csv ()> did support BOM.
+
+ my $aoa = csv (in => "wish-de.csv", bom => 1);
+
+So, the only issue they needed to fix was the header names in order to combine
+the wish-lists.
+
+Instead of trying to translate all headers to a uniform language (be that elvish
+or English), it is easier to just define the headers and skip the localized name
+scheme. If all countries keep sending their wish-lists with the same columns, as
+they do, it does not really matter what the header states, so we choose our own
+tags.
+
+The csv function supports setting the header and skipping the header in the
+filter is also possible, so that problem can be tackled relatively easy. They
+can read all wish-list files in a single loop and collect all required data:
+
+  use Data::Peek;
+  binmode STDERR, ":encoding(utf-8)";
+  
+  use List::Util   qw( sum first );
+  use Text::CSV_XS qw( csv );
+  
+  my $props = csv (in => "presents.csv", key => "present");
+  my @presents = keys %$props;
+  
+  my %ship;
+  
+  my @wlh = qw( name birth pc address wish spec );
+  
+  my %count;
+  my %prod;
+  foreach my $wlfn (glob "wish-??.csv") {
+      my ($cc) = uc ($wlfn) =~ m/-(\w+)/;
+      my $aoa = csv (
+          in      => $wlfn,
+          bom     => 1,
+          headers => \@wlh,
+          filter  => { 1 => sub {
+              # Skip lacalized header
+              $_[0]->record_number == 1 and return 0;
+  
+              # For shipping/logistics
+              $count{$_{wish}}{$cc}{$_{pc} =~ s/\s.*//r}++;
+  
+              # For production
+              my $w = lc $_{wish};
+              my $p = $props->{$w} ? $w
+                    : (first { $_ } grep m/\b $w \b/x => @presents) ||
+                      (first {     $w =~ m/\b $_ \b/x }  @presents) || $w;
+              $prod{$p}{$w}{$_{spec}}++;
+  
+              # Don't store
+              0;
+              }
+          });
+      }
+  
+  foreach my $wish (keys %count) {
+      my $w = lc $wish;
+      my ($weight, $size, $p);
+      if ($p = $props->{$w}) {
+          ($weight, $size) = ($p->{weight}, $p->{size});
+          $p = $w;
+          }
+      elsif ($p = first { $_ } grep m/\b $w \b/x => @presents or
+             $p = first {     $w =~ m/\b $_ \b/x }  @presents) {
+          ($weight, $size) = ($props->{$p}{weight}, $props->{$p}->{size});
+          }
+      else {
+          ($weight, $size) = (1, 1);
+          }
+  
+      foreach my $cc (keys %{$count{$wish}}) {
+          foreach my $postal (keys %{$count{$wish}{$cc}}) {
+              my $n = $count{$wish}{$cc}{$postal};
+              $ship{$cc}{$postal}{presents}{$wish} = {
+                  present => $p // "unknown",
+                  weight  => $weight,
+                  size    => $size,
+                  count   => $n,
+                  };
+              $ship{$cc}{$postal}{count}  += $n;
+              $ship{$cc}{$postal}{size}   += $n * $size;
+              $ship{$cc}{$postal}{weight} += $n * $weight;
+              }
+          }
+      }
+  
+  DDumper { ship => \%ship, prod => \%prod };
+
+ =>
+
+  prod             => {
+      handbag          => {
+	  handbag          => {
+	      'Dior, black'    => 1,
+	      'pink size 12'   => 1
+	      },
+	  'magic beaded handbag' => {
+	      'Unlimited space' => 1
+	      }
+	  },
+      tattoo           => {
+	  tattoo           => {
+	      'the one with the hidden message' => 1
+	      }
+	  },
+      wand             => {
+	  wand             => {
+	      '10�" Vine w/ dragon heartstring' => 1,
+	      'Crooked oak w/ Muggle blood' => 1
+	      }
+	  }
+      },
+  ship             => {
+      DE               => {
+	  80331            => {
+	      count            => 1,
+	      presents         => {
+		  Tattoo           => {
+		      count            => 1,
+		      present          => 'unknown',
+		      size             => 1,
+		      weight           => 1
+		      }
+		  },
+	      size             => 1,
+	      weight           => 1
+	      }
+	  },
+      NL               => {
+	  '1000AZ'         => {
+	      count            => 1,
+	      presents         => {
+		  handbag          => {
+		      count            => 1,
+		      present          => 'handbag',
+		      size             => 2,
+		      weight           => 1
+		      }
+		  },
+	      size             => 2,
+	      weight           => 1
+	      },
+	  '1071HW'         => {
+	      count            => 1,
+	      presents         => {
+		  handbag          => {
+		      count            => 1,
+		      present          => 'handbag',
+		      size             => 2,
+		      weight           => 1
+		      }
+		  },
+	      size             => 2,
+	      weight           => 1
+	      }
+	  },
+      UK               => {
+	  NE13             => {
+	      count            => 2,
+	      presents         => {
+		  'Magic beaded handbag' => {
+		      count            => 1,
+		      present          => 'handbag',
+		      size             => 2,
+		      weight           => 1
+		      },
+		  Wand             => {
+		      count            => 1,
+		      present          => 'wand',
+		      size             => 1,
+		      weight           => '0.2'
+		      }
+		  },
+	      size             => 3,
+	      weight           => '1.2'
+	      },
+	  NE66             => {
+	      count            => 1,
+	      presents         => {
+		  Wand             => {
+		      count            => 1,
+		      present          => 'wand',
+		      size             => 1,
+		      weight           => '0.2'
+		      }
+		  },
+	      size             => 1,
+	      weight           => '0.2'
+	      }
+	  }
+      }
