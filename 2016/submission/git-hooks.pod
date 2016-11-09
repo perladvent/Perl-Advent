@@ -1,0 +1,466 @@
+Title: Writing git hooks with Git::Hooks
+Topic: Git::Hooks
+Author: JMERELO <JMERELO@cpan.org>
+
+=pod
+
+=encoding utf8
+
+=head1 Let's start with the hooks.
+
+You are a developer, you are probably using git. You are using git,
+you are probably using hooks too. I<hooks> are programs triggered by a
+certain event in a git repo. You can find examples stashed in the
+C<.git/hooks> directory. They are there just for the show, and they
+are not used by default. However, it is very likely that if you use
+some remote repository like GitHub or GitLab, this one might actually
+be using these hooks to rebuild web pages, trigger deployments or
+myriad other stuff. Both GitHub and GitLab allow us to configure them
+quite easily via web.
+
+However, the point of this article is to show you how to write them
+yourself. So let's first find out what kind of events can trigger a
+hook. The whole list is L<in the Git reference
+page|https://git-scm.com/docs/githooks> and, in the last git version,
+includes 19 different events. 
+
+We can divide them in different ways; for instance, according to
+I<when> they actually happen. C<pre> and C<post> happen before and
+after a particular git command; for instance, C<pre-commit> hooks
+happen before the actual commit, that is, before the actually commit
+message is read. These C<pre> hooks can be used to implement policies
+at the client level and can return a value that will indicate that the
+particular action has failed; for instance, if a commit message
+contains typos or fails company policy in some other way. There's even
+a C<prepare> hook that happens right before the C<pre> hook is
+triggered: C<prepare-commit-message>. On the other hand, C<post> hooks
+do not affect the command itself, just the way the repository is
+arranged after the command is run. A C<post-receive> hook, for
+instance, can send an email to the user or administrator when a push
+has been processed on a remote repository, or send a message to a
+continuous integration server, or trigger a rebuild of the web site.
+
+On the other hand, they can also be divided according to the git
+command that triggers them. Four of them, are related to
+C<commit>, others to C<am>, and yet others to C<push> and to
+C<receive-pack>, a I<plumbing> command run when a push is received in
+a repository. 
+
+=head2 Now that we mention plumbing
+
+Writing hooks involves diving into the depths of git, going, so to
+say, into the plumbing. In fact, git commands are divided, using a
+toilette metaphor, into two classes: I<porcelain> and I<plumbing>. It
+is L<not too clear which is
+which|http://stackoverflow.com/questions/39847781/which-are-the-plumbing-and-porcelain-commands/39848056>,
+the division being "what can be seen from outside" (porcelain) and
+"what is used from there" (plumbing). According to that, most of the
+stuff we use, clone, add, commit and so on, are "porcelain". And most
+of the stuff you do not I<usually> run is plumbing: C<git-unpack-file>
+or C<git-read-tree> is not the kind of thing you usually run from th
+command line. However, this is precisely the kind of commands we are
+going to run from our hooks. 
+
+=head2 And plumbing works on the pipes.
+
+Or, actually, the trees. Let's again L<get back to
+basics|https://git-scm.com/book/ch1-3.html#The-Three-States> and study
+the three states of a project in git: working directory, also called
+I<working tree>, staging area and the C<.git> directory. In a nutshell,
+C<add> adds files to the staging area, sometimes called for no reason
+whatsoever I<index>, C<commit> passes them through to the C<.git>
+directory, and C<checkout> takes them back from the C<.git> to the
+working directory.
+
+But the plumbing area is full of
+trees. L<Trees|https://git-scm.com/book/es/v2/Git-Internals-Git-Objects#Tree-Objects>
+are used to store directories with the files and other directories,
+also stored as trees, in them. This is an efficient, packed way of
+storing content; git is actually a content-addressable file
+system. Which is great. But takes us away from the simple concept of
+a-source-control-management-system-storing-changes-and-that's-it. 
+
+The good news about this is that git allows us to work easily, through
+plumbing commands, with the internal structure. Bad news is that we
+pretty much need to know how to program our own git in order to write
+a good hook.
+
+=head1 Which takes us back to writing hooks.
+
+As said above, hooks are simply scripts. They can be as simple as a
+shell script or as complicated as a REST client consuming an API. In
+general, a hook will work this way
+
+=over 4
+
+=item Check out stuff
+
+Look at what's going on. Check out its inputs and use them to
+dig a bit deeper using plumbing commands, set the stage.
+
+=item Work
+
+Do the real work. Change log messages, rearrange files or create
+new ones, do lots of different things.
+
+=item Return
+
+Return, possibly with a message, including an failure or success
+message if it is a C<pre>-class hook. 
+
+=back
+
+Let us see how it works in practice in this simple hook (which has
+actually been used in this repo)
+
+    lines_changed=$(git diff-index HEAD --cached -p | grep "^\+\w" | wc -l)
+    message="\nYou have changed $lines_changed lines"
+    grep -qs "^$message" "$1" || echo "$message" >> "$1"
+
+No Perl yet, but just wait there and you will see. These three lines
+have to be saved as C<prepare-commit-msg>, C<chmod +x>'ed and put into
+C<.git/hooks>. Since they are not C<pre> but C<prepare>-class, it does
+not have to return any value. By the way, you can find lots of
+L<examples as
+gists|https://www.google.es/search?client=ubuntu&channel=fs&q=prepare-commit-message&ie=utf-8&oe=utf-8&gfe_rd=cr&ei=EdcdWM-aGc6s8wfdqozoDw#safe=off&channel=fs&q=%22prepare-commit-msg%22>
+in Google. Anyway, the first two lines compute first the number of
+lines changed. They use a plumbing command, C<git-diff-index>. This
+L<command|https://git-scm.com/docs/git-diff-index> 
+
+    Compare[s] a tree to the working tree or index
+
+Which one are we doing here? Since we are using C<--cached> we
+
+    compares the tree-ish and the index.
+
+In this case, C<HEAD>, that is, the last commit, is the
+I<tree-ish>. We are comparing it with the I<index>, that is, whatever
+files we have already added to this commit. Besides, C<-p> is putting
+everything in a I<patch> format, something like 
+
+    diff --git a/2016/submission/git-hooks.pod b/2016/submission/git-hooks.pod
+    index 1fb44ed..1c8fc79 100644
+    --- a/2016/submission/git-hooks.pod
+    +++ b/2016/submission/git-hooks.pod
+    @@ -95,7 +95,7 @@ general, a hook will work this way
+ 
+     =item Check out stuff
+ 
+    - Look at what's going on. Check out its inputs and use them to
+    +Look at what's going on. Check out its inputs and use them to
+      dig a bit deeper using plumbing commands, set the stage.
+
+You will see a C<+> sign, which indicates the lines that have been
+added. The C<grep> pipe filters out those lines, and C<wc -l> counts
+them. 
+
+The next line will create a message to be added to the commit message,
+and the last line effectively does that, after checking that it is not
+already there. We would not want multiple messages like
+that. Ever. C<$1> will contain the name of the file that contains the
+commit message, generally C<COMMIT_MSG>. No big deal here. Except that
+we need to know some stuff about Linux commands, it is not going to be
+easy to debug, and as soon as we want something a bit more complex we
+are getting into C<sed> and C<AWK> terrain. And nobody wants that.
+
+=head2 So let's do it in Perl
+
+There are many ways of doing this in Perl. You didn'expect that, did you? 
+
+First version would just move whatever is a bit more complicated to
+Perl itself. Let us run C<git> as an external command, since there's
+no other way round. Besides, now that we have a sensible language we
+might go a bit further and consider not only lines added, but also
+lines taken from the file. And we can do that not by counting lines
+with C<+> at the front, but parsing the L<diff
+format|https://www.gnu.org/software/diffutils/manual/html_node/Detailed-Unified.html#Detailed-Unified>
+which says how many lines have changed. The result is this program, a
+bit longish
+
+    #!/usr/bin/env perl
+    
+    use strict;
+    use warnings;
+    
+    use File::Slurp::Tiny qw(read_file write_file);
+    
+    use v5.14;
+    
+    my $commit_msg_fn = shift || die "No commit message file";
+    my $commit_msg = read_file( $commit_msg_fn );
+    die if !$commit_msg;
+    my $diff_output = `git diff-index HEAD --cached -p`;
+    my @lines_changed = ($diff_output =~ /-\d+,(\d+) \+\d*,?(\d+)/gs);
+    
+    my ($lines_added, $lines_taken);
+    
+    while ( @lines_changed ) {
+        $lines_taken += shift @lines_changed;
+        $lines_added += shift @lines_changed;
+    }
+    
+    my $message="\nYou have added $lines_added and taken $lines_taken lines";
+    
+    if ( $commit_msg !~ /$message/ ) {
+         write_file( $commit_msg_fn, $commit_msg.$message );
+    }
+    
+
+That's pretty much what we did above. But there is a caveat here, and that is the C<env> in the first line. If you are using like I do and you should  C<perlbrew> to set your Perl version, what that thing does is to set a shell PATH. That path is not going to be available in this spawned shell, which will then use the system Perl. That is why before running this you should do 
+
+    sudo cpan File::Slurp::Tiny
+
+and again for every new module that shows up. The results is more or less the same, and can be seen L<in action in the repo|https://github.com/JJ/git-hooks/commit/bd19c3b69f8fbcc592e2c312a15656d34317f16a>. But we are still not there. Running an external command brings all kind of trouble in particular setups. It is not Pure Perl either. 
+
+=head2 Let's perlify it even more
+
+In fact, if you've got git, you've got a Perl way of doing git. More or less. As part of the git distribution, a C<Git.pm> file is directly installed in C</usr/share/perl5>, at least in new versions of git. C<perldoc Git> will show you what to expect from it, and you can also check it out L<in MetaCPAN|https://metacpan.org/pod/Git>, although in fact it is developed (pretty much, it's kind of quiet) alongside git itself in L<its repository|https://github.com/git/git>. 
+
+Be that as it may, C<Git.pm> provides a Perl interface for running git. After adding C<use Git;> at the beginning, we will insert these new two lines
+
+    my $repo = Git->repository();
+    my $diff_output = $repo->command('diff-index', '--cached','-p','HEAD');
+
+That is not buying us much, except, well, we are kind of less worried about running external commands from our program. Which we are doing anyway, only kind of under the hood.
+
+=head1 But now we have the full power of Perl
+
+So let us use it for the greater good. For instance, it would be nice
+to not allow anything that can't be compiled to be checked in. Many
+companies include C<pre-commit> policies that check that, and L<a host
+of other
+things|http://codeinthehole.com/writing/tips-for-using-a-git-pre-commit-hook/>,
+there are L<whole frameworks that allow management of this kind of
+policies, like this one written in Python by
+Yelp|http://pre-commit.com/>. We might want to check that out later on
+(or not, because Not Perl), but meanwhile we can run a simple syntax
+check on the Perl files before they are even committed. This would do
+the trick
+
+    #!/usr/bin/env perl
+    
+    use strict;
+    use warnings;
+    
+    use Git;
+    use Term::ANSIColor;
+    
+    use v5.14;
+    
+    my $repo = Git->repository();
+    
+    my $diff_output = $repo->command('diff-index', '--cached','-p','HEAD');
+    
+    my @files_changed = ($diff_output =~ /\++\sb\/(\S+)/gs);
+     
+    my $syntax_ok = 0;
+    foreach my $file ( @files_changed ) {
+      next if ( $file !~ /\.p[ml]/ );
+      print "Checking $file  ";
+      my $output = `perl -cw $file 2>&1`;
+      if ($output =~ /syntax error/ ) {
+        $syntax_ok = $syntax_ok || 1;
+        say color("red"), "✗", color("reset"), "\n\tThere's an error in $file:", color("red"),
+          join("",map( "\n\t$_", split("\n",$output))), color("reset");
+      } else {
+        say color("green"),"✓", color("reset");
+      }
+    }
+    
+    exit $syntax_ok;
+
+This script will be copied or symlinked to C<pre-commit> in the C<hooks> dir and will check syntax and warnings for any Perl file that has been modified during the commit. It uses the same git command as above for obtaining the files that have been modified, extracting the filenames from the diff output. That is why it is using
+
+     ($diff_output =~ /\++\sb\/(\S+)/gs);
+
+which will get filenames from lines such as this one
+
+    +++ b/2016/submission/git-hooks.pod
+
+(this will work as long as the filenames do not have any whitespace in them). Anyway for every file modified it will proceed to run C<perl -cw> on it. If it passes muster, it will give the go ahead, it does not, it will exit with a 1, which will indicate git the commit cannot proceed, printing at the same time the cause of the error. 
+
+=for HTML <p><img src="img/pass.png" alt="Screenshot of test pass" /></p>
+
+We also add color for niceness, using the L<Term::ANSIColor> module. One of the good things we can use within Perl. But we have also got even better things.
+
+
+=head1 Enter L<Git::Hooks>
+
+L<Git::Hooks> is written specifically to do this kind of thing. It lays a layer of goodness over other modules that deal with Git and allows us to work easily with the information that is available to us inside the hooks. Besides, and this is the nicest thing, it allows us to unify all hooks in a single script. Let's they unify the two files we have above in a single one. 
+
+This is the one program to rule them all:
+
+    #!/usr/bin/env perl
+    
+    use strict;
+    use warnings;
+    
+    use Git::Hooks;
+    use Term::ANSIColor;
+    
+    use File::Slurp::Tiny qw(read_file write_file);
+    
+    use v5.14;
+    
+    sub diff_output {
+        my $git = shift;
+        $git->command('diff-index', '--cached','-p','HEAD');
+    }
+    
+    PRE_COMMIT {
+        my ($git) = @_;
+    
+        my @files_changed = (diff_output( $git) =~ /\++\sb\/(\S+)/gs);
+  
+	#Same as before from here on, except for ->
+        return $syntax_ok;
+    };
+    
+    
+    PREPARE_COMMIT_MSG {
+    
+        my ($git, $commit_msg_fn) = @_;
+        my $commit_msg = read_file( $commit_msg_fn );
+        die if !$commit_msg;
+    
+        my @lines_changed = (diff_output( $git ) =~ /-\d+,(\d+) \+\d*,?(\d+)/gs);
+        #Same as before from here on, up to
+    };
+
+    run_hook($0, @ARGV);
+
+This is just part of the program; the rest is in the L<git-hooks repository|https://github.com/JJ/git-hooks>. L<Git::Hooks> has a centralized approach to hooks: it encourages you to create a single file, that is symlinked to the different hook names; in this case, C<prepare-commit-msg> and C<pre-commit-msg>. The magic is done by the last line, which takes the command under which it is being invoked C<$0> along with the command-line arguments. 
+
+The hooks are declared LABEL-like, although they are actually function calls. These calls receive always C<$git> as the first argument, the git command itself. And its invocation is actually the same as we did before, only we have used a slightly different syntax via the C<qw> quote operator. And we do that in the C<diff_output> function, which is actually the only part where we are winning something by factoring out part of the code, this common code that includes the differences between the repository in the previous state and this one. That's cool, anyway. A single file is easier to maintain and copy around; in fact, you can L<create a git directory template|https://coderwall.com/p/jp7d5q/create-a-global-git-commit-hook> which includes this single file and its corresponding symlinks so that your development team plays by the hook. Pun intended. 
+
+=head2 Enforcing commit-refers-to-issue policies
+
+An idea that I try to instill in my students is that you always work
+in a project towards an objective, and that objective must be engraved
+in a milestone (get it? Engraved... in a mile-I<stone>), which must be
+divided in tasks that are assigned issues. This is such a
+dyed-in-the-wool thing that L<Git::Hooks has a plugin that checks that
+every commit message includes a valid JIRA
+issue|https://metacpan.org/pod/Git::Hooks# Using-Plugins>.  In fact,
+there are many off-the-shelf plugins that can be activated via the
+combination of git config variables and ready-to-go plugins. Other
+L<frameworks|https://bigbrassband.com/api-doc.html> also including
+little-to-no-programming hooks for integration in development
+ecosystems. 
+
+However, we use plain old GitHub issues, and that is what we want to
+use: let's accept a commit message if and only if it addresses at
+least one valid issue. We will do this with that chunk of code, that
+is integrated along with the other hooks. Please go to L<the
+repo|https://github.com/JJ/git-hooks/blob/master/commit-hooks.pl> for
+the whole file, just the part including the new code has been included
+here. 
+
+
+    COMMIT_MSG {
+        my ($git, $commit_msg_file) = @_;
+    
+        my $git_repo = Git::More->repository();
+        my $api_key = $git_repo->get_config( 'github','apikey' );
+        
+        my $gh = Net::GitHub->new(
+    	    version => 3,
+    	    access_token => $api_key
+    	);
+        my $origin = $git_repo->get_config( 'remote.origin','url' );
+        my ( $user, $repo ) = ($origin =~ m{:(.+?)/(.+)\.git});
+        my $issue = $gh->issue();
+        my @these_issues = $issue->repos_issues( $user, $repo, { state => 'open'} );
+        
+        my %issues_map;
+            for my $i ( @these_issues ) {
+    	    $issues_map{$i->{'number'}} = $i->{'title'};
+        }
+        
+        my $commit_msg = read_file( $commit_msg_file );
+        
+        my @issues = ($commit_msg =~ /\#(\d+)/g);
+    
+        if ( !@issues ) {
+          say "This commit should address at least one issue";
+          return 0;
+        } else {
+          my $addresses_issue = 1;
+          for my $i ( @issues ) {
+        	if ( $issues_map{$i} ) {
+        	  say pass("Addresses issue $i: $issues_map{$i}");
+        	  $addresses_issue &&= 1;
+        	} else {
+        	  say fail("There is no issue $i");
+        	  $addresses_issue &&= 0;
+        	}
+          }
+          say "∆∇";
+          return $addresses_issue;
+        }
+    };
+
+In order to use this, we will have first to create and copy an API key from GitHub. This key is going to be used to download the issues.  After getting the API token from your profile, write
+
+    git config --add github.apikey abcdeandmanylettersmoreandnumbers
+
+Since we cannot pass through environment variables to the hooks, and
+it is really not a good idea to save the API key in a file, because you
+might accidentally add it to the repository, let's just handle it
+I<outside> the repository by placing it in an environment that is
+available to the hooks: the git configuration file. We are going to be
+using L<Git::More>, which is part of the L<Git::Hooks> repository, to
+retrieve that key, which we do in 
+
+    my $api_key = $git_repo->get_config( 'github','apikey' );
+
+We then use this key to open the API using yet another module,
+L<Net::GitHub>. We will need this one to access the issues, which is
+something we do in the next few lines using the
+$issue->repos_issues function. 
+
+After that, the program creates a map with the issues, which makes
+them easier to check, and lets the commit pass if there are issues and
+they actually exist and are open, or not if it does not refer to any
+issue or to incorrect ones. 
+
+After I<hooking> this hook by symlinking it to the script, the result
+will be something like this: 
+
+=for HTML <p><img src="img/issues.png" alt="Screenshot of test pass" /></p>
+
+=head1 The tip of the hook
+
+By itself, Perl is a great tool for writing git hooks. Together with
+the git and GitHub related modules, writing a set of hooks for your
+repositories is fast and straightforward. You might even not need to
+write anything, by just using L<Git::Hooks> plugins.
+
+Most difficult thing here is to debug the tools, but in many cases you
+will simply have to create a file with the right name and invoke the
+script with the right command line too, so that C<$0> and C<@ARGV> are
+correct. Always bear in mind the environment in which the scripts are
+running, and before you know, you'll be hooked.  
+
+=head1 SEE ALSO
+
+These are the modules that have been used here. There are hook
+frameworks in most other languages, some of them exclusively devoted
+to a particular hook. You might use them too if the language is
+already installed in your system.
+
+=for :list
+
+* L<Git::More>
+
+* L<Git::Repository>
+
+* L<Net::GitHub> 
+
+* L<pre-commit in node.js|https://www.npmjs.com/package/pre-commit>,
+  which can be configured via a JSON file. 
+
+* L<pre-commit hooks in
+  Python|https://github.com/pre-commit/pre-commit-hooks> 
+
+=cut

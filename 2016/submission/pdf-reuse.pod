@@ -1,0 +1,131 @@
+Title: PDF-Resue + Reduce & Recycle
+Topic: PDF::Reuse
+Author: Raja Renga Bashyam <raja@webstarscg.com>
+
+=pod
+
+In one of our implementation, we had a requirement to produce business cycle documents completely in PDF. It's a billing solution for Advertising Agency System. It has the usual Estimate->Purchase Order->Invoice Cycle with Detail,Rate,Qty & Amount format. Apart from that it has varied column information for handling Print Media & Audio/Video Media with more detail on print media position & A/V media program-slot & timing. In some cases, each media type will be handled by different legal entities for manage tax related issues. Finally, the requirements were:
+
+=for html
+    <ol>
+        <li>6 work segments(Production, Production with PO, Print Media, Audio/Video, Production iwht TAX)</li>
+        <li>Upto 6 different legal entities for each segment</li>
+        <li>3 type of estimates</li>
+        <li>Purchase Order</li>
+        <li>3 type of Release Orders for handle media communication</li>
+        <li>3 type of invoices</li>
+    </ol>
+    
+=head2 Challenges
+
+Then we were in search of suitable PDF production module. We mainly looked for: 
+
+=for html
+    <ol>        
+        <li>Suits to tailor build the document</li>
+        <li>Should give production control in pixel level </li>
+        <li>Flexible option to set page properties</li>
+        <li>Option to implement signatures</li>
+        <li>Position control to handle page continuation</li>
+    </ol>
+
+After a lengthy search for few days, we finally zeroed in PDF::Reuse. It did not have user friendly function wraps for graphical output, but it offered a developer friendly core functions to control the graphical output in a pixel level. It helped to wrap our custom functions to handle in  generic way.
+
+=head2 Map to Reuse, Reduce & Recycle
+
+    #!perl
+    
+    use PDF::Reuse;
+    use strict;
+     
+    prFile('myFile.pdf');                  # file to make    
+    prForm('source.pdf');                  # page 1 from source.pdf    
+    prText(150, 700, 'Customer Data');     # a line of text
+    prEnd();
+
+=for html
+    <ol>
+        <li>The feature of reusing the existing PDF and writing content over that, helped to reuse the existing legal entity letter pads in specific company document production. It's avoided manual graphic production work.</li>
+        <li>We classified the document to 3 major parts:
+            <ol>
+                <li>Page Layout & Page Background</li>
+                <li>Header</li>
+                <li>Content</li>
+            </ol>
+        </li>
+        <li>To meet that, we worked on a basic functions to print content based on  HoH configuration</li>
+        <li> The production data passed as AoA </a>        
+    </ol>
+
+    #!perl
+        
+    # estimate structure
+      
+        my $ESTIMATE={
+               
+                0   =>  {
+                    
+                            line_data               => 1,                            
+                            line_height             => 15,
+                            
+                            title_text_font         => 'Helvetica-Bold',                             
+                            title_text_font_size    => 9,
+                            
+                            data_text_font          => 'Tahoma',                            
+                            data_text_font_size     => 9,                            
+                            data_left_margin        => 20,
+                    
+                            header  =>{
+                        
+                                        0=>{title   => 'S.No',  # table title
+                                            h_width => 40,      # header width
+                                            offset  => 8,       # offset limit to wrap
+                                            d_width => 20,      # data width 
+                                            align   => "right"  # align 
+                                        },						
+                                                                                  
+                                        # 2,3...         
+                    },
+                            
+                    # Data
+                    
+                    data=> [                                                        
+                            [1,'Details','Rate',2,'Amount' ]
+                    ],
+                    
+                }, # end of 01
+                
+        # 1..
+                
+        # 2..
+        
+        
+        }; # end of estimate
+        
+    # PDF Creation Wrapper
+    
+    my $data = $ESTIMATE;
+    
+    $data->[0]->data[1]='Estimate Detail '; # dynamic data part filled for each key as AoA
+        
+    &BILL_WsPDF::create($page,
+                        $header,
+                        $data);
+
+
+
+=for html
+  <h2>Estimate Production</h2>
+  <img src="estimate_pdf.png">
+  <br>
+  <h2>Print Media Invoice</h2>
+  <img src="print_media.png">
+
+
+=head2 SEE ALSO
+
+=for :list
+
+* L<PDF::Reuse>
+
+=cut
