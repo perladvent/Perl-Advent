@@ -1,4 +1,4 @@
-Title: Using PPI for static analyzis
+Title: Using PPI for static analysis
 Topic: PPI
 Author: Nicolas R. <atoomic@cpan.org>
 
@@ -15,9 +15,9 @@ All of this 'unused' code could impact memory and performance of your program.
 Most of the time if your program is run as a daemon, it does not really matter,
 or at least less. But if it's a short run... then it can be interesting.
 
-Finding 'dead code' by static analyzis is vowed to failure and comes with its own
+Finding 'dead code' by static analysis is vowed to failure and comes with its own
 caveats due to the dynamic nature of perl... which can create/call functions
-at run time... so you cannot know for sure that a specific function 
+at run time... so you cannot know for sure that a specific function
 will never be called.
 
 Rather than being a duplicate of the talk which you can find online (view links at
@@ -27,8 +27,8 @@ the basics of INC.
 =head2 INC Basics
 
 Perl uses two versions of INC: @INC as an array and %INC as a hash.
-As for any other variables sharing the same name but using 
-a different 'type' these two are differents.
+As for any other variables sharing the same name but using
+a different 'type' these two are different.
 
 =for :list
 * @INC: an array which contains path where to look for new modules
@@ -99,22 +99,22 @@ at run time, by customizing them.
 
 =item Customizing @INC
 
-By tweaking @INC you can change the behavior of a program by forcing it to 
+By tweaking @INC you can change the behavior of a program by forcing it to
 load modules from a different path... or even do not look in a generic path
 
 The most common use case, is to add one known path to it like in this sample,
 where a custom path is added in first position of @INC.
 
    #!perl
-   
+
    BEGIN { unshift @INC, "/search/in/this/path/first" }
-   
-   use My::Module ();   
+
+   use My::Module ();
 
 =item Customizing %INC
 
 Updating %INC is less common but also provides some great value,
-ony use it with care, but this is an easy way to avoid loading
+only use it with care, but this is an easy way to avoid loading
 a useless (not used during the life of your program) module.
 
    #!perl
@@ -142,7 +142,7 @@ This is exactly what we can achieve using a CHECK block.
     CHECK {
       foreach my $module ( sort keys %INC ) {
         # exclude ourself: could also use __PACKAGE__
-        next if $module eq 'Devel/ListDeps.pm'; 
+        next if $module eq 'Devel/ListDeps.pm';
         print qq{$module\n};
       }
     }
@@ -167,7 +167,7 @@ We are here using -d to load our Devel package
   warnings.pm
   samples/hello-world.pl syntax OK
 
-As we can see we can get the list of dependencies from a script 
+As we can see we can get the list of dependencies from a script
 without altering it.
 Also note that the program was not executed as we just asked perl to
 run with -c to stop after the CHECK block. "Hello World" is not printed.
@@ -203,7 +203,7 @@ other modules coming from Test::More are also now loaded.
 
 As shown in the talk we could then wrap this in a script
 that could remove the last line and convert the short path
-to a package namespce to be more human friendly.
+to a package namespace to be more human friendly.
 
 Then we could use it this way:
 
@@ -290,10 +290,10 @@ Then we could use it this way:
   We could use either a change of state of %INC or also caller to know which file was just loaded.
   This script is pretty long and still need some tweaks but this is the main idea:
 
-  This is the current version 
+  This is the current version
 
     package Devel::ListDepsDetails;
-    
+
     BEGIN {
         sub get_memory {
             my $m;
@@ -311,7 +311,7 @@ Then we could use it this way:
 
             foreach my $in ( @inc ) {
                 next unless $s =~ s{^$in/?}{};
-                
+
                 if ( $s =~ qr{\.pm$} ) {
                     $s =~ s{\.pm$}{};
                     $s =~ s{/+}{::}g;
@@ -409,22 +409,22 @@ Then we could use it this way:
 
   Now that we know that a module can brings dependencies, and these could use some extra memory.
   It would be nice to be able to detect if some of them are useless.
-  
+
   After some googling, I could quickly find a L<solution from brian d. foy: Finding Unused Subroutines, but with PPI|http://blogs.perl.org/users/brian_d_foy/2012/07/finding-unused-subroutines-but-with-ppi.html>
   which uses L<PPI|https://metacpan.org/pod/PPI>.
 
   PPI is a perl parser which tokenizes a source code to convert it to a list of 'tokens' making
   any code manipulation easier than playing with regexp and other complex methods.
-  After analyzing the document tree, you can add/remove/update some tokens (like for example comments, pods...), 
+  After analyzing the document tree, you can add/remove/update some tokens (like for example comments, pods...),
   then later safely render it as a source code using the Lexer.
-  
+
   You can read more about PPI from its perldoc itself, where you could learn two meanings for PPI
   "Parse::Perl::Isolated" but also 'I Parse Perl' (if you read it from right to left)
 
-  Here is the main idea behind this PPI analyzis:
+  Here is the main idea behind this PPI analysis:
 
 =for :list
-* 1. Parse a script using PPI 
+* 1. Parse a script using PPI
 * 2. get the list of all defined functions
 * 3. get the list of all function used
 *  .i   can be a reference to the function: \&foo
@@ -433,21 +433,21 @@ Then we could use it this way:
 * 4. do the diff between the two list to guess the unused functions
 
   brian d foy solution is very smart, and works pretty well on small scripts.
-  
+
   Its main limitation comes from the fact that the analyze is only performed in the scope of your program.
   This can be solved by doing a fatpacking of your script.
-  The second problem is that it should loop after removing functions 
+  The second problem is that it should loop after removing functions
   as this could result in some extra optimizations. One way to do this is to perform the removal using PPI
-  then perform a new analyzis.
+  then perform a new analysis.
 
   For example in this case, 'c' is the function called which requires only 'd'
   The algorithm described above will detect that 'b' as a function is declared and never used
-  but will not be able to do the same for 'a' as it's used inside b.  
+  but will not be able to do the same for 'a' as it's used inside b.
 
     #!perl
-    
+
     use strict;
-    use warnings;  
+    use warnings;
 
     sub a {}
     sub b { a() }
@@ -459,8 +459,8 @@ Then we could use it this way:
   We could simply fix this by performing a loop on the program.
   Until we cannot remove any extra function or we reach a stable
   state, were nothing new need to be removed.
-  
-  Then perform an analyzis on the updated document.
+
+  Then perform an analysis on the updated document.
   (can be performed without writing the updated file to disk, but this
   allow an easier way to debug to write it each time)
 
@@ -470,7 +470,7 @@ Then we could use it this way:
     #!perl
 
     # this is a pseudo code
-    
+
     my $doc = PPI::Document->new( $script );
     my $step;
     while ( 1 ) { # analyze required
@@ -486,7 +486,7 @@ Then we could use it this way:
 
 =head3 basic modulino to play with PPI
 
-Let's try to package this in Object Oriented way, and give it a try 
+Let's try to package this in Object Oriented way, and give it a try
 with a program that could strip comments and pods from a script
 
     package Analyze;
@@ -533,7 +533,7 @@ with a program that could strip comments and pods from a script
 
     sub run {
         my $script = shift or die "Missing argument script name to analyze";
-        
+
         my $content = read_file($script) or die;
         my $analyze = Analyze->new( content => \$content );
 
@@ -549,22 +549,22 @@ with a program that could strip comments and pods from a script
 
 When used like this, a new file is going to be written on disk
 where all comments and pod are stripped. You can test it by yourself.
-    
+
     > perl strip-comments-and-pods.pl script.pl
-    Write updated version to 'script.pl.updated    
+    Write updated version to 'script.pl.updated
 
 
 =head3 PPI how to get the list of functions defined
 
 A function is described in PPI by a 'PPI::Statement::Sub',
-we should exclude from this list the reserved one like 
-BEGIN, CHECK... 
+we should exclude from this list the reserved one like
+BEGIN, CHECK...
 
 Note: this code is extending the previous packages described above.
 
     package Analyze;
 
-    ...    
+    ...
     # Get all of the subroutine definitions
     sub _build_subs {
         my $self = shift;
@@ -595,7 +595,7 @@ will have the same name...
     package Foo; sub hello { }
     package Bar; sub hello { }
 
-So we would like to know in which package the function is defined, 
+So we would like to know in which package the function is defined,
 then use its fullname Foo::hello, Bar::hello or main::hello.
 
 =head3 PPI getting the package name of a function
@@ -605,8 +605,8 @@ We need a way to get the package name from a PPI element
     my $namespace = eval { $elt->parent->find_first('PPI::Statement::Package')->namespace };
 
 In some cases this is unfortunately not providing the information we would expect..
-We can come with our own workaround...  and save the begin and end line 
-for each packages so it will be easy to know where a function is located if we 
+We can come with our own workaround...  and save the begin and end line
+for each packages so it will be easy to know where a function is located if we
 can know which line it was defined.
 
 Let's add an attribute 'packages' to the Analyze class and save the start and end
@@ -634,7 +634,7 @@ line for each packages. (note that a package namespace can be use more than once
     }
 
 Now that we have that information it becomes easy to know in which namespace the function
-was declared. Rather than using '$sub->name' we could use 'get_package_for($sub)' 
+was declared. Rather than using '$sub->name' we could use 'get_package_for($sub)'
 with the following
 
     sub get_package_for {
@@ -648,7 +648,7 @@ with the following
               return $pkg;
             }
         }
-        
+
         return 'main'; # default
     }
 
@@ -772,7 +772,7 @@ used as foo() or Bar::foo()
 =head3 PPI find the sub calls that are barewords
 
 Very similar to the other list of functions called
-we can ubild the list of functions used as barewords.
+we can build the list of functions used as barewords.
 
     # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
     # find the sub calls that are barewords
@@ -819,9 +819,9 @@ we can ubild the list of functions used as barewords.
         return \@barewords;
     }
 
-=head2 Combining everything togeteher
+=head2 Combining everything together
 
-We can now list used and defined functions, 
+We can now list used and defined functions,
 we still need a few helpers around it.
 
 =head3 Get the list of used functions
@@ -856,7 +856,7 @@ is used as a method call
 =head3 Removing unused functions
 
 So all we need to do after creating a PPI doc using the Analyze module
-is ask: 
+is ask:
 
 =for :list
 * what are the defined functions
@@ -893,7 +893,7 @@ is ask:
 
         # return removed sub list
         return @removed;
-    } 
+    }
 
 
 =head2 In Conclusion
@@ -903,18 +903,18 @@ In a second part we can now remove unused functions from a script, after
 fatpacking it. Even if in some cases the result script works this should
 probably still mainly be used as advice on how to refactor your code.
 
-Detecting dead code with static analyzis is prone to errors due to the
+Detecting dead code with static analysis is prone to errors due to the
 dynamic nature of perl. $function() or $object->$method()...
 As this could potentially come from the current ENV we have no accurate
 way to perform a safe removal.
 
-This method comes with its own limits, as it's performed as a static analyzis.
+This method comes with its own limits, as it's performed as a static analysis.
 Another very interesting approach to this problem would be to analyze what happens
 at run time ! and see what code path are triggered in the life (minutes,hours,weeks...)
 of a program. And this is exactly what is done by Gonzalo via Devel::QuickCover.
 
 You can play with the scripts described here available from the github repository.
-They are in a quick&dirty mode, and could be improved in many ways but can stil 
+They are in a quick&dirty mode, and could be improved in many ways but can still
 provide a first approach to play with PPI.
 
 =head1 SEE ALSO
