@@ -1,0 +1,214 @@
+=encoding utf8
+
+=head1 Using Params::Validate::Dependencies to check complex combinations of parameters
+
+=head2 A history lesson and a management problem
+
+L<Several years ago|http://www.perladvent.org/2002/10th/> this a̶u̶g̶u̶s̶t̶December calendar told you all about L<Params::Validate>. It's very useful, and if you're not already using it you are in a state of sin.
+
+Recently, however, Santa has run into a limitation. It's the right tool for the job if you want to validate that parameters are of the right type, but what if your requirements are more complex?
+
+Santa's problem arose because of a customer complaint he got. You see, a few years ago he got an email address so that children could write to him online instead of through the post. I know I know, it takes some of the magic out of the experience, but really, have you seen modern kids' handwriting? Santa blames modern parenting and schools' acceptance of homework done on computers and tablets. Back in the good old days children did lots of handwriting and were birched if it was illegible. These days we're only allowed to birch consenting adults in the sauna. Anyway, one thing led to another and Santa created a website so they could choose their presents, and because he'd read about it in an in-flight magazine he had the website feed data into his back-end warehouse and ordering systems.
+
+And that leads us to The Complaint. You see, the website had a form on it that allowed the little darlings to choose what broad categories of gifts they wanted. Toys, food, clothing etc. Unfortunately Santa forgot that part of his job (which he'd delegated to a team of elves) back when he'd got individual letters and emails from the little darlings was to figure out what would be appropriate when the child was a bit vague. When he created the form all he got was vague data, which got fed straight into his warehouse systems and sent out to the lowest cost suppliers. And then a nice Jewish kid asked for some food, and got a pork pie. Oops. Cue angry letter from his mother.
+
+So he's upgraded the web form to allow lots more options. If you pick 'food' you get options like 'vegetarian', 'halal', and 'kosher'. But during testing it was noticed that you could pick both halal I<and> kosher. It's probably possible (not that Santa is an expert, what with being a Christian bishop living in northern Finland; he has a great Sami recipe for mushroom beer which makes his head go all funny but that's about the limit of his multicultural cuisine knowledge) but his suppliers could only do one or the other, not both.
+
+And there were similar problems elsewhere. You could pick a traditional electronic toy. You could pick clothing that was both a pair of socks and a hat at the same time.
+
+This time, Params::Validate isn't enough. It can't check that you've only ticked one of halal and kosher, the most it can do is check that if you specify halal or kosher you must be asking for food.
+
+=head2 Params::Validate::Dependencies to the rescue!
+
+L<Params::Validate::Dependencies> extends Params::Validate, leaving the original module to continue to do what it's good at, and adds functionality for checking all sorts of dependencies between parameters.
+
+Ignoring all the gory details (and they are very very gory indeed, almost as bad as that time a reindeer L<FODded|https://en.wikipedia.org/wiki/Foreign_object_damage> a 747 over the Pacific) you provide a subroutine reference to the C<validate()> function. That reference can be anything you like, but Params::Validate::Dependencies provides several building blocks for you to use:
+
+=over
+
+=item none_of
+
+returns a sub-ref that requires that none of its arguments be present in the data being checked;
+
+=item one_of
+
+requires that exactly one of its arguments be present;
+
+=item any_of
+
+requires that one I<or more> of its arguments be present;
+
+=item all_of
+
+requires that all of its arguments be present
+
+=back
+
+They can all take strings or further subroutine references as arguments. For example:
+
+    use Params::Validate::Dependencies qw(:all);
+
+    sub foo {
+        my %params = validate(@_,
+            all_of(
+                'food',
+                one_of(
+                    none_of(qw(halal kosher)),
+                    one_of(qw(halal kosher))
+                )
+            )   
+        );
+        ...
+    }
+
+Let's take that validator apart.
+
+=over
+
+=item one_of(qw(halal kosher))
+
+this is true if the parameters contain either 'halal' or 'kosher' but not both.
+
+=item none_of(qw(halal kosher))
+
+this is true if the parameters do I<not> contain either 'halal' or 'kosher'.
+
+=back
+
+Those are in turn contained within a 'one_of', so that says you must have either one of them or none of them. Finally, that is contained within:
+
+=over
+
+=item all_of('food', ...)
+
+so you must have a 'food' parameter and either zero or one of 'halal' and 'kosher'.
+
+=back
+
+We can already see a problem here. You've had to say 'halal' and 'kosher' twice, which is both annoying and also a source of bugs if you mis-spell one of them once. But that's easily fixed. All of the various *_of functions just return sub-refs (although see the LIES section in the documentation), so we can make up our own re-usable subroutine generator:
+
+    sub zero_or_one_of {
+        one_of(
+            none_of(@_),
+            one_of(@_)
+        )
+    }
+
+and reduce the validation code to this:
+
+    sub foo {
+        my %params = validate(@_,
+            all_of(
+                'food',
+                zero_or_one_of(qw(halal kosher))
+            )   
+        );
+        ...
+    }
+
+Right now that actually looks like more code to do the same work, but we can of course re-use the zero_or_one_of function many times. This becomes clear when we also allow vegetarian and vegan options, and start checking for when the kiddies want toys. To validate for toys we add another 'all_of' section just like the above, replacing parameter names where necessary, and wrap both the validator for toys and the validator for food in an 'any_of' so that the user can ask for a toy, or food, or both:
+
+        any_of(
+            all_of(
+                'toy',
+                zero_or_one_of(qw(electronic traditional))
+            ),
+            all_of(
+                'food',
+                zero_or_one_of(qw(halal kosher)),
+                zero_or_one_of(qw(vegetarian vegan))
+            )
+        )
+
+And we could put yet another section in there for any other major category of gift like clothing or craft supplies.
+
+At this point, we can pass sets of parameters like the following and everything will work:
+
+=over
+
+=item food
+
+=item food vegetarian
+
+=item food vegetarian halal
+
+(and likewise for kosher)
+
+=item food halal
+
+=item toy
+
+=item toy electronic
+
+=item toy traditional
+
+=item food halal vegan toy electronic
+
+=back
+
+and if we pass nonsense like this it will fail:
+
+=over
+
+=item halal kosher food
+
+=item traditional electronic toy
+
+=back
+
+Hurrah!
+
+=head2 Don't forget to use Params::Validate's functionality as well
+
+Unfortunately there's some other nonsense we can pass, such as:
+
+=over
+
+=item electronic food
+
+=back
+
+and alas, Santa does not yet deliver to robot children even if they've been very very good and not crushed any puny human skulls beneath their steel feet. Thankfully, plain old Params::Validate can check simple dependencies, such as that if you pass the 'electronic' parameter you must also pass the 'toy' parameter. And Params::Validate::Dependencies I<extends> Params::Validate, so all of the old functionality is still available. We extend our little subroutine thus:
+
+    sub foo {
+        my %params = validate(@_,
+            # here's the traditional Params::Validate checking
+            {
+                # these are optional
+                food  => { optional => 1 },
+                toy   => { optional => 1 },
+
+                # these are also optional but if present must be accompanied by one of the above
+                electronic  => { optional => 1, depends => [ 'toy'  ] },
+                traditional => { optional => 1, depends => [ 'toy'  ] },
+                kosher      => { optional => 1, depends => [ 'food' ] },
+                halal       => { optional => 1, depends => [ 'food' ] },
+                vegetarian  => { optional => 1, depends => [ 'food' ] },
+                vegan       => { optional => 1, depends => [ 'food' ] },
+            },
+            # and now for the complex combinations that P::V can't check
+            any_of(
+                all_of(
+                    'toy',
+                    zero_or_one_of(qw(electronic traditional))
+                ),
+                all_of(
+                    'food',
+                    zero_or_one_of(qw(halal kosher)),
+                    zero_or_one_of(qw(vegetarian vegan))
+                )
+            )
+        );
+        ...
+    }
+
+and we're finished. The traditional Params::Validate section checks the simple dependencies to make sure that you don't try to ask for electronic food or vegetarian toys (you can also use it to check data types), and the extra Params::Validate::Dependencies section checks that you're not asking for traditional electronic toys.
+
+=head2 See also
+
+L<Data::Domain> is another module that does a somewhat similar job to
+Params::Validate, and PVD has L<Data::Domain::Dependencies> bundled with it.
+Unfortunately it only works reliably on some versions of perl because of
+problems in one of Data::Domain's dependencies.
+
+If you want to read the module's code I strongly recommend that you read version 1.0 first. Excepting subsequent bug fixes it has all the functionality discussed above. Version 1.1 then adds some nasty tentacles to make your validation functions self-documenting. But honestly, I don't recommend looking at that without a glass of strong drink. It will make your eyes bleed.
