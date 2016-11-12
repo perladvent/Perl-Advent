@@ -1,0 +1,126 @@
+Title: Extract locations from text with Geo::Parser::Text
+Topic: modules
+Author: Ervin Ruci <ervinruci@geocode.xyz>
+
+=head1 Not so long ago
+
+Geoparsing has been attempted on and off over the recent past. The now defunct Yahoo Placenames was used to extract and disambiguate place names from text. Other notable defunct projects include BioGeomancer from Berkley and NGA GEOnet Names Server)
+
+There are a few other current projects trying to do the same thing (geolocate from Tulane University, and CLAVIN (Cartographic Location And Vicinity INdexer) is an open source software package for document geotagging and geoparsing that employs context-based geographic entity resolution.)
+
+I don't know of any parser that goes beyond place names, into geoparsing street addresses and street intersections too. Maybe it does not exist. Maybe not.
+ Either way, I will build one.
+
+L<Geo::Parser::Text> interfaces with geocode.xyz, a geoparser written in perl, to disambiguate and extract location information from text (locations expressed as combinations of street names, city names and locality names.) 
+
+The Motivation?
+
+I'd like to get a more detailed map of every location ever mentioned in literature. So, I'm currently geoparsing the gutenberg project (and a few others kind enough to offer free books for download) 
+
+Books are rich with actual location information (unless they are fantasy books mentioning fantasy locations) - so are tweets, microblogs, chats, and more. 
+
+If I search for "Which books mention Rue Saint-Jacques in Paris?" I'll get a mixed bag of answers, some good some irrelevant. I will have the complete list soon, so far from the books I have parsed it is mentioned in the Count of Monte Cristo and Madame Bovary.
+
+=over
+
+=item Work in progress
+
+
+=back
+
+
+
+L<Geo::Parser::Text> is just an interface. The NLP module behind geocode.xyz does the heavy lifting.
+
+=head1 A quick overview
+
+	#!/usr/bin/perl
+	use strict;
+
+	use Geo::Parser::Text;
+	use Data::Dumper;
+	my $g = Geo::Parser::Text->new('http://geocode.xyz');
+
+	my $str = qq("Why, my dear boy, when a man has been proscribed by the mountaineers,  has escaped from Paris in a hay-cart, been hunted over the plains of  Bordeaux by Robespierre's bloodhounds, he becomes accustomed to most  things. But go on, what about the club in the Rue Saint-Jacques?"    "Why, they induced General Quesnel to go there, and General Quesnel, who  quitted his own house at nine o'clock in the evening, was found the next  day in the Seine."
+);
+	
+	my $ref = $g->geocode(scantext=>$str); #in strict mode will return top matches only using context aware parsing (which may be slower)
+	print Dumper $ref;
+
+
+$VAR1 = {
+          'match' => {
+                     'longt' => '2.343',
+                     'confidence' => '0.7',
+                     'MentionIndices' => '258,89,84',
+                     'latt' => '48.8463',
+                     'location' => 'RUE SAINT-JACQUES, PARIS, FR'
+                   }
+        };
+
+
+
+=pod
+
+There is only one location returned in this example (strict mode is default). It could however match many more in nostrict mode. (It will perhaps also match the river Seine, and a lot of other "locations" which are not, in this context at least:
+
+  my $ref = $g->geocode(scantext=>$str,nostrict => 1);
+
+The ambiguity rich response might be:
+	"location","latitude","longitude","confidence"
+	"Bordeaux, FR","44.84122467294317","-0.5819759504279641","1"
+	"Paris, FR","48.8585406663244","2.321780662038148","0.9"
+	"Paris, PL","53.01594","18.623269999999998","0.2"
+	"most, CZ","50.50466656250016","13.6377402411685","0.15"
+	"most, DE","51.767255","12.27308","0.1"
+	"most, SI","45.96118","15.14741","0.1"
+	"cart, IT","46.04092","11.93452","0.05"
+	"over, UK","52.69396936842102","-1.2728069473684216","0.05"
+	"been, CH","46.94972","7.42547","0.05"
+	"nine, ES","42.67637230769231","-8.851603846153846","0.05"
+	"plains, UK","55.88144239130435","-3.9319304347826085","0.05"
+	"nine, PT","41.47052","-8.54254","0.05"
+	"from, UK","51.22834","-2.32211","0.05"
+	"club, IT","44.58116","11.50476","0.05"
+
+
+But then again, that's probably not what you want. (did you notice there is a town named "club" in Italy? Or a city named "From" in the UK? Is that where you are from?)
+
+But, We want no ambiguity.
+
+And if we want only one result (geocoding is just a specific case of geoparsing) we do:
+
+  my $ref = $g->geocode(locate=>$str); 
+    
+So a geocoding answer comes back with a bit more info on the location:
+
+$VAR1 = {
+          'latt' => '48.84630',
+          'longt' => '2.34300',
+          'standard' => {
+                        'prov' => 'FR',
+                        'city' => 'Paris',
+                        'addresst' => 'RUE SAINT JACQUES',
+                        'confidence' => '0.10',
+                        'postal' => '75005'
+                      }
+        };
+It gives you a breakdown of the elements (street, city, country) and sometimes provides the post code
+
+This is probably what you want to do when you want to parse locations out of short text or twitter feeds.
+
+
+
+=head1 DISCLAIMER
+
+It may be slow sometimes, I've squizzed geocode.xyz into a small t1.micro AWS server (which is free) with 1G of RAM and 1vCPU (YES Perl runs reasonably fast on that). 
+There is no rate limiting or throttling either, so that may be a factor too (depending on how people are abusing the API.) 
+If that does not cut it for you, get your own server on AWS with the provided server image. (I suspect a P2 GPU instance will perform quite well)
+
+=head1 SEE ALSO
+
+L<Geo::Coder::OpenCage> 
+L<Geo::Parse::OSM>
+L<Text::NLP>
+
+=cut
