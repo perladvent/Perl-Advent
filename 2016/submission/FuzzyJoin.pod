@@ -1,0 +1,109 @@
+Title: 
+Topic: Text::Fuzzy
+Author: Jerrad Pierce <jpierce@cpan.org>
+
+=pod
+
+  He knows when you're asleep
+  He knows when you're awake
+  He knows when you've been bad or good
+  So be good for goodness sake
+
+Sounds pretty nefarious, right? Jolly old elf indeed. Just how does Nick know so much
+about everyone? Truth be told, he has many proprietary mechanisms of collecting data
+in house but as is so often the case with large endeavours, he subcontracts much of
+the work out to other parties. In this case, he purchases commercial data sets from
+market research firms which you would think would lighten the load on his data mining
+elves however most of his contractors aren't as rigorous about data cleaning and
+normalization as they are.
+
+Fortunately, the North Pole Crew have some experience with imprecise matching and
+L<http://perladvent.org/2008/20/|due to Santa's poor spelling>. Of course there have
+been advances in the intervening eight years, Unicode has become more prevalent, etc.
+This time they're using L<Text::Fuzzy> to have more control over the process of
+matching composite keys across databases, and a proof-of-concept for this follows:
+
+  #!perl -l
+  use Text::Fuzzy;
+  use Text::xSV;
+  use Inline::Files -backup;
+  use List::Util 'max';
+  
+  
+  #Minimum match level
+  my $threshold = 85;
+  
+  
+  #Connect to CSVs
+  my $PDB = Text::xSV->new(fh=>*POLARDB);  $PDB->read_header();
+  my $VDB = Text::xSV->new(fh=>*VENDORDB); $VDB->read_header();
+  
+  #Print combined header row
+  my @phead, @vhead;
+  print join(',', @phead=@{$PDB->{row}}, 'Match', @vhead=@{$VDB->{row}} );
+  
+  #Load vendor data
+  my @VDB;
+  push(@VDB, $_) while( $_ = $VDB->fetchrow_hash() );
+  
+  
+  while( my $polarRecord = $PDB->fetchrow_hash() ){
+    my $key = serializePolarKey($polarRecord);
+    my $keyLen = length($key);
+    $TF = Text::Fuzzy->new($key, trans=>1 );
+  
+    my @matches;
+    foreach my $vendorRecord ( @VDB ){
+      my $dist = $TF->distance( serializeVendorKey($vendorRecord) );
+      my $confidence = int( 100 * ($keyLen-$dist)/$keyLen);
+      push @matches, $confidence;
+
+      #Alternatively, stash match, and only return highest match after loop?
+      print join(',',
+                 @{$polarRecord}{@phead},
+                 $confidence,
+                 @{$vendorRecord}{@vhead} ) if $confidence >= $threshold;
+    }
+    unless( max(@matches) >= $threshold ){
+      print join(',', @{$polarRecord}{@phead}, max(@matches));
+    }
+  }
+  
+  
+  sub serializePolarKey{
+    return sprintf("%s %s %s,%s, %s, %s %s, %s",
+                   $_[0]->{FirstName},
+                   $_[0]->{MiddleName},
+                   $_[0]->{LastName},
+                   $_[0]->{Street},
+                   $_[0]->{City},
+                   $_[0]->{Province},
+                   $_[0]->{PostCode},
+                   $_[0]->{Country} );
+  }
+  
+  sub serializeVendorKey{
+    return $_[0]->{FullName} . ','. $_[0]->{Address};
+  }
+  
+  __POLARDB__
+  ID,FirstName,MiddleName,LastName,Street,City,Province,PostCode,Country
+  1,John,Jacob,Jingleheimer-Schmidt,1320 Needham Drive,Centreville,NV,89119,USA
+  2,Bartholomew,Jay,Simpson,1322 Evergreen Terrace,Springfield,,,USA
+  3,Marie Claire,,Dubois,62 Clos du Bois Rossia,Namur,,5017,BE
+  __VENDORDB__
+  FullName,Address,ExtraData
+  Jon Jacob Jingleheimmer Schmitt,"1320 Needham Dr, Centerville, NV 89119, USA",Tm90aGluZyB0byBzZWUgaGVyZS4=
+  Bart Simpson,"1322 Evergreen Ter., Springfield USA",SSdtIGdldHRpbicgbm91dHRpbicgZm9yIENocmlzdG1hcw==
+  Mary Claire Dubois,"62 Clos duBois Russia,Namur,,5017,BE",dGl0aSB0b3RvIHR1dHUgdGF0YQ==
+  Marie Claire du Bois,"26 Clos du Bois Rossia,Namur,,5017,BE",SidhaW1lIGJpbmUgbGVzIGhpc3RvaXJlcyBkZSBHYXN0b24gTGFnYWZmZQ==
+
+=head2 Output
+
+  ID,FirstName,MiddleName,LastName,Street,City,Province,PostCode,Country,Match,FullName,Address,ExtraData
+  1,John,Jacob,Jingleheimer-Schmidt,1320 Needham Drive,Centreville,NV,89119,USA,89,Jon Jacob Jingleheimmer Schmitt,1320 Needham Dr, Centerville, NV 89119, USA,Tm90aGluZyB0byBzZWUgaGVyZS4=
+  2,Bartholomew,Jay,Simpson,1322 Evergreen Terrace,Springfield,,,USA,71
+  3,Marie Claire,,Dubois,62 Clos du Bois Rossia,Namur,,5017,BE,85,Mary Claire Dubois,62 Clos duBois Russia,Namur,,5017,BE,dGl0aSB0b3RvIHR1dHUgdGF0YQ==
+  3,Marie Claire,,Dubois,62 Clos du Bois Rossia,Namur,,5017,BE,85,Marie Claire du Bois,26 Clos du Bois Rossia,Namur,,5017,BE,SidhaW1lIGJpbmUgbGVzIGhpc3RvaXJlcyBkZSBHYXN0b24gTGFnYWZmZQ==
+
+=cut
