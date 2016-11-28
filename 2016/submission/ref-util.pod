@@ -1,0 +1,158 @@
+Title: Jingle Refs, Jingle Refs, Jingle all the way
+Title: When the sled is not fast enough
+Topic: Ref::Util
+Author: Sawyer X (xsawyerx@cpan.org)
+
+=pod
+
+Santa's organization has two essential problems with their code;  It has to work
+100% of the time (you don't get a second chance at Christmas) and it has to be
+really efficient and fast (since there's a I<lot> of children in the world and
+hence the code has to crunch a heck of lot of data).
+
+Often these goals can at odds with at each other.  Abstractions, while
+inherently safer than writing the same small snippet of code over and over (each
+with a chance to make a small mistake) can lead to slower code, introducing
+extra subroutine calls or data processing that simply wasn't there before.
+
+But not always.  Tonight we'll tell you of the wondrous day that a Christmas
+miracle occurred in the most unlikely of places...the annual code review.
+
+=head2 A Worrying Pattern
+
+During the annual code-review, the Wise Old Elf had noticed a common pattern we
+all maintain: Checking the validity of references using the C<ref> function:
+
+    use Carp qw<croak>;
+
+    sub create_sled {
+        my ( $self, $args ) = @_;
+
+        ref $args eq 'HASH'
+            or croak('Sled expects arguments as a hashref');
+
+        ...
+    }
+
+There were two problems with this ref checking pattern.  Sometimes some elf
+would get it subtly wrong:
+
+    ref $plate_contents eq 'HSAH'
+        or croak('Plate contents not passed as a hashref');
+
+So subtle was that error that it often slipped through into production!  Perl
+isn't smart enough to know that C<HSAH> probably is a typo for C<HASH> and not
+a class name the reference had been blessed into.  And since error checking code
+is notoriously hard to test, the automated test suites that Santa insisted on
+frequently didn't always catch this problem.
+
+If the elves were worried only about correctness alone the code could be
+replaced by something like this:
+
+    # In a module, and tested
+    sub is_plain_hash {
+        return ref $_[0] eq 'HASH';
+    }
+
+   is_plain_hash($plate_contents)
+       or croak('Plate contents not passed as a hashref');
+
+Since under strict a typo in C<is_plain_hash> would cause a compile time error
+any fat-fingered elf problems would be caught. However, that's just introduced
+another subroutine call, and since these ref checks are used all over Santa's
+code base, the cost of doing that adds up!
+
+The second problem with the pattern was the fact that it was strictly doing more
+work that it needed to.  Consider what the following was actually doing:
+
+    ref $args eq 'HASH'
+
+Under the hood perl is inspecting bits on the reference to see if it's a C<HV>
+(a C<hash value>), then building a standard SV string containing the four
+characters C<HASH>, then in a separate operation comparing that string character
+by character with the C<HASH> string was passed in in the code.  That, of
+course, all happens really quickly, but it's more work (and more Perl virtual
+ops) than need happen just to tell if this was a hashref or not!
+
+So the code review had found two problems:  One, an abstraction was needed to
+make it more reliable.  Two, the code needed to involve less stuff to make it
+faster.
+
+=head2 The Voice of an Angel
+
+Thank goodness the Wise Old Elf read a L<CPAN Weekly|http://cpan-weekly.org/>
+email about this very pattern! Because of this he decided to try out a new
+module, L<Ref::Util>.
+
+L<Ref::Util> provides a set of helpful functions to determine what kind of
+reference a variable is. It abstracts several awkward ref checking patterns into
+new function.  So, as our above example:
+
+    ref $args eq 'HASH'
+        or croak('Sled expects arguments as a hashref');
+
+Can be written as:
+
+    use Ref::Util qw<is_plain_hash>;
+
+    is_plain_hash($args)
+        or croak('Sled expects arguments as a hashref');
+
+Or maybe we want to check for a blessed array reference, making sure it
+isn't accidentally blessed? The following:
+
+    use Scalar::Util qw<blessed reftype>;
+
+    blessed $args && ref $args && reftype($args) eq 'ARRAY'
+        or Carp::croak('Uh oh, we require a blessed reference');
+
+Can much more succinctly be written with the new C<is_blessed_arrayref>
+function:
+
+    use Ref::Util qw<is_blessed_arrayref>;
+
+    is_blessed_arrayref($args)
+        or Carp::croak('Uh oh, we require a blessed reference');
+
+Not writing a lot of code but still being accurate is something Santa
+appreciates, but that's not the best part....the best part is the speed
+increase.
+
+Remember when the Elves were worried about the overhead of introducing a new
+function call?  Well, Ref::Util doesn't do that.  It introduces a set of new
+custom ops to do the hard work instead which is much much faster than any kind
+of function call.
+
+To understand what that means requires an understanding of the internal of perl.
+When Perl code is run the code is first compiled into a series of "ops" -
+operations like "add these values", "push to list", or even as complicated as
+"run this regular expression."  These ops are somewhat like the machine code
+that runs on your actual processor, but much higher level and more complicated.
+When perl actually runs your code it runs a sort of virtual machine that
+basically looks at each of these operations in turn and does whatever operation
+they tell it to do.  At a low level what can make perl slow is the number of ops
+it has to process (since running each op has an overhead) and the complexity of
+the ops it runs (for example function calls and regular expressions are
+expensive compared to other more simple ops like add and subtract.)
+
+When you call C<ref $foo eq 'HASH'> there are actually several ops that come
+into play:
+
+    ...
+    6     <2> seq vK/2 ->7
+    4        <1> ref[t2] sK/1 ->5
+    3              <#> gvsv[*foo] s ->4
+    5        <$> const[PV "HASH"] s ->6
+
+Each of these is an operation that perl has to do (create a list, get the value,
+call ref, etc.). However, when you use Ref::Util, when C<is_hashref> gets
+encountered, it is then replaced with the following custom op:
+
+    4     <1> is_hashref vK/1 ->5
+    3           <#> gvsv[*foo] s ->4
+
+While Santa is not exactly sure what all these crazy looking "op-trees" mean,
+an elf helpfully explained that "it makes the sled go faster." And we don't even
+need to put racing stripes on the sled!
+
+Less error prone I<and> faster too.  Just what the man in red ordered.

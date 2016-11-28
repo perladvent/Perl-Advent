@@ -1,0 +1,326 @@
+Title: REST-oring Christmas Tranquility
+Topic: Magpie
+Author: Chris Prather <chris@prather.org>
+
+=head1 REST-oring Christmas Tranqulity
+
+So you've been working for the last four years on the
+L<Flibber API|http://www.perladvent.org/2012/2012-12-24.html> your boss
+required that one time. Turns out that over that time you've added APIs for
+Jibber, Jabber, and Flubber as well. The code base has grown and you're
+starting to discover that you're duplicating a lot of code between the various
+L<Web::Machine> controllers you've built. Code like:
+
+    has json_encoder => (
+        is      => 'bare',
+        lazy    => 1,
+        builder => '_build_json_encoder',
+        handles => {
+            encode_json => 'encode',
+            decode_json => 'decode',
+        },
+    );
+
+    sub to_json {
+        my $self = shift;
+
+        $self->encode_json($self->resource);
+    }
+
+Which could be refactored into a common base class, but the boss is making
+noises that make you think things are gonna get ugly if you're not careful. You
+start to wonder if maybe there is a better way.
+
+=head2 One for Sorrow / Two for Mirth
+
+L<Magpie|https://metacpan.org/pod/Magpie> is a resource oriented framework that
+is based on a pipelined state machine rather than a single state machine. It's
+been on the CPAN for a couple years now but it's mostly been used internally by
+the elves at Tamarou. As a warning the documentation is a bit rough but we're
+hoping to work on it over the holidays.
+
+Let's start by looking back to the resource we started with four years ago.
+
+   #!perl
+    use 5.16.2;
+    use Web::Machine;
+
+    {
+        package WasteOfTime::Resource;
+        use strict;
+        use warnings;
+
+        use parent 'Web::Machine::Resource';
+
+        use JSON::XS qw(encode_json);
+
+        sub content_types_provided { [{ 'application/json' => 'to_json' }] }
+
+        sub to_json { encode_json({ time => scalar localtime }) }
+   }
+
+    Web::Machine->new( resource => 'WasteOfTime::Resource' )->to_app;
+
+Let's show what that looks like in C<Magpie>:
+
+	#!perl
+	use 5.24.0;
+	use warnings;
+	use experimental 'signatures';
+
+	{
+		package WasteOfTime::Resource;
+		use parent qw(Magpie::Resource);
+
+		sub GET ( $self, $ctxt ) {
+			$self->parent_handler->resource($self);
+			$self->data(scalar localtime);
+			$self->response->status(200);
+			return Magpie::Constants::OK;
+		}
+	}
+
+	use Plack::Builder;
+	use Plack::Middleware::Magpie;
+
+	my $app = builder {
+		enable Magpie => (
+			accept_matrix => [ [ json => ['application/json'] ], ],
+			pipeline      => [
+				machine {
+					match qr|^/$| => ['WasteOfTime::Resource'];
+					match_accept 'json' => ['Magpie::Transformer::JSON'];
+				}
+			],
+		);
+	};
+
+So it's a little bit longer, but you probably discovered when you went to add
+the Jibber API that the original lacked routing for different APIs. So the
+extra lines are probably there in your app anyway. Let's step through and show
+what's going on in the new version.
+
+So we've updated our standard boilerplate. We want to use signatures in our
+code now so it looks cleaner and more modern, and the things perl 5.24.0 brings
+in are nice (postfix dereferencing knocked one of our elves socks clean off!).
+We also need to import Magpie Plack middleware. Unlike C<Web::Machine>, C<Magpie>
+doesn't automatically set up a PSGI application for you so we'll need
+C<Plack::Builder>. After that we build the same C<WasteOfTime::Resource> class but
+this time it's a C<Magpie::Resource>.
+
+Rather than splitting out the HTTP request cycle into the state machine that
+C<Web::Machine> does, Plack hands everything to methods named after the HTTP
+Method. These methods take a copy of the instance (C<$self>) and a "context
+object" (C<$ctxt>). The context object is a hold over from Magpie's early days
+where it was much more generic. Another hold over from the generic days, we
+have to inform C<Magpie> that *this class* is the resource so we do that with the
+call to C<parent_resource>. Finally we need to respond with C<scalar localtime>
+like we did the last time. Because we're a pipeline we can't be stateless, so
+we save the C<localtime> to our C<data> attribute. Set the response status, tell
+C<Magpie> everything went OK, and we're done.
+
+Notice at no point in the resource did we care what representations we could
+handle nor did we do any transformations. That's because that's handled in
+different stage in the pipeline by an entirely different class.
+
+After the class we build the app. The last time this was handled for us by
+C<Web::Machine>, C<Magpie> however was built to handle more complex applications by
+default so the configuration is a bit more manual and more complex. First we
+use C<Plack::Builder> and the C<Magpie> middleware. The C<Magpie> middleware gives us a
+little domain specific language (DSL) that is based off of C<Plack::Builder>'s. We
+tell Plack we're enabling C<Magpie>. Then we set up the content types we can
+accept. Like before we look for Accept headers that match the
+C<application/json> content type. We tell magpie to call these C<json>. Next we
+setup the pipeline Machine for the application. The C<match> directive matches
+the input URL (in this case the root '/') and adds our resource accordingly.
+Finally the C<match_accept> header matches the accept type we setup earlier and
+adds the JSON transformer. In this case the JSON transformer that ships with
+C<Magpie> is good enough for us.
+
+=head2 The Magpie's Nest
+
+So in a more real world scenario we'd not have a single resource but would
+instead have multiple resources doing many things.
+
+        use Plack::Builder;
+        use Plack::Middleware::Magpie;
+
+        my $app = builder {
+            enable Magpie => (
+                accept_matrix => [
+                    [ json    => 'application/vnd.northpole.gifts+json' ],
+                    [ xml     => 'application/vnd.northpole.gifts+xml' ],
+                    [ html_en => 'text/html', undef, undef, 'en' ],
+                    [ html_es => 'text/html', undef, undef, 'es' ],
+                    [ html_de => 'text/html', undef, undef, 'de' ],
+                ],
+                pipeline => [
+                    'NP::Authen::Passwd' => { limit_user => 'Santa' },
+                    machine {
+                        match_template '/TheList/{kid}' =>
+                          ['NP::Resource::TheList.pm'];
+                        match_template '/TheList/{kid}/nice' =>
+                          [ 'NP::Resource::Nice.pm'];
+                        match_template '/TheList/{kid}/naughty' =>
+                          ['NP::Resource::Naughty.pm'];
+
+                        match_accept 'json' => ['Magpie::Transformer::JSON'];
+                        match_accept 'xml'  => ['NP::Transformer::GiftsXML'];
+                        match_accept 'html_en' =>
+                          [ 'NP::Transformer::TT2', 'NP::I18N::EN', ];
+                        match_accept 'html_es' =>
+                          [ 'NP::Transformer::TT2', 'NP::I18N::ES', ];
+						match_accept 'html_de' =>
+                          [ 'NP::Transformer::TT2', 'NP::I18N::DE', ];
+                    }
+                ],
+            );
+        };
+
+As applications begin to scale it complexity it becomes increasingly important
+to keep the different pieces of complexity corralled into their own places.
+While you can do this with C<Web::Machine> and judicious use base classes and
+roles, C<Magpie> was designed to give you guidance on where to put things in an
+increasingly more complicated application.
+
+As an example of how this would work, let's take a look at two of the output classes
+C<NP::Transformer::TT2> and C<NP::I18N::EN>.
+
+	package NP::Transformer::TT2;
+	use 5.24.0;
+	use Moose;
+	use experimental qw(signatures};
+
+	extends qw(Magpie::Transformer::TT2);
+
+	sub get_tt_conf($self, $ctxt) {
+		shift->tt_conf({ RELATIVE => 1 });
+		return OK;
+	}
+
+	sub get_template($self, $ctxt) {
+		return DECLINED if $self->parent_handler->has_error;
+
+		$self->template_file($ctxt->{template} // 'error.tt2');
+
+		$self->response->content_type('text/html');
+		return OK;
+
+	}
+
+	sub get_tt_vars($self, $ctxt) {
+		$self->tt_vars({
+			request  => $self->request,
+			resource => $self->resource,
+		});
+		return OK;
+	}
+
+	1;
+	__END__
+
+This looks a little more complicated than it really is. First we're inheriting
+from C<Magpie::Transformer::TT2> which handles building the
+L<Template Toolkit|https://metacpan.org/release/Template-Toolkit> object for us.
+We just need to provide some callback hooks. First C<get_tt_conf> provides the
+configuration block, then C<get_template> will look up the actual template
+name. We check for a C<template> key in the context object. The context object
+is a great way to pass out-of-band data that is important to processing but
+really isn't resource data. If we don't have a template with the right name, we
+use a default error template, but we could just as easily throw an exception here.
+
+Finally we set up the template variables. We pass in the request object
+(usually a C<Plack::Request> object), and the Resource object (something
+similar to our C<WasteOfTime::Resource> class above). This means that we can
+access the resource data directly and write a template like:
+
+	<!DOCTYPE html>
+	<html>
+		<head><title>{The List}</title></head>
+		<body>
+			<h1>{The List}</h1>
+			<article>
+				<h2>{Nice}</h2>
+				<ul>
+					[% FOR child IN resource.data.niceList %]
+					<li>[% child.name %] &mdash; [% child.gift %]</li>
+					[% END %]
+				</ul>
+			</article>
+			<article>
+			<h2>{Naughty}</h2>
+				<ul>
+					[% FOR child IN resource.data.naughtyList %]
+					<li>[% child.name %] &mdash; [% child.coalAmount %] {lumps}</li>
+					[% END %]
+				</ul>
+			</article>
+		</body>
+	</html>
+
+Notice our text strings look like C<{Nice}>. This is because we expect the
+output from our template to be sent through a localization and
+internationalization (I18N) filter. The C<NP::I18N::EN> class looks something
+like this:
+
+    package NP::I18N::EN;
+    use 5.24.0;
+    use Moose;
+    use experimental qw(signatures);
+    extends 'Magpie::Transformer';
+    use Magpie::Constants;
+
+    use Local::Simple;
+
+    __PACKAGE__->register_events( qw( config transform ));
+
+    sub load_queue { return qw(config transform) }
+
+    sub config($self, $ctxt) {
+        l_lang('en_US');
+        l_dir('locale');
+    }
+
+    sub transform($self, $ctxt) {
+        my $html = $self->resource->data;
+        $html 	=~ s|\{ 		# open brace
+                        ([^}]+) # anything not a closing brace
+                        \}  		# closing brace
+                    |
+                        l(\1) # translate it
+                    |xgr;
+        $self->resource->data($html);
+    }
+
+    1;
+    __END__
+
+Because C<Magpie> doesn't currently ship with an I18N framework C<NP::I18N>
+classes inherit directly from the C<Magpie::Transformer> class. This means
+they're exposed to a bit more of the low lying mechanics of setting up the
+state machine. This is what the call to C<register_events> and the
+C<load_queue> methods are for. They tell C<Magpie> that we have two methods in
+this pipeline stage and the order in which to call them.
+
+Assuming we have our C<.po> files and what not setup properly, this will take
+any string in curly branches and replace it with the appropriate translation.
+Obviously this is a vastly simplified version, and Santa's real system probably
+uses a much more complex parsing system for pulling out the message IDs and
+translation strings so that things like the coal count can be translated
+properly. But this illustrates how a pipeline of pieces means that as we step
+through each piece of the application we can focus down and work on each step
+individually.
+
+=head2 La gazza ladra
+
+C<Magpie> is heavily influenced by a number of different things. You may recognize
+some mod_perl and some Catalyst, we used both of those extensively before
+sitting down to write C<Magpie>. The C<match_template> directive matches on
+L<URI`Templates|https://tools.ietf.org/html/rfc6570>. It was also heavily
+influenced by the book L<Rest In Practice|http://restinpractice.com/book/> and
+the work of L<Mike Amundsen|http://www.amundsen.com>.
+
+As I mentioned in the introduction it's still very much a work in progress but
+if you'd like to take it for a spin, or you have any questions C<#magpie> on
+C<irc.perl.org> can answer your questions.
+
