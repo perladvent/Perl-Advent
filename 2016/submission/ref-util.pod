@@ -86,7 +86,7 @@ module, L<Ref::Util>.
 
 L<Ref::Util> provides a set of helpful functions to determine what kind of
 reference a variable is. It abstracts several awkward ref checking patterns into
-new keywords.  So, as our above example:
+new function.  So, as our above example:
 
     ref $args eq 'HASH'
         or croak('Sled expects arguments as a hashref');
@@ -106,7 +106,8 @@ isn't accidentally blessed? The following:
     blessed $args && ref $args && reftype($args) eq 'ARRAY'
         or Carp::croak('Uh oh, we require a blessed reference');
 
-Can much more succinctly be written with the new C<is_blessed_arrayref> keyword:
+Can much more succinctly be written with the new C<is_blessed_arrayref>
+function:
 
     use Ref::Util qw<is_blessed_arrayref>;
 
@@ -114,17 +115,44 @@ Can much more succinctly be written with the new C<is_blessed_arrayref> keyword:
         or Carp::croak('Uh oh, we require a blessed reference');
 
 Not writing a lot of code but still being accurate is something Santa
-appreciates, but that's not the best part....
+appreciates, but that's not the best part....the best part is the speed
+increase.
 
-The Ref::Util module introduces new B<keywords> not just new I<functions> using
-Perl's pluggable keyword infrastructure.  The guts of the checks are implemented
-in fast C code (and skipping all the unnecessary string construction) - and
-since the function calls in our code get compiled using custom op codes into a
-single op in the tree means it's just as fast as the normal Perl inbuilt
-functions without the subroutine calling overhead!
+Remember when the Elves were worried about the overhead of introducing a new
+function call?  Well, Ref::Util doesn't do that.  It introduces a set of new
+custom ops to do the hard work instead which is much much faster than any kind
+of function call.
 
-While Santa is not exactly sure what all this means, an elf helpfully explained
-that "it makes the sled go faster." And we don't even need to put racing stripes
-on the sled!
+To understand what that means requires an understanding of the internal of perl.
+When Perl code is run the code is first compiled into a series of "ops" -
+operations like "add these values", "push to list", or even as complicated as
+"run this regular expression."  These ops are somewhat like the machine code
+that runs on your actual processor, but much higher level and more complicated.
+When perl actually runs your code it runs a sort of virtual machine that
+basically looks at each of these operations in turn and does whatever operation
+they tell it to do.  At a low level what can make perl slow is the number of ops
+it has to process (since running each op has an overhead) and the complexity of
+the ops it runs (for example function calls and regular expressions are
+expensive compared to other more simple ops like add and subtract.)
 
-Faster and less error prone.  Just what the man in red ordered.
+When you call C<ref $foo eq 'HASH'> there are actually several ops that come
+into play:
+
+    ...
+    6     <2> seq vK/2 ->7
+    4        <1> ref[t2] sK/1 ->5
+    3              <#> gvsv[*foo] s ->4
+    5        <$> const[PV "HASH"] s ->6
+
+Each of these is an operation that perl has to do (create a list, get the value,
+call ref, etc.). However, when you use Ref::Util, when C<is_hashref> gets
+encountered, it is then replaced with the following custom op:
+
+    4     <1> is_hashref vK/1 ->5
+    3           <#> gvsv[*foo] s ->4
+
+While Santa is not exactly sure what all these crazy looking "op-trees" mean,
+an elf helpfully explained that "it makes the sled go faster." And we don't even
+need to put racing stripes on the sled!
+
+Less error prone I<and> faster too.  Just what the man in red ordered.
