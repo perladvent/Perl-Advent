@@ -23,6 +23,7 @@ miracle occurred in the most unlikely of places...the annual code review.
 During the annual code-review, the Wise Old Elf had noticed a common pattern we
 all maintain: Checking the validity of references using the C<ref> function:
 
+    #!perl
     use Carp qw<croak>;
 
     sub create_sled {
@@ -37,6 +38,7 @@ all maintain: Checking the validity of references using the C<ref> function:
 There were two problems with this ref checking pattern.  Sometimes some elf
 would get it subtly wrong:
 
+    #!perl
     ref $plate_contents eq 'HSAH'
         or croak('Plate contents not passed as a hashref');
 
@@ -49,6 +51,7 @@ frequently didn't always catch this problem.
 If the elves were worried only about correctness alone the code could be
 replaced by something like this:
 
+    #!perl
     # In a module, and tested
     sub is_plain_hash {
         return ref $_[0] eq 'HASH';
@@ -65,6 +68,7 @@ code base, the cost of doing that adds up!
 The second problem with the pattern was the fact that it was strictly doing more
 work that it needed to.  Consider what the following was actually doing:
 
+    #!perl
     ref $args eq 'HASH'
 
 Under the hood perl is inspecting bits on the reference to see if it's a C<HV>
@@ -88,11 +92,13 @@ L<Ref::Util> provides a set of helpful functions to determine what kind of
 reference a variable is. It abstracts several awkward ref checking patterns into
 new function.  So, as our above example:
 
+    #!perl
     ref $args eq 'HASH'
         or croak('Sled expects arguments as a hashref');
 
 Can be written as:
 
+    #!perl
     use Ref::Util qw<is_plain_hash>;
 
     is_plain_hash($args)
@@ -101,6 +107,7 @@ Can be written as:
 Or maybe we want to check for a blessed array reference, making sure it
 isn't accidentally blessed? The following:
 
+    #!perl
     use Scalar::Util qw<blessed reftype>;
 
     blessed $args && ref $args && reftype($args) eq 'ARRAY'
@@ -109,6 +116,7 @@ isn't accidentally blessed? The following:
 Can much more succinctly be written with the new C<is_blessed_arrayref>
 function:
 
+    #!perl
     use Ref::Util qw<is_blessed_arrayref>;
 
     is_blessed_arrayref($args)
