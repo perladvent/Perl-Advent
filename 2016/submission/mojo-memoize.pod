@@ -100,6 +100,31 @@ L<-Ofun|http://o-fun.github.io/> way.  Indeed, it was very funny (and
 easy) to build a Perl backend in such short time, with still room to do
 for improvements.
 
+=head3 Saving Memoized results
+
+Fast forward to late November, where a succeeding Booking hackathon also
+had me use Memoize yet again for keeping API responses.  This time, I
+tried to keep saved responses to disk by making use of L<DB_File>:
+
+  use DB_File;
+  use Memoize;
+
+  tie my %cache => 'DB_File', 'cache', O_RDWR | O_CREAT, 0666;
+
+  sub fetch {
+    my ( $c, $url ) = @_;
+    $c->ua->get($url)->res->body;
+  }
+
+  sub normalize_url { shift; shift->to_string }
+
+  memoize(
+    'fetch',
+    NORMALIZER   => 'normalize_url',
+    SCALAR_CACHE => [ HASH => \%cache ],
+    LIST_CACHE   => 'FAULT'
+  );
+
 =head1 SEE ALSO
 
 =for :list
