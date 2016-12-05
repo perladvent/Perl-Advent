@@ -46,7 +46,8 @@ temporary variable:
 
       my @entities;
       push @entities, grep { $_->naughty_or_nice eq 'nice' } $self->children;
-      push @entities, grep { $_->worked_on_xmas_eve        } $self->elves;
+      push @entities, grep { $_->worked_on_xmas_eve        } $self->elves
+          if $config->santa_extra_gift_enabled;
 
       return map {
          $_->presents_asked_for
@@ -70,7 +71,8 @@ whatever is taken within that block by making calls to `take` within.
           $_->presents_asked_for
       } gather {
           take grep { $_->naughty_or_nice eq 'nice' } $self->children;
-          take grep { $_->worked_on_xmas_eve        } $self->elves;
+          take grep { $_->worked_on_xmas_eve        } $self->elves
+              if $config->santa_extra_gift_enabled;
       };
   }
 
@@ -105,13 +107,15 @@ right in the middle of the C<gather> statement:
       } gather {
           take grep { $_->naughty_or_nice eq 'nice' } $self->children;
 
-          for my $elf ($self->elves) {
-              next unless $elf->worked_on_xmas_eve;
-              take $elf;
-              my $spouse = $elf->spouse;
-              next unless $spouse;
-              next if $spouse->worked_on_xmas_eve;
-              take $spouse;
+          if ($config->santa_extra_gift_enabled) {
+              for my $elf ($self->elves) {
+                  next unless $elf->worked_on_xmas_eve;
+                  take $elf;
+                  my $spouse = $elf->spouse;
+                  next unless $spouse;
+                  next if $spouse->worked_on_xmas_eve;
+                  take $spouse;
+              }
           }
       };
   }
