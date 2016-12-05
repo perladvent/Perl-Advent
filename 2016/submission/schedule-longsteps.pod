@@ -65,9 +65,11 @@ Because a process is about a child, we want to instantiate it like so:
 
   my $sl = Schedule::LongSteps->new();
 
-  $sl->instantiate_process( 'My::Process::NicenessFeedback', { santaHQ => $santaHQ }, # The context
-                                                            { child_id => 1234 } # Initial state
-                          );
+  $sl->instantiate_process(
+    'My::Process::NicenessFeedback',
+    { santaHQ => $santaHQ },  # The context
+    { child_id => 1234 }      # Initial state
+  );
 
 Then in the process:
 
@@ -76,7 +78,9 @@ Then in the process:
   has 'child' => ( is => 'ro', lazy_build => 1 );
   sub _build_child{
     my ($self) = @_;
-    return $self->santaHQ()->big_book_of_children->find( $self->state()->{child_id} );
+    return $self->santaHQ()
+                ->big_book_of_children
+                ->find( $self->state()->{child_id} );
   }
 
 The process now has a child, and so we can define what it should do first.
@@ -84,10 +88,15 @@ For this, we implement the (mandatory) method 'build_first_step':
 
   sub build_first_step{
       my ($self) = @_;
-      # At the beginning of February next year, send the parents a form.
-      return $self->new_step({ what => 'do_send_form_to_parents',
-                               run_at => DateTime->now()->add( year => 1 )->set_month(2)->truncate_to( to => 'month' )
-                            });
+      # At the beginning of February next year
+      # send the parents a form.
+      return $self->new_step({
+        what   => 'do_send_form_to_parents',
+        run_at => DateTime->now()
+                          ->add( year => 1 )
+                          ->set_month(2)
+                          ->truncate_to( to => 'month' )
+      });
   }
 
 Steps in the process are implemented as methods. The convention is to name them
@@ -95,38 +104,69 @@ with the prefix 'do_', to avoid any possible conflict with future methods.
 
   sub do_send_form_to_parents{
       my ($self) = @_;
-      my $form = $self->santaHQ()->santas_pa()->create_niceness_form( $self->child() );
-      $self->santaHQ()->outbox()->send_letter( $form, $self->child()->parental_address() );
+
+      my $form = $self->santaHQ()
+                      ->santas_pa()
+                      ->create_niceness_form( $self->child() );
+
+      $self->santaHQ()
+           ->outbox()
+           ->send_letter( $form, $self->child()->parental_address() );
+
       # The following November, we want to check stuff.
-      return $self->new_step({ what => 'do_check_form_reception',
-                               run_at => DateTime->now()->set_month(11)->truncate_to( to => 'month' ),
-                               state => { %{$self->state()} , form_id => $form->id() }
-                           });
+      return $self->new_step({
+        what   => 'do_check_form_reception',
+        run_at => DateTime->now()
+                          ->set_month(11)
+                          ->truncate_to( to => 'month' ),
+        state  => {
+           %{$self->state()},
+           form_id => $form->id(),
+        },
+      });
   }
 
   has 'form' => ( is => 'ro', isa => 'My::Form', lazy_build => 1 );
   sub _build_form{
       my ($self) = @_;
-      return $self->santaHQ()->forms_register()->find( $self->state()->{form_id} );
+      return $self->santaHQ()
+                  ->forms_register()
+                  ->find( $self->state()->{form_id} );
   }
 
   sub do_check_form_reception{
       my ($self) = @_;
       unless( $self->form()->is_back() ){
-          # Oh no! The form was not received, and so the child is considered naughty.
-          # This is the end of the process.
+          # Oh no! The form was not received, and so the child is
+          # considered naughty. This is the end of the process.
           $self->child->has_been_naughty_in( DateTime->now()->year() );
-          return $self->final_step({ state => { %{$self->state()} , reason => 'Missed deadline' } });
+          return $self->final_step({
+             state => {
+                %{$self->state()},
+                reason => 'Missed deadline'
+             },
+          });
       }
 
-      # The form has been returned - time to pick an elf and start the review process.
+      # The form has been returned - time to pick an elf and start
+      # the review process.
       my $reviewer_elf = $self->santaHQ()->most_available_elf();
-      $self->longsteps()->instantiate_process( 'My::Process::NicenessAssessment', { santaHQ => $self->santaHQ() },
-                                               { child_id => $self->child()->id(),
-                                                 elf_id   => $reviewer_elf->id(),
-                                                 form_id => $self->form()->id()
-                                             });
-      return $self->final_step({ state => { %{$self->state()} , reason => 'Form received' } });
+      $self->longsteps()->instantiate_process(
+        'My::Process::NicenessAssessment',
+        { santaHQ => $self->santaHQ() },
+        {
+          child_id => $self->child()->id(),
+          elf_id   => $reviewer_elf->id(),
+          form_id  => $self->form()->id()
+        },
+      );
+
+      return $self->final_step({
+        state => {
+          %{$self->state()},
+          reason => 'Form received'
+        }
+      });
   }
 
 'Wait, wait, wait,' says one of the elves. 'This is supposed to happen in the
@@ -137,16 +177,17 @@ Well, this is where unit testing comes into play. Here's how to write a test:
   use Test::MockDateTime;
   my $longsteps = Schedule::LongSteps->new();
 
-  my $january = DateTime->now()->set_month(1)->truncate( to => 'month' );
-  my $february = DateTime->now()->set_month(2)->truncate( to => 'month' );
-  my $november = DateTime->now()->set_month(11)->truncate( to => 'month' );
+  my $january  = DateTime->now->set_month(1)->truncate( to => 'month' );
+  my $february = DateTime->now->set_month(2)->truncate( to => 'month' );
+  my $november = DateTime->now->set_month(11)->truncate( to => 'month' );
 
   my $p;
-
   on $january => sub{
-      $p = $longsteps->instantiate_process( 'My::Process::NicenessFeedback', { santaHQ => $santaHQ },
-                                            { child_id => 1234 }
-                                          );
+    $p = $longsteps->instantiate_process(
+      'My::Process::NicenessFeedback',
+      { santaHQ => $santaHQ },
+      { child_id => 1234 },
+    );
   };
 
   my $form;
@@ -154,14 +195,21 @@ Well, this is where unit testing comes into play. Here's how to write a test:
       $longsteps->run_due_processes({ santaHQ => $santaHQ });
       $p = $longsteps->find_process( $p ); # Reload process.
       $form = $santaHQ->forms_register()->find( $p->state()->{form_id} );
-      ok( $form->is_sent(), "Process should now have a form_id, and the form should be sent" );
+      ok(
+        $form->is_sent(),
+        "Process should now have a form_id, and the form should be sent",
+      );
   };
 
   # For this test, we assume the form was not sent back by November.
   on $november => sub{
       $longsteps->run_due_processes({ santaHQ => $santaHQ });
-      my $child = $santaHQ->big_book_of_children->find( $p->state()->{child_id} );
-      ok( $child->has_been_naughty() , "Child is marked as naughty" );
+      my $child = $santaHQ->big_book_of_children
+                          ->find( $p->state()->{child_id} );
+      ok(
+        $child->has_been_naughty(),
+        "Child is marked as naughty",
+      );
   };
 
 
