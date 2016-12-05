@@ -30,25 +30,35 @@ Santa's elves are not very enthusiastic about implementing this in Perl. How can
 they design their processes in order to minimize the mess? How can they unit
 test this to make sure things don't randomly fail in the future?
 
+Santa's elves are not very enthusiastic about implementing this in Perl, with
+all the code required to track if the parents have filled in the forms or not
+and building the logic to trigger the right part of their existing code base at
+the right time.  How do they design these processes so to minimize the mess? How
+will they unit test that so things don't randomly fail in the future?
+
 'Stop panicking!' says Rudolf, head of Santa's programming sweatshop. 'I've
 found L<Schedule::LongSteps> on the CPAN!'
 
 L<Schedule::LongSteps> is a small framework that enables you to program the
-future with confidence. Here's how to implement the form process the elves need.
+future with confidence.
 
-=head1 Let's Implement
+=head1 Let's Help Santa Implement!
 
-For this implementation, we'll assume we have an object C<$santaHQ> that
-represents Santa's business and all the wonderful things it can do.
+For this example implementation, we'll assume we have an object C<$santaHQ> that
+represents Santa's business and all the wonderful things it can do.  We're going
+to concentrate on creating example module that manages the process spelled out
+above.
 
-In L<Schedule::LongSteps>, a process is modelled simply as a class:
+In L<Schedule::LongSteps>, the process we are modeling is simply modeled as a
+class that extends Schedule::LongSteps:
 
   package My::Process::NicenessFeedback;
 
   use Moose; # There are a lot of them in Santa's land.
   extends qw/Schedule::LongSteps/;
 
-  # The required context:
+  # The object that represents all the business logic that this process
+  # model operates on
   has 'santaHQ' => ( is => 'ro', isa => 'My::SantaHQ', required => 1 );
 
   __PACKAGE__->meta->make_immutable();
@@ -56,22 +66,35 @@ In L<Schedule::LongSteps>, a process is modelled simply as a class:
 
 =pod
 
-Each actual process is an instance of this that maintains a state. The state of
-the process serves both as the place to give the process parameters and the
-place that stores the current work in progress. It must only contain 'pure perl'
-data, so no objects.
+Each actual process model is an instance of this that maintains a state.  The
+state of the process serves both as the place to give the process parameters and
+the place that stores the current work in progress. It must only contain 'pure
+Perl' data, so no objects.
 
-Because a process is about a child, we want to instantiate it like so:
+Schedule::LongSteps stores this state between executions of the code in what is
+known as a Storage.  This pluggable storage system allows Schedule::LongSteps to
+store data for you in various ways, typically in a SQL database.
+
+Before we flesh out the My::Process::NicenessFeedback module, let's look
+at how we might instantiate it with the Schedule::LongSteps module:
 
   my $sl = Schedule::LongSteps->new();
 
   $sl->instantiate_process(
     'My::Process::NicenessFeedback',
-    { santaHQ => $santaHQ },  # The context
+    { santaHQ => $santaHQ },  # The construction parameters
     { child_id => 1234 }      # Initial state
   );
 
-Then in the process:
+We've passed in two hash refs.  The first is the parameters that need to
+be passed to My::Process::NicenessFeedback when Schedule::LongSteps
+instantiates it - in this case the C<$santaHQ> that holds all of our underlying
+business logic.  The second hashref contains the initial state we want to assign
+to the object.
+
+This state will be accessible inside our object using the C<state> method, and
+while the state has to be a pure Perl data structure we can use builder methods
+to populate attributes with more complex objects:
 
   package My::Process::NicenessFeedback;
   ...
@@ -83,8 +106,12 @@ Then in the process:
                 ->find( $self->state()->{child_id} );
   }
 
-The process now has a child, and so we can define what it should do first.
-For this, we implement the (mandatory) method 'build_first_step':
+The process now has a child!
+
+=head2 Adding Steps!
+
+We can now define what it should do first. For this, we first implement the
+(mandatory) method 'build_first_step' method:
 
   sub build_first_step{
       my ($self) = @_;
@@ -98,6 +125,11 @@ For this, we implement the (mandatory) method 'build_first_step':
                           ->truncate_to( to => 'month' )
       });
   }
+
+This will cause Schedule::LongSteps to schedule the C<do_send_form_to_parents>
+step as the first step to be run for this instance.  We also set the time when
+the step will become available to be executed with the C<run_at> parameter.
+We'd better implement the code for the steps in our class next...
 
 Steps in the process are implemented as methods. The convention is to name them
 with the prefix 'do_', to avoid any possible conflict with future methods.
@@ -168,6 +200,13 @@ with the prefix 'do_', to avoid any possible conflict with future methods.
         }
       });
   }
+
+Note that each step either schedules the next step or calls C<final_step> to
+indicate we're done.  Along the way we modify the state we store as we pick
+up new details of things we need to keep track of - like the form_id - that
+we need to populate our attributes again.
+
+=head2 Testing Time!
 
 'Wait, wait, wait,' says one of the elves. 'This is supposed to happen in the
 future. How do we make sure today that this process will work?'
