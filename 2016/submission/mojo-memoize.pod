@@ -1,4 +1,4 @@
-Title: Getting Drunk with Mojolicious (working title)
+Title: Getting Drunk with Mojolicious and Memoize
 Topic: Mojolicious, Memoize
 Author: Zak B. Elep <zakame@cpan.org>
 
@@ -14,25 +14,26 @@ boy and all...
 You see, last October, a friend and I joined a
 L<hackathon|http://www.booking.com/promotions/hah-manila.en-gb.html>
 that let me play around a couple of hotel I<and> microbrewery
-information APIs: the result is L<The Drunkery|http://drunkery.tk>, a
-webapp that Santa (and everyone else) can use to (hopefully) get
-inebriated.  For this, I used the awesome L<Mojolicious> framework for
-the backend API, powering a L<React|http://reactjs.org> frontend showing
-a Google Map with pins to hotels in a given city, with the nearest pubs
-or breweries.  We ran out of time trying to set up paths between the
-pins to visualize a pub crawl, but nevertheless we won, and hopefully we
-can get to improve it on the next stage :D
+information APIs: the result is The Drunkery, a webapp that Santa (and
+everyone else) can use to (hopefully) get inebriated.  For this, I used
+the awesome L<Mojolicious> framework for the backend API, powering a
+L<React|http://reactjs.org> frontend showing a Google Map with pins to
+hotels in a given city, with the nearest pubs or breweries.  We ran out
+of time trying to set up paths between the pins to visualize a pub
+crawl, but nevertheless we won, and hopefully we can get to improve it
+on the next stage :D
 
 In this story, let me tell you about a couple of things that we learned
 and used for this app:
 
-=head2 TODO A matter of search
+=head2 A matter of search
 
 To start, writing the backend part with Mojolicious was the I<easiest>
 part, but only so when I<much thought> was put into the design of the
 backend's interface.  I ended up with providing only I<two> API
 endpoints for my partner's frontend:
 
+  #!perl
   use Mojolicious::Lite;
   use Mojo::URL;
   use Drunkery::Search;
@@ -60,6 +61,7 @@ helper that uses the logic in C<Drunkery::Search>.
 Well, I<logic> might not be the right word.  At the time of the
 hackathon, the package was just as simple as this:
 
+  #!perl
   package Drunkery::Search;
   use Mojo::Base -base;
 
@@ -69,7 +71,7 @@ hackathon, the package was just as simple as this:
 
   1;
 
-=head2 TODO A matter of caching
+=head2 A matter of caching
 
 One of the subproblems I dealt with during this hackathon was the issue
 of making the Perl backend respond faster to the frontend, as the first
@@ -80,6 +82,7 @@ thought I didn't have enough time to wire those to the backend...
 
 Enter the real star of this story, L<Memoize>!
 
+  #!perl
   #package Drunkery::Search;
   use Memoize;
 
@@ -92,7 +95,7 @@ Order Perl|http://hop.perl.plover.com/> for reminding me!)  Granted, it
 was imperfect (for starters, it was only an in-memory cache,) but at the
 time, it made sense.
 
-=head2 TODO But why? (or, what more could be done?)
+=head2 But why? (or, what more could be done?)
 
 I joined this hackathon on a whim, with nary an idea for what to build
 at all, so instead of going all-out serious, I decided to wing this the
@@ -100,10 +103,35 @@ L<-Ofun|http://o-fun.github.io/> way.  Indeed, it was very funny (and
 easy) to build a Perl backend in such short time, with still room to do
 for improvements.
 
+=head3 Saving Memoized results
+
+Fast forward to late November, where a succeeding Booking hackathon also
+had me use Memoize yet again for keeping API responses.  This time, I
+tried to keep saved responses to disk by making use of L<DB_File>:
+
+  #!perl
+  use DB_File;
+  use Memoize;
+
+  tie my %cache => 'DB_File', 'cache', O_RDWR | O_CREAT, 0666;
+
+  sub fetch {
+    my ( $c, $url ) = @_;
+    $c->ua->get($url)->res->body;
+  }
+
+  sub normalize_url { shift; shift->to_string }
+
+  memoize(
+    'fetch',
+    NORMALIZER   => 'normalize_url',
+    SCALAR_CACHE => [ HASH => \%cache ],
+    LIST_CACHE   => 'FAULT'
+  );
+
 =head1 SEE ALSO
 
 =for :list
 * L<Mojolicious>
 * L<Memoize>
 * L<React|http://reactjs.org>
-* L<The Drunkery|http://drunkery.tk>
