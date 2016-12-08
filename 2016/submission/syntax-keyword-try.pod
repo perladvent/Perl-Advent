@@ -1,3 +1,7 @@
+Title: Trying for a Happy Christmas
+Topic: Syntax::Keyord::Try
+Author: Paul "LeoNerd" Evans <leonerd@leonerd.org.uk>
+
 Every year around this time Santa has some presents to deliver. And every
 year, try as he might, sometimes things don't go very well. There's always
 someone whose chimney is just too small for him to fit down, or the fire's
@@ -99,7 +103,6 @@ a catch block it re-throws it, effectively acting like we didn't catch it in
 the first place.
 
  #!perl
-
  sub attempt_delivery
  {
      try {
@@ -112,3 +115,232 @@ the first place.
 
      ...
  }
+
+=head2 Comparing against other try / catch modules
+
+As we previously mentioned there are more than.  Let's see how
+Syntax::Keyword::Try holds up against the possible solutions.
+
+=head3 Comapring Syntax
+
+First let's look at an example written with each of the techniques.  We've got a
+subroutine that refills the sack Santa's carrying with presents from the main
+store on the sleigh.  We want our subroutine to return immediately if there's
+already more than ten things in Santa's sack, and it's possible that counting
+the items might throw an exception if Santa's not using a sack this trip
+(sometimes he just throws a bike over his shoulder.)  We want to be careful
+to re-throw any error that isn't to do with Santa not using a sack.
+
+=over
+
+=item B<eval>
+
+The inbuilt eval syntax is the basis for exception handling, and being a native
+keyword is very quick.  However, it can't return from the subroutine from
+within the eval block.  The eval-as-statement-not-as-block instead of a try
+block and no dedicated catch syntax make it confusing.  Worse still, you have to
+check the return value of the eval statement rather than checking $@ if you
+want to avoid potential bugs (on some versions of perl C<$@> can be accidentally
+unset during custom object destruction which might happen between the time the
+error is thrown and you check for it.)
+
+    #!perl
+    sub refill_sack {
+        my $should_return;
+        if (eval {
+            $should_return = sack_item_count() > 10;
+            1;
+        }) {
+            return if $should_return;
+        } else {
+            return if $@ =~ /not using sack this trip/;
+            die;
+        }
+
+        ...
+    }
+
+Writing it properly is verbose and error prone.
+
+=item B<Try::Tiny>
+
+Try::Tiny is a simple pure Perl solution that fairs very well on the CPAN. It's
+two main drawbacks is that it's very slow compared to the other techniques
+described here, and that it's not possible to return from the subroutine in
+either the try or catch blocks (as they're just syntactic sugar for anonymous
+subroutines.)
+
+    #!perl
+    sub refill_sack {
+        my $should_return = 1;
+        try {
+            $should_return = sack_item_count() > 10;
+        } catch {
+            die $_ unless /not using sack this trip/;
+        };
+        return if $should_return;
+
+        ...
+    }
+
+With its simplistic approach Try::Tiny also has a few oddities that niggle - it
+uses C<$_> instead of C<$@> (meaning you can't just use a bare C<die> statement
+to re-throw the current error) and it requires that annoying semicolon at the
+end of the blocks.
+
+=item B<TryCatch>
+
+TryCatch is a module based on Devel::Declare, which is module to subvert the
+Perl parser to allow new syntax.  By swapping out the Perl parser with a custom
+parser when keywords are detected, and then calling the Perl parser back again
+to parse the code within the blocks, new try syntax is created.
+
+    #!perl
+    sub refill_sack {
+        try {
+            return if sack_item_count() > 10;
+        } catch ($e where { /not using sack this trip/ }) {
+            return;
+        }
+
+        ...
+    }
+
+TryCatch is the only module listed here that allows conditional checking of the
+return value with explicit syntax;  We don't need to explicitly have to re-throw
+the unhanded error, if the regular expression doesn't match it'll automatically
+re-thrown for us.
+
+The main problem with TryCatch is that the custom parser technology that it uses
+isn't considered as reliable as the pluggable keyword technology provided by
+modern perls that Syntax::Keyword::Try makes use of.
+
+=item B<Syntax::Keyword::Try>
+
+For completeness, here's the same example written for Syntax::Keyword::Try:
+
+    #!perl
+    sub refill_sack {
+        try {
+            return if sack_item_count() < 10;
+        } catch {
+            return if $@ =~ /not using sack this trip/;
+            die;
+        }
+
+        ...
+    }
+
+=back
+
+=head3 Benchmarking
+
+Some simple L<benchmarking|benchmark.pl.txt> shows that Try::Tiny is very slow,
+eval is fast, but the other two modules come in the same order of magnitude as
+eval.
+
+=for :html
+  <img src="benchmark.png" width="878" height="469" alt="Benchmark Graph">
+
+=head3 Feature Comparison
+
+Finally A proper comparison would be amiss without a feature comparison chart:
+
+=for :html
+<table>
+  <tr>
+    <th></th>
+    <th>eval</th>
+    <th>Try::Tiny</th>
+    <th>TryCatch</th>
+    <th>Syntax::Keyword::Try</th>
+  </tr>
+  <tr>
+    <td>Requires no dependancies</td>
+    <td class="supports">&#10004;</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="notsupports">&#10007;</td>
+  </tr>
+  <tr>
+    <td>Perl Perl solution</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="notsupports">&#10007;</td>
+  </tr>
+  <tr>
+    <td>Runs on perl 5.8</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+    <td class="notsupports">&#10007;</td>
+  </tr>
+  <tr>
+    <td>Runs on perl 5.14</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+  </tr>
+  <tr>
+    <td>No Devel::Declare parser swapout</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="supports">&#10004;</td>
+  </tr>
+  <tr>
+    <td>Addresses $@ accidentally cleared bug</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+  </tr>
+  <tr>
+    <td>Supports try / catch like syntax</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+  </tr>
+  <tr>
+    <td>Doesn't require semicolon after block</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+  </tr>
+  <tr>
+    <td>Can 'return' from within block</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+  </tr>
+  <tr>
+    <td>Can 'last' from within the block</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="supports">&#10004;</td>
+  </tr>
+  <tr>
+    <td>Allows rethrowing with no arg 'die'</td>
+    <td class="supports">&#10004;</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+  </tr>
+  <tr>
+    <td>Maintance release in the last 3 years?</td>
+    <td class="supports">&#10004;</td>
+    <td class="supports">&#10004;</td>
+    <td class="notsupports">&#10007;</td>
+    <td class="supports">&#10004;</td>
+  </tr>
+</table>
+
+
+
+
