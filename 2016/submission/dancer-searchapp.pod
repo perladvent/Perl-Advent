@@ -74,5 +74,65 @@ completion and matching documents for each query.
 
 Santa himself cannot make his presence known, but a reimplementation of the
 search engine has been released on CPAN as L<Dancer::SearchApp>. It includes the
-two crawler programs and the search form. You still need to add the special
-spice that is Elasticsearch.
+two crawler programs and the search form.
+
+Let's try getting it setup
+
+=head3 Installing ElasticSearch
+
+ElasticSearch is a standalone service that talks to the outside world over a
+simple HTTP interface that you talk JSON to.  You typically install it behind a
+firewall and have your application send new data to it with PUT or POST requests
+and search for existing data with GET requests.
+
+It can be installed by following the instructions on the L<ElasticSearch donwload page|https://www.elastic.co/downloads/elasticsearch>.  On my macOS machine this was as simple as:
+
+  wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-5.1.1.zip
+  open elasticsearch-5.1.1.zip
+  cd elasticsearch-5.1.1
+  bin/elasticsearch
+
+At this point we can access the server by pointing our browser at
+http://localhost:9200/
+
+=head3 Setting up Dancer::SearchApp
+
+The first thing we need do is install the dependancies that Dancer::SearchApp
+needs to run.  This is a simple one liner:
+
+    sudo cpanm --installdeps Dancer::SearchApp
+
+Once we've done that, we can download Dancer::SearchApp into our local directory
+and untarball it:
+
+   wget https://cpan.metacpan.org/authors/id/C/CO/CORION/Dancer-SearchApp-0.05.tar.gz
+   gunzip -c Dancer-SearchApp-0.05.tar.gz | tar -xvf -
+   cd Dancer-SearchApp-0.05
+
+And now we need to install the Tiki jar from L<the Apache software foundation|https://tika.apache.org/download.html>:
+
+   mkdir jar
+   cd jar
+   wget http://apache.mesi.com.ar/tika/tika-server-1.14.jar
+   cd ..
+
+=head3 Crawling
+
+Now we can configure the crawler to crawl some files we have sitting around
+on disk.  It's always interesting to search the Perl Advent Calendar, so let's
+use the raw source files for that as our search input!  We need to edit the
+C<fs-import.yml> YAML configuration file to point at the directories that
+contain the files:
+
+    elastic_search:
+        index: dancer-searchapp
+    fs:
+        directories:
+            - folder: "/Users/Mark/co/Perl-Advent/2013/articles"
+            - folder: "/Users/Mark/co/Perl-Advent/2014/articles"
+            - folder: "/Users/Mark/co/Perl-Advent/2015/articles"
+
+Now we can run the crawler:
+
+    perl -Ilib -w bin/index-filesystem.pl -f
+
