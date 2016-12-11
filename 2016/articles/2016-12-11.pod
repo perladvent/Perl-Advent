@@ -11,6 +11,7 @@ Jibber, Jabber, and Flubber as well. The code base has grown and you're
 starting to discover that you're duplicating a lot of code between the various
 L<Web::Machine> controllers you've built. Code like:
 
+    #!perl
     has json_encoder => (
         is      => 'bare',
         lazy    => 1,
@@ -63,37 +64,37 @@ Let's start by looking back to the resource we started with four years ago.
 
 Let's show what that looks like in C<Magpie>:
 
-	#!perl
-	use 5.24.0;
-	use warnings;
-	use experimental 'signatures';
+    #!perl
+    use 5.24.0;
+    use warnings;
+    use experimental 'signatures';
 
-	{
-		package WasteOfTime::Resource;
-		use parent qw(Magpie::Resource);
+    {
+        package WasteOfTime::Resource;
+        use parent qw(Magpie::Resource);
 
-		sub GET ( $self, $ctxt ) {
-			$self->parent_handler->resource($self);
-			$self->data(scalar localtime);
-			$self->response->status(200);
-			return Magpie::Constants::OK;
-		}
-	}
+        sub GET ( $self, $ctxt ) {
+            $self->parent_handler->resource($self);
+            $self->data(scalar localtime);
+            $self->response->status(200);
+            return Magpie::Constants::OK;
+        }
+    }
 
-	use Plack::Builder;
-	use Plack::Middleware::Magpie;
+    use Plack::Builder;
+    use Plack::Middleware::Magpie;
 
-	my $app = builder {
-		enable Magpie => (
-			accept_matrix => [ [ json => ['application/json'] ], ],
-			pipeline      => [
-				machine {
-					match qr|^/$| => ['WasteOfTime::Resource'];
-					match_accept 'json' => ['Magpie::Transformer::JSON'];
-				}
-			],
-		);
-	};
+    my $app = builder {
+        enable Magpie => (
+            accept_matrix => [ [ json => ['application/json'] ], ],
+            pipeline      => [
+                machine {
+                    match qr|^/$| => ['WasteOfTime::Resource'];
+                    match_accept 'json' => ['Magpie::Transformer::JSON'];
+                }
+            ],
+        );
+    };
 
 So it's a little bit longer, but you probably discovered when you went to add
 the Jibber API that the original lacked routing for different APIs. So the
@@ -142,40 +143,41 @@ C<Magpie> is good enough for us.
 So in a more real world scenario we'd not have a single resource but would
 instead have multiple resources doing many things.
 
-        use Plack::Builder;
-        use Plack::Middleware::Magpie;
+    #!perl
+    use Plack::Builder;
+    use Plack::Middleware::Magpie;
 
-        my $app = builder {
-            enable Magpie => (
-                accept_matrix => [
-                    [ json    => 'application/vnd.northpole.gifts+json' ],
-                    [ xml     => 'application/vnd.northpole.gifts+xml' ],
-                    [ html_en => 'text/html', undef, undef, 'en' ],
-                    [ html_es => 'text/html', undef, undef, 'es' ],
-                    [ html_de => 'text/html', undef, undef, 'de' ],
-                ],
-                pipeline => [
-                    'NP::Authen::Passwd' => { limit_user => 'Santa' },
-                    machine {
-                        match_template '/TheList/{kid}' =>
-                          ['NP::Resource::TheList.pm'];
-                        match_template '/TheList/{kid}/nice' =>
-                          [ 'NP::Resource::Nice.pm'];
-                        match_template '/TheList/{kid}/naughty' =>
-                          ['NP::Resource::Naughty.pm'];
+    my $app = builder {
+        enable Magpie => (
+            accept_matrix => [
+                [ json    => 'application/vnd.northpole.gifts+json' ],
+                [ xml     => 'application/vnd.northpole.gifts+xml' ],
+                [ html_en => 'text/html', undef, undef, 'en' ],
+                [ html_es => 'text/html', undef, undef, 'es' ],
+                [ html_de => 'text/html', undef, undef, 'de' ],
+            ],
+            pipeline => [
+                'NP::Authen::Passwd' => { limit_user => 'Santa' },
+                machine {
+                    match_template '/TheList/{kid}' =>
+                      ['NP::Resource::TheList.pm'];
+                    match_template '/TheList/{kid}/nice' =>
+                      [ 'NP::Resource::Nice.pm'];
+                    match_template '/TheList/{kid}/naughty' =>
+                      ['NP::Resource::Naughty.pm'];
 
-                        match_accept 'json' => ['Magpie::Transformer::JSON'];
-                        match_accept 'xml'  => ['NP::Transformer::GiftsXML'];
-                        match_accept 'html_en' =>
-                          [ 'NP::Transformer::TT2', 'NP::I18N::EN', ];
-                        match_accept 'html_es' =>
-                          [ 'NP::Transformer::TT2', 'NP::I18N::ES', ];
-                        match_accept 'html_de' =>
-                          [ 'NP::Transformer::TT2', 'NP::I18N::DE', ];
-                    }
-                ],
-            );
-        };
+                    match_accept 'json' => ['Magpie::Transformer::JSON'];
+                    match_accept 'xml'  => ['NP::Transformer::GiftsXML'];
+                    match_accept 'html_en' =>
+                      [ 'NP::Transformer::TT2', 'NP::I18N::EN', ];
+                    match_accept 'html_es' =>
+                      [ 'NP::Transformer::TT2', 'NP::I18N::ES', ];
+                    match_accept 'html_de' =>
+                      [ 'NP::Transformer::TT2', 'NP::I18N::DE', ];
+                }
+            ],
+        );
+    };
 
 As applications begin to scale in complexity, it becomes increasingly important
 to keep the different pieces of complexity corralled into their own places.
@@ -186,38 +188,39 @@ increasingly more complicated application.
 As an example of how this would work, let's take a look at two of the output classes
 C<NP::Transformer::TT2> and C<NP::I18N::EN>.
 
-	package NP::Transformer::TT2;
-	use 5.24.0;
-	use Moose;
-	use experimental qw(signatures};
+    #!perl
+    package NP::Transformer::TT2;
+    use 5.24.0;
+    use Moose;
+    use experimental qw(signatures);
 
-	extends qw(Magpie::Transformer::TT2);
+    extends qw(Magpie::Transformer::TT2);
 
-	sub get_tt_conf($self, $ctxt) {
-		shift->tt_conf({ RELATIVE => 1 });
-		return OK;
-	}
+    sub get_tt_conf($self, $ctxt) {
+        shift->tt_conf({ RELATIVE => 1 });
+        return OK;
+    }
 
-	sub get_template($self, $ctxt) {
-		return DECLINED if $self->parent_handler->has_error;
+    sub get_template($self, $ctxt) {
+        return DECLINED if $self->parent_handler->has_error;
 
-		$self->template_file($ctxt->{template} // 'error.tt2');
+        $self->template_file($ctxt->{template} // 'error.tt2');
 
-		$self->response->content_type('text/html');
-		return OK;
+        $self->response->content_type('text/html');
+        return OK;
 
-	}
+    }
 
-	sub get_tt_vars($self, $ctxt) {
-		$self->tt_vars({
-			request  => $self->request,
-			resource => $self->resource,
-		});
-		return OK;
-	}
+    sub get_tt_vars($self, $ctxt) {
+        $self->tt_vars({
+            request  => $self->request,
+            resource => $self->resource,
+        });
+        return OK;
+    }
 
-	1;
-	__END__
+    1;
+    __END__
 
 This looks a little more complicated than it really is. First we're inheriting
 from C<Magpie::Transformer::TT2> which handles building the
@@ -234,35 +237,37 @@ Finally we set up the template variables. We pass in the request object
 similar to our C<WasteOfTime::Resource> class above). This means that we can
 access the resource data directly and write a template like:
 
-	<!DOCTYPE html>
-	<html>
-		<head><title>{The List}</title></head>
-		<body>
-			<h1>{The List}</h1>
-			<article>
-				<h2>{Nice}</h2>
-				<ul>
-					[% FOR child IN resource.data.niceList %]
-					<li>[% child.name %] &mdash; [% child.gift %]</li>
-					[% END %]
-				</ul>
-			</article>
-			<article>
-			<h2>{Naughty}</h2>
-				<ul>
-					[% FOR child IN resource.data.naughtyList %]
-					<li>[% child.name %] &mdash; [% child.coalAmount %] {lumps}</li>
-					[% END %]
-				</ul>
-			</article>
-		</body>
-	</html>
+    #!vim html
+    <!DOCTYPE html>
+    <html>
+        <head><title>{The List}</title></head>
+        <body>
+            <h1>{The List}</h1>
+            <article>
+                <h2>{Nice}</h2>
+                <ul>
+                    [% FOR child IN resource.data.niceList %]
+                    <li>[% child.name %] &mdash; [% child.gift %]</li>
+                    [% END %]
+                </ul>
+            </article>
+            <article>
+            <h2>{Naughty}</h2>
+                <ul>
+                    [% FOR child IN resource.data.naughtyList %]
+                    <li>[% child.name %] &mdash; [% child.coalAmount %] {lumps}</li>
+                    [% END %]
+                </ul>
+            </article>
+        </body>
+    </html>
 
 Notice our text strings look like C<{Nice}>. This is because we expect the
 output from our template to be sent through a localization and
 internationalization (I18N) filter. The C<NP::I18N::EN> class looks something
 like this:
 
+    #!perl
     package NP::I18N::EN;
     use 5.24.0;
     use Moose;
@@ -283,9 +288,9 @@ like this:
 
     sub transform($self, $ctxt) {
         my $html = $self->resource->data;
-        $html 	=~ s|\{ 		# open brace
+        $html   =~ s|\{         # open brace
                         ([^}]+) # anything not a closing brace
-                        \}  		# closing brace
+                        \}          # closing brace
                     |
                         l(\1) # translate it
                     |xgr;
