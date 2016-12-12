@@ -1,0 +1,163 @@
+Title: Using containers with Linux
+Topic: Linux::Clone Linux::Unshare Linux::Setns
+Author: Marian HackMan Marinov <mm@yuhu.biz>
+
+=pod
+
+Linux containers are a hot topic these days. This is why I decided to share with
+you, how you can interact with containers directly from Perl.
+
+=head2 Linux Namespaces
+
+Linux containers are an OS-level virtualization technique to help processes co-
+exist on the same machine regardless of what other processes are already running
+on that machine (for example, having two processes listening on port 80 on the
+same physical hardware.)  Rather than starting a whole new virtual machine,
+including a new operating system and system daemons, Linux containers are a way
+to simply sufficiently isolate a process other processes running on the same
+operating system beyond the normal process management Linux provides.
+
+Currently in Linux there are six namespace which we can control to allow
+processes to:
+
+=over
+
+=item *
+
+UTS - have different hostname and domainname
+
+=item *
+
+PID - have its own view of the PIDs of the machine. This allows the process to create processes with PIDs that are already existing on the machine.
+
+=item *
+
+NET - see different, limited version of the network infrastructure of the kernel. As if the process has its own network.
+
+=item *
+
+IPC - have a separate SHM, SEM and MQ identifiers
+
+=item *
+
+USER - have separate user and group identifiers
+
+=item *
+
+MOUNT - see different view of the mounted filesystems
+
+=back
+
+For the purpose of this article I will assume that a "container" is a processes
+or group of processes that has one or more namespaces different from the initial
+namespaces.
+
+There are 3 modules on the CPAN for working with "containers":
+
+=over
+
+=item *
+
+L<Linux::Clone> - to create a new container by creating a new process.
+
+=item *
+
+L<Linux::Unshare> - to create a new container without forking.
+
+=item *
+
+L<Linux::Setns> - to change your current container.
+
+=back
+
+=head2 Linux::Clone
+
+So let's start with L<Linux::Clone>. This module is basically wrapper to the
+glibc L<clone(2)> wrapper function. I will cover only the parts of it related to
+Linux namespaces. These are C<CLONE_NEWNET>, C<CLONE_NEWPID>, C<CLONE_NEWIPC>,
+C<CLONE_NEWUTS>, C<CLONE_NEWNS>(mount namespace), C<CLONE_NEWUSER>.
+
+Namespaces are used to create isolated environment where your process have only
+limited visibility to the system.
+
+For example if you want to make sure that only processes you have started can
+use the SHM (shared memory) you created, you can use L<Linux::Clone> to create a
+new process with its own IPC namespace and after that create your SHM. This way
+you are both protecting your SHM from others on the machine and protecting
+everyone else from your process.
+
+This is how the code will look in your Perl application:
+
+    #!perl
+    use Linux::Clone;
+    use POSIX;
+
+    sub child {
+        print "In the child\n";
+        system("ipcs");
+    }
+    Linux::Clone::clone sub { child; }, 0, Linux::Clone::NEWIPC || POSIX::SIGCHILD; 
+
+Normally running the C<ipcs> command on a normal laptop/desktop machine will
+print out a few entries listing all the ipc facilities that your process
+normally has access to.  However, when C<ipcs> is called in the above script
+it prints nothing - the new namespace the process is in has nothing in it.
+
+=head2 Linux::Unshare
+
+If you don't want to create a new process, but you want to change some of the
+namespaces for your current process you can use L<Linux::Unshare>. This module
+implements the glibc L<unshare(2)> wrapper function, which does exactly this.
+
+    #!perl
+    use Linux::Unshare qw(unshare CLONE_NEWIPC);
+
+    unshare(CLONE_NEWIPC);
+    system("ipcs");
+
+Now the above example will create a new IPC namespace without creating new
+process and it will replace your current IPC namespace with the newly created
+one. However, if you want to return to your previous IPC namespace, you would
+need to make sure you have a file descriptor from that IPC namespace and use
+L<Linux::Setns> (which I'll cover next) to switch your current IPC namespace to
+the previous one.
+
+=head2 Linux::Setns
+
+Usually you would not create containers directly from your application, instead
+you probably would use something like L<LXC|https://linuxcontainers.org/lxc/>,
+L<LXD|https://linuxcontainers.org/lxd/>,
+L<Rocket|https://coreos.com/blog/rocket/> or L<Docker|https://www.docker.com/>
+to create and mange your containers. So most likely what you would want to do is
+attach/enter into these containers and do some work there.
+
+For this you can use the L<Linux::Setns> module, a wrapper for the L<setns(2)>
+glibc function.
+
+In order to identify a namespace you would use the files in
+C</proc/PID/ns/{ipc,mnt,net,pid,user,uts}>. With the setns function, you can
+join one or more of these namespaces or all of them. This way your process can
+actually enter in each namespace and do the rest of its work within the confines
+of that namespace.
+
+    #!perl
+    use Linux::Setns qw(setns CLONE_NEWIPC)
+
+    setns("/proc/213/ns/ipc", CLONE_NEWIPC);
+    system("ipcs");
+
+When you are entering a single namespace, L<setns(2)> requires that you give it
+a file descriptor from that precise namespace. So if we look at the example
+above, we are entering the IPC namespace (by using C<CLONE_NEWIPC>) and we are
+supplying the path to the C<ipc> file descriptor (C</proc/$PID/ns/ipc>). If we
+were for example to enter the network namespace, we would use C<CLONE_NEWNET>
+and C</proc/$PID/ns/net>.
+
+=head2 Additional
+
+For any kind of container manipulation (creation or entering) you will need root
+(C<CAP_SYS_ADMIN>) privileges.
+
+In addition to namespaces, the Linux Kernel also offer resource limits/isolation
+in the form of Control Groups. Currently Perl lacks module for managing them,
+but I'm going to present my proposal for such a module at L<FOSDEM 2017|https://fosdem.org>.
