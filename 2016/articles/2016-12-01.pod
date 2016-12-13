@@ -1,0 +1,233 @@
+Title: Graphing Moose Classes Automatically
+Topic: Meta::Grapher::Moose
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+A picture really is worth a thousand words.  Or at least it's often a lot easier
+to understand than a thousand lines of code...
+
+=for html
+   <center><img src="plantuml.png"></center>
+
+=head2 Tale of Woe
+
+There was no escaping it.  The latest version of the code that ran Santa's
+Workshop was much more complicated than it used to be, now that it needed to model
+so much more of what was going on in the ever-increasing North Pole operation.
+
+The Elves had turned to Moose to increase their code re-use and it had been a
+great success.  By using roles and parameterized roles they now had the power
+to easily bestow complex abilities on different classes with a carefully
+positioned C<with> statement.  Suddenly a million abstract baseclasses were
+eliminated from their codebase, and complex code gymnastics were no longer
+necessary.
+
+Even with this ability to consume roles - and have roles that further consumed
+roles - life was sometime harder than they'd like to admit when it came to
+debugging the code.  They could, for example, see that the costing code was
+calling the C<uses_default_paper> method on the object, but they'd be darned if
+they could track down the sub that defined it....until I showed them how they
+could simply and automatically generate UML diagrams directly from their code.
+
+=head3 Looking At Example Code
+
+In the new Elf system there's a class for every type of gift, with configurable
+attributes that define who it's going to, size of the gift,
+etc.  Here's the C<GiftBike> class:
+
+    #!perl
+    package GiftBike;
+
+    use Moose;
+
+    extends 'Bike';
+
+    with (
+        'Gift',
+        'Wrapped' => { default_paper_type => 'EXTRASTRONG052' },
+    );
+
+    sub put_tinsel_in_spokes { ... }
+
+    __PACKAGE__->meta->make_immutable;
+    1;
+
+The C<Bike> baseclass that C<GiftBike> extends is actually a lot more
+complicated than other gift classes in the codebase, because the elves use this
+same code in their internal transport management application.
+
+    #!perl
+    package Bike;
+
+    use Moose;
+
+    with 'Transportation';
+
+    has wheels     => ( is => 'ro', isa => 'Int', default => 2 );
+    has frame_size => ( is => 'ro', isa => 'Int', required => 1 );
+    has color      => ( is => 'ro', isa => 'Str', default => 'White' );
+
+    sub put_together { ... }
+    sub pedal        { ... }
+    sub sit_upon     { ... }
+    sub get_off      { ... }
+    sub apply_brakes { ... }
+    sub change_gears { ... }
+
+    __PACKAGE__->meta->make_immutable;
+    1;
+
+And the C<Transportation> that C<Bike> consumes is also consumed
+by the C<Sled>, C<Snowmobile>, etc classes in other parts of the codebase.
+This gives the C<Bike> (and the C<GiftBike> subclass) the C<travel_with> method.
+
+    #!perl
+    package Transportation;
+
+    use Moose::Role;
+
+    sub travel_with { ... }
+
+    1;
+
+As the C<GiftBike> subclass represents a gift, so it consumes the C<Gift> role,
+which, in addition to giving it the C<associated_letter> attribute and
+C<put_on_sleigh> method, gives it all the attributes and methods from the
+C<DeliveryLocation> and C<Recipient> roles.
+
+    #!perl
+    package Gift;
+
+    use Moose::Role;
+
+    with (
+        'DeliveryLocation',
+        'Recipient',
+    );
+
+    has associated_letter => ( is => 'ro', isa => 'Letter' );
+
+    sub put_on_sleigh { ... }
+
+    1;
+
+The C<DeliveryLocation> role is straightforward:
+
+    #!perl
+    package DeliveryLocation;
+
+    use Moose::Role;
+
+    has address => ( is => 'ro', isa => 'Str', required => 1 );
+
+    sub print_delivery_label { ... }
+
+    1;
+
+As is the C<Recipient> role:
+
+    #!perl
+    package Recipient;
+
+    use Moose::Role;
+
+    has recipient_name => ( is => 'ro', isa => 'Str', required => 1 );
+    has recipient_dob  => ( is => 'ro', isa => 'DateTime', required => 1 );
+
+    sub recipient_age_on_xmas_day { ... }
+
+    1;
+
+The C<GiftBike> is also wrapped (not everything consuming the C<Gift> role is
+wrapped -- it's hard to wrap a new puppy, after all) and consumes the C<Wrapped>
+parameterized role.  This parameterized role creates a new anonymous role
+when it is consumed, with methods and attributes that are dynamically created
+based on the parameters passed in when the role was consumed.
+
+The C<Wrapped> class looks like this:
+
+    #!perl
+    package Wrapped;
+
+    use MooseX::Role::Parameterized;
+
+    parameter default_paper_type => ( isa => 'Str', required => 1 );
+
+    role {
+        my $p = shift;
+
+        has paper_type => (
+            is => 'ro',
+            isa => 'Str',
+            default => $p->default_paper_type,
+        );
+
+        method uses_default_paper_type => sub {
+            my $self = shift;
+            return $self->paper_type eq $p->default_paper_type;
+        }
+    };
+
+    has number_of_bows => ( is => 'ro', isa => 'Int', default => 1 );
+
+    sub apply_wrapping { ... }
+
+    1;
+
+When this is consumed in the C<GiftBike> class:
+
+    #!perl
+    with (
+        ...
+        'Wrapped' => { default_paper_type => 'EXTRASTRONG052' },
+    );
+
+There's an anonymous role created with a new C<paper_type> attribute
+and the new C<uses_default_paper_type> method in it.
+
+=head2 Turning this into Pictures
+
+The Meta::Grapher::Moose module is able to load in Moose classes and
+produce some pretty graphs from them.
+
+For example, the default renderer uses GraphViz:
+
+    graph-meta.pl --package GiftBike --output=diagram.png
+
+You can have GraphViz output in any of the formats it supports:
+
+    graph-meta.pl --package GiftBike --output=diagram.pdf
+
+Either way, you get a simple diagram like this:
+
+=for html
+   <center><img src="graphviz.png"></center>
+
+The thicke-bordered rectangles represent classes, while the thinner-bordered
+rectanges are roles. The various dashed-line-bordered rectangles
+represent the parameterized role and the anonymous class it creates.
+
+To get more detail in our diagram, we need to switch renderers.  The PlantUML
+project is a Java graphing library that can
+produce UML class diagrams.  By passing the right options to
+C<graph-meta.pl> we can have it produce the PlantUML-compatible source code for
+the Moose classes and execute Java and the PlantUML code to produce a graph for
+us.
+
+    graph-meta.pl \
+        --package GiftBike
+        --renderer=plantuml
+        --plantuml=/opt/jar/plantuml.jar
+        --output=diagram.png
+
+This produces the much more detailed diagram we've already seen above.
+
+=for html
+   <center><img src="plantuml.png"></center>
+
+We can even have PlantUML output the diagram in SVG if we want:
+
+    graph-meta.pl \
+        --package GiftBike
+        --renderer=plantuml
+        --plantuml=/opt/jar/plantuml.jar
+        --output=diagram.svg

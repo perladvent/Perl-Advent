@@ -1,0 +1,99 @@
+#!perl
+
+use 5.0022;
+use warnings;
+
+# run 100_000 times per attempt
+$::TIMES = 100_000;
+
+# RESULTS:
+# eval: Ran 279 iterations (75 outliers).
+# eval: Rounded run time per iteration: 9.7081e-03 +/- 7.6e-06 (0.1%)
+# Try::Tiny: Ran 220 iterations (15 outliers).
+# Try::Tiny: Rounded run time per iteration: 4.3148e-01 +/- 2.8e-04 (0.1%)
+# TryCatch: Ran 220 iterations (10 outliers).
+# TryCatch: Rounded run time per iteration: 4.3977e-02 +/- 7.5e-05 (0.2%)
+# Syntaxt::Keyword::Try: Ran 279 iterations (78 outliers).
+# Syntaxt::Keyword::Try: Rounded run time per iteration: 2.2850e-02 +/- 1.1e-05 (0.0%)
+
+# This is perl 5, version 22, subversion 0 (v5.22.0) built for darwin-2level
+# Darwin travis.local 16.1.0 Darwin Kernel Version 16.1.0: Thu Oct 13 21:26:57 PDT 2016; root:xnu-3789.21.3~60/RELEASE_X86_64 x86_64
+# MacBook Pro (Retina, 15-inch, Mid 2014)
+# 2.2 GHz Intel Core i7
+
+package Bench::PerlEval {
+    sub repeat {
+        for (1..$::TIMES) {
+            eval {
+                1;
+            };
+            if ($@) { die };
+        }
+    }
+}
+
+package Bench::TryTiny {
+    use Try::Tiny qw( try catch );
+    sub repeat {
+        for (1..$::TIMES) {
+            try {
+                1;
+            } catch {
+                die $_;
+            };
+        }
+    }
+}
+
+package Bench::TryCatch {
+    use TryCatch;
+    sub repeat {
+        for (1..$::TIMES) {
+            try {
+                1;
+            } catch ($e) {
+                die $e
+            }
+        }
+    }
+}
+
+package Bench::SyntaxKeywordTry {
+    use Syntax::Keyword::Try qw(try);
+    sub repeat {
+        for (1..$::TIMES) {
+            try {
+                1;
+            } catch {
+                die;
+            }
+        }
+    }
+}
+
+use Dumbbench;
+
+my $bench = Dumbbench->new(
+  target_rel_precision => 0.005,
+  initial_runs         => 200,
+);
+$bench->add_instances(
+  Dumbbench::Instance::PerlEval->new(
+    name => 'eval',
+    code => 'Bench::PerlEval::repeat()',
+  ),
+  Dumbbench::Instance::PerlEval->new(
+    name => 'Try::Tiny',
+    code => 'Bench::TryTiny::repeat()',
+  ),
+  Dumbbench::Instance::PerlEval->new(
+    name => 'TryCatch',
+    code => 'Bench::TryCatch::repeat()',
+  ),
+  Dumbbench::Instance::PerlEval->new(
+    name => 'Syntaxt::Keyword::Try',
+    code => 'Bench::SyntaxKeywordTry::repeat()',
+  ),
+
+$bench->run;
+$bench->report;

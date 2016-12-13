@@ -1,0 +1,1014 @@
+Title: Using PPI for static analyzis
+Topic: PPI
+Author: Nicolas R. <atoomic@cpan.org>
+
+=pod
+
+This article is based on a talk I presented this year in Orlando at The Perl
+Conference 2016 (formerly known as YAPC::NA 2016).
+
+The talk itself was oriented on how and why to find dead code in a program.
+It's very common that a program loads many many modules where actually
+in its life cycle only a few of them are either used or partially used.
+
+All of this 'unused' code could impact memory and performance of your program.
+If your program runs for a long time as a daemon then it can use up more memory
+than it should, and if your program runs for a short period of time loading all
+this extra code can slow it down significantly.
+
+Finding 'dead code' by static analyzis is vowed to failure and comes with its own
+caveats due to the dynamic nature of perl... which can create/call functions
+at run time... so you cannot know for sure that a specific function
+will never be called.
+
+Rather than being a duplicate of the talk which you can find online (view links at
+the end of the article). I'm going to show some PPI usages after introducing
+the basics of INC.
+
+=head2 INC Basics
+
+Perl uses two versions of INC: @INC as an array and %INC as a hash.
+As for any other variables sharing the same name but using
+a different 'type' these two are different.
+
+=for :list
+* C<@INC>: is an array which contains path where to look for new modules
+* C<%INC>: is a hash which saved the location of each already loaded module
+
+=head3 Sample usage of @INC and %INC
+
+Note that you can check at anytime the default value of C<@INC>, by running
+C<perl -V> command. This is depending on your environment variables
+as the custom C<PERL5LIB> path are taken into account.
+
+    > echo $PERL5LIB
+    /Users/nicolas/.dotfiles/perl-must-have/lib:/Users/nicolas/perl5/lib/perl5/
+
+    > perl -V
+    ...
+      @INC:
+    /Users/nicolas/.dotfiles/perl-must-have/lib
+    /Users/nicolas/perl5/lib/perl5/
+    /Users/nicolas/perl5/perlbrew/perls/perl-5.22.1/lib/site_perl/5.22.1/darwin-2level
+    /Users/nicolas/perl5/perlbrew/perls/perl-5.22.1/lib/site_perl/5.22.1
+    /Users/nicolas/perl5/perlbrew/perls/perl-5.22.1/lib/5.22.1/darwin-2level
+    /Users/nicolas/perl5/perlbrew/perls/perl-5.22.1/lib/5.22.1
+    .
+
+You can also display the content of C<@INC> and C<%INC> directly from your
+program
+
+  #!perl
+  #!perl
+  use v5.022;
+
+  use warnings;
+  use strict;
+  use Simple::Accessor;
+
+  say q{# @INC:};
+  say foreach @INC;
+
+  say qq{\n}, q{# %INC:};
+  foreach ( sort keys %INC ) {
+      say $_, ' => ', $INC{$_};
+  }
+
+When run on my local system the output looks like this, it should be similar on yours.
+
+  #!perl
+  # @INC:
+  /Users/nicolas/perl5/perlbrew/perls/perl-5.22.1/lib/site_perl/5.22.1/darwin-2level
+  /Users/nicolas/perl5/perlbrew/perls/perl-5.22.1/lib/site_perl/5.22.1
+  /Users/nicolas/perl5/perlbrew/perls/perl-5.22.1/lib/5.22.1/darwin-2level
+  /Users/nicolas/perl5/perlbrew/perls/perl-5.22.1/lib/5.22.1
+  .
+
+  # %INC:
+  Simple/Accessor.pm => /Users/nicolas/perl5/perlbrew/perls/perl-5.22.1/lib/site_perl/5.22.1/Simple/Accessor.pm
+  strict.pm => /Users/nicolas/perl5/perlbrew/perls/perl-5.22.1/lib/5.22.1/strict.pm
+  warnings.pm => /Users/nicolas/perl5/perlbrew/perls/perl-5.22.1/lib/5.22.1/warnings.pm
+
+Note that the keys of %INC are not using the module name as C<Foo::Bar> but the short path version
+as C<Foo/Bar.pm> (even on operating systems like Windows that do not use this path specification normally). Remember that a single file can provide multiple packages.
+
+=head3 Messing around with C<@INC> and C<%INC>
+
+Both C<@INC> and C<%INC> are read/write... which means you can cheat and lie to perl
+at run time by customizing them.
+
+=over
+
+=item Customizing @INC
+
+By tweaking C<@INC> you can change the behavior of a program by forcing it to
+load modules from a different path... or even do not look in a generic path at
+all.
+
+The most common use case is to add one known path to it as in this sample code
+where a custom path is added in first position of C<@INC>.
+
+   #!perl
+   #!perl
+
+   BEGIN { unshift @INC, "/search/in/this/path/first" }
+
+   use My::Module ();
+
+We need to wrap the modification to C<@INC> in a C<BEGIN { ... }> block to
+ensure it happens at I<compile time>.  This is the time where perl first scans
+over the source code and loads all the modules - and if we're changing the
+contents of C<@INC> we need to use C<BEGIN> to ensure it happens during compile
+time before perl processes any C<use> statements that might be effected by it.
+
+Adding things to C<@INC> is common enough in Perl that there's the familiar
+syntactic sugar for it:
+
+  #!perl
+  use lib qw(/search/in/this/path/first);
+
+=item Customizing %INC
+
+Updating %INC is less common but also provides some great value -
+only use it with care - but this is an easy way to avoid loading
+a useless (not used during the life of your program) module.
+
+   #!perl
+   #!perl
+
+   BEGIN { $INC{"Useless/Module.pm"} = '__FAKE__'; }
+
+   # this use or require will not try to load the module
+
+   use Useless::Module;
+   require Useless::Module;
+
+Because perl now has a value in C<%INC> for C<Useless::Module> it won't
+try and actually load it whenever it finds a C<use Useless::Module>, either
+directly in the script itself or indirectly any of the modules loaded by
+the script.
+
+=back
+
+=head2 Listing dependencies of a script
+
+We now know that modules loaded by a script are advertised in %INC.
+If we could read %INC just before the program starts, this could
+gives a picture of all required modules at this time.
+(note that some module might be lazy loaded later...)
+
+This is exactly what we can achieve using a CHECK block.
+
+    #!perl
+    package Devel::ListDeps;
+
+    CHECK {
+      foreach my $module ( sort keys %INC ) {
+        # exclude ourself: could also use __PACKAGE__
+        next if $module eq 'Devel/ListDeps.pm';
+        print qq{$module\n};
+      }
+    }
+
+    1;
+
+Let's now use it on a very simple program which is just using strict
+and warnings.
+
+  #!perl
+  #!perl
+
+  use strict;
+  use warnings;
+
+  print qq{hello World\n}; # or say
+
+We are here using C<-d> to load our Devel package
+(if the module is not in your C<@INC> you might need to use C<-I> to modify
+C<@INC> from the command line so Perl knows where to load it from)
+)
+
+  > perl -c -d:ListDeps samples/hello-world.pl
+  strict.pm
+  warnings.pm
+  samples/hello-world.pl syntax OK
+
+As we can see we can get the list of dependencies from a script 
+without altering it.
+Also note that the program was not executed as we just asked perl to
+run with C<-c> to stop executing after the CHECK block. C<Hello World> is not printed.
+
+We can also check that this is listing recursive dependencies by using
+something little more complex.
+
+    #!perl
+    #!perl
+
+    use strict;
+    use warnings;
+
+    use Test::More;
+
+    print qq{hello World\n}; # or say
+
+We can see that Test::More is listed as part of dependencies but
+other modules coming from Test::More are also now loaded.
+
+    > perl -Ilib -c -d:ListDeps samples/hello-world.pl
+    Config.pm
+    Exporter.pm
+    Exporter/Heavy.pm
+    PerlIO.pm
+    Test/Builder.pm
+    Test/Builder/Module.pm
+    Test/More.pm
+    strict.pm
+    vars.pm
+    warnings.pm
+    warnings/register.pm
+    samples/hello-world.pl syntax OK
+
+As shown in the talk we could then wrap this in a script
+that could remove the last line and convert the short path
+to a package namespce to be more human friendly.
+
+Then we could use it this way:
+
+    > ./perl-dependencies samples/hello-world.pl
+    Config
+    Exporter
+    Exporter::Heavy
+    PerlIO
+    Test::Builder
+    Test::Builder::Module
+    Test::More
+    strict
+    vars
+    warnings
+    warnings::register
+
+=head2 Memory profiling
+
+Now that we are able to list all dependencies from a script.
+It would be nice to know the memory required by each module.
+
+For this purpose I'm going to use a one liner, which mainly
+works on Linux system.  This needs some adjustment on macOS or other operating
+systems.
+
+    > perl -e 'print qx{grep VmRSS /proc/$$/status}'
+    VmRSS:      1836 kB
+
+On Linux systems this metric is globally stable
+
+    > for i in $(seq 1 4); do perl -e 'print qx{grep VmRSS /proc/$$/status}'; done
+    VmRSS:      1836 kB
+    VmRSS:      1836 kB
+    VmRSS:      1832 kB
+    VmRSS:      1836 kB
+
+=head3 Tracking memory usage for modules
+
+We can now track memory usage for each individual module
+
+    > perl -MCarp -e 'print qx{grep VmRSS /proc/$$/status}'
+    VmRSS:      2872 kB
+
+    > perl -MData::Dumper -e 'print qx{grep VmRSS /proc/$$/status}'
+    VmRSS:      3728 kB
+
+    > perl -MMoose -e 'print qx{grep VmRSS /proc/$$/status}'
+    VmRSS:     16596 kB
+
+We can also check the memory used by more than a single module
+using the same oneliner.
+
+    > perl -MCarp -MData::Dumper -e 'print qx{grep VmRSS /proc/$$/status}'
+    VmRSS:      3752 kB
+
+When loading Carp as well as Data::Dumper the total memory footprint
+stays same as when using Data::Dumper by itself.  Why?
+The reason is that Data::Dumper itself is also using Carp
+
+    > perl -MData::Dumper -E 'say $INC{"Carp.pm"}'
+    /usr/local/cpanel/3rdparty/perl/524/lib64/perl5/5.24.1/Carp.pm
+
+Similarly adding Moose to Data::Dumper, we can notice that the memory used is
+higher than Moose by itself but still below the sum
+
+    > perl -MData::Dumper -MMoose -e 'print qx{grep VmRSS /proc/$$/status}'
+    VmRSS:     17132 kB
+
+We cannot do the simple math addition to know the memory used by multiple
+modules.
+
+    Memory(Moose) < Memory( Moose & Data::Dumper ) < Memory(Moose) + Memory(Data::Dumper)
+
+Perl itself as its own startup memory cost, and modules could also used shared
+dependencies so we cannot count them more than once... as once a module is
+loaded, it's in and can be used at no additional cost by any other module.
+
+=head3 Tracking memory increase
+
+This leads to an idea .. what about running the same oneliner each time a module
+is loaded? Is it possible? Yes we can use a custom debugger function which would
+be able to track all calls.
+
+We could use either a change of state of C<%INC> or also caller to know which file
+was just loaded. This script is pretty long and still need some tweaks but this
+is the main idea:
+
+This is the current version
+
+    #!perl
+    package Devel::ListDepsDetails;
+
+    BEGIN {
+        sub get_memory {
+            my $m;
+            if ( -e q{/proc} ) { # unix
+                $m = qx{grep VmRSS /proc/$$/status};
+            } else { # macOS (not consistent)
+                $m = qx{ps -o rss -p $$ | tail -1};
+            }
+            return int $m;
+        }
+
+        my @inc = sort { length $b <=> length $a or $a cmp $b } @INC;
+        sub short  {
+            my $s = shift;
+
+            foreach my $in ( @inc ) {
+                next unless $s =~ s{^$in/?}{};
+
+                if ( $s =~ qr{\.pm$} ) {
+                    $s =~ s{\.pm$}{};
+                    $s =~ s{/+}{::}g;
+                }
+                last;
+            }
+
+            return $s;
+        }
+
+        my %seen;
+        my $total_mem = 0;
+        sub DB::DB {
+            my ( $package, $file, $line ) = caller;
+
+            return if $file eq '-e' || $file eq '-E';
+            return if $file =~ qr{^\(eval};
+
+            return if $seen{$file}++;
+
+            $file ||= '';
+
+            my $mem   = get_memory();
+            my $delta = $mem - $total_mem;
+            $total_mem = $mem;
+            if ( keys %seen == 1 ) {
+                print "# [delta => total RSS in kB] module name (or eval)\n";
+            }
+
+            # try to guess where it comes from (manual longmess :-)
+            my ( $frompkg, $fromfile, $fromline ) = caller();
+            my $max = 1_000;
+            foreach my $level ( 0 .. $max ) {
+                my ( $package, $filename, $line ) = caller($level);
+                last unless defined $filename;
+
+                # when the filename differs, we know where it comes from
+                if ( $fromfile ne $filename ) {
+                    ( $frompkg, $fromfile, $fromline )
+                      = ( $package, $filename, $line );
+                    last;
+                }
+                if ( $level == $max ) {
+                    ( $frompkg, $fromfile, $fromline )
+                      = ( '????', '????', '?' );
+                }
+            }
+
+            print sprintf(
+              "[%5s => %8d] %-50s from %-30s at line %d\n",
+              ( $delta > 0 ? '+' : '' ) . $delta,
+              $mem,
+              ( short($file) || 'undef' ),
+              short($fromfile),
+              $fromline
+            );
+
+            return;
+        }
+
+    }
+
+    CHECK { exit }
+
+    1;
+
+We can then use it this way for example, either loading a script or directly on a module
+and each time we see a new file we check the memory and check how much it was increased.
+
+    > perl -Ilib -d:ListDepsDetails -e 'require "./samples/use-modules.pl"'
+    # [delta => total RSS in kB] module name (or eval)
+    [+2052 =>     2052] samples/use-modules.pl                             from e                              at line 1
+    [ +172 =>     2224] strict                                             from samples/use-modules.pl         at line 3
+    [ +356 =>     2580] warnings                                           from samples/use-modules.pl         at line 4
+    [  +40 =>     2620] Carp                                               from samples/use-modules.pl         at line 8
+    [ +516 =>     3136] Exporter                                           from Carp                           at line 99
+    [    0 =>     3136] Config                                             from samples/use-modules.pl         at line 9
+    [    0 =>     3136] vars                                               from Config                         at line 11
+    [  +32 =>     3168] warnings::register                                 from vars                           at line 7
+    [ +104 =>     3272] Data::Dumper                                       from samples/use-modules.pl         at line 10
+    [  +92 =>     3364] XSLoader                                           from Data::Dumper                   at line 33
+    [ +280 =>     3644] constant                                           from Data::Dumper                   at line 277
+    [+1028 =>     4672] bytes                                              from Data::Dumper                   at line 754
+    [  +24 =>     4696] overload                                           from Data::Dumper                   at line 20
+    [   +4 =>     4700] overloading                                        from overload                       at line 83
+    [  +76 =>     4776] Digest                                             from samples/use-modules.pl         at line 11
+    [  +28 =>     4804] Encode                                             from samples/use-modules.pl         at line 12
+    [   +8 =>     4812] Encode::Alias                                      from Encode                         at line 47
+    [ +536 =>     5348] Encode::Config                                     from Encode                         at line 52
+    [  +84 =>     5432] Encode::Encoding                                   from Encode                         at line 265
+    [  +24 =>     5456] FindBin                                            from samples/use-modules.pl         at line 13
+    [    0 =>     5456] Cwd                                                from FindBin                        at line 83
+    [ +448 =>     5904] File::Basename                                     from FindBin                        at line 84
+    [ +148 =>     6052] File::Spec                                         from FindBin                        at line 85
+    [  +12 =>     6064] File::Spec::Unix                                   from File::Spec                     at line 22
+    [ +268 =>     6332] MyPackage                                          from samples/use-modules.pl         at line 15
+    [   +4 =>     6336] MultiplePackages                                   from samples/use-modules.pl         at line 16
+    Use some CORE modules
+
+From there we can do some manual checking on the top modules and see if these
+are really required in the context of our program or if we can replace it with a
+less intrusive module... Most of the time you probably only care about modules
+used by your own code.
+
+=head2 Finding unused subroutines using PPI
+
+Now that we know that a module can brings dependencies, and these could use some
+extra memory, it would be nice to be able to detect if some of them are useless.
+  
+After some googling, I could quickly find a solution from brian d. foy: L<Finding Unused Subroutines|http://blogs.perl.org/users/brian_d_foy/2012/07/finding-unused-subroutines-but-with-ppi.html>
+which uses L<PPI>.
+
+PPI is a perl parser which tokenizes a source code to convert it to a list of
+'tokens' making any code manipulation easier than playing with regexp and
+other complex methods. After analyzing the document tree, you can
+add/remove/update some tokens (like for example comments, pods...), then later
+safely render it as a source code using the Lexer.
+  
+You can read more about PPI from its perldoc itself, where you could learn why
+it's called what it is: The two meanings for PPI are "Parse::Perl::Isolated" but
+also 'I Parse Perl' (if you read it from right to left.)
+
+Here is the main idea behind this PPI analysis:
+
+=for :html
+<ol>
+<li>Parse a script using PPI 
+<li>get the list of all defined functions
+<li>get the list of all function used
+<ol>
+  <li>can be a reference to the function: \&foo
+  <li>direct call to function: foo()
+  <li>find functions used as bareword: foo
+</ol>
+<li>do the diff between the two list to guess the unused functions
+</ol>
+
+brian d foy's solution is very smart, and works pretty well on small scripts.
+
+Its main limitation comes from the fact that the analyze is only performed in
+the scope of your program. This can be solved by doing a fatpacking of your
+script. The second problem is that it should loop after removing functions as
+this could result in some extra optimizations. One way to do this is to perform
+the removal using PPI then perform a new analysis.
+
+For example in this case, C<c'>is the function called which requires only C<d>
+The algorithm described above will detect that C<b> as a function is declared
+and never used but will not be able to do the same for C<a> as it's used inside
+b.
+
+    #!perl
+    #!perl
+
+    use strict;
+    use warnings;
+
+    sub a {}
+    sub b { a() }
+    sub c { d() }
+    sub d { 1 }
+
+    c();
+
+We could simply fix this by making iterative changes to the program, each time
+modifying it until we cannot remove any extra function or we reach a stable
+state, were nothing new need to be removed.
+
+Each iteration we re-perform an analysis on the updated document.  This can be
+performed without writing the updated file to disk, but this allow an easier way
+to debug to write it each time.  Since we write it out we can also add an extra
+check like a C<perl -c> between each iteration to be sure we are not
+accidentally doing something bad.
+
+    #!perl
+    #!perl
+
+    # this is a pseudo code
+
+    my $doc = PPI::Document->new( $script );
+    my $step;
+    while ( 1 ) { # analyze required
+      my @remove_subs = $doc->remove_unused_subs();
+      last unless scalar @removed_subs
+        or !cmp_bag(\@removed_subs, \@previous_state);
+      @previous_state = @remove_subs;
+      ++$step;
+      $doc->update_and_write_to( "$script.step-$step" );
+      # reread the file
+      $doc = PPI::Document->new( "$script.step-$step" );
+    }
+
+=head3 basic modulino to play with PPI
+
+Let's try to package this in Object Oriented way, and give it a try
+with a program that could strip comments and pods from a script
+
+    #!perl
+    package Analyze;
+    use PPI;
+    # similar to using Moo here, but in one line with no other
+    #  deps (just need lazy builders and accessors)
+    use Simple::Accessor qw{
+       Document content subs symbols list barewords
+      methods packages
+    };
+
+    sub _build_Document {
+        my ($self) = @_;
+
+        die unless ref $self->content eq 'SCALAR'
+           or -f $self->content;
+
+        my $Document = PPI::Document->new( $self->content );
+        die "Could not create PDOM!" unless ref $Document;
+
+        return $Document;
+    }
+
+    sub stringify {
+        my $self = shift;
+        return $self->Document->serialize;
+    }
+
+    # PPI::Token::Comment
+
+    sub remove_pods {
+      $_[0]->remove_tokens('PPI::Token::Pod')
+    }
+
+    sub remove_comments {
+      $_[0]->remove_tokens('PPI::Token::Comment')
+    }
+
+    sub remove_tokens {
+        my ( $self, $token ) = @_;
+        my $pods = $self->Document->find($token) || [];
+        foreach my $pod (@$pods) {
+            $pod->delete;
+        }
+
+        return;
+    }
+
+    package main;
+    use v5.014;
+    use File::Slurp qw{read_file write_file};
+
+    exit run(@ARGV) unless caller;
+
+    sub run {
+        my $script = shift or die "Missing argument script name to analyze";
+
+        my $content = read_file($script) or die;
+        my $analyze = Analyze->new( content => \$content );
+
+        $analyze->remove_pods();
+        $analyze->remove_comments();
+
+        my $updated = "$script.updated";
+        write_file( $updated, $analyze->stringify );
+        say "Write updated version to '$updated";
+
+        return 0;
+    }
+
+When used like this, a new file is going to be written on disk
+where all comments and pod are stripped. You can test it by yourself.
+
+    > perl strip-comments-and-pods.pl script.pl
+    Write updated version to 'script.pl.updated
+
+=head3 PPI how to get the list of functions defined
+
+A function is described in PPI by a 'PPI::Statement::Sub',
+we should exclude from this list the reserved one like 
+BEGIN, CHECK... 
+
+Note: this code is extending the previous packages described above.
+
+  #!perl
+  package Analyze;
+
+  ...
+  # Get all of the subroutine definitions
+  sub _build_subs {
+      my $self = shift;
+
+      my %subs;
+
+      my $all_ppi_subs = $self->Document->find(
+          sub {
+              $_[1]->isa('PPI::Statement::Sub')
+                # not a BEGIN, CHECK, UNITCHECK, INIT and END,
+                && !$_[1]->reserved()
+          }
+      ) || [];
+
+      foreach my $sub (@$all_ppi_subs) {
+          my $name = $sub->name;
+          $subs{$name} = $sub;
+      }
+
+      debug "* All sub definitions: ", sort keys %subs;
+
+      return \%subs;
+  }
+
+This is good but the problem here is that these two functions
+will have the same name...
+
+  #!perl
+  package Foo; sub hello { }
+  package Bar; sub hello { }
+
+So we would like to know in which package the function is defined, 
+then use its fullname Foo::hello, Bar::hello or main::hello.
+
+=head3 PPI getting the package name of a function
+
+We need a way to get the package name from a PPI element
+
+  #!perl
+  my $namespace = eval {
+    $elt->parent
+        ->find_first('PPI::Statement::Package')
+        ->namespace
+  };
+
+In some cases this unfortunately does not provide the information we would
+expect.. In order to get this to work we need to create a workaround to save the
+begin and end line for each packages so it will be easy to know where a function
+is located if we can know which line it was defined.
+
+Let's add an attribute 'packages' to the Analyze class and save the start and end
+line for each packages. (note that a package namespace can be use more than once )
+
+  #!perl
+  # do not cache the value as when removing a doc,
+  # cache needs to be cleared
+  sub _build_packages {
+      my $self = shift;
+
+      # use an array and not a hash as a package (like main or
+      # any other) can be defined multiple times
+      my @packages;
+
+      # find return the elements sorted
+      my $search = $self->Document->find('PPI::Statement::Package') || [];
+
+      foreach my $pkg (@$search) {
+          if ( scalar @packages ) {
+              $packages[-1]->{'to'} = $pkg->line_number - 1;
+          }
+          push @packages, {
+            name        => $pkg->namespace,
+            from        => $pkg->line_number,
+            to          => 0,
+            file_scoped => $pkg->file_scoped,
+          };
+      }
+
+      return \@packages;
+  }
+
+Now that we have that information it becomes easy to know in which namespace the
+function was declared. Rather than using C<$sub->name> we could use
+C<get_package_for($sub)> with the following
+
+    #!perl
+    sub get_package_for {
+        my ( $self, $elt ) = @_;
+
+        my $line         = $elt->line_number;
+
+        # coming from previous function _build_packages
+        my $all_packages = $self->packages;
+
+        foreach my $v (@$all_packages) {
+            my $pkg = $v->{name};
+            if ( $v->{from} < $line
+              && ( $v->{to} == 0 || $line <= $v->{to} )
+            ) {
+              return $pkg;
+            }
+        }
+
+        return 'main'; # default
+    }
+
+=head3 PPI get list of methods used as function call
+
+If your script is using object oriented style, then you will quickly have
+functions calls instead of method calls: C<$object->foo()> rather than C<foo()>
+
+We cannot do anything for something like C<$object->$foo()>,
+but we can try to check all static functions calls trying
+to find the PPI::Token::Operator C<< -> >>
+
+    #!perl
+    # list of methods with the scope where they might be used
+    sub _build_methods {
+        my $self = shift;
+
+        my @methods;
+
+        my $search = $self->Document->find(sub {
+          $_[1]->isa('PPI::Token::Operator')
+            && $_[1]->content eq '->';
+        }) || [];
+
+        foreach my $op (@$search) {
+            next unless eval {
+              $op->snext_sibling->class eq 'PPI::Token::Word'
+            };
+
+            # maybe something special for nw ?
+            push @methods, $op->snext_sibling->content;
+        }
+
+        debug "* All methods: ", sort @methods;
+
+        #note explain $all_statements;
+        return \@methods;
+    }
+
+=head3 PPI detect function used as reference or stash
+
+We can get the list of symbols, functions not called with parens
+but with &foo, \&foo, *foo...
+
+The code is not much more complex than finding defined functions.
+
+    #!perl
+    # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+    # find the sub calls that use &
+    # &foo
+    # &foo()
+    # \&foo
+    # *foo
+    sub _build_symbols {
+        my $self = shift;
+
+        my @symbols;
+
+        my $search = $self->Document->find(
+            sub {
+                $_[1]->isa('PPI::Token::Symbol')
+                  && ( $_[1]->symbol_type eq '&'
+                    || $_[1]->symbol_type eq '*' );
+            }
+        ) || [];
+
+        foreach my $elt (@$search) {
+            my $name = $elt->content =~ s/\A[&*]//r;    # /
+
+            if ( $name !~ qr{::} ) {
+                $name = $self->get_package_for($elt) . '::' . $name;
+            }
+
+            push @symbols, $name;
+        }
+
+        @symbols = sort @symbols;
+        debug "* All symbols: @symbols";
+
+        return \@symbols;
+    }
+
+=head3 PPI find the sub calls that use parens
+
+Building the list of function called with some parens
+isn't more complex than listing all defined functions.
+We simply need to find a 'Token::Word' followed by an open paren.
+
+The following code tries to get the fullname of the function depending if it's
+called as C<foo()> or C<Bar::foo()>
+
+    #!perl
+    # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+    # find the sub calls that use parens
+    # foo()
+    #   foo( @args )
+    sub _build_list {
+        my $self = shift;
+
+        my @list;
+        my $search = $self->Document->find(sub {
+          $_[1]->isa('PPI::Token::Word')
+            && $_[1]->snext_sibling
+            && $_[1]->snext_sibling->isa('PPI::Structure::List');
+        }) || [];
+
+        foreach my $elt (@$search) {
+            my $name = $elt->literal;
+            if ( $name !~ qr{::} ) {
+                $name = $self->get_package_for($elt) . '::' . $name;
+            }
+            push @list, $name;
+        }
+
+        debug "* All list: @list";
+
+        return \@list;
+    }
+
+=head3 PPI find the sub calls that are barewords
+
+In a very similar way we can also build the list of functions used as barewords.
+
+    #!perl
+    # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+    # find the sub calls that are barewords
+    # foo
+    # foo + bar
+    # but not
+    # use vars qw( baz );
+    # sub quux { ... }
+    sub _build_barewords {
+        my $self = shift;
+
+        my %reserved = map { $_, $_ } qw(
+          use vars sub my BEGIN INIT new
+        );
+        my @barewords = map { $_->literal }
+          grep {
+            # Take out the Words that are preceded by 'sub'
+            # That is, take out the subroutine definitions
+            # I couldn't get this to work inside the find()
+            my $previous  = $_->previous_sibling;
+            my $sprevious = $_->sprevious_sibling;
+
+            !( blessed($previous) && blessed($sprevious)
+              && $previous->isa('PPI::Token::Whitespace')
+              && $sprevious->isa('PPI::Token::Word')
+              && $sprevious->literal eq 'sub' )
+          } @{
+            $self->Document->find(
+                sub {
+                    $_[1]->isa('PPI::Token::Word')
+                      && $_[1]->next_sibling->isa(
+                        qw(
+                          PPI::Token::Whitespace
+                          PPI::Token::Structure
+                          PPI::Token::List
+                          PPI::Token::Operator
+                          )
+                      ) && ( !exists $reserved{ $_[1]->literal } );
+                }
+              )
+              || []
+          };
+
+        debug "* All barewords: @barewords";
+
+        push @barewords, sort keys %reserved;
+
+        return \@barewords;
+    }
+
+=head2 Combining everything togeteher
+
+While we can now list used and defined functions,
+we still need a few extra helpers around it to make it useful.
+
+=head3 Get the list of used functions
+
+Getting the list of all used functions then become very easy,
+we just need to combine, symbols, list and barewords.
+
+    #!perl
+    sub get_used_sub {
+        my $self = shift;
+
+        my $symbols   = $self->symbols   // [];
+        my $list      = $self->list      // [];
+        my $barewords = $self->barewords // [];
+
+        my %used = map { $_ => 1 } ( @$symbols, @$list, @$barewords );
+        debug "* All used:", map { ( ' ', $_ ) } sort @{ [ keys %used ] };
+
+        return \%used;
+    }
+
+We also need an additional helper to check if a function
+is used as a method call
+
+    #!perl
+    sub is_used_method {
+        my ( $self, $sub ) = @_;
+        my $methods = $self->methods;
+
+        return scalar grep { $sub =~ qr{::$_$} } @$methods;
+    }
+
+=head3 Removing unused functions
+
+So all we need to do after creating a PPI doc using the Analyze module
+is ask: 
+
+=for :list
+* what are the defined functions
+* what are the used functions
+* remove any defined function which is not used or not used a as a method
+* delete the function from the PPI tree (except if it's blacklisted)
+
+    #!perl
+    sub remove_unused_subs {
+        my $self = shift;
+
+        my $subs = $self->subs;           # all subs
+        my $used = $self->get_used_sub;
+
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        # The unused have to be the left over ones
+        # exception for methods:
+        #   if a method is called on any object do not remove the
+        #   function (can be improve for new & co)
+        my @unused = sort grep {
+          !exists $used->{$_} && !$self->is_used_method($_)
+        } keys %$subs;
+
+        debug "* All unused: @unused";
+
+        my @removed;
+
+        foreach my $sub (@unused) {
+            next if $self->is_blacklist_sub($sub);
+
+            if ( !defined $subs->{$sub} ) {
+                debug "error: sub '$sub' not defined";
+                next;
+            }
+            $subs->{$sub}->delete;
+            push @removed, $sub;
+        }
+
+        # return removed sub list
+        return @removed;
+    } 
+
+
+=head2 In Conclusion
+
+We've seen in a first part that each module comes with its own memory cost.
+In a second part we can now remove unused functions from a script, after
+fatpacking it. Even if in some cases the result script works this should
+probably still mainly be used as advice on how to refactor your code.
+
+Detecting dead code with static analyzis is prone to errors due to the
+dynamic nature of perl. C<$function()> or C<< $object->$method()... >>
+As this could potentially come from the current ENV we have no accurate
+way to perform a safe removal.
+
+This method comes with its own limits, as it's performed as a static analyzis.
+Another very interesting approach to this problem would be to analyze what happens
+at run time! and see what code path are triggered in the life (minutes, hours, weeks...)
+of a program. And this is exactly what is done by Gonzalo via Devel::QuickCover.
+
+You can play with the scripts described here available from the github repository.
+They are in a quick&dirty mode, and could be improved in many ways but can stil 
+provide a first approach to play with PPI.
+
+=head1 SEE ALSO
+
+=for :list
+* L<PPI>
+* L<brian d foy, Finding Unused Subroutines, but with PPI|http://blogs.perl.org/users/brian_d_foy/2012/07/finding-unused-subroutines-but-with-ppi.html
+* L<Gonzalo Diethelm, Finding dead code, the quick and easy way, with Devel::QuickCover|https://www.youtube.com/watch?v=7EbLC3M5n6g>
+* L<@atoomic, TPC 2016 Video on YouTube|https://youtu.be/AMa1JWgG4yY>
+* L<TPC 2016 slides|http://bit.do/b7N79>
+* L<github repo|https://github.com/atoomic/yapc-na-2016>
