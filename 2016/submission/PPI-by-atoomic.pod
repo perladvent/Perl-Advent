@@ -146,7 +146,7 @@ This is exactly what we can achieve using a CHECK block.
     CHECK {
       foreach my $module ( sort keys %INC ) {
         # exclude ourself: could also use __PACKAGE__
-        next if $module eq 'Devel/ListDeps.pm'; 
+        next if $module eq 'Devel/ListDeps.pm';
         print qq{$module\n};
       }
     }
@@ -354,16 +354,27 @@ Then we could use it this way:
             foreach my $level ( 0 .. $max ) {
                 my ( $package, $filename, $line ) = caller($level);
                 last unless defined $filename;
-                if ( $fromfile ne $filename ) {    # when the filename differs, we know where it comes from
-                    ( $frompkg, $fromfile, $fromline ) = ( $package, $filename, $line );
+
+                # when the filename differs, we know where it comes from
+                if ( $fromfile ne $filename ) {
+                    ( $frompkg, $fromfile, $fromline )
+                      = ( $package, $filename, $line );
                     last;
                 }
                 if ( $level == $max ) {
-                    ( $frompkg, $fromfile, $fromline ) = ( '????', '????', '?' );
+                    ( $frompkg, $fromfile, $fromline )
+                      = ( '????', '????', '?' );
                 }
             }
 
-            print sprintf( "[%5s => %8d] %-50s from %-30s at line %d\n", ( $delta > 0 ? '+' : '' ) . $delta, $mem, ( short($file) || 'undef' ), short($fromfile), $fromline );
+            print sprintf(
+              "[%5s => %8d] %-50s from %-30s at line %d\n",
+              ( $delta > 0 ? '+' : '' ) . $delta,
+              $mem,
+              ( short($file) || 'undef' ),
+              short($fromfile),
+              $fromline
+            );
 
             return;
         }
@@ -867,7 +878,6 @@ is used as a method call
         return scalar grep { $sub =~ qr{::$_$} } @$methods;
     }
 
-
 =head3 Removing unused functions
 
 So all we need to do after creating a PPI doc using the Analyze module
@@ -886,11 +896,14 @@ is ask:
         my $subs = $self->subs;           # all subs
         my $used = $self->get_used_sub;
 
-        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
         # The unused have to be the left over ones
         # exception for methods:
-        #   if a method is called on any object do not remove the function (can be improve for new & co)
-        my @unused = sort grep { !exists $used->{$_} && !$self->is_used_method($_) } keys %$subs;
+        #   if a method is called on any object do not remove the
+        #   function (can be improve for new & co)
+        my @unused = sort grep {
+          !exists $used->{$_} && !$self->is_used_method($_)
+        } keys %$subs;
 
         debug "* All unused: @unused";
 
