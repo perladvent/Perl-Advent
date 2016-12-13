@@ -286,41 +286,43 @@ using the same oneliner.
     > perl -MCarp -MData::Dumper -e 'print qx{grep VmRSS /proc/$$/status}'
     VmRSS:      3752 kB
 
-  When adding Carp to Data::Dumper the total memory footprint
-  is the same as when using Data::Dumper by itself.
-  The reason is that Data::Dumper is also using Carp
+When loading Carp as well as Data::Dumper the total memory footprint
+stays same as when using Data::Dumper by itself.  Why?
+The reason is that Data::Dumper itself is also using Carp
 
     > perl -MData::Dumper -E 'say $INC{"Carp.pm"}'
     /usr/local/cpanel/3rdparty/perl/524/lib64/perl5/5.24.1/Carp.pm
 
-  Adding Moose to Data::Dumper, we can  notice that the memory used
-  is higher than Moose by itself but still below the sum
+Similarly adding Moose to Data::Dumper, we can notice that the memory used is
+higher than Moose by itself but still below the sum
 
     > perl -MData::Dumper -MMoose -e 'print qx{grep VmRSS /proc/$$/status}'
     VmRSS:     17132 kB
 
-  We cannot do the simple math addition to know the memory used by multiple modules.
+We cannot do the simple math addition to know the memory used by multiple
+modules.
 
-    Memory(Moose) < Memory( Moose & Data::Dumper )  < Memory(Moose) + Memory(Data::Dumper)
+    Memory(Moose) < Memory( Moose & Data::Dumper ) < Memory(Moose) + Memory(Data::Dumper)
 
-  Perl itself as its own startup memory cost and modules could also used shared dependencies
-  so we cannot count them more than once... as once a module is loaded, it's in and
-  can be used at no additional cost by any other module.
-
+Perl itself as its own startup memory cost, and modules could also used shared
+dependencies so we cannot count them more than once... as once a module is
+loaded, it's in and can be used at no additional cost by any other module.
 
 =head3 Tracking memory increase
 
-  Then come the next idea.. what about running the same oneliner each time a module is loaded ?
-  Is it possible ? Yes we can use a custom DB:DB function which would be able to track all calls.
+This leads to an idea .. what about running the same oneliner each time a module
+is loaded? Is it possible? Yes we can use a custom debugger function which would
+be able to track all calls.
 
-  We could use either a change of state of %INC or also caller to know which file was just loaded.
-  This script is pretty long and still need some tweaks but this is the main idea:
+We could use either a change of state of C<%INC> or also caller to know which file
+was just loaded. This script is pretty long and still need some tweaks but this
+is the main idea:
 
-  This is the current version 
+This is the current version
 
     #!perl
     package Devel::ListDepsDetails;
-    
+
     BEGIN {
         sub get_memory {
             my $m;
