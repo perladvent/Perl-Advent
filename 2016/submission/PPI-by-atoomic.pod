@@ -407,8 +407,8 @@ This is the current version
 
     1;
 
-  We can then use it this way for example, either loading a script or directly on a module
-  and each time we see a new file we check the memory and check how much it was increased.
+We can then use it this way for example, either loading a script or directly on a module
+and each time we see a new file we check the memory and check how much it was increased.
 
     > perl -Ilib -d:ListDepsDetails -e 'require "./samples/use-modules.pl"'
     # [delta => total RSS in kB] module name (or eval)
@@ -440,54 +440,62 @@ This is the current version
     [   +4 =>     6336] MultiplePackages                                   from samples/use-modules.pl         at line 16
     Use some CORE modules
 
-
-  From there we can do some human check on the top modules and see if these are really required
-  in the context of our program or if we can replace it with a less intrusive module...
-  Most of the time you probably only care about modules used by your own code.
+From there we can do some manual checking on the top modules and see if these
+are really required in the context of our program or if we can replace it with a
+less intrusive module... Most of the time you probably only care about modules
+used by your own code.
 
 =head2 Finding unused subroutines using PPI
 
-  Now that we know that a module can brings dependencies, and these could use some extra memory.
-  It would be nice to be able to detect if some of them are useless.
+Now that we know that a module can brings dependencies, and these could use some
+extra memory, it would be nice to be able to detect if some of them are useless.
   
-  After some googling, I could quickly find a L<solution from brian d. foy: Finding Unused Subroutines, but with PPI|http://blogs.perl.org/users/brian_d_foy/2012/07/finding-unused-subroutines-but-with-ppi.html>
-  which uses L<PPI|https://metacpan.org/pod/PPI>.
+After some googling, I could quickly find a solution from brian d. foy: L<Finding Unused Subroutines|http://blogs.perl.org/users/brian_d_foy/2012/07/finding-unused-subroutines-but-with-ppi.html>
+which uses L<PPI>.
 
-  PPI is a perl parser which tokenizes a source code to convert it to a list of 'tokens' making
-  any code manipulation easier than playing with regexp and other complex methods.
-  After analyzing the document tree, you can add/remove/update some tokens (like for example comments, pods...), 
-  then later safely render it as a source code using the Lexer.
+PPI is a perl parser which tokenizes a source code to convert it to a list of
+'tokens' making any code manipulation easier than playing with regexp and
+other complex methods. After analyzing the document tree, you can
+add/remove/update some tokens (like for example comments, pods...), then later
+safely render it as a source code using the Lexer.
   
-  You can read more about PPI from its perldoc itself, where you could learn two meanings for PPI
-  "Parse::Perl::Isolated" but also 'I Parse Perl' (if you read it from right to left)
+You can read more about PPI from its perldoc itself, where you could learn why
+it's called what it is: The two meanings for PPI are "Parse::Perl::Isolated" but
+also 'I Parse Perl' (if you read it from right to left.)
 
-  Here is the main idea behind this PPI analyzis:
+Here is the main idea behind this PPI analysis:
 
-=for :list
-* 1. Parse a script using PPI 
-* 2. get the list of all defined functions
-* 3. get the list of all function used
-*  .i   can be a reference to the function: \&foo
-*  .ii  direct call to function: foo()
-*  .iii find functions used as bareword: foo
-* 4. do the diff between the two list to guess the unused functions
+=for :html
+<ol>
+<li>Parse a script using PPI 
+<li>get the list of all defined functions
+<li>get the list of all function used
+<ol>
+  <li>can be a reference to the function: \&foo
+  <li>direct call to function: foo()
+  <li>find functions used as bareword: foo
+</ol>
+<li>do the diff between the two list to guess the unused functions
+</ol>
 
-  brian d foy solution is very smart, and works pretty well on small scripts.
-  
-  Its main limitation comes from the fact that the analyze is only performed in the scope of your program.
-  This can be solved by doing a fatpacking of your script.
-  The second problem is that it should loop after removing functions 
-  as this could result in some extra optimizations. One way to do this is to perform the removal using PPI
-  then perform a new analyzis.
+brian d foy's solution is very smart, and works pretty well on small scripts.
 
-  For example in this case, 'c' is the function called which requires only 'd'
-  The algorithm described above will detect that 'b' as a function is declared and never used
-  but will not be able to do the same for 'a' as it's used inside b.  
+Its main limitation comes from the fact that the analyze is only performed in
+the scope of your program. This can be solved by doing a fatpacking of your
+script. The second problem is that it should loop after removing functions as
+this could result in some extra optimizations. One way to do this is to perform
+the removal using PPI then perform a new analysis.
+
+For example in this case, C<c'>is the function called which requires only C<d>
+The algorithm described above will detect that C<b> as a function is declared
+and never used but will not be able to do the same for C<a> as it's used inside
+b.
 
     #!perl
-    
+    #!perl
+
     use strict;
-    use warnings;  
+    use warnings;
 
     sub a {}
     sub b { a() }
