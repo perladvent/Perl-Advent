@@ -620,38 +620,40 @@ BEGIN, CHECK...
 
 Note: this code is extending the previous packages described above.
 
-    package Analyze;
+  #!perl
+  package Analyze;
 
-    ...    
-    # Get all of the subroutine definitions
-    sub _build_subs {
-        my $self = shift;
+  ...
+  # Get all of the subroutine definitions
+  sub _build_subs {
+      my $self = shift;
 
-        my %subs;
+      my %subs;
 
-        my $all_ppi_subs = $self->Document->find(
-            sub {
-                $_[1]->isa('PPI::Statement::Sub')
-                  # not a BEGIN, CHECK, UNITCHECK, INIT and END,
-                  && !$_[1]->reserved()
-            }
-        ) || [];
+      my $all_ppi_subs = $self->Document->find(
+          sub {
+              $_[1]->isa('PPI::Statement::Sub')
+                # not a BEGIN, CHECK, UNITCHECK, INIT and END,
+                && !$_[1]->reserved()
+          }
+      ) || [];
 
-        foreach my $sub (@$all_ppi_subs) {
-            my $name = $sub->name;
-            $subs{$name} = $sub;
-        }
+      foreach my $sub (@$all_ppi_subs) {
+          my $name = $sub->name;
+          $subs{$name} = $sub;
+      }
 
-        debug "* All sub definitions: ", sort keys %subs;
+      debug "* All sub definitions: ", sort keys %subs;
 
-        return \%subs;
-    }
+      return \%subs;
+  }
 
 This is good but the problem here is that these two functions
 will have the same name...
 
-    package Foo; sub hello { }
-    package Bar; sub hello { }
+  #!perl
+  package Foo; sub hello { }
+  package Bar; sub hello { }
 
 So we would like to know in which package the function is defined, 
 then use its fullname Foo::hello, Bar::hello or main::hello.
@@ -660,8 +662,12 @@ then use its fullname Foo::hello, Bar::hello or main::hello.
 
 We need a way to get the package name from a PPI element
 
-    my $namespace = eval { $elt->parent->find_first('PPI::Statement::Package')->namespace };
   #!perl
+  my $namespace = eval {
+    $elt->parent
+        ->find_first('PPI::Statement::Package')
+        ->namespace
+  };
 
 In some cases this is unfortunately not providing the information we would expect..
 We can come with our own workaround...  and save the begin and end line 
@@ -671,26 +677,33 @@ can know which line it was defined.
 Let's add an attribute 'packages' to the Analyze class and save the start and end
 line for each packages. (note that a package namespace can be use more than once )
 
-    # do not cache the value as when removing a doc, cache needs to be cleared
-    sub _build_packages {
-        my $self = shift;
+  #!perl
+  # do not cache the value as when removing a doc,
+  # cache needs to be cleared
+  sub _build_packages {
+      my $self = shift;
 
-        # use an array and not a hash
-        #   as a package (like main or any other) can be defined multiple times
-        my @packages;
+      # use an array and not a hash as a package (like main or
+      # any other) can be defined multiple times
+      my @packages;
 
-        # find return the elements sorted
-        my $search = $self->Document->find('PPI::Statement::Package') || [];
+      # find return the elements sorted
+      my $search = $self->Document->find('PPI::Statement::Package') || [];
 
-        foreach my $pkg (@$search) {
-            if ( scalar @packages ) {
-                $packages[-1]->{'to'} = $pkg->line_number - 1;
-            }
-            push @packages, { name => $pkg->namespace, from => $pkg->line_number, to => 0, file_scoped => $pkg->file_scoped };
-        }
+      foreach my $pkg (@$search) {
+          if ( scalar @packages ) {
+              $packages[-1]->{'to'} = $pkg->line_number - 1;
+          }
+          push @packages, {
+            name        => $pkg->namespace,
+            from        => $pkg->line_number,
+            to          => 0,
+            file_scoped => $pkg->file_scoped,
+          };
+      }
 
-        return \@packages;
-    }
+      return \@packages;
+  }
 
 Now that we have that information it becomes easy to know in which namespace the function
 was declared. Rather than using '$sub->name' we could use 'get_package_for($sub)' 
@@ -701,14 +714,19 @@ with the following
         my ( $self, $elt ) = @_;
 
         my $line         = $elt->line_number;
-        my $all_packages = $self->packages; # coming from previous function _build_packages
+
+        # coming from previous function _build_packages
+        my $all_packages = $self->packages;
+
         foreach my $v (@$all_packages) {
             my $pkg = $v->{name};
-            if ( $v->{from} < $line && ( $v->{to} == 0 || $line <= $v->{to} ) ) {
+            if ( $v->{from} < $line
+              && ( $v->{to} == 0 || $line <= $v->{to} )
+            ) {
               return $pkg;
             }
         }
-        
+
         return 'main'; # default
     }
 
@@ -730,15 +748,15 @@ to find the PPI::Token::Operator '->'
 
         my @methods;
 
-        my $search = $self->Document->find(
-            sub {
-                $_[1]->isa('PPI::Token::Operator')
-                  && $_[1]->content eq '->';
-            }
-        ) || [];
+        my $search = $self->Document->find(sub {
+          $_[1]->isa('PPI::Token::Operator')
+            && $_[1]->content eq '->';
+        }) || [];
 
         foreach my $op (@$search) {
-            next unless eval { $op->snext_sibling->class eq 'PPI::Token::Word' };
+            next unless eval {
+              $op->snext_sibling->class eq 'PPI::Token::Word'
+            };
 
             # maybe something special for nw ?
             push @methods, $op->snext_sibling->content;
@@ -757,8 +775,8 @@ but with &foo, \&foo, *foo...
 
 The code is not much more complex than finding defined functions.
 
-    # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
     #!perl
+    # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
     # find the sub calls that use &
     # &foo
     # &foo()
@@ -796,14 +814,14 @@ The code is not much more complex than finding defined functions.
 =head3 PPI find the sub calls that use parens
 
 Building the list of function called with some parens
-is not more complex than listing all defined functions.
-We need to find a 'Token::Word' followed by an open paren.
+isn't more complex than listing all defined functions.
+We simply need to find a 'Token::Word' followed by an open paren.
 
-The code try to get the fullname of the function depending if it's
-used as foo() or Bar::foo()
+The following code tries to get the fullname of the function depending if it's
+called as C<foo()> or C<Bar::foo()>
 
-    # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
     #!perl
+    # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
     # find the sub calls that use parens
     # foo()
     #   foo( @args )
@@ -811,13 +829,11 @@ used as foo() or Bar::foo()
         my $self = shift;
 
         my @list;
-        my $search = $self->Document->find(
-            sub {
-                $_[1]->isa('PPI::Token::Word')
-                  && $_[1]->snext_sibling
-                  && $_[1]->snext_sibling->isa('PPI::Structure::List');
-            }
-        ) || [];
+        my $search = $self->Document->find(sub {
+          $_[1]->isa('PPI::Token::Word')
+            && $_[1]->snext_sibling
+            && $_[1]->snext_sibling->isa('PPI::Structure::List');
+        }) || [];
 
         foreach my $elt (@$search) {
             my $name = $elt->literal;
@@ -834,11 +850,10 @@ used as foo() or Bar::foo()
 
 =head3 PPI find the sub calls that are barewords
 
-Very similar to the other list of functions called
-we can ubild the list of functions used as barewords.
+In a very similar way we can also build the list of functions used as barewords.
 
-    # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
     #!perl
+    # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
     # find the sub calls that are barewords
     # foo
     # foo + bar
@@ -848,7 +863,9 @@ we can ubild the list of functions used as barewords.
     sub _build_barewords {
         my $self = shift;
 
-        my %reserved = map { $_, $_ } qw( use vars sub my BEGIN INIT new );
+        my %reserved = map { $_, $_ } qw(
+          use vars sub my BEGIN INIT new
+        );
         my @barewords = map { $_->literal }
           grep {
             # Take out the Words that are preceded by 'sub'
@@ -857,8 +874,10 @@ we can ubild the list of functions used as barewords.
             my $previous  = $_->previous_sibling;
             my $sprevious = $_->sprevious_sibling;
 
-            !( blessed($previous) && blessed($sprevious) && $previous->isa('PPI::Token::Whitespace') && $sprevious->isa('PPI::Token::Word') && $sprevious->literal eq 'sub' )
-
+            !( blessed($previous) && blessed($sprevious)
+              && $previous->isa('PPI::Token::Whitespace')
+              && $sprevious->isa('PPI::Token::Word')
+              && $sprevious->literal eq 'sub' )
           } @{
             $self->Document->find(
                 sub {
