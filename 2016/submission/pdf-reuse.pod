@@ -4,326 +4,262 @@ Author: Raja Renga Bashyam <raja@webstarscg.com>
 
 =pod
 
-In one of our implementation, we had a requirement to produce business cycle documents completely in PDF. It's a billing solution for Advertising Agency System. It has the usual Estimate->Purchase Order->Invoice Cycle with Detail,Rate,Qty & Amount format. Apart from that it has varied column information for handling Print Media & Audio/Video Media with more detail on print media position & A/V media programme slot & timing. In some cases, each media type will be handled by different legal entities for manage tax related issues. Finally, the requirements were:
+One thing Santa should be glad about is that he doesn't have to deal with
+billing.  Can you imagine having to invoice all the parents of the world?
+Sadly in the commercial sector we have to worry about sending invoice to
+clients.  And as an overhead - you can't invoice for invoicing after all -
+we want to automate it all away.  What better language to use than Perl?
+
+While invoices these days don't actually have to be printed on paper anymore,
+they remain simulated paper documents:  It's time to get Perl to create a
+bunch of PDFs for us.
+
+We're building a billing solution for Advertising Agency. It has the usual
+Estimate E<8407> Purchase Order E<8407> Invoice cycle, with Detail, Rate, Qty
+and Amount format. Just to make this more complicated it has varied column
+information for handling Print Media & Audio/Video Media with more detail on
+print media position & A/V media program slot and timing. In some cases, each
+media type will be handled by different legal entities for manage tax related
+issues. Finally, the requirements were:
 
 =for html
     <ol>
-        <li>6 work segments(Production, Production with PO, Print Media, Audio/Video, Production iwht TAX)</li>
+        <li>6 work segments (Production, Production with PO, Print Media, Audio/Video, Production with TAX)</li>
         <li>Upto 6 different legal entities for each segment</li>
         <li>3 type of estimates</li>
         <li>Purchase Order</li>
         <li>3 type of Release Orders for handle media communication</li>
         <li>3 type of invoices</li>
     </ol>
-    
+
+Wow! That's a lot of stuff to consider.
+
 =head2 Challenges
 
-Then we were in search of suitable PDF production module. We mainly looked for: 
+We went in search of suitable PDF production module. We mainly looked for:
 
 =for html
-    <ol>        
-        <li>Suits to tailor build the document</li>
-        <li>Should give production control in pixel level </li>
-        <li>Flexible option to set page properties</li>
+    <ol>
+        <li>Ability to tailor build the document</li>
+        <li>A module that gives production control in pixel level </li>
+        <li>Flexible options to set page properties</li>
         <li>Option to implement signatures</li>
         <li>Position control to handle page continuation</li>
     </ol>
 
-After a lengthy search for few days, we finally zeroed in PDF::Reuse. It did not have user friendly function wraps for graphical output, but it offered a developer friendly core functions to control the graphical output in a pixel level. It helped to wrap our custom functions to handle in  generic way.
+After a lengthy search for few days, we finally zeroed in L<PDF::Reuse>. It did
+not have user friendly function wraps for graphical output, but it offered a
+developer friendly core functions to control the graphical output in a pixel
+level. It helped to wrap our custom functions to handle in generic way.
 
 =head2 Map to Reuse, Reduce & Recycle
 
+One of PDF::Reuse's main advantage is that it can take an existing PDF -
+something that our designers can create with their standard PDF tools - and then
+all we have to do is add the various per invoice details to it.
+
+The code to re-use a PDF with PDF::Reuse is really simple:
+
     #!perl
-    
+    #!perl
+
     use PDF::Reuse;
     use strict;
-     
-    prFile('myFile.pdf');                  # file to make    
-    prForm('source.pdf');                  # page 1 from source.pdf    
-    prText(150, 700, 'Customer Data');     # a line of text
+    use warnings;
+
+    # The file we're going to make
+    prFile('myFile.pdf');
+
+    # Take page one from a PDF we already have we're going to reuse
+    prForm('source.pdf');
+
+    # Add some custom text
+    prText(150, 700, 'Customer Data');
+
+    # And finally write it our
     prEnd();
 
-=for html
-    <ol>
-        <li>The feature of reusing the existing PDF and writing content over that, helped to reuse the existing legal entity letter pads in specific company document production. It's avoided manual graphic production work.</li>
-        <li>We classified the document to 3 major parts:
-            <ol>
-                <li>Page Layout & Page Background</li>
-                <li>Header</li>
-                <li>Content</li>
-            </ol>
-        </li>
-        <li>A core wrapper function implemented for construct row of row structure to meet individual lines and table like outputs.</li> 
-        <li>The wrapper function constructed based on PrText(),PrAdd(),PrImage()</li>
-    </ol>
+The feature of reusing the existing PDF and writing content over that, helped to
+reuse the existing legal entity letter pads in specific company document
+production. It's avoided manual graphic production work.
 
-=head2 One Line
-    
+=head2 A Range of Functions
+
+The PDF::Reuse module provides a bunch of primative functions for adding data to
+our document.  For example, we've already seen using the C<prText()> function to
+add text to the document.  But PDF::Reuse provides a plethora of other functions
+that can do all kinds of things.
+
+These can be as simple as C<prPage>
+
     #!perl
-    
+    # add a new page to the document
+    prPage();
+
+Or as powerful as C<prImage>:
+
+    #!perl
+    # insert an existing PDF into the document at the x,y coords:
+    prImage({
+        'file'  => $filename
+         'x'    => $c_v{x},
+         'y'    => $c_v{y_data},
+         'size' => $scale_factor
+    });
+
+The problem with these functions is that they're all I<primative>.  If we want
+to create our document in a sensbile fashion we need to build up our own libray
+on top of these simplistic functions.
+
+=head2 Abstracting
+
+We classified the document we wanted to write into three major parts:
+
+=for :html
+<ol>
+    <li>The page layout and page background</li>
+    <li>Header</li>
+    <li>Content</li>
+</ol>
+
+It looks like a core wrapper function we need is some way to write out a row of
+row structure to meet individual lines and table like outputs. The wrapper
+function constructed based on C<PrText()>,C<PrAdd()>,C<PrImage()>
+
+    #!perl
     # Data structure input for produce one liner output
     # base structure
-    
-    my $print_data = {0=>{  left_xaxis  =>250,   # print start x position                         
-                            line_height =>25,    
-                            
-                            # column definition
-                                                        
-                            header      =>{
-                                            0=>{font        =>'Helvetica-Bold',
-                                                font_size   =>12,
-                                            } # column
-                            },
-                            
-                            data=>[['Production Estimate']],
-                            
-                            },
-                    }; 
-                    
-=begin html
 
-        It will produce a title <b>Production Estimate</b> in page center.
-        
-=end html
+    my $print_data = {
+        0 => {
+            left_xaxis  => 250,     # print start x position
+            line_height => 25,
 
-=head2 Row of Row
+            # column definition
+            header => {
+                # define the first (and only) column
+                0 => {
+                    font      => 'Helvetica-Bold',
+                    font_size => 12,
+                },
+            },
+
+            # insert the data
+            data => [['Production Estimate']],
+        },
+     };
+
+It will produce a title <b>Production Estimate</b> in page center.  A data
+structure that produces several rows look like this:
 
     #!perl
-    
-    # base structure
-    
-    my $row_data = {   0=>{
-                            line_height =>  12,   
-                            
-                            # format definition for 3 columns
-                            
-                            header=>{
-                             
-                                            0=>{font       => 'Helvetica',
-                                                font_size  => 9,
-                                                d_width    => 50
-                                            },
-                                            
-                                            1=>{font       => 'Helvetica',
-                                                font_size  => 9,
-                                                d_width    => 10
-                                            },
-                                            
-                                            2=>{font       => 'Helvetica-Bold',
-                                                font_size  => 9,                                            
-                                                d_width    => 90,                                                
-                                                align      => 'left'
-                                            }
-                                                
-                            }, # end of header
-                            
-                            # data for 3 columns
-                                
-                            data=> [                        
-                                     ['Client:','','<Client Address>' ],
-                                     ['Address:','','<Address 1>' ],
-                                     ['','','<Address 2>' ],
-                                     ['','','<Address 3>' ],
-                                     ['Estimate No.','','<estimate no.>' ],
-                                     ['Date:','','<estimate date>' ]
-                                     
-                                    ],
-                                    
-                    } # end of def
-                    
-             }; # end of data
-             
-=cut
- 
-=begin html
-    
-    It will produce a row of row output by the given data and format.
-    
-=end html    
+    my $row_data = {
+        0 => {
+            line_height =>  12,
 
-=head2 Table Output
+            # format definition for 3 columns
+            header => {
+                0 => {
+                    font       => 'Helvetica',
+                    font_size  => 9,
+                    d_width    => 50
+                },
+                1 => {
+                    font       => 'Helvetica',
+                    font_size  => 9,
+                    d_width    => 10
+                },
+                2 => {
+                    font       => 'Helvetica-Bold',
+                    font_size  => 9,
+                    d_width    => 90,
+                    align      => 'left'
+                },
+            },
+
+            # data for 3 columns
+            data=> [
+                 ['Client:','','<Client Address>' ],
+                 ['Address:','','<Address 1>' ],
+                 ['','','<Address 2>' ],
+                 ['','','<Address 3>' ],
+                 ['Estimate No.','','<estimate no.>' ],
+                 ['Date:','','<estimate date>' ]
+            ],
+        },
+     };
+
+Writing the code to make this work is actually quite fiddly:  We have to
+do a lot of accounting of how much space each column takes up, and keep
+track of where we need to place the next line.
+
+Rather than showing you pages and pages of our code, here's an example of a
+small snippet of code that we use to create the header and shows some of these
+challenges:
 
     #!perl
-    
-    my $table={
-               
-                # structure for table print
-               
-                0=>{
-                    
-                    line_data                   => 1,                    
-                    line_height                 => 15,
-                    
-                    # title format
-                    title_text_font             => 'Helvetica-Bold',                    
-                    title_text_font_size        => 9,
-                    
-                    # data format
-                    data_text_font              => 'Tahoma',                    
-                    data_text_font_size         =>  9,                    
-                    data_left_margin            =>  20,
-                    
-                    # format definition for 3 columns 
-                    
-                    header=>{
-                        
-                            0=>{title   => 'S.No', #column header text
-                                h_width => 40,
-                                offset  => 8,
-                                d_width => 20,
-                                align   => 'right'
-                            },							
+    sub header_text {
+      my $data = shift;
+      my $page = shift;
 
-                            1=>{title   => 'Details of Production / Creative Charges',
-                                offset  => 65,
-                                h_width => 310,
-                                d_width => 330,
-                                align   => 'left'
-                            },
-                                      
-                            2=>{title   => 'Rate',
-                                offset  => 10,
-                                h_width => 45,
-                                d_width => 60,
-                                align   => 'right'
-                            },
-                                      
-                            3=>{title   => 'Quantity',
-                                offset  => 8,
-                                h_width => 100,
-                                d_width => 105,
-                                align   => 'right'
-                            },
-                        
-                            4=>{title   => 'Amount',
-                                offset  => 10,
-                                h_width => 65,
-                                d_width => 70,
-                                align   => 'right'
-                            }
-                            
-                    },
-                                     
-                    # data
-                    
-                    data=> [
-                            
-                             [1,'Printing of visiting cards',0.50,1000,500.00],
-                             [2,'Printing of promotion material',4,1000,4000.00],
-                            ],
-                    
-                } # end of detail
-                
-            # data for total
-            
-            1=>{
-                    
-                    left_xaxis  => 450,                    
-                    line_height => 2,
-                    
-                    data_text_font      => 'Helvetica-Bold',                    
-                    data_text_font_size => 9,
-                                       
-                    header=>{
-                                0=>{h_width =>100,
-                                    d_width =>120,
-                                    align   =>'right'
-                                },
-                             
-                                1=>{h_width =>100,
-                                    d_width =>50,
-                                    align   =>'right'
-                                }
-                         
-                            },                    
-                            
-                    data=>[ ['Grand Total(Rs)','4500.00']],                           
-                               
-              } # end
-              
-    }; # end of data
+      my ( $width, $height ) = checking( $page );
 
-=begin html
+      my $y = $height - $page->{margin}{top};
+      for my $key ( sort { $a <=> $b } keys %{ $data } ) {
+        my $chunk = $data{ $key };
+        my $start_x = $chunk->{left_xaxis} || $page->{margin}{left};
 
-    The table data will produce table output by the given format way. Multiple key defination will continue the output by the defination. Using that wrapper all the necessary documents created.
-    
-=end html
+        for my $row_data (@{ $chunk->{data} }) {
+          my $counter = 0;
+          my $x = $start_x;
+          for my $column_data (@{ $row_data }) {
+            my $meta = $chunk->{header}{ $counter };
 
-=head2 Page Properties
+            prFont( $meta->{font} || $page->{font} );
+            prFontSize( $meta->{font_size} || $page->{font_size} );
+            prText( $x, $y, $column_data );
 
-    #!perl
-    
-    my $page = {
-                                
-                                # paper format
-                                
-                                paper       =>{   paper_size   => 'A4',
-                                                  orientation  => 'portrait'},
-                                
-                                # file out
-                                
-                                file_name   => 'prod_516_nov_27.pdf',    
-                            
-                                
-                                
-                                form        => { file   => 'production.pdf', # source file
-                                                 page   => 1,
-                                                 adjust => 1,
-                                                 x      => 25,
-                                                 y      =>545},
-                            
-                                font        => 'Times-Bold', 
-                            
-                                font_size   => 10,                         
-                                line_height => 20,
-                        
-                                margin      => { top    =>165,
-                                                 bottom =>30,
-                                                 left   =>36,
-                                                 right  =>25   }
-                            
-    }; # format 
-    
-=begin html
-          
-    It will pass information to PrForm(),PrFile().
-    
-=end html
+            $x += $meta->{d_width};
+            ++$counter;
+          }
 
-=head2 Generator
-     
-    #!perl
-        
-    # PDF Creator
-            
-    BILL_WsPDF::create($page,$header,$data); # setup & content passed in structural way
-    
+          $y -= $chunk->{line_height} || $page->{line_height}
+        }
+      }
+      return $y;
+    }
 
-=cut
+You can see the techniques that we leverage: Keeping track of the changes C<$x>
+and C<$y> as we render each section, rendering column by column and looking up
+the corresponding header information for each data section, and using per page
+defaults when the meta data doesn't have settings in each section.
 
-=head3 PDF Production
+By abstracting this logic into sections we can deal with the complexity and
+build up a powerful library to easily create our own pages, making PDF::Reuse
+very powerful.
 
-=begin html
+=head2 In Summary
 
-        The creator will produce the PDF document based on given data on page properties & page content. In implementation case different structures are predefined first. During runtime, the bill information dynamically added to the structure. A basic structure created first, then it cloned and blended to different account needs. <br><br>
-        PDF:Reuse few core functions PrFile,PrText,PrForm,PrImage itself helped to produce business quality documents with scalability & reusability.The modules simple and straight core functions helped us to achieve our custom documen generation with ease and control. Even though it crossed six year, its continiously satisfying the evolving needs with the basic functions.<br><br>
-Now the documents become a part of our clients business communication also it gave us a business. <b>Thanks PDF::Reuse</b>. 
- 
-    
-=end html
+With our library of functions the creator will produce the PDF document based on
+given data on page properties & page content. In implementation case different
+structures are predefined first. During runtime, the bill information
+dynamically added to the structure. A basic structure created first, then it
+cloned and blended to different account needs.
+
+PDF:Reuse core functions C<PrFile>, C<PrText>, C<PrForm>, C<PrImage> itself
+helped to produce business quality documents with scalability and
+reusability. The modules simple and straight core functions helped us to achieve
+our custom document generation with ease and control. Even though we've been
+using it for six year, its continuously satisfying the evolving needs with the
+basic functions.
+
+Now the documents become a part of our clients business communication also it
+gave us a business. <b>Thanks PDF::Reuse</b>.
+
+=head2 Example Output
 
 =for html
-  <h2>Sample Estimate Document</h2>
   <img src="pdf_estimate.png">
   <br>
   <h2>Sample Invoice Document</h2>
   <img src="pdf_print_media.png">
-
-
-=head2 SEE ALSO
-
-=for :list
-
-* L<PDF::Reuse>
-
-=cut
