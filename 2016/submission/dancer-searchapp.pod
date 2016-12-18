@@ -76,3 +76,103 @@ Santa himself cannot make his presence known, but a reimplementation of the
 search engine has been released on CPAN as L<Dancer::SearchApp>. It includes the
 two crawler programs and the search form. You still need to add the special
 spice that is Elasticsearch.
+
+=head3 Installation and setup
+
+Before you can search your documents, you have to install the prerequisites
+and then import some documents. The upside is that there are importers that
+read from the filesystem and IMAP mail stores. The downside is that you will
+need to install some software that is not available via CPAN.
+
+=over 4
+
+=item *
+
+Install Java JRE 8
+
+That's what Elasticsearch needs.
+
+=item *
+
+Install Elasticsearch 5.x
+
+Installing Elasticsearch is as easy as downloading the latest release
+from L<https://www.elastic.co/downloads/elasticsearch>. For this document,
+we'll assume that you the Elasticsearch configuration directory is
+at C<< /opt/elasticsearch/config >>.
+
+=item *
+
+Configure Elasticsearch
+
+The search engine needs an English dictionary of synonyms.
+A good English synonym dictionary can be found at
+L<https://sites.google.com/site/kevinbouge/synonyms-lists>. Download the
+file for English from there and save it to
+
+  /opt/elasticsearch/config/synonyms/synonyms_en.txt
+
+If you don't want to install one, create an empty file.
+
+=item *
+
+Download L<Dancer::SearchApp> from CPAN
+
+These instructions download the distribution into a temporary directory for this
+test run.
+If you are satisfied with the configuration, copy the complete tree to a more
+permament location.
+
+  cpanm --look Dancer::SearchApp
+  cpanm --installdeps .
+
+Note the current directory, as that is where the configuration will happen.
+
+=item *
+
+Install Apache Tika
+
+Download the Tika server from L<https://tika.apache.org/download.html>
+
+The current version is
+L<http://www.apache.org/dyn/closer.cgi/tika/tika-server-1.14.jar>
+
+Copy the JAR file into the directory C< jar/> of the distribution.
+
+=back
+
+=head3 Indexing content
+
+Indexing content is done from the installation directory where you unpacked
+the CPAN distribution into. As Elasticsearch updates its index live there is
+no need to wait for an index run to finish before you can start searching your
+data through the web interface.
+
+=over 4
+
+=item *
+
+Indexing files on the disk
+
+Files on disk are indexed by invoking C<< bin/index-filesystem.pl >> and giving
+it one or more directories.
+
+  perl -Ilib -w bin/index-filesystem.pl -f t/documents
+
+For better control, you can give it a configuration file. There is an example
+configuration file in the C<< config-examples/ >> directory of the distribution.
+
+=item *
+
+Indexing an IMAP account
+
+If you want to be able to search your email, you have to import it from the
+IMAP server into the search index.
+Copy the config file from C< config-examples/imap-import.yml >
+and edit the username, password, server and folders to index. Then run
+the IMAP indexer. If you are like me and have most of your email history
+available, this may take a while.
+
+  perl -Ilib -w bin/index-imap.pl -c my-imap-import.yml
+
+=back
