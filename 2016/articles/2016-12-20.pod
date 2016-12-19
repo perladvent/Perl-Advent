@@ -198,36 +198,46 @@ small snippet of code that we use to create the header and shows some of these
 challenges:
 
     #!perl
-    sub header_text {
+    sub header_text{
+    
       my $data = shift;
       my $page = shift;
 
       my ( $width, $height ) = checking( $page );
-
-      my $y = $height - $page->{margin}{top};
-      for my $key ( sort { $a <=> $b } keys %{ $data } ) {
-        my $chunk = $data{ $key };
+      my $y                  = $height - $page->{margin}{top};
+      
+      # each data item
+      for my $key ( sort { $a <=> $b } keys %{ $data } ){
+      
+        my $chunk   = $data{ $key };
         my $start_x = $chunk->{left_xaxis} || $page->{margin}{left};
 
+        # each row
         for my $row_data (@{ $chunk->{data} }) {
-          my $counter = 0;
-          my $x = $start_x;
-          for my $column_data (@{ $row_data }) {
-            my $meta = $chunk->{header}{ $counter };
+        
+            my $counter = 0;
+            my $x       = $start_x;
+            
+            for my $column_data (@{ $row_data }) {
+            
+                my $meta = $chunk->{header}{ $counter };
 
-            prFont( $meta->{font} || $page->{font} );
-            prFontSize( $meta->{font_size} || $page->{font_size} );
-            prText( $x, $y, $column_data );
+                prFont( $meta->{font} || $page->{font} );
+                prFontSize( $meta->{font_size} || $page->{font_size} );
+                prText( $x, $y, $column_data );
+                
+                $x += $meta->{d_width};
+                
+                ++$counter;
+            
+            } # each column
 
-            $x += $meta->{d_width};
-            ++$counter;
-          }
-
-          $y -= $chunk->{line_height} || $page->{line_height}
-        }
-      }
-      return $y;
-    }
+            $y -= $chunk->{line_height} || $page->{line_height}; # reflect current y position
+            
+        } # each row     
+       } # each item      
+       return $y;    
+    } # end
 
 You can see the techniques that we leverage: Keeping track of the changes C<$x>
 and C<$y> as we render each section, rendering column by column and looking up
