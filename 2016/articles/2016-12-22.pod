@@ -1,0 +1,268 @@
+Title:  
+Topic:  Algorithm::Kmeans
+Author: Jerrad Pierce <jpierce@cpan.org>
+
+=pod
+
+Elladryl was always looking for ways to improve customer satisfaction,
+and for years she'd been stumped by a particularly difficult to please
+group of children. Well, actually, they weren't difficult I<per se>,
+more like inscrutable. Some children were so polite or meek, that they
+never told Santa what they wanted! Elladryl had tried everything: give
+them a random toy, give them the most popular toy that year, give them
+what their siblings or neighbors got to avoid envyE<hellip> none of it
+worked. And since these kids were perpetually underwhelmed, some of the
+I<scrooges> in accounting were proposing that they simply be given
+leftover stock from previous years! There had to be a better way.
+
+One day, while sitting in the break room staring at a bit of corporate
+kitschE<mdash>a poster proclaiming "Every child is as unique as a
+snowflake"E<mdash>Elladryl muttered "poppycock." She was an avid
+macro-photographer in the off-season, and more than once she'd snapped
+a picture of very similar looking snowflakes. Of course, that was it!
+She simply had to figure out which children were similar to those that
+hadn't made a request, and she'd have an idea of what they might like
+to receive. After a litle digging around on CPAN, searching for various
+keywords, she found L<Algorithm::KMeans>: a tool for clustering
+multidimensional data. Perfect! In short, the module groups data points
+(read children) together based on as many criteria as one cares to use,
+such that the items in one group are more like one another than they are
+anything else, a sort of L<multidimensional Voronoi diagram|http://wias-berlin.de/software/tetgen/figs/s164-vd-bnd.gif>.
+
+It's well known that Santa keeps psychological profiles of all the world's
+childrenE<mdash>naughty or nice, I<et cetera et cetera>E<mdash>but that
+data is closely guarded, and Elladryl would have to demonstrate the need
+for and effectiveness of her idea. Fortunately, L<Algorithm::KMeans> has
+the ability to create synthetic data sets for testing purposes. It also
+has the ability determine the optimum number of clusters for a data set;
+a somewhat slow process in which it assesses the quality of fit for dividing
+the up into 2 through 16 clusters.
+
+    use Algorithm::KMeans;
+    
+    Algorithm::KMeans->cluster_data_generator(
+    				input_parameter_file => 'Big5.param',
+    				output_datafile => 'Big5-Data.csv',
+    				number_data_points_per_cluster =>  128);
+    __DATA__
+    #Big5.param
+    #open conscientious extrovert agreeable neurotic
+    
+    #artsy
+    cluster
+    80 40 60 40 90
+    
+    1 0 0 0 0
+    0 1 0 0 0
+    0 0 1 0 0
+    0 0 0 1 0
+    0 0 0 0 1
+    
+    #sporty
+    cluster
+    50 60 90 80 20
+    
+    1 0 0 0 0
+    0 1 0 0 0
+    0 0 1 0 0
+    0 0 0 1 0
+    0 0 0 0 1
+    
+    #adventurous
+    cluster
+    80 70 20 50 20
+    
+    1 0 0 0 0
+    0 1 0 0 0
+    0 0 1 0 0
+    0 0 0 1 0
+    0 0 0 0 1
+    
+    #sciencey
+    cluster
+    60 90 40 40 60
+    
+    1 0 0 0 0
+    0 1 0 0 0
+    0 0 1 0 0
+    0 0 0 1 0
+    0 0 0 0 1
+
+After inputting some plausible parameters for the
+L<big five personality traits|https://en.wikipedia.org/wiki/Big_Five_personality_traits>,
+Elladryl ran the auto-clusterer over her synthetic sample of 512 children and
+was disappointed with the results: two clusters of 509 and 3 tots respectively.
+What did she do wrong? After racking her brain and trying everything, on her
+umpteenth run the clusterer created two similarly-sized groups. Success,
+of a sort. There were clearly more than two types of children in the world,
+nerd jokes about binary aside, so what had changed? It turns out in the
+most recent run, while playing with the data, she had renormalized the
+variables from 0 to 10 rather than 0 to 1. Interesting, for some reason the
+algorithm seemed to be sensitive to the magnitude of the inputs. She rescaled
+the data again, from 0 to 100, and ended up with a much more plausible result
+of four clusters. Huzzah!
+
+    data dimensionality:  9 
+    Value of Kmax is: 16
+    Clustering for K = 2
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 3
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 4
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 5
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 6
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 7
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 8
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 9
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 10
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 11
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 12
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 13
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 14
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 15
+    . . . . . . . . . . . . . . . . . . . . . 
+    Clustering for K = 16
+    . . . . . . . . . . . . . . . . . . . . . 
+    
+    Displaying final clusters for best K (= 4) :
+    
+    
+    Cluster 0 (128 records):
+      0  10  105  108  112  113  114  123  124  126  131  133  135  137  138  139  141  148  150  152  154  156  162  167  168  178  179  18  180  181  182  191  192  195  197  198  2  20  200  206  207  210  213  241  242  245  251  261  262  269  272  275  276  278  279  28  285  288  292  293  294  299  3  306  308  316  326  328  333  335  339  34  343  344  350  354  356  358  365  368  372  384  385  387  392  398  402  410  413  414  419  424  43  444  445  448  453  457  459  464  469  470  473  474  48  483  484  489  497  498  50  501  503  508  510  58  62  65  73  74  79  8  81  82  90  94  96  98
+    
+    Cluster 1 (128 records):
+      1  107  110  118  119  128  13  132  142  151  153  159  165  169  17  171  183  185  187  188  193  196  212  218  22  221  223  226  228  234  246  248  25  250  252  255  256  259  26  260  264  27  274  277  280  284  287  290  297  313  314  315  318  319  330  334  337  340  341  342  346  351  353  357  361  369  370  38  381  382  386  39  396  4  40  401  404  405  408  409  412  418  421  422  431  434  439  440  441  442  443  449  451  452  454  455  460  461  462  465  467  471  476  479  485  486  487  491  496  5  505  509  511  52  53  55  57  6  63  64  68  69  71  72  83  88  89  97
+    
+    Cluster 2 (128 records):
+      102  103  104  11  111  115  117  121  122  130  134  136  14  143  144  146  147  149  155  157  158  16  166  184  186  19  194  199  203  205  214  216  217  225  227  229  230  231  233  235  237  238  243  257  263  265  266  268  270  286  289  298  300  302  303  305  307  309  311  317  32  327  33  331  345  347  349  35  352  355  359  36  360  362  363  367  371  374  376  377  379  380  389  391  393  397  403  416  42  425  426  427  433  436  44  447  45  450  46  466  468  47  472  475  478  481  488  49  493  494  495  507  51  54  56  61  66  67  7  70  78  80  85  86  91  92  93  95
+    
+    Cluster 3 (128 records):
+      100  101  106  109  116  12  120  125  127  129  140  145  15  160  161  163  164  170  172  173  174  175  176  177  189  190  201  202  204  208  209  21  211  215  219  220  222  224  23  232  236  239  24  240  244  247  249  253  254  258  267  271  273  281  282  283  29  291  295  296  30  301  304  31  310  312  320  321  322  323  324  325  329  332  336  338  348  364  366  37  373  375  378  383  388  390  394  395  399  400  406  407  41  411  415  417  420  423  428  429  430  432  435  437  438  446  456  458  463  477  480  482  490  492  499  500  502  504  506  59  60  75  76  77  84  87  9  99
+    
+    
+    cluster 0 (128 records):
+    cluster center 0: 75.2109 66.1172 16.0859 45.5781 15.1250 1.8125 1.4141 1.8125 1.4609
+    
+    cluster 1 (128 records):
+    cluster center 1: 44.9375 56.1250 85.8594 75.9141 15.4922 1.4531 1.5234 1.6875 1.4688
+    
+    cluster 2 (128 records):
+    cluster center 2: 75.4297 35.1953 55.5000 35.0938 85.9844 1.4297 1.4766 1.6328 1.4531
+    
+    cluster 3 (128 records):
+    cluster center 3: 55.8516 85.4375 36.2109 35.7188 55.7891 1.8594 1.3906 1.8594 1.4531
+    
+    Best clustering achieved for K=4 with QoC = 0.28300341334325
+    
+    QoC values array (the smaller the value, the better it is) for different K starting with K=2:  0.339081457952933 0.311405776061022 0.28300341334325 0.357635728839801 0.424281399187201 0.498892089419827 0.587438662856472 0.629084161222652 0.687506829650931 0.744921591912404 0.803628373753345 0.842131262698576 0.889647660373095 0.945119696311851 1.03367867739993
+    
+    Writing cluster 0 to file cluster0.txt
+    
+    Writing cluster 1 to file cluster1.txt
+    
+    Writing cluster 2 to file cluster2.txt
+    
+    Writing cluster 3 to file cluster3.txt
+    
+    cluster0
+    agreeable	75.8031496062992
+    conscientious	66.6377952755905
+    extravert	16.2125984251969
+    neurotic	45.9370078740157
+    open	15.244094488189
+    subject	1.82677165354331
+    sex	1.4251968503937
+    siblings	1.82677165354331
+    birth_order	1.47244094488189
+    
+    cluster1
+    agreeable	45.2913385826772
+    conscientious	56.5669291338583
+    extravert	86.5354330708661
+    neurotic	76.511811023622
+    open	15.6141732283465
+    subject	1.46456692913386
+    sex	1.53543307086614
+    siblings	1.7007874015748
+    birth_order	1.48031496062992
+    
+    cluster2
+    agreeable	76.0236220472441
+    conscientious	35.4724409448819
+    extravert	55.9370078740157
+    neurotic	35.3700787401575
+    open	86.6614173228347
+    subject	1.44094488188976
+    sex	1.48818897637795
+    siblings	1.64566929133858
+    birth_order	1.46456692913386
+    
+    cluster3
+    agreeable	56.2913385826772
+    conscientious	86.1102362204724
+    extravert	36.496062992126
+    neurotic	36
+    open	56.2283464566929
+    subject	1.8740157480315
+    sex	1.40157480314961
+    siblings	1.8740157480315
+    birth_order	1.46456692913386 
+
+It's not clear why the clusterer should care about anything more than the
+relative values of variables, but the important thing is that it appears to
+work. Elladryl could now make a case to the head elf for access to more data,
+but she was sure he would agree, and that many more children would be happy
+this holiday. Of course, even with this break through, she still had plenty
+of experimenting left to perform. Should the silent children receive the 
+same toy as a randomly selected child in the same cluster? The most popular
+toy in the cluster? Or perhaps the clusters could be sub-divided even further?
+Afterall, since her tool will be processing hundreds of millions of record,
+she'll have to be somewhat frugal in what variables she can use. But perhaps
+a coarse clusterer using some high-level psychosocial data could be followed
+up with another pass using additional variables to create finer sub-divisions.
+
+    #!perl
+    use Algorithm::KMeans;
+    use List::Util 'sum';
+    
+    #Instantiate clusterer and load data
+    my $clusterer = Algorithm::KMeans->new( datafile        => 'data.csv',
+    					mask            => 'N111111111',
+    					K               => 0,
+    					cluster_seeding => 'random',
+    					terminal_output => 1,
+    					write_clusters_to_files => 1,
+    					);
+    $clusterer->read_data_from_file();
+    
+    #Group the data, optimally
+    my($clusters_hash, $cluster_centers_hash) = $clusterer->kmeans();
+    
+    #Display the results, and the mean values of variables for each group
+    #to compare with cluster centers
+    foreach my $cluster_id (sort keys %{$clusters_hash}) {
+      #print "\n$cluster_id   =>   @{$clusters_hash->{$cluster_id}}\n";
+      print "\n$cluster_id\n";
+    
+      my @vars = qw/agreeable conscientious extravert neurotic open
+          subject sex siblings birth_order/;
+      foreach my $i ( 0 .. $#vars ){
+        my @F = map{ $_->[$i] }
+          @{$clusterer->{_original_data}}{ @{$clusters_hash->{$cluster_id} } };
+        print $vars[$i], "\t", sum(@F)/$#F, "\n";
+      }
+    }
+
+id,Agreeable,Conscientious,Extrovert,Neurotic,Open,Favorite_Subject,Sex,Siblings,Birth_Order
+L<http://pthbb.org/~belg4mit/data.csv>
