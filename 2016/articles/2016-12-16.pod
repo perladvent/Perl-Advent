@@ -1,0 +1,353 @@
+Title: A Geo Parser for vast amounts of Text 
+Topic: Geo::Parser::Text
+Author: Ervin Ruci <eruci@geocode.xyz>
+
+=head1  Building Santa's Treasure Map with Geo::Parser::Text
+
+=head2 Or, finding jewels hidden in big data
+
+  I know there is a treasure
+  of rare pearls somewhere
+  I wish I could measure
+  I wish I knew where
+
+  treasures are fun to have
+  and even great to possess
+  but, the greatest fun to be had
+  is by mapping out exactly where.
+
+=head1 Geoparsing, a very difficult problem
+
+According to Directions Magazine in the article L<"Geoparsing Maps The Future Of
+Text Documents"|http://www.directionsmag.com/entry/geoparsing-maps-the-future-of-text-documents/122487>
+geoparsing is an almost magical, complex technological process that relies on
+data to put geo-information into context.
+
+The problem of geoparsing has been attempted many times over. The now defunct
+Yahoo Placenames was used to extract and disambiguate place names from text.
+Other notable defunct projects include BioGeomancer from Berkley and NGA GEOnet
+Names Server.
+
+There are also a few other current open projects from both academia and the
+developer community: geolocate from Tulane University, CLAVIN - Cartographic
+Location And Vicinity INdexer, and L<mordecai|https://github.com/openeventdata/mordecai>.
+
+Commercial heavyweights like MetaCarta extract information about place and time,
+while others like Digital Reasoning (GeoLocator), Lockheed Martin (AeroText),
+and SRA (NetOwl) extract place and person names.
+
+All of current applications in this field focus on extracting place names from a
+piece of text, geotag, disambiguate, resolve them to the correct place, and
+return their coordinates and structured geographic information.
+
+I don't know of any geoparser that goes beyond place names, by that I mean one
+that geoparses street addresses and street intersections too. Just like Santa,
+maybe it does exist. Maybe not.  Either way, I will try to build it.
+
+L<Geo::Parser::Text> interfaces with L<http://geocode.xyz|http://geocode.xyz>, a
+geoparser written in Perl, to disambiguate and extract complete location
+information from text (locations expressed as combinations of street names and
+place names.)
+
+=head2 The Motivation?
+
+I'd like to get a more detailed map of every location ever mentioned in
+literature. So, I'm currently geoparsing the gutenberg project (and a few others
+kind enough to offer free books for download)
+
+Books are rich with actual location information (unless they are fantasy books
+mentioning fantasy locations, such as Santa's lair in the North Pole) - so are
+tweets, microblogs, chats, and more.
+
+If I search for "Which books mention Rue Saint-Jacques in Paris?" I'll get a
+mixed bag of answers, some good some irrelevant. I will have the complete list
+soon, but from the books I have parsed this location is mentioned in the Count
+of Monte Cristo.
+
+Nothing so far on the North Pole. Stay tuned.
+
+=head2 Finding Where in What
+
+People keep reporting on what they do and sometimes we need to know where.
+
+Knowing for certain, now that is a problem nobody quite knows how to solve. That
+includes me. For that I have a probabilistic model that computes a 'confidence
+score' which takes values between 0 and 1, with 1 being the highest confidence
+score. (The confidence score must be more than 0 for a result to be returned.)
+
+L<Geo::Parser::Text> is just an interface. The NLP module behind geocode.xyz
+does the heavy lifting.
+
+=head1 A quick overview
+
+  #!perl
+  #!/usr/bin/perl
+  use strict;
+
+  use Geo::Parser::Text;
+  use Data::Dumper;
+  my $g = Geo::Parser::Text->new('http://geocode.xyz');
+
+  my $str = <<'TEXT';
+  "Why, my dear boy, when a man has been proscribed by the mountaineers,
+  has escaped from Paris in a hay-cart, been hunted over the plains of
+  Bordeaux by Robespierre's bloodhounds, he becomes accustomed to most things.
+  But go on, what about the club in the Rue Saint-Jacques?"
+  "Why, they induced General Quesnel to go there, and General Quesnel, who
+  quitted his own house at nine o'clock in the evening, was found the nextday
+  in the Seine."
+  TEXT
+
+  # context aware parsing (may be slower)
+  my $ref = $g->geocode(scantext=>$str);
+  print Dumper $ref;
+
+And the response comes out as:
+
+  #!perl
+  $VAR1 = {
+          'match' => {
+                     'longt' => '2.343',
+                     'confidence' => '0.7',
+                     'MentionIndices' => '258,89,84',
+                     'latt' => '48.8463',
+                     'location' => 'RUE SAINT-JACQUES, PARIS, FR'
+                   }
+        };
+
+This response provides latitude and longitude (latt, longt), the confidence
+score (0.7 in this case), where in text the match was made (MentionIndices) and
+the location.
+
+There is only one location returned in this example (strict mode is default). It
+could however match many more in C<nostrict> mode:
+
+  #!perl
+  my $ref = $g->geocode(scantext=>$str,nostrict => 1);
+
+The ambiguity rich response might be:
+
+  #!perl
+  $VAR1 = {
+          'match' => [
+                     {
+                       'confidence' => '1',
+                       'MentionIndices' => '142,84',
+                       'latt' => '44.84122467294317',
+                       'longt' => '-0.5819759504279641',
+                       'location' => 'Bordeaux, FR'
+                     },
+                     {
+                       'confidence' => '0.9',
+                       'longt' => '2.321780662038148',
+                       'location' => 'Paris, FR',
+                       'latt' => '48.8585406663244',
+                       'MentionIndices' => '89,84'
+                     },
+                     {
+                       'MentionIndices' => '89,131',
+                       'location' => 'Paris, PL',
+                       'longt' => '18.623269999999998',
+                       'latt' => '53.01594',
+                       'confidence' => '0.2'
+                     },
+                     {
+                       'longt' => '13.6377402411685',
+                       'latt' => '50.50466656250016',
+                       'location' => 'most, CZ',
+                       'MentionIndices' => '206',
+                       'confidence' => '0.15'
+                     },
+                     {
+                       'confidence' => '0.1',
+                       'MentionIndices' => '206,9',
+                       'latt' => '51.767255',
+                       'longt' => '12.27308',
+                       'location' => 'most, DE'
+                     },
+                     {
+                       'confidence' => '0.1',
+                       'MentionIndices' => '206',
+                       'longt' => '15.14741',
+                       'location' => 'most, SI',
+                       'latt' => '45.96118'
+                     },
+                     {
+                       'confidence' => '0.05',
+                       'MentionIndices' => '104,340',
+                       'longt' => '11.93452',
+                       'latt' => '46.04092',
+                       'location' => 'cart, IT'
+                     },
+                     {
+                       'MentionIndices' => '122',
+                       'latt' => '52.69396936842102',
+                       'longt' => '-1.2728069473684216',
+                       'location' => 'over, UK',
+                       'confidence' => '0.05'
+                     },
+                     {
+                       'confidence' => '0.05',
+                       'MentionIndices' => '34',
+                       'longt' => '7.42547',
+                       'latt' => '46.94972',
+                       'location' => 'been, CH'
+                     },
+                     {
+                       'confidence' => '0.05',
+                       'MentionIndices' => '131',
+                       'location' => 'plains, UK',
+                       'longt' => '-3.9319304347826085',
+                       'latt' => '55.88144239130435'
+                     },
+                     {
+                       'MentionIndices' => '363,76',
+                       'longt' => '-8.851603846153846',
+                       'latt' => '42.67637230769231',
+                       'location' => 'nine, ES',
+                       'confidence' => '0.05'
+                     },
+                     {
+                       'location' => 'nine, PT',
+                       'longt' => '-8.54254',
+                       'latt' => '41.47052',
+                       'MentionIndices' => '363',
+                       'confidence' => '0.05'
+                     },
+                     {
+                       'MentionIndices' => '84',
+                       'longt' => '-2.32211',
+                       'location' => 'from, UK',
+                       'latt' => '51.22834',
+                       'confidence' => '0.05'
+                     },
+                     {
+                       'MentionIndices' => '246,340',
+                       'longt' => '11.50476',
+                       'latt' => '44.58116',
+                       'location' => 'club, IT',
+                       'confidence' => '0.05'
+                     }
+                   ]
+        };
+
+But then again, that's probably not what you want. (did you notice there is a
+town named "club" in Italy? Or a city named "From" in the UK? Is that where you
+are from?)
+
+I want no ambiguity. So I've made strict mode the default, but if you must
+insist, pass a parameter named C<nostrict.>
+
+=head1 Geocoding
+
+And if I want only one result (geocoding is just a specific case of geoparsing)
+try:
+
+  #!perl
+  my $ref = $g->geocode(locate=>$str);
+
+So a geocoding answer comes back with a bit more info on the location:
+
+  #!perl
+  $VAR1 = {
+          'latt' => '48.84630',
+          'longt' => '2.34300',
+          'standard' => {
+                        'prov' => 'FR',
+                        'city' => 'Paris',
+                        'addresst' => 'RUE SAINT JACQUES',
+                        'confidence' => '0.10',
+                        'postal' => '75005'
+                      }
+        };
+
+It gives you a breakdown of the elements (street, city, country) and sometimes
+provides the post code.
+
+This is probably what you want to do when you want to parse locations out of
+short text or twitter feeds. Or if you want to parse out locations out of
+Santa's letters.
+
+=head1 Batch Geocoding
+
+As exciting as geoparsing and geocoding are, nothing is more useful than batch
+geocoding. Just supply a file of locations (one per line) and get those
+locations plotted on a map.
+
+Santa gets a lot of letters, such as L<this one|http://cuyahogafallshistory.com/2014/12/1930s-dear-santa-claus/>
+
+  Dear Santa,
+
+  I am a little boy, six years old and I go to school. Please bring me a
+  motor boat, a gun, a go and stop sign, a tractor, football, pair of
+  roller skates, scooter, and house slippers and oranges and nuts. I am
+  a real good little boy. Your little friend,
+
+  Junior Hall - 1084 Stroman Ave Akron, O
+
+Suppose Santa keeps a text file of all these letters. All it needs to do is
+upload the file on a batch geocoding service to see where they come from.
+
+  Junior Hall - 1084 Stroman Ave Akron
+  Bobbie Mitchell - RFD1 Cuyahoga Falls
+  3057 W. Bailey Road
+  ... etc
+
+Save them on a text file, say letters.txt, then use this bash one liner to batch
+geocode them (If Santa knows Perl, I bet he also knows Bash)
+
+  #!/bin/bash
+  while IFS='' read -r line || [[ -n "$line" ]]; do
+      echo $line,`curl -X POST -d locate="$line" -d geoit="csv" https://geocoder.ca`;
+  done < "$1"
+
+Save this bash file as locate.sh then 
+
+  chmod a+rx locate.sh
+  ./locate.sh letters.txt>letters.txt.out
+
+And, there you go:
+
+  cat letters.txt.out
+  Junior Hall - 1084 Stroman Ave Akron,200,0.8,41.050184,-81.488269
+  Bobbie Mitchell - RFD1 Cuyahoga Falls,200,0.6,41.15102692522035,-81.4960373662322
+  3057 W. Bailey Road,200,0.5,43.50055337491875,-92.59065981245
+
+With Maps Thunderforest, Data OpenStreetMap contributors, Santa can visualize
+the results on a map:
+
+=for html
+  <center><img src="kids.jpg" width="284" height="331"/></center>
+
+=for html
+  <center><img src="map.png" width="284" height="331"/></center>
+
+=head1 LIMITATIONS
+
+It may be slow sometimes, I've squizzed geocode.xyz into a small t1.micro AWS
+server (which is free) with 1G of RAM and 1vCPU (YES Perl runs reasonably fast
+on that). There is no rate limiting or throttling either, so that may be a
+factor too (depending on how people are abusing the API.) If that does not cut
+it for you, get your own server on AWS with the provided server image. (I
+suspect a P2 GPU instance will perform quite well)
+
+Also, geocode.xyz is limited to about 50 European countries. geocoder.ca covers
+North America.
+
+=head2 FUTURE PLANS
+
+The day of a geoparser with worldwide coverage is not far. There is a pretty
+good chance that will happen before the New Year with a high confidence score.
+Could be one of Santa's gifts along with a faster server to run it on.
+
+And, That's where it's at!
+
+=head1 SEE ALSO
+
+* L<Geo::Coder::OpenCage>
+* L<Text::NLP>
+* L<Geocode.xyz|https://geocode.xyz>
+* L<Geocoder.ca|https://geocoder.ca>
+
+
+=cut

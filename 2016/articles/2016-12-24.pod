@@ -1,0 +1,330 @@
+Title: The Grinch's Well-Tested Second Attempt
+Topic: Test2 Tooling
+Author: Dave Rolsky <autarch@urth.org>
+
+The Grinch's earlier attempt to steal Christmas failed. This was documented by
+Dr. Seuss (PhD, Rhymeology) many years ago. However, Seuss's account, while
+correct insofar as it went, does not tell the full story. While The Grinch's
+heart did grow three sizes, the effect was temporary. It has now returned to
+its prior (two sizes too small) size, and The Grinch is determined to steal
+Christmas properly this time.
+
+This time, however, The Grinch is much better armed. The Grinch is going to
+steal Christmas using modern tools, and he's hired me to help him!
+
+=head2 l33t hax0r 7oolz
+
+With so much commerce taking place online these days, it's natural to focus on
+stealing Christmas by hacking. Why steal all the presents by hand when he can
+simply divert the shipments to him directly? It's simpler and more elegant.
+
+So The Grinch and I have been working on a suite of cybercrime tools. The
+target is the online mega-retailer Nile.com. We're following good OO design
+principles, and we've broken up these tools up into well-defined
+components. Each component is a stage in the hacking process, with the
+ultimate goal being to divert all orders for children's presents to The
+Grinch.
+
+We'll take a look at the C<Grinch::Netfiltrator> class, which implements the
+logic necessary to break into the Nile.com internal network, where additional
+tools can then be deployed.
+
+=head2 Testing with Test2::Suite
+
+We want to make sure this all works. After all, you only get one chance each
+year to steal Christmas. That means writing tests for all of our code. We're
+using L<Test2::Suite>, which provides a rich set of tools for testing data
+structures, objects, and more. Even better, it provides really nice output
+when a test fails.
+
+=head3 Bundles
+
+The L<Test2::Suite> distribution ships with several bundle modules. Each
+bundle exports a set of testing subroutines. The L<Test2::Bundle::More> module
+exports subroutines that are almost a drop-in replacement for L<Test::More>,
+including C<ok>, C<is>, C<like>, C<diag>, etc. The L<Test2::Bundle::Extended>
+module exports even more functions, as well as loading some useful
+plugins. You get all the familiar subroutines like C<ok> and C<is>, plus many
+more.
+
+However, under the hood, familiar subs like C<is> and C<like> are much more
+powerful. These work a lot more like C<cmp_deeply> from L<Test::Deep>. The
+Extended bundle also gives you a lot of special comparison tools, similar to
+what L<Test::Deep> provides. The biggest difference is that with this bundle
+most of the comparisons are defined using a DSL rather than complex data
+structures.
+
+=head3 Writing Some Tests
+
+Let's get back to our hacking tools. We'll start with some tests for
+C<Grinch::Netfiltrator>. It has a method named C<find_nile_servers> that scans
+the entire Internet to find servers owned by Nile. Let's not worry about how
+it does that, we'll just look at the tests for the method's return value.
+
+Our first version of this method returned an array reference of hash
+references. With some mocking in place, the test code looked like this:
+
+    use Test2::Bundle::Extended;
+
+    # Mocking goes here ...
+
+    my $servers = Grinch::Netfiltrator->new->find_nile_servers;
+    is(
+        $servers,
+        array {
+            item hash {
+                field hostname => 'www.nile.com';
+                field ip       => '1.2.3.4';
+                field ssh_port => 443;
+            };
+            item hash {
+                field hostname => 'www2.nile.com';
+                field ip       => '1.2.3.5';
+                field ssh_port => 447;
+            };
+        },
+        'got the expected servers back'
+    );
+
+The subroutines C<array>, C<item>, C<hash>, and C<field> are all exported from
+L<Test2::Bundle::Extended>. We put these all together to declaratively define
+what we expect a complex data structure to look like.
+
+The C<array> sub takes a code reference which provides further details of the
+expected array. Inside that sub, a call to C<item> takes an optional index and
+a value check. If we don't provide an index, it just uses the next index
+(starting at 0).
+
+The value check can be many things. If we give it a plain scalar (including
+C<undef>), we're asking it to check for that literal value. So if we wrote
+C<item 42> we'd be saying that the next item in the arrayref should be the
+value C<42>.
+
+We can also give it a check defined by further calls to subroutines provided
+by C<Test2::Bundle::Extended>. We could write C<item T()>. The C<T> subroutine
+matches any Perlishly true value. Or we could write C<item F()>, where C<F>
+matches any Perlishly false value.
+
+In our case, we're using C<hash> to define the hash we expect to see. Just
+like with C<array>, the C<hash> sub takes a coderef that defines the hash
+contents. We use C<field> to name each of the fields we expect to see, along
+with their values. The values are just like those passed to C<item>. They can
+be literals, checks exported by the bundle, or even complex validators that
+you define on the fly.
+
+So what happens if a check fails? The L<Test2::Suite> tools give us very
+detailed information on the failure:
+
+    # Failed test 'got the expected servers back'
+    # at t/netfiltrator.t line 46.
+    # +---------+------------------+----+---------+--------+
+    # | PATH    | GOT              | OP | CHECK   | LNs    |
+    # +---------+------------------+----+---------+--------+
+    # |         | ARRAY(0x1502660) |    | <ARRAY> | 38, 45 |
+    # | [1]     | HASH(0x18c12b0)  |    | <HASH>  | 44     |
+    # | [1]{ip} | 1.2.3.5          | eq | 1.2.3.6 | 42     |
+    # +---------+------------------+----+---------+--------+
+
+We can see that the diagnostics show the exact path to the failure, including
+the checks that succeeded before the failure, the failed check, and the lines
+where all of these things were defined. This makes debugging test failures
+I<much> easier!
+
+In this particular case we can see that the C<< $servers->[1]{ip} >> contains
+the value "1.2.3.5" when we expected "1.2.3.6". The failing check was defined
+at line 42 in our test file.
+
+But there's something missing here. What if one of the hashes has other,
+unexpected keys? And what if the arrayref being returned has more than the two
+elements we're testing?  Right now we won't catch that at all. That's no
+good. In fact, L<Test2::Suite> will warn you about this and suggest some ways
+to fix it.
+
+In our case we want to fix this by adding calls to C<end> in the appropriate
+spots:
+
+    is(
+        $servers,
+        array {
+            item hash {
+                field hostname => 'www.nile.com';
+                field ip       => '1.2.3.4';
+                field ssh_port => 443;
+                end();
+            };
+            item hash {
+                field hostname => 'www2.nile.com';
+                field ip       => '1.2.3.5';
+                field ssh_port => 447;
+                end();
+            };
+            end();
+        },
+        'got the expected servers back'
+    );
+
+The C<end> subroutine can be used inside the C<array> and C<hash> subs to say
+that we only expect the defined fields or items, not more. And if that fails
+we get this:
+
+    # Failed test 'got the expected servers back'
+    # at t/netfiltrator.t line 67.
+    # +---------------+------------------+---------+------------------+--------+
+    # | PATH          | GOT              | OP      | CHECK            | LNs    |
+    # +---------------+------------------+---------+------------------+--------+
+    # |               | ARRAY(0x17b3670) |         | <ARRAY>          | 57, 66 |
+    # | [1]           | HASH(0x1b722a0)  |         | <HASH>           | 64     |
+    # | [1]{username} | admin            | !exists | <DOES NOT EXIST> |        |
+    # +---------------+------------------+---------+------------------+--------+
+
+So we can see that the C<< $servers->[1] >> hashref contains a C<username> key
+that we did not expect.
+
+=head3 I Object, Mr. Grinch
+
+I wasn't really happy with the way this class returns raw data structures. It
+was obvious that these data structures would be better off as objects. That
+way we could hack each server simply by writing C<< $server->hack >>. Simple
+and elegant! I talked to The Grinch and he agreed. Once I'd implemented that
+change I needed to update the tests as well. Fortunately, L<Test2::Suite> has
+tools for testing objects as well. Here's what our test looks like now:
+
+    is(
+        $servers,
+        array {
+            item object {
+                prop blessed  => 'Grinch::Server';
+                call hostname => 'www.nile.com';
+                call ip       => '1.2.3.4';
+                call ssh_port => 443;
+            };
+            item object {
+                prop blessed  => 'Grinch::Server';
+                call hostname => 'www2.nile.com';
+                call ip       => '1.2.3.5';
+                call ssh_port => 446;
+            };
+            end();
+        },
+        'got the expected servers back'
+    );
+
+We've replaced our use of C<hash> with C<object>. Inside the sub we pass to
+C<object>, we can call a number of other subs, including C<prop> and
+C<call>. The C<prop> sub is used to check meta-information about the
+object. We're checking what class it's blessed into here. The C<call> sub
+calls the named method and looks for the named result.
+
+And here's another example of what the failure diagnostics look like:
+
+    # Failed test 'got the expected servers back'
+    # at t/netfiltrator.t line 108.
+    # +---------------+--------------------------------+----+------------------------+---------+
+    # | PATH          | GOT                            | OP | CHECK                  | LNs     |
+    # +---------------+--------------------------------+----+------------------------+---------+
+    # |               | ARRAY(0xf49560)                |    | <ARRAY>                | 98, 107 |
+    # | [1]           | Grinch::Server=HASH(0x1481708) |    | <OBJECT>               | 105     |
+    # | [1] <blessed> | Grinch::Server                 | eq | Grinch::Server::Hacked | 101     |
+    # +---------------+--------------------------------+----+------------------------+---------+
+
+This tells us that our second object was expected to be a
+C<Grinch::Server::Hacked> object but is instead just a C<Grinch::Server>.
+
+=head3 Shorthand for Common Cases
+
+For simple cases involving array and hash reference values, you don't need to
+write everything out using C<array> and C<hash>. Let's assume that our
+C<ssh_port> method from above returns an arrayref. We can check that like:
+
+    call ssh_port => [ 443, 444 ];
+
+Rather than writing this out with C<array>, we can just use a literal array
+reference that contains the expected value. You can do the same thing with a
+hash ref. If the check fails, we get output that looks like this:
+
+    # Failed test 'got the expected servers back'
+    # at t/netfiltrator.t line 144.
+    # +----------------------+--------------------------------+----+------------------------+----------+
+    # | PATH                 | GOT                            | OP | CHECK                  | LNs      |
+    # +----------------------+--------------------------------+----+------------------------+----------+
+    # |                      | ARRAY(0x1385598)               |    | <ARRAY>                | 134, 143 |
+    # | [1]                  | Grinch::Server=HASH(0x1743e18) |    | <OBJECT>               | 141      |
+    # | [1] <blessed>        | Grinch::Server                 | eq | Grinch::Server::Hacked | 137      |
+    # | [1]->ssh_port()->[4] | <DOES NOT EXIST>               |    | 447                    |          |
+    # +----------------------+--------------------------------+----+------------------------+----------+
+
+If our method returns a list rather than an arrayref, that's easy to handle as
+well:
+
+    call_list ssh_ports => [ 443, 444 ];
+
+The C<call_list> sub calls the method in list context, turns the return value
+into an arrayref, and compares it to the right hand side value. There is a
+hash version as well called C<call_hash>.
+
+=head3 Regex Checks
+
+Maybe we don't want to check for a specific hostname. Instead, let's just
+check that this is any valid hostname. There is, of course, a module to do
+that, but for the sake of example we'll whip up a quick regex:
+
+    call hostname => matches qr/\A\w+(?:\.\w+)+\z/;
+
+If the regex check fails we get output that looks like this:
+
+    # Failed test 'got the expected servers back'
+    # at t/netfiltrator.t line 184.
+    # +-----------------+--------------------------------+----+------------------------+----------+
+    # | PATH            | GOT                            | OP | CHECK                  | LNs      |
+    # +-----------------+--------------------------------+----+------------------------+----------+
+    # |                 | ARRAY(0x11f7598)               |    | <ARRAY>                | 174, 183 |
+    # | [1]             | Grinch::Server=HASH(0x16fe418) |    | <OBJECT>               | 181      |
+    # | [1]->hostname() | www2.nile.com!@$!@             | =~ | (?^:\A\w+(?:\.\w+)+\z) | 178      |
+    # +-----------------+--------------------------------+----+------------------------+----------+
+
+=head3 Arbitrary Checks
+
+That regex is terrible. Let's use L<Data::Validate::Domain> instead. We can
+wrap its C<is_hostname> sub to provide much better hostname checking:
+
+    use Data::Validate::Domain qw( is_hostname );
+    my $hostname_check = validator( is_hostname => sub { is_hostname($_) } );
+
+    ...
+    call hostname => $hostname_check;
+
+The C<validator> sub call can take a number of forms. In this case we've given
+it a name (used in diagnostic output) and a subroutine that implements the
+check, returning true or false based on the value in C<$_>.
+
+If that validator fails we get output that looks like this:
+
+    # Failed test 'got the expected servers back'
+    # at t/netfiltrator.t line 207.
+    # +-----------------+--------------------------------+-----------+-------------+----------+
+    # | PATH            | GOT                            | OP        | CHECK       | LNs      |
+    # +-----------------+--------------------------------+-----------+-------------+----------+
+    # |                 | ARRAY(0x2a8c670)               |           | <ARRAY>     | 197, 206 |
+    # | [1]             | Grinch::Server=HASH(0x2f82638) |           | <OBJECT>    | 204      |
+    # | [1]->hostname() | www2.nile.com!@$!@             | CODE(...) | is_hostname | 188      |
+    # +-----------------+--------------------------------+-----------+-------------+----------+
+
+=head2 More Tools
+
+This is just a small sample of the test comparisons supported by
+L<Test2::Suite>. This distribution has a variety of helpers for checking
+definedness, whether elements of arrays and hashes exist or not, and much,
+much more. And you can extend it simply by writing your own class which
+inherits from L<Test2::Compare::Base>.
+
+My experience when using L<Test2::Suite> to test The Grinch's hacking tools
+has been great. The expressive declarative testing syntax, combined with the
+excellent output on failures, has helped me find and fix dozens of bugs. I
+think that The Grinch is going to steal Christmas in a big way this year!
+
+=head2 References
+
+To see the actual test code, go to
+L<https://github.com/autarch/perl-advent-calendar-2016-test2>. You can fiddle
+with the mocked values to produce different kinds of failure output if you're
+curious.
