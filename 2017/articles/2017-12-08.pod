@@ -1,0 +1,238 @@
+Title: Constantly Merry
+Topic: Const::Fast
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+One of the marks of a good code is that you're aware of what can change and what
+will not.
+
+For example some things are destined to change:
+
+    #!perl
+    my $mince_pies_eaten = 0;
+    $mince_pies_eaten++;  # yum!
+    $mince_pies_eaten++;  # yum! yum!
+
+And some things are not:
+
+    #!perl
+    my $WISE_MEN = 3;
+
+It's good practice for your language to prevent you altering constants.  Ideally
+if you accidentally did:
+
+    #!perl
+    $WISE_MEN++;
+
+You'd want Perl to throw an exception.  And you can easily make Perl do that
+with a little help from a module on the CPAN:
+
+    #!per
+    use Const::Fast;
+
+    const my $WISE_MEN => 3;
+
+    say "There are $WISE_MEN wise men";
+
+    $WISE_MEN++;
+
+Results in:
+
+    There are 3 wise men
+    Modification of a read-only value attempted at - line 7.
+
+The const keyword preceeding the C<my> causes the I<variable> that C<my> refers
+to to be marked read-only and causes perl to throw a run-time exception if
+anything tries to alter it.
+
+=head1 Other constant techniques that don't work as well
+
+There have been several techniques for constants in Perl that you might
+have heard of, and it's probably best to understand why we shouldn't use them
+in modern, well maintained code.
+
+=head2 The Inlined Subroutine Trick
+
+If you write a subroutine that returns a simple value:
+
+    #!perl
+    sub WISE_MEN() { return 3 }
+
+Then that subroutine will be I<inlined> when perl compiles your code.  This
+means that:
+
+    use Lingua::EN::Numbers::Ordinate qw( ordinate );
+
+    sub WISE_MEN() { 3 }
+
+    for (1..WISE_MEN) {
+        say "Getting gift from ".ordinate($_)." wise man";
+    }
+
+Doesn't end up calling C<WISE_MEN> from the Perl statement at all - perl is
+clever enough to substitute a scalar for C<3> directly into the compiled op code
+removing the subroutine call at all.  Let's run it through the
+compiler/decompiler to see the code equivalent to what perl sees once everything
+has been compiled:
+
+    shell$ perl -Mfeature=say -MO=Deparse script.pl
+    sub WISE_MEN () {
+        3;
+    }
+    use Lingua::EN::Numbers::Ordinate ('ordinate');
+    use feature 'say';
+    foreach $_ (1 .. 3) {
+        say 'Getting gift from ' . &ordinate($_) . ' wise man';
+    }
+
+Note the C<WISE_MEN> in the for loop has gone!
+
+This I<seems> ideal, but there are some big problems:
+
+=head3 Prototypes
+
+In order that I can write C<WISE_MEN> not C<WISE_MEN()> I need to declare
+the subroutine with a prototype, i.e. I need to write:
+
+    #!perl
+    sub WISE_MEN() { 3 }
+
+With the C<()> indicates that no arguments are needed and the call to the
+subroutine can be written without brackets.  However, this syntax is
+incompatible with the new experimental subroutine signatures feature recent
+versions of perl offer. Once enabled the same syntax would introduce run-time
+parameter checking and would result in a bare call to C<WISE_MEN> without the
+trailing brackets causing an exception.  Our subroutine instead would have to be
+written as:
+
+    #!perl
+    sub WISE_MEN() :prototype() { 3 }
+
+Which is even less readable than before.
+
+=head3 Only Simple Things
+
+Consider this misguided attempt to create I<constants>:
+
+    #!perl
+    use Lingua::EN::Numbers::Ordinate ('ordinate');
+
+    sub MONTH_OF_XMAS() { ordinate(25) };  # 25th
+    sub DATE_OF_XMAS()  { ordinate(12) };  # 12th
+
+    print 'On the '.DATE_OF_XMAS.' day of the '.MONTH_OF_XMAS.' month...';
+
+The value isn't simple enough and perl won't inline it, meaning that not only
+does our constant result in a subroutine call each time it's called, but it also
+that results in a call to C<ordinate> each time.
+
+=head2 Using C<use constant>;
+
+The solution to each of these is to use a core module called C<constant>
+
+    #!perl
+    use Lingua::EN::Numbers::Ordinate ('ordinate');
+
+    use constant MONTH_OF_XMAS => ordinate(25);
+    use constant DATE_OF_XMAS  => ordinate(12);
+
+    print 'On the '.DATE_OF_XMAS.' day of the '.MONTH_OF_XMAS.' month...';
+
+This declaration creates a simple subroutine that returns whatever value you
+passed to the call to C<use constant>.  Running this through the parser/deparser
+shows us that things have been helpfully simplified:
+
+    shell$ perl -MO=Deparse script.pl
+    use Lingua::EN::Numbers::Ordinate ('ordinate');
+    use constant ('MONTH_OF_XMAS', &ordinate(25));
+    use constant ('DATE_OF_XMAS', &ordinate(12));
+    print 'On the 12th day of the 25th month...';
+
+However, there's a couple of problems with this technique
+
+=head3 No interpolation
+
+Ideally instead of writing:
+
+    #!perl
+    print 'On the '.DATE_OF_XMAS.' day of the '.MONTH_OF_XMAS.' month...';
+
+We'd love it if we could just write:
+
+    #!perl
+    print "On the $DATE_OF_XMAS day of the $MONTH_OF_XMAS month...';
+
+=head3 Doesn't Play Nice With Hash Keys
+
+Worse, these constants can't be used in situations where Perl would normally
+automatically quote values for you.
+
+Consider this code:
+
+    use constant WISE1 => 'Melchior';
+    use constant WISE2 => 'Caspar';
+    use constant WISE3 => 'Balthazar'
+
+    my %gifts = (
+        WISE1 => 'Gold',
+        WISE2 => 'Frankenstein',
+        WISE3 => 'Muwhur?',
+    );
+
+    print $gifts{Balthazar};  # doesn't work as we'd expect
+
+The fat comma (aka the C<< => >>) causes WISE1 to be the literal string
+C<WISE1> not C<Melchior> as we'd expected.  We need to write this as:
+
+    my %gifts = (
+        WISE1() => 'Gold',
+        WISE2() => 'Frankenstein',
+        WISE3() => 'Muwhur?',
+    );
+
+The same is true for the hash keys.
+
+    # WRONG
+    my $ag = $gifts{WISE1};
+
+    # RIGHT
+    my $shelly = $gifts{WISE2()};
+
+=head1 Const::Fast
+
+Const::Fast relies on perl's in-build internal read-only support to make normal
+variables read-only.  This means a variable that Const::Fast has marked as a
+constant can still be used just like any other variable - interpolated into
+strings, used as hash keys - except it cannot be altered because it has the
+read-only flag set.
+
+This read-only functionality isn't provided by Const::Fast - it's just using the
+same mechanism perl uses internally to stop you altering literals in your
+source code.  For example consider what happens if you write a subroutine that
+alters its arguments but instead of passing in a variable you pass in a literal
+string:
+
+    #!perl
+    sub shorten {
+        $_[0] =~ s/Christmas/Xmas/;
+    }
+
+    # this works fine
+    my $string = 'Merry Christmas';
+    shorten($string);
+
+    # this gives the error
+    # Modification of a read-only value attempted at - line 4.
+    shorten('Merry Christmas');
+
+Internally perl uses the same sort of representation for the variable C<$string>
+and the literal string we're passing to C<shorten>, but the latter has a flag
+set on it to mark it as read only.  Const::Fast enables the same flag on
+variables that you create with C<const> meaning this acts in the same way:
+
+    #!perl
+    # this also gives the error
+    # Modification of a read-only value attempted at - line 4.
+    const my $string => 'Merry Christmas';
+    shorten($string);
+
+

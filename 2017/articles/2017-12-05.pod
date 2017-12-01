@@ -1,0 +1,106 @@
+Title: Santa Baby(cart)
+Topic: The Babycart Operator
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Pinecone Candypears was one of the Elves that the Wise Old Elf had wisely
+brought on to help with the JavaScript toolchain that was becoming an integral
+part of the new modern North Pole Intranet software.  Pinecone wasn't producing
+the kind of JavaScript the Wise old elf had started out with back in the day
+with ye olde C<onclick> handlers; Oh no, this modern JavaScript was a serious
+programming.
+
+"You see", Pinecone was elaborating, "these days in our stack we program in ES6
+- modern JavaScript - that's cross compiled with these yarn plugins to turn it
+into more compatible JavaScript that your dumb browser can run.  This allows us
+to do some pretty funky stuff."
+
+Just to demonstrate Pinecone typed some code into his editor and hit save:
+
+    const countMessage = `There are {presents} left in the sack`
+
+In the background C<yarn> noticed the file was changed and produced a file that
+worked in the browser.
+
+"Don't you see", Pinecone continued gleefully, "with the new backtick string
+notation we can stick variables directly into our strings."
+
+"You've been able to do that since forever in Perl just with doublequotes", the
+wise old Elf smiled.
+
+   #!perl
+   my $count_message = "There are $presents left in the sack";
+
+"Ah", Pinecone countered, "but what about a method call?"
+
+    const countMessage = `There are { sack.presents() } left in the sack`
+
+"Well, that's a little different", the Wise Old Elf admitted, "But there is a
+way"
+
+=head2 Introducing the Babycart Operator
+
+In Perl it's possible to put executable code directly in the middle of strings
+with something we like to call the "babycart operator".
+
+    #!perl
+    my $count_message = "There are @{[ $sack->presents ]} left in the sack";
+
+The babycart operator was L<named|https://youtu.be/3SfEsW16sAg?t=577>
+by Philippe Bruhat (BooK) after a series of L<Japanese films|http://www.imdb.com/title/tt0068816/>
+featuring Samurai and babycarts - the code you're sticking in your string is
+inside the babycart!
+
+=for html
+  <center><img src="babycart.jpg" width="600" height="350" alt="BooK presenting"></center>
+
+It's not really an operator at all, but some clever abuse of several existing
+operators to get what we want.  Consider first of all what happens to arrays
+that are placed in the middle of strings:
+
+    #!perl
+    my @count = ( 6 );
+    my $count_message = "There are @count left in the sack";
+
+All the elements of the array are stringified and interpolated into the string.
+Since there's only one thing in the array, the string above gets turned into
+C<There are 6 left in the sack>.
+
+So what if we use an array reference instead, and use the C<@{ ... }> operator
+to dereference it?
+
+    #!perl
+    my $count = [ 6 ];
+    my $count_message = "There are @{ $count } left in the sack";
+
+Hey, that still works!  Let's put the logic inside the anonymous array:
+
+    #!perl
+    my $count = [ $sack->presents ];
+    my $count_message = "There are @{ $count } left in the sack";
+
+And now finally let's move that logic inside string:
+
+    #!perl
+    my $count_message = "There are @{[ $sack->presents ]} left in the sack";
+
+=head2 But Where Is This Useful?
+
+Even the Wise Old Elf wouldn't recommend using it in the above situation.  It's
+probably better to just write:
+
+    #!perl
+    my $count_message = 'There are '.$sack->presents.' left in the sack';
+
+But consider the heredoc where you can't just do that:
+
+    #!perl
+    sub find_records_over {
+        my $self = shift;
+        my $min  = shift;
+        return $self->database_handle
+                    ->selectall_arrayref(<<~"SQL",{},$min);
+           SELECT id, @{[ $self->fieldname ]}
+             FROM @{[ $self->tablename ]}
+            WHERE @{[ $self->fieldname ]} = ?
+        SQL
+    }

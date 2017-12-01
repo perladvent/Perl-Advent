@@ -1,0 +1,158 @@
+Title: North Pole Safety Precautions
+Topic: Import::Into
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+The Wise Old Elf was pair programming with Noel Cuddlecrackers, one of the newer
+elves to join Santa's merry little band of programmers.
+
+Noel and he had agreed to start work on a really simple script.  Noel opened a
+new file, and the Wise Old Elf watched patiently as Noel typed:
+
+    #!perl
+    use strict;
+    use warnings;
+
+"Pretty good", the Wise Old Elf thought to himself, "at least he's enabling
+strictures to help catch mistakes".  Noel kept typing though...
+
+    #!perl
+    no indirect;
+
+"Excellent, Noel's not allowing calls of the form C<new Foo>" the elder Elf
+thought to himself.  But Noel wasn't done typing...
+
+    #!perl
+    no multidimensional;
+
+"Okay, so Noel's disabling Perl's problematic multi-dimensional array syntax
+that no-one uses since we use arrays containing references to arrays these days"
+the Wise old Elf considered.  But Noel still was typing more things...
+
+    #!perl
+    use autodie qw(:all);
+
+"Now he's avoiding to have to manually check each time if one of Perl's IO
+routines succeeded, and just have them automatically throw an exception".  Noel
+was B<still> typing...
+
+    #!perl
+    use utf8;
+
+"So he's allowing utf-8 encoding in the document so he can type non-ascii
+characters directly into the source" the Wise Old Elf mused.
+
+Noel was still typing.  The Wise Old Elf had to stop him before he became the
+Wise Much Older Elf.
+
+"Noel", he asked, "exactly how much more boilerplate stuff are you going to type
+before we get to work?"
+
+"Not much", the young faced worker replied, with a big grin on his face, "I just
+have to enable a few experimental features, monkey around with the method
+resolution order, and..."
+
+"STOP", the Wise Old Elf firmly interrupted.  "You do realize that we have a
+standard module that we use for our in house stuff that does all of this for us,
+don't you?"  Indeed, it was true.  A few years back the Wise Old Elf had
+monkeyed around with a Perl module called C<Import::Into> that allowed a module
+to import modules into whoever used that module.  This allowed the Wise Old Elf
+to create a standard boilerplate module that they now imported at the start of
+every Perl source file.  Near the top of each file there simply was the line
+
+    #!perl
+    use NorthPole::Ourperl;
+
+And all the source code that Cuddlecrackers wrote (and was going to add) could
+be replaced.  C<Import::Into> is simple to use - you simply call the fully
+qualified method C<import::into> on the package name you want to import into
+whoever uses your module inside the C<import> method:
+
+    #!perl
+    package NorthPole::Ourperl;
+    ...
+
+    sub import {
+        # turn on 'use strict' in whoever does 'use NorthPole::Ourperl'
+        strict->import::into(1);
+        ...
+    }
+
+The full package that the North Pole is currently using looks like this:
+
+    #!perl
+    ## no critic (NamingConventions::Capitalization)
+    package NorthPole::Ourperl;
+    ## use critic (NamingConventions::Capitalization)
+
+    use strict;
+    use warnings;
+
+    our $VERSION = '1.000000';
+
+    use Import::Into;
+
+    # XXX - it'd be nice to include bareword::filehandles but this conflicts with
+    # autodie - see https://rt.cpan.org/Ticket/Display.html?id=93591
+    use autodie 2.25 ();
+    use IPC::System::Simple;    # to fatalize system
+    use experimental     ();
+    use feature          ();
+    use indirect         ();
+    use mro              ();
+    use multidimensional ();
+
+    # This adds the UTF-8 layer on STDIN, STDOUT, STDERR for _everyone_
+    use open qw( :encoding(UTF-8) :std );
+    use utf8 ();
+
+    sub import {
+        my $caller_level = 1;
+
+        strict->import::into($caller_level);
+        warnings->import::into($caller_level);
+
+        my @experiments = qw(
+            lexical_subs
+            postderef
+            signatures
+        );
+        experimental->import::into( $caller_level, @experiments );
+
+        my ($version) = $^V =~ /^v(5\.\d+)/;
+        feature->import::into( $caller_level, ':' . $version );
+        ## no critic (Subroutines::ProhibitCallsToUnexportedSubs)
+        mro::set_mro( scalar caller(), 'c3' );
+        ## use critic
+        utf8->import::into($caller_level);
+
+        indirect->unimport::out_of( $caller_level, ':fatal' );
+        multidimensional->unimport::out_of($caller_level);
+        'open'->import::into( $caller_level, ':encoding(UTF-8)' );
+        autodie->import::into( $caller_level, ':all' );
+    }
+
+    1;
+
+This:
+
+=for html
+    <ul>
+    <li>Enables <code>strict</code></li>
+    <li>Enables <code>warnings</code></li>
+    <li>Turns on the experimental lexical subs feature</li>
+    <li>Turns on the experimental postfix derefencing feature</li>
+    <li>Turns on the experimental signature feature</li>
+    <li>Turns on whatever standard features this version of Perl supports (e.g. say, etc)</li>
+    <li>Sets the method resolution in the module to be <code>c3</code></li>
+    <li>Disables indirect method calls</li>
+    <li>Disables old-style multidimensional array simulation</li>
+    <li>Configures the filehandles to be UTF-8 everwhere</li>
+    <li>Enables autodie for all system calls</li>
+    </ul>
+
+In one line!
+
+=for html
+  <small>Above source code example adapted from <a href="https://metacpan.org/pod/App::GHPT::Wrapper::Ourperl">App::GHPT::Wrapper::Ourperl</a>, Copyright (c) 2017 by MaxMind, Inc, licensed under the The Artistic License 2.0.</small>
+
+
