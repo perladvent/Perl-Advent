@@ -1,0 +1,123 @@
+Title: Here(doc) it is Merry Christmas
+Topic: Modern Heredocs
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+The Wise Old Elf was doing code review for Sloeberry Snoozyflakes, one of the
+newest elves on his team.
+
+Slowberry was writing a simple routine to count the number of nice children
+there were this year, in order to get an estimate of the number of presents
+that Santa would need to deliver.
+
+    #!vim perl
+    sub number_of_children {
+        my $self            = shift;
+        my $naughty_or_nice = shift;
+
+        my $sql = "SELECT count(*)\n" .
+                  "  FROM children\n" .
+                  "  WHER naughty_or_nice = \$1";
+
+        my $dbh = $self->database_handle;
+        return $dbh->selectall_arrayref($sql,{},$naughty_or_nice)->[0];
+    }
+
+"That multi-line sql assignment is a little hard to read.", the Wise Old Elf
+commented. "Could we change it to make it cleaner?"
+
+Slowberry changed his code to use a heredoc:
+
+    #!vim perl
+    sub number_of_children {
+        my $self            = shift;
+        my $naughty_or_nice = shift;
+
+        my $sql = <<END
+           SELECT count(*)
+             FROM children
+             WHER naughty_or_nice = \$1
+    END
+
+        my $dbh = $self->database_handle;
+        return $dbh->selectall_arrayref($sql,{},$naughty_or_nice)->[0];
+    }
+
+"That's better," the elf continued, "but if you'd used C<SQL> as the heredoc
+deliminator rather than than C<TEXT>, then your editor would probably enable
+syntax highlighting, and you'd probably have noticed that you typo-ed C<WHERE>."
+
+    #!vim perl
+    sub number_of_children {
+        my $self            = shift;
+        my $naughty_or_nice = shift;
+
+        my $sql = <<SQL
+           SELECT count(*)
+             FROM children
+            WHERE naughty_or_nice = \$1
+    SQL
+
+        my $dbh = $self->database_handle;
+        return $dbh->selectall_arrayref($sql,{},$naughty_or_nice)->[0];
+    }
+
+"Not bad, but you probably should put single quotes around the first heredoc
+deliminator so you don't have escape that C<$>.  In fact you should always put
+C<"> or C<'> around the heredoc deliminator just to make it clear to whoever
+is reading your code what you actually meant."
+
+    #!vim perl
+    sub number_of_children {
+        my $self            = shift;
+        my $naughty_or_nice = shift;
+
+        my $sql = <<'SQL'
+           SELECT count(*)
+             FROM children
+            WHERE naughty_or_nice = $1
+    SQL
+
+        my $dbh = $self->database_handle;
+        return $dbh->selectall_arrayref($sql,{},$naughty_or_nice)->[0];
+    }
+
+"Pretty good.  The terminating heredoc deliminator looks weird all over there
+on the left hand side, not indented like the rest of the subroutine.  We're
+using Perl 5.26, so we can add a tilde in the heredoc syntax to allow us to
+indent."
+
+    #!vim perl
+    sub number_of_children {
+        my $self            = shift;
+        my $naughty_or_nice = shift;
+
+        my $sql = <<~'SQL'
+           SELECT count(*)
+             FROM children
+            WHERE naughty_or_nice = $1
+        SQL
+
+        my $dbh = $self->database_handle;
+        return $dbh->selectall_arrayref($sql,{},$naughty_or_nice)->[0];
+    }
+
+"That's awesome.  Not that it matters here, but the way this works is that the
+same amount of whitespace that's before the final heredoc terminator is stripped
+from the rest of the heredoc.  Maybe now we could remove some of the variables?"
+
+    #!vim perl
+    sub number_of_children {
+        my $self            = shift;
+        my $naughty_or_nice = shift;
+
+        return $self->database_handle
+                    ->selectall_arrayref(<<~'SQL',{},$naughty_or_nice)->[0];
+           SELECT count(*)
+             FROM children
+            WHERE naughty_or_nice = $1
+        SQL
+    }
+
+"There we go.  Now you just need to add some more tests - that broken C<WHERE>
+from earlier can't have possibly been executed, otherwise we'd have seen a test
+failure - and we're ready to ship..."

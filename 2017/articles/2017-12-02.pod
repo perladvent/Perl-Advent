@@ -1,0 +1,78 @@
+Title: Around the world with Emoji
+Topic: Emoji::NationalFlag
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+It was the night before the night before Christmas, and as one of the best
+programmers on the rapid response team Sherry Silversparkles was in a rush.
+She'd been handed the task of automating the updating of Santa's twitter account
+as he travelled around the world.  The kind of updates she'd been asked to post
+were really simple, as was the code she'd hastely written to do so.
+
+    #!perl
+    use Net::Twitter;
+    use Country::Codes qw( country );
+
+    sub tweet {
+        my $country_code = shift;
+
+        my $country = country($country_code)
+            or die "Unknown country!";
+
+        my $twitter = Net::Twitter->new(
+            username => $user,
+            password => $pass,
+            source   => 'Santa Twitteromatic Two Thousand',
+        );
+
+        $twitter->update("Father Christmas's sleigh is flying to $country");
+        return;
+    }
+
+She submitted her work for acceptance by Elf command.  However, within minutes
+she'd got a report back on the contents of her messages: tl;dr. Apparently
+today's youths wouldn't read more than a couple of words before getting bored
+and going back to checking Instagram.  Elf command had suggested a three glyph
+alternative message:
+
+=for html
+  <center><font size="48">&#127877;&rarr;&#127482;&#127480;</font></center>
+
+"Nothing like changing the specs at the last minute" Sherry mused to herself.
+Now she'd have to work out how to do these changes in a jiffy! Sherry already
+knew how to render the emoji for Santa and that right arrow:
+
+    #!perl
+    print "\N{FATHER CHRISTMAS}\N{RIGHTWARDS ARROW}";
+
+But as hard as she looked in her unicode charts, she couldn't find the character
+for the US flag, nor any for any of the other countries.
+
+After much head scratching, and a relaxing glass of mulled wine, Sherry
+discovered that not all glyphs in Unicode are represened by a single character.
+Some glyphs are made up by combinging one or more characters:
+
+    #!perl
+    print "\N{REGIONAL INDICATOR SYMBOL LETTER U}";
+    print "\N{REGIONAL INDICATOR SYMBOL LETTER S}";
+
+On systems that don't understand how to render flags that simply would display
+as an odd looking C<U> followed by an odd looking C<S> (which hopefully the
+end user would know as the ISO 3166-1 code for the United States).  On more
+capible systems that would be turned into a United States flag emoji.
+
+So, that was simple - sort of - but Sherry still needed some way to turn country
+code that her subroutine was being passed into those corrisponding regional
+indicator characters.  Of course, this being Perl, there was a module for that
+on the CPAN:
+
+    #!perl
+    use Emoji::NationalFlag qw( code2flag );
+
+    ...
+
+    $twitter->update(
+       "\N{FATHER CHRISTMAS}\N{RIGHTWARDS ARROW}" . code2flag( $country_code )
+    );
+
+This time Sherry's changes were accepted, leaving her free to move onto the
+next last minute Christmas programming panic...
