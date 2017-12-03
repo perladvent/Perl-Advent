@@ -1,0 +1,164 @@
+Title: Evaluating the NaughtyNice Formula
+Topic: Eval::Closure
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+As we talked about yesterday, Sugarplum Stripyboughs was developing a system
+where a formula was stored in the database could be used to calculate the
+NaughtyNice Formula for a particular gift for a particular child.  Using
+a recursive regular expression she'd already verified that the formula string
+was valid.  Now she had to work out how to execute it.
+
+=head2 Turning the Formula into Perl Code
+
+One approach to executing the formula might be build some sort of evaluation
+engine in code that could interpret the formula - though this would be quite
+complicated to do and run slowly!  A simpler, and more performant, technique
+would be to transform the formula into Perl code.
+
+Remember, the formula Sugarplum has to execute looks something like this:
+
+  (number_of_tantrums/6)+(age/12*(teeth_brushs_this_year+flosses_this_year))/2
+
+The corresponding Perl code for this would be the following, more or less:
+
+  #!perl
+  my $formula = sub {
+    return ($_[0]{number_of_tantrums} / 6)
+     + ($_[0]{age} / 12 * (
+        $_[0]{teeth_brushs_this_year}+flosses_this_year)
+        )/2
+  }
+
+Which could then be called like so:
+
+  #!perl
+  my $result = $formula->({
+    age => 12,
+    teeth_brushs_this_year => 721,
+    flosses_this_year => 321,
+  });
+
+Turning the validated expression into code is reasonably straight forward - we
+just need to convert the variables in the expression into Perl variables as
+everything else is already valid Perl code.
+
+    #!perl
+    sub build_formula {
+        my $formula = shift;
+
+        # replace foo_bar -> $_[0]{foo_bar}
+        $formula =~ s{([a-z_]+)}{\$_[0]{$1}}g;
+
+        return eval "sub { $formula }" || die $@;
+    }
+
+=head2 Closing over variables
+
+It turns out that several of the variables that the elves over in the Niceness
+Assurance Department wanted to use in the formula weren't related to the child
+at all, but things like the value of the gift and number left in stock are
+instead related to database attributes for that gift, and they need to pass
+these values in at the time the formula is compiled.
+
+"Hmm," thought Sugarplum Stripyboughs to herself, "How can I do that?"  She
+decided to extend the previous grammar to allow uppercase constants.
+
+    #!perl
+    my $string = 'good_deeds/GIFT_VALUE*STOCK';
+
+    my $playing_cards = build_formula(
+        $string,
+        gift_value => 2,
+        stock      => 100,
+    );
+
+    my $real_elephant = build_formula(
+        $string,
+        gift_value => 10_000,
+        stock      => 1,
+    );
+
+Now all she had to do was rewrite her conversions regular expressions to allow
+upper case variables to be used in the calculation.
+
+  sub build_formula {
+      my $formula = shift;
+      my %args    = @_;
+
+      my $GIFT_VALUE = $args{gift_value};
+      my $STOCK      = $args{stock};
+
+      # replace FOO_BAR -> $FOO_BAR
+      $formula =~ s{([A-Z][A-Z_]*)}{\$$1}g;
+
+      # replace foo_bar -> $_[0]{foo_bar}
+      $formula =~ s{([a-z][a-z_]*)}{\$_[0]{$1}}g;
+
+      return eval "sub { $formula }" || die $@;
+  }
+
+Sugarplum was taking advantage of the way perl's memory management works to
+I<close over> the constants in the subroutine.  Each subroutine reference that
+C<build_formula>'s C<eval> creates I<sees> the particular version of
+C<$GIFT_VALUE> and C<$STOCK> that was assigned in that subroutine only and
+I<closes over> them retaining their value.
+
+She deployed the updated code and started happily working on the next story in
+the backlog.
+
+=head2 The Mistake, and a Solution
+
+When Sugarplum got back to work early the next data she discovered that one of
+the elves in the Niceness Assurance Department had created a ticket.
+
+    Value for COST is wrong
+
+Wait, what?  There was no C<$COST> variable in this subroutine!  After staring
+at her editor for a few minutes she was stumped.  In a last ditch effort she
+tried searching for the string.  And then she found it....at the top of the
+file, in a totally unrelated part of the code
+
+    # boolean to enable/disable cost tracking functionality
+    const my $COST => 1;
+
+Ooooh, that's right.  The C<eval> will close over I<any> variable that's in
+scope, including those we don't want it to, letting anyone use anything from
+anywhere despite it having nothing to do with the formula calculations.  What
+Sugarplum needed was a way to convince Perl which variables she wanted, and
+which she didn't.
+
+Enter L<Eval::Closure> from the CPAN.
+
+  #!perl
+  sub build_formula {
+      my $formula = shift;
+      my %args    = @_;
+
+      # replace FOO_BAR -> $FOO_BAR
+      $formula =~ s{([A-Z][A-Z_]*)}{\$$1}g;
+
+      # replace foo_bar -> $_[0]{foo_bar}
+      $formula =~ s{([a-z][a-z_]*)}{\$_[0]{$1}}g;
+
+      return eval_closure(
+          source => "sub { $formula }",
+          environment => {
+              '$GIFT_VALUE' => \$args{gift_value},
+              '$STOCK'      => \$args{stock},
+          },
+      );
+  }
+
+Eval::Closure lets us control exactly what variables the code we compile has
+access to!  Passing in an invalid formula like:
+
+  age/COST
+
+Results in a proper error being thrown even when a C<$COST> is in scope
+
+  Failed to compile source: Global symbol "$COST" requires explicit
+  package name (did you forget to declare "my $COST"?) at (eval 5) line 5.
+
+That bug was fixed!  Now all Sugarplum had left to do was head down to the
+Niceness Assurance Department to inquire exactly what they expected C<COST> to
+do....
