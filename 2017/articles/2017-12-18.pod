@@ -1,0 +1,208 @@
+Title: Project Multipli-sleigh-ion
+Topic: MooseX::ClassAttribute
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Project Multipli-sleigh-ion was the last, great hope for the North Pole to cope
+with the ever increasing child population.  More children equaled more presents
+that had to be loaded on the sleigh and it was getting out of hand.
+Multipli-sleigh-ion was going to address this by replacing the vertical scaling
+- ever more powerful magic to fit everything in one sack - with horizontal
+scaling - lots of sacks of presents stashed at strategic locations around the
+globe for Santa to pick up en-route.
+
+Rustic Starpie had been put in charge of writing modeling code to test the
+feasibility of this approach.  In his model code each class of present consumed
+one common role C<Present>, and in doing so was required to implement the
+C<ideal_sack> method.
+
+    #!perl
+    package Present;
+    use Moose::Role;
+
+    requires 'ideal_sack', 'name';
+
+    sub put_in_sack {
+        my $self = shift;
+        my @sacks = @_;
+
+        my $ideal_sack = $self->ideal_sack( @sacks );
+        unless ($ideal_sack->full) {
+            $ideal_sack->add_present( $self );
+            return;
+        }
+
+        die "Modeling failed, can't fit "
+              . $self->name .
+            ' into sack '
+              . $ideal_sack->name
+    }
+
+    ...
+
+
+The C<ideal_sack> code was implemented differently in each class that
+consumed the C<Present> role, but each implementation ultimately decided which
+of the passed sack objects it should put itself in.  For example, the figgy
+puddings were for the English children, so they always went into the English
+sack
+
+    #!perl
+    package FiggyPuddingPresent;
+
+    use Moose;
+    with 'Present';
+
+    use List::Util qw( first );
+
+    sub name { 'Figgy Pudding' }
+
+    sub ideal_sack {
+        my $self = shift;
+        my @sacks = @_;
+
+        my $ideal_sack = first { $_->name eq 'London, UK'} @sacks;
+        return $ideal_sack;
+    }
+
+    ...
+
+The problem Rustic was having with his code is that, well, it wasn't always
+doing what it was supposed to in all cases.  So he decided to add some
+debugging in the Present role to print out which sack everything was going
+to go into.
+
+    #!perl
+    package Present;
+    use Moose::Role;
+
+    requires 'ideal_sack', 'name';
+
+    around ideal_sack => sub {
+        my $orig = shift;
+        my $self = shift;
+
+        my $ideal_sack = $self->$orig(@_);
+
+        print <<~"OUT";
+        The ideal sack for a @{[ $self->name ]} is @{[ $ideal_sack->name ]}
+        OUT
+
+        return $ideal_sack;
+    };
+
+    ...
+
+This code would cause any C<ideal_sack> method to be wrapped in code that
+produced output of the form:
+
+    The ideal sack for a Figgy Pudding is London, UK
+    The ideal sack for a Chocolate Coin is Paris, France
+    The ideal sack for a Chocolate Coin is Moscow, Russia
+    The ideal sack for a Figgy Pudding is London, UK
+    The ideal sack for a Chocolate Coin is London, UK
+    The ideal sack for a Chocolate Coin is New York, USA
+    The ideal sack for a Figgy Pudding is London, UK
+    Can't fit Figgy Pudding into sack London, UK at line 16 of Present.pm.
+
+(The chocolate coins are distributed randomly between sacks)
+
+This was I<somewhat> helpful, it really isn't what Rustic wanted.  He wanted
+to know how many Figgy Puddings he'd successfully managed to put into the
+sack, and he really didn't want to have to count the lines of his debug output.
+He wanted output of the form:
+
+    The ideal sack for the 3214th Figgy Pudding is London, UK
+    The ideal sack for the 91231st Chocolate Coin is Paris, France
+    The ideal sack for the 91232nd Chocolate Coin is Moscow, Russia
+    The ideal sack for the 3215th Figgy Pudding is London, UK
+    The ideal sack for the 91233rd Chocolate Coin is London, UK
+    The ideal sack for the 91234th Chocolate Coin is New York, USA
+    The ideal sack for the 3216th Figgy Pudding is London, UK
+    Can't fit Figgy Pudding into sack London, UK at line 16 of Present.pm.
+
+How could Rustic get Perl to keep track of the number of times C<ideal_sack> had
+been called per class?  The data can't be stored in the instances because
+they're distrinct from one another.  What Rustic needed was some sort of class
+level storage.
+
+Luckily, there's a module for that.  L<MooseX::ClassAttribute> provides a new
+keyword C<class_has> that defines an attribute shared at the I<class> level
+rather than the I<instance> level.  All objects of the same class share the
+same value:
+
+    #!perl
+    package Present;
+    use Moose::Role;
+    use MooseX::ClassAttribute;
+    use Lingua::EN::Numbers::Ordinate ('ordinate');
+
+    requires 'ideal_sack';
+
+    class_has _packed_counter => (
+        is      => 'rw',
+        isa     => 'Int',
+        default => 0,
+    );
+
+    around ideal_sack => sub {
+        my $orig = shift;
+        my $self = shift;
+
+        my $ideal_sack = $self->$orig(@_);
+
+        my $counter = $self->_packed_counter;
+        $self->_packed_counter( $counter + 1 );
+        my $c = ordinate( $counter );
+
+        print <<~"OUT";
+        The ideal sack for the $c @{[ $self->name ]} is @{[ $ideal_sack->name ]}
+        OUT
+
+        return $ideal_sack;
+    };
+
+    ...
+
+We have the full power of Moose attributes behind the class attributes.  For
+example, Rustic could rewrite the above to be clearer with the
+L<Moose::Meta::Attribute::Native::Trait::Counter> trait to handle incrementing
+the counter.
+
+    #!perl
+    package Present;
+    use Moose::Role;
+    use MooseX::ClassAttribute;
+    use Lingua::EN::Numbers::Ordinate ('ordinate');
+
+    requires 'ideal_sack';
+
+    class_has _packed_counter => (
+        is      => 'rw',
+        isa     => 'Int',
+        traits  => ['Counter'],
+        default => 0,
+        handles => {
+            _increment_packed_counter => 'inc',
+        },
+    );
+
+    around ideal_sack => sub {
+        my $orig = shift;
+        my $self = shift;
+
+        my $ideal_sack = $self->$orig(@_);
+
+        $self->_increment_packed_counter;
+        my $c = ordinate( $self->_packed_counter );
+
+        print <<~"OUT";
+        The ideal sack for the $c @{[ $self->name ]} is @{[ $ideal_sack->name ]}
+        OUT
+
+        return $ideal_sack;
+    };
+
+    ...
+
+With the new debugging output Rustic was quickly able to determine where the
+problems were in the code in time for his project review with the Wise Old Elf.
