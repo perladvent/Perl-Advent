@@ -1,0 +1,81 @@
+Title: The First Virtue
+Topic: The Lazy Attribute Moo / Moose pattern
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+
+=head2 The Ghosts of Christmas Past
+
+Even with
+
+    sub {
+        # read the config file
+        my $config_json = path( $self->config_location )->slurp_utf8;
+        my $json = decode_json($config_json);
+
+        # get the connection parameters
+        my $config_section = $config->{database_connection};
+        my $username = $config_section->{username};
+        my $password = $config_section->{password};
+        my $host     = $config_section->{host};
+        my $db_name  = $config_section->{db_name};
+
+        # connect to the database
+        my $dbh = DBI->connect(
+            "DBI:mysql:hostname=$host;database=$db_name",
+            $username,
+            $password,
+            { RaiseError => 1 },
+        );
+
+
+    }
+
+So, we do what any good programmer does when presented with a 
+
+
+    sub config_location { return "/Users/Mark/.config" }
+
+    sub config {
+        my $config_json = path( $self->config_location )->slurp_utf8;
+        return decode_json($config_json);
+    }
+
+    sub dbh {
+        my $self   = shift;
+        my $config = shift;
+
+        my $config_section = $config->{database_connection};
+        my $username = $config_section->{username};
+        my $password = $config_section->{password};
+        my $host     = $config_section->{host};
+        my $db_name  = $config_section->{db_name};
+
+        return DBI->connect(
+            "DBI:mysql:hostname=$host;database=$db_name",
+            $username,
+            $password,
+            { RaiseError => 1 },
+        );
+    }
+
+
+    sub _build_config {
+        my $self = shift;
+        my $config_json = path( $self->config_location )->slurp_utf8;
+        return decode_json($config_json);
+    }
+
+    sub _build_dbh {
+        my $config_section = $self->config->{database_connection};
+        my $username = $config_section->{username};
+        my $password = $config_section->{password};
+        my $host     = $config_section->{host};
+        my $db_name  = $config_section->{db_name};
+
+        return DBI->connect(
+            "DBI:mysql:hostname=$host;database=$db_name",
+            $username,
+            $password,
+            { RaiseError => 1 },
+        );
+    }

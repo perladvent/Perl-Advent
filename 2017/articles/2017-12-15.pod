@@ -1,0 +1,214 @@
+Title: Mojolicious on the Command Line
+Topic: ojo
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Mojolicious provides a utility class, L<ojo>, that allows us to leverage the
+power of Mojolicious from the command line:
+
+    perl -Mojo -E 'say g("http://goo.gl/EsGk3b")->text'
+
+The C<-M> flag tells perl to load the following module, so C<-Mojo>, despite
+looking like a super secret Mojo flag to perl actually is a cheeky way of saying
+C<use ojo>.
+
+C<ojo> provides a whole host of single letter functions that are shortcuts to
+Mojolicious utilities, allowing you to quickly do things like fetching urls,
+reading and writing files, encoding and decoding json, manipulating data
+structures and a whole host more.
+
+=head2 A Worked Example
+
+Since the things you can do with C<ojo> are virtually limitless, I thought a
+good intro to C<ojo> might be to show a worked example from the command line.
+
+I like reading the Perl Weekly, the weekly Perl email newsletter that pops into
+my inbox every week.  It's so good that I often find myself wanting to refer
+back to a linked article later in the week when the email has been buried deep
+in my ever increasing inbox.  Rather than improving my email filing (I'll get
+around to that one day) I instead wrote a script to grab an archived copy of
+the email from the Perl Weekly website and print out all the links.  How did I
+do that?
+
+So, let's start by having C<ojo> fetch the archive and print it out
+
+    #!perl
+    use ojo;
+
+    print g('http://perlweekly.com/archive/333.html')->text;
+
+The C<g> function creates a GET request, returning a L<Mojo::Message::Response>
+object (which inherits a whole load of useful )
+
+Printing the results of the C<text> method output the entire HTML of the
+newsletter, of which the bit we're interested in looks like this:
+
+    <div class="entry-title">
+                <a href="http://perladvent.org/2017/index.html" style="
+                   font-size: 18px;
+                   font-weight: bold;
+                   ">Perl Advent Calendar</a>
+              </div>
+
+So we can adapt our C<ojo> script to use the C<dom> method to pull out just
+these sections using a CSS selector:
+
+    #!perl
+    print g("http://perlweekly.com/archive/333.html")
+          ->dom(".entry-title a")
+          ->join("\n\n")
+
+The C<dom> method returns a L<Mojo::Collection> - Mojolicious's super smart
+array wrapper - on which we can call methods.  Here we're just joining them
+together (and stringifying the objects that C<dom> returned) so we can check
+we got the right stuff.  The output now looks like:
+
+    <a href="http://perladvent.org/2017/index.html" style="
+                        font-size: 18px;
+                        font-weight: bold;
+                        ">Perl Advent Calendar</a>
+
+    <a href="https://perl6advent.wordpress.com/" style="
+                        font-size: 18px;
+                        font-weight: bold;
+                        ">Perl 6 Advent Calendar</a>
+
+    <a href="https://mojolicious.io/blog/" style="
+                        font-size: 18px;
+                        font-weight: bold;
+                        ">Mojolicious Advent Calendar</a>
+    (etc)
+
+Okay, we now want to break apart the L<Mojo::DOM> objects that C<dom> returned
+to get the href and text of the link.  To do this we use the C<map> method
+on the collection that will call a subroutine on each element of the collection
+(similar to Perl's C<map> keyword on arrays)
+
+    #!perl
+    print g("http://perlweekly.com/archive/333.html")
+          ->dom(".entry-title a")->map( sub {
+                $_->attr("href") . ": " . $_->text . "\n"
+          })->join
+
+Calling C<join> with no arguments joins the elements with the empty string.
+The output is much much closer to what we want:
+
+    https://perl6advent.wordpress.com/: Perl 6 Advent Calendar
+    https://mojolicious.io/blog/: Mojolicious Advent Calendar
+    http://www.lenjaffe.com/AdventPlanet/2017/: Advent Planet 2017
+    http://blogs.perl.org/users/mohammad_s_anwar/2017/12/london-perl-workshop-2017---talks-review.html: London Perl Workshop 2017 - Talks Review
+    http://blogs.perl.org/users/sawyer_x/2017/12/perl-5-porters-mailing-list-summary-november-21st---december-5th.html: Perl 5 Porters Mailing List Summary: November 21st - December 5th
+    http://blogs.perl.org/users/ovid/2017/12/why-i-wrote-keyworddevelopment.html: Why I wrote Keyword::DEVELOPMENT
+    http://blogs.perl.org/users/ovid/2017/12/why-i-wrote-keyworddevelopment.html: And here we go!
+    https://p6weekly.wordpress.com/2017/12/04/2017-49-mischieventing/: 2017.49 Mischieventing
+    http://blogs.perl.org/users/brian_d_foy/2017/12/nominate-perl-heroes-for-the-2017-white-camel-awards.html: Nominate Perl heroes for the 2017 White Camel Awards
+    http://news.perlfoundation.org/2017/12/call-for-volunteers.html: Call for volunteers - TPC::NA 2018 (formerly knows as YAPC::NA)
+    http://news.perlfoundation.org/2017/11/booking-sponsors-the-perl-5.html: Booking.com Sponsors the P5CMF
+    http://niceperl.blogspot.com/: NICEPERL's lists
+    https://perlmaven.com/open-to-read-and-write: Open file to read and write in Perl, oh and lock it too
+    https://www.patreon.com/szabgab: Patreon for Gabor
+    https://perl.careers/jobs/rapid-growth-in-perl---developers-wanted-for-an-expanding-central-london-company/?utm_source=perlweekly&utm_campaign=perlweekly&utm_medium=perlweekly: Rapid Growth in Perl - developers wanted for an expanding central London company
+    https://perl.careers/jobs/be-a-trailblazer-in-a-time-of-growth---full-stack-architect-required-for-a-rapidly-expanding-london-company/?utm_source=perlweekly&utm_campaign=perlweekly&utm_medium=perlweekly: Be a trailblazer in a time of growth - Full Stack Architect required for a rapidly expanding London company
+    https://perl.careers/jobs/londons-trendiest-office-space---lead-perl-developer/?utm_source=perlweekly&utm_campaign=perlweekly&utm_medium=perlweekly: London's Trendiest Office Space - Lead and Mid-Level Perl Developer roles
+
+But oh dear, some of those links are really really long.  Maybe we should
+use a URL shortener service to make these shorter?
+
+Google's URL shortener works by posting a JSON data structure of the form:
+
+    {
+        "longURL": "https://developers.google.com/url-shortener/v1/getting_started"
+    }
+
+To the URL C<https://www.googleapis.com/urlshortener/v1/url?key=???> where
+the key is the API key obtained by clicking on the C<GET A KEY> button in
+the L<Google URL Shortener documentation|https://developers.google.com/url-shortener/v1/getting_started>.
+It returns a JSON data structure of the form
+
+    {
+      "kind": "urlshortener#url",
+      "id": "https://goo.gl/xwCNC",
+      "longUrl": "https://developers.google.com/url-shortener/v1/getting_started"
+    }
+
+Doing this with C<ojo> is straight forward.  Instead of using C<g> to make a
+GET request, we use C<p> to make a POST request.  Using C<< json => ... >> we
+can pass in the datastructure to be serialized as JSON and posted to the URL.
+
+    #!perl
+    use ojo;
+
+    print p(
+        "https://www.googleapis.com/urlshortener/v1/url?key=$ENV{API_KEY}",
+        {},
+        json => {
+            longUrl => "https://developers.google.com/url-shortener/v1/getting_started"
+        },
+    )->text
+
+But of course we don't want the response from the server as a string, we want
+it as a Perl data structure so we can grab the id field.  That's as simple as
+using C<json> instead of C<text>.
+
+    #!perl
+    use ojo;
+
+    print p(
+        "https://www.googleapis.com/urlshortener/v1/url?key=$ENV{API_KEY}",
+        {},
+        json => {
+            longUrl => "https://developers.google.com/url-shortener/v1/getting_started"
+        },
+    )->json->{id};
+
+Or, even better, we can pass a L<JSON pointer|https://tools.ietf.org/html/rfc6901>
+to C<json> and have it extract the value we actually want for us
+
+    #!perl
+    use ojo;
+
+    print p(
+        "https://www.googleapis.com/urlshortener/v1/url?key=$ENV{API_KEY}",
+        {},
+        json => {
+            longUrl => "https://developers.google.com/url-shortener/v1/getting_started"
+        },
+    )->json("/id")
+
+Rolling that back into our original code like so:
+
+    #!perl
+    use ojo;
+
+    print g("http://perlweekly.com/archive/333.html")
+        ->dom(".entry-title a")->map( sub {
+                p(
+                    "https://www.googleapis.com/urlshortener/v1/url?key=$ENV{API_KEY}",
+                    {},
+                    json => {
+                        longUrl => $_->attr('href')
+                    },
+                )->json("/id") .
+                ": " . $_->text . "\n"
+        })->join
+
+Produces the output we'd like:
+
+    https://goo.gl/wS2jSu: Perl Advent Calendar
+    https://goo.gl/B7HqqD: Perl 6 Advent Calendar
+    https://goo.gl/xGpyAy: Mojolicious Advent Calendar
+    https://goo.gl/f9LBKS: Advent Planet 2017
+    https://goo.gl/8aigk1: London Perl Workshop 2017 - Talks Review
+    https://goo.gl/j2FzgA: Perl 5 Porters Mailing List Summary: November 21st - December 5th
+    https://goo.gl/ptZRF3: Why I wrote Keyword::DEVELOPMENT
+    https://goo.gl/ptZRF3: And here we go!
+    https://goo.gl/GxETF8: 2017.49 Mischieventing
+    https://goo.gl/8q2g21: Nominate Perl heroes for the 2017 White Camel Awards
+    https://goo.gl/VCCoHc: Call for volunteers - TPC::NA 2018 (formerly knows as YAPC::NA)
+    https://goo.gl/9BRvSA: Booking.com Sponsors the P5CMF
+    https://goo.gl/XmJ1wT: NICEPERL's lists
+    https://goo.gl/zPKg2u: Open file to read and write in Perl, oh and lock it too
+    https://goo.gl/RChQDF: Patreon for Gabor
+    https://goo.gl/wn3c2Q: Rapid Growth in Perl - developers wanted for an expanding central London company
+    https://goo.gl/mVZGDQ: Be a trailblazer in a time of growth - Full Stack Architect required for a rapidly expanding London company
+    https://goo.gl/4UZctX: London's Trendiest Office Space - Lead and Mid-Level Perl Developer roles
+
