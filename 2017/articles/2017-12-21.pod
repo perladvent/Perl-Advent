@@ -1,5 +1,445 @@
-Title: Quickly Building DBIx::Class
-Topic: foo
+Title: Quickly Building DBIx::Class Schemas
+Topic: dbicdump
 Author: Mark Fowler <mark@twoshortplanks.com>
 
-Placeholder
+Chestnut Emberflakes had been put in charge of solving a B<big> problem at the
+North Pole.  Several deliveries this year had failed to be delivered and he
+had to write a tool to store these few thousand orders in a database so Santa
+could make another quick orbit of the planet to re-deliver all those things
+he'd missed.
+
+Chestnut only had until the first orbit had been completed to build his tool.
+He didn't have time to hand craft each and every SQL statement, but neither did
+he have time to write - and rewrite as he made changes - a bunch of class files
+for DBIx::Class so he could have it act as a ORM for him.
+
+The Wise Old Elf was very busy as always on Christmas Eve, but he had enough
+time to part some quick advice:  "Let the code build the code for you".
+Chestnut wasn't sure what that meant, but he'd be sure to figure it out soon.
+
+=head2 What Emberflakes Had To Model
+
+The requirements for the database model cold be summed up by this entity
+relationship diagram.
+
+=for :html
+  <center><img src="erd.png" width="600" height="211" alt="Entity Relationship Diagram"></center>
+
+In short:
+
+=for :list
+* Each child would receive one or more named presents
+* Likewise each brand of present could be given to any number of children
+* Each child could have an address associated with them where the presents would be delivered (though some children sadly wouldn't have an address and Santa would have to use some ingenuity there instead)
+* Each address could have any number of children at it
+
+=head2 The SQL
+
+Chestnut quickly knocked up some SQL to create a Postgres database.  This
+prototype didn't have to be perfect - he wasn't trying too hard to get all the
+types right in the most efficient manner, but just get this I<done>.
+
+    #!vim sql
+    DROP DATABASE IF EXISTS prototype;
+    CREATE DATABASE prototype;
+
+    \c prototype;
+
+    CREATE TABLE stocking_address (
+        stocking_address_id UUID NOT NULL,
+        street_address TEXT NOT NULL,
+        lat float,
+        lon float
+    );
+
+    ALTER TABLE ONLY stocking_address
+        ADD CONSTRAINT stocking_address_pkey
+        PRIMARY KEY (stocking_address_id);
+
+    CREATE TABLE child (
+        child_id UUID NOT NULL,
+        stocking_address_id UUID,
+        name TEXT NOT NULL
+    );
+
+    ALTER TABLE ONLY child
+        ADD CONSTRAINT child_pkey
+        PRIMARY KEY (child_id);
+
+    ALTER TABLE ONLY child
+        ADD CONSTRAINT child_stocking_address_id_fkey
+        FOREIGN KEY (stocking_address_id)
+        REFERENCES  stocking_address(stocking_address_id)
+        DEFERRABLE;
+
+    CREATE TABLE present (
+        present_id UUID NOT NULL,
+        description TEXT NOT NULL
+    );
+
+    ALTER TABLE ONLY present
+        ADD CONSTRAINT present_pkey
+        PRIMARY KEY (present_id);
+
+    CREATE TABLE child_presents (
+        child_id UUID NOT NULL,
+        present_id UUID NOT NULL
+    );
+
+    ALTER TABLE ONLY child_presents
+        ADD CONSTRAINT child_presents_pkey
+        PRIMARY KEY (child_id, present_id);
+
+    ALTER TABLE ONLY child_presents
+        ADD CONSTRAINT child_idfkey
+        FOREIGN KEY (child_id)
+        REFERENCES  child(child_id)
+        DEFERRABLE;
+
+    ALTER TABLE ONLY child_presents
+        ADD CONSTRAINT present_idfkey
+        FOREIGN KEY (present_id)
+        REFERENCES  present(present_id)
+        DEFERRABLE;
+
+He'd at least spent the time writing in the foreign key constraints.  He didn't
+have much time to spare, but he had even less time to spare debugging his
+database if he didn't stop junk being put in their by mistake!
+
+Chestnut quickly setup the database on his dev machine:
+
+    bash$ psql < database.sql
+    DROP DATABASE
+    CREATE DATABASE
+    You are now connected to database "prototype" as user "Chestnut".
+    CREATE TABLE
+    ALTER TABLE
+    CREATE TABLE
+    ALTER TABLE
+    ALTER TABLE
+    CREATE TABLE
+    ALTER TABLE
+    CREATE TABLE
+    ALTER TABLE
+    ALTER TABLE
+    ALTER TABLE
+
+=head2 Building The ORM Classes Automatically
+
+Emberflakes was just about to call out to see if anyone would help him when
+the Wise Old Elf snatched away his keyboard and typed something.
+
+    bash$ dbicdump -o dump_directory=./lib \
+        Prototype::Schema 'dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432'
+
+And ran away.  Emberflames was left staring at the message on his screen:
+
+    Dumping manual schema for Prototype::Schema to directory ./lib ...
+    Schema dump completed.
+
+What the huh?  With no one to explain what had just happened Chestnut figured
+he better peek inside the C<lib> directory.
+
+    bash$ find .
+    find .
+    .
+    ./lib
+    ./lib/Prototype
+    ./lib/Prototype/Schema
+    ./lib/Prototype/Schema/Result
+    ./lib/Prototype/Schema/Result/Child.pm
+    ./lib/Prototype/Schema/Result/ChildPresent.pm
+    ./lib/Prototype/Schema/Result/Present.pm
+    ./lib/Prototype/Schema/Result/StockingAddress.pm
+    ./lib/Prototype/Schema.pm
+
+Ooooh.  It'd all been written for him.  Opening up one of the files shows all
+the code.
+
+    #!perl
+    use utf8;
+    package Prototype::Schema::Result::Child;
+
+    # Created by DBIx::Class::Schema::Loader
+    # DO NOT MODIFY THE FIRST PART OF THIS FILE
+
+    =head1 NAME
+
+    Prototype::Schema::Result::Child
+
+    =cut
+
+    use strict;
+    use warnings;
+
+    use base 'DBIx::Class::Core';
+
+    =head1 TABLE: C<child>
+
+    =cut
+
+    __PACKAGE__->table("child");
+
+    =head1 ACCESSORS
+
+    =head2 child_id
+
+      data_type: 'uuid'
+      is_nullable: 0
+      size: 16
+
+    =head2 stocking_address_id
+
+      data_type: 'uuid'
+      is_foreign_key: 1
+      is_nullable: 1
+      size: 16
+
+    =head2 name
+
+      data_type: 'text'
+      is_nullable: 0
+
+    =cut
+
+    __PACKAGE__->add_columns(
+      "child_id",
+      { data_type => "uuid", is_nullable => 0, size => 16 },
+      "stocking_address_id",
+      { data_type => "uuid", is_foreign_key => 1, is_nullable => 1, size => 16 },
+      "name",
+      { data_type => "text", is_nullable => 0 },
+    );
+
+    =head1 PRIMARY KEY
+
+    =over 4
+
+    =item * L</child_id>
+
+    =back
+
+    =cut
+
+    __PACKAGE__->set_primary_key("child_id");
+
+    =head1 RELATIONS
+
+    =head2 child_presents
+
+    Type: has_many
+
+    Related object: L<Prototype::Schema::Result::ChildPresent>
+
+    =cut
+
+    __PACKAGE__->has_many(
+      "child_presents",
+      "Prototype::Schema::Result::ChildPresent",
+      { "foreign.child_id" => "self.child_id" },
+      { cascade_copy => 0, cascade_delete => 0 },
+    );
+
+    =head2 stocking_address
+
+    Type: belongs_to
+
+    Related object: L<Prototype::Schema::Result::StockingAddress>
+
+    =cut
+
+    __PACKAGE__->belongs_to(
+      "stocking_address",
+      "Prototype::Schema::Result::StockingAddress",
+      { stocking_address_id => "stocking_address_id" },
+      {
+        is_deferrable => 0,
+        join_type     => "LEFT",
+        on_delete     => "NO ACTION",
+        on_update     => "NO ACTION",
+      },
+    );
+
+    =head2 presents
+
+    Type: many_to_many
+
+    Composing rels: L</child_presents> -> present
+
+    =cut
+
+    __PACKAGE__->many_to_many("presents", "child_presents", "present");
+
+
+    # Created by DBIx::Class::Schema::Loader v0.07043 @ 2017-12-20 18:03:02
+    # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fvT7p0SmZa93Fop9i10jyA
+
+
+    # You can replace this text with custom code or comments, and it will be preserved on regeneration
+    1;
+
+There's a lot to digest in that code.  The important thing to remember was that
+no human (or elf) had to write any of it.  And if any changes were made to the
+schema then it was possible to regenerate this file by simply re-running the
+command (regenerating the file won't overwrite or lose any additional code any
+elf has added below the C<DO NOT MODIFY THIS OR ANYTHING ABOVE LINE>.)
+
+=head2 Loading Test Data
+
+Emberflakes decided that he'd better experiment with what was going on in
+the database, so he wrote a bunch of test data as JSON files to create some
+test fixtures.
+
+    fixtures/StockingAddress.json:
+    [
+        {
+            "stocking_address_id": "db1e1ce1-bc05-4931-b79f-4356ea6270ff",
+            "street_address": "671 Lincoln Ave. Winnetka, Illinois",
+            "lat": -87.7358245,
+            "lon": 42.109756
+        }
+    ]
+
+    fixtures/Present.json:
+    [
+        {
+            "present_id": "a9c15d33-b157-4513-9638-926d7793fdb1",
+            "description": "BB Gun"
+        },
+        {
+            "present_id": "d321221e-6f1e-41ec-82b2-bda7d4783569",
+            "description": "Micro Machines"
+        },
+        {
+            "present_id": "108bebb9-871b-45a6-b4e0-36fc720b2165",
+            "description": "Blowtorch"
+        }
+    ]
+
+    fixtures/Child.json:
+    [
+        {
+            "child_id": "f69eaf6c-bf77-4b29-9eca-78cda6fd2db7",
+            "name": "Kevin McCallister",
+            "stocking_address_id": "db1e1ce1-bc05-4931-b79f-4356ea6270ff",
+            "child_presents": [
+                { "present_id": "a9c15d33-b157-4513-9638-926d7793fdb1" },
+                { "present_id": "d321221e-6f1e-41ec-82b2-bda7d4783569" },
+                { "present_id": "108bebb9-871b-45a6-b4e0-36fc720b2165" }
+            ]
+        }
+    ]
+
+Reading these files in and using them to populate the database is fairly
+straight forward:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use v5.22;
+    use warnings;
+    use lib qw(lib);
+
+    use JSON::PP qw( decode_json );
+    use Path::Tiny qw( path );
+    use Prototype::Schema;
+
+    # connect to the database
+    my $schema = Prototype::Schema->connect(
+        'dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432',
+    );
+
+    $schema->txn_do(sub {
+        # run with constraints disabled until the end of a transaction so we
+        # don't have to worry about the order in which we're inserting
+        # fixtures into the database
+        $schema->storage->dbh->do('SET CONSTRAINTS ALL DEFERRED');
+
+        # for each json file
+        for my $file ( grep { /[.]json$/ } path('fixtures')->children ) {
+            # decode the json file
+            my $ds = decode_json( path( $file )->slurp );
+
+            # turn fixtures/Foo.json to Foo
+            my $name = path( $file )->basename('.json');
+
+            # get the result set
+            my $rs = $schema->resultset($name);
+
+            # and insert each json object into the database
+            for my $row (@{ $ds }) {
+                $rs->create( $row );
+            }
+        }
+    });
+
+Since the database schema that Emberflakes had designed had C<DEFERRABLE>
+constraints it's possible to use C<SET CONSTRAINTS ALL DEFERRED> to allow
+inserting incomplete foreign key data into the database, as long as when the
+transaction ends all the foreign keys are in place.  If we didn't do this
+
+There's another thing worth noticing:  Did you spot that there's no
+C<ChildPresent.json> file?  If you look closely at the C<Child.json> file you'll
+notice that the C<child_presents> field isn't actually a normal database field
+at all but the name of a DBIx::Class relationship - and DBIx::Class will take
+the array of objects that it contains and used them to create related objects
+for us.
+
+=head2 Playing Around with the data
+
+More than anything Chestnut Emberflakes just needed to get to grips with the
+database schema.  What better way to try it out than to use it interactively?
+
+Chestnut fired up the C<reply>, the Perl REPL:
+
+    bash$ reply -Ilib -MPrototype::Schema
+    0> my $schema = Prototype::Schema->connect('dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432'); 1
+    $res[0] = 1
+
+    1> my $child_rs = $schema->resultset('Child'); 1
+    $res[1] = 1
+
+    2> my $kevin = $child_rs->find("f69eaf6c-bf77-4b29-9eca-78cda6fd2db7"); 1
+    $res[2] = 1
+
+    3> $kevin->name;
+    $res[3] = 'Kevin McCallister'
+
+    4> my $p = $kevin->presents; 1
+    $res[4] = 1
+
+    5> $p->next->description;
+    $res[5] = 'BB Gun'
+
+    6> $p->next->description;
+    $res[6] = 'Micro Machines'
+
+    7> $p->next->description;
+    $res[7] = 'Blowtorch'
+
+    8> $kevin->name('Kevin McCallister (aka Macaulay Culkin)');
+    $res[8] = 'Kevin McCallister (aka Macaulay Culkin)'
+
+    9> $kevin->update; 1
+    $res[9] = 1
+
+    10> my $children = $child_rs->search_rs( name => 'Kevin McCallister (aka Macaulay Culkin)' ); 1
+    $res[10] = 1
+
+    11> $children->first->child_id
+    $res[11] = 'f69eaf6c-bf77-4b29-9eca-78cda6fd2db7'
+
+    12> $children->first->stocking_address->street_address
+    $res[12] = '671 Lincoln Ave. Winnetka, Illinois'
+
+    14>
+
+Note that Chestnut was careful not to return any of the DBIx::Class objects
+(otherwise C<reply> would dump them out, which would be 300+ lines each of
+too much detail.)
+
+=head2 Not Much Coding, So Much Done
+
+With no actual Perl coding Chestnut Emberflakes had managed to get a fully
+functioning ORM setup where he could quickly prototype any task that the night
+might throw at him.  Wish him luck...the children are counting on him.
