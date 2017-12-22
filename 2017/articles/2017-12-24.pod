@@ -1,5 +1,77 @@
-Title: YouTube
-Topic: YouTube
+Title: Watching The Perl Conference
+Topic: WWW::YouTube::Download
 Author: Mark Fowler <mark@twoshortplanks.com>
 
-Placeholder
+Now Christmas was over, the Wise Old Elf was going to go sit on a beach (in the
+southern hemisphere, where it was summer) and kick back with some quality
+eggnog.
+
+Of course, the Wise Old Elf doesn't get to be wise by sitting on his laurels,
+so he was going to take the oppuntinty to catch up with all the videos of the
+presentations from L<The Perl Conference 2017 DC on YouTube|https://www.youtube.com/playlist?list=PLA9_Hq3zhoFxdSVDA4v9Af3iutQxLI14m>.
+
+=for :html
+  <center><iframe width="560" height="315" src="https://www.youtube.com/embed/videoseries?list=PLA9_Hq3zhoFxdSVDA4v9Af3iutQxLI14m&hl=en_US" frameborder="0" allowfullscreen></iframe></center>
+
+The only problem with his plan was that the beach he had in mind didn't have
+very good WiFi. So he decided to try and download all the videos to his laptop
+first.  Maybe Perl couyld help him with that?
+
+=head2 Scraping the playlist
+
+Since he had L<learned about ojo|2017-12-15.html> it was easy for the Wise Old
+Elf to write something that would scrape the playlist webpage and print out, one
+line at a time, the URLs for the various videos in the playlist
+
+    perl -Mojo -E \
+      'g(shift)->dom(".pl-video-title-link")->map(sub{say $_->attr("href")})' \
+      'https://www.youtube.com/playlist?list=PLA9_Hq3zhoFxdSVDA4v9Af3iutQxLI14m'
+
+=head2 WWW::YouTube::Download
+
+Now the Wise Old Elf had to write some code to parse the web page for each
+youtube video and then write some more code to download the video.  Before he
+spent a lot of time doing that, he realized he could simply search the CPAN
+for such a utility.  He not only found the wonderful L<WWW::YouTube::Download>
+module, but also the L<youtube-download|https://metacpan.org/pod/distribution/WWW-YouTube-Download/script/youtube-download>
+command line utility that shipped with it.
+
+The way the command line utility works is simple;  You pass C<youtube-download>
+a URL and it downloads the video into the current directory.  For example to
+download Dave Rolsky's L<lightning talk|https://www.youtube.com/watch?v=DVKfBV2xngg&index=2&list=PLA9_Hq3zhoFxdSVDA4v9Af3iutQxLI14m>
+the Wise Old Elf would simply have to type:
+
+    youtube-download /watch?v=DVKfBV2xngg
+
+But how would the Wise Old Elf run C<youtube-download> for each URL?  With
+C<xargs>!
+
+   perl -Mojo -E \
+     'g(shift)->dom(".pl-video-title-link")->map(sub{say $_->attr("href")})' \
+     'https://www.youtube.com/playlist?list=PLA9_Hq3zhoFxdSVDA4v9Af3iutQxLI14m'\
+     | xargs -n 1 youtube-download
+
+The standard unix C<xargs> command line tool takes arguments on STDIN - one
+command line argument per line - and runs the utility (in this case
+C<youtube-download>) with those arguments.  By specifying C<-n 1>, C<xargs>
+will run C<youtube-download> with one argument (i.e. will run C<youtube-download>
+with each URL passed to it on STDIN.)
+
+=head2 All Done
+
+    --> Working on oka4wcsrg0c
+    Downloading `oka4wcsrg0c.mp4`
+    126211392/126211392 (100.00%)
+    Download successful!
+    --> Working on DVKfBV2xngg
+    Downloading `DVKfBV2xngg.mp4`
+    42843944/42843944 (100.00%)
+    Download successful!
+    --> Working on vQ5qWey_SO4
+    Downloading `vQ5qWey_SO4.mp4`
+    36677196/36677196 (100.00%)
+    Download successful!
+
+A few minutes later - the North Pole has very good Internet - all the videos
+were downloaded to the Wise Old Elf's computer.  Now all he had to do was go
+stock up on the sunblock!
