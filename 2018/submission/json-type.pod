@@ -1,0 +1,322 @@
+Title: REST API and the Baby
+Topic: Cpanel::JSON::XS::Type
+Author: E. Choroba <choroba@cpan.org>
+
+=encoding utf8
+
+How does Santa manage to deliver all the presents to all the children
+on one day? The answer is simple: He doesn’t. In many countries, there
+are different creatures responsible for the job (if you’re curious,
+consult the L<List of Christmas and winter gift
+bringers|https://en.wikipedia.org/wiki/List_of_Christmas_and_winter_gift-bringers_by_country>
+for details).
+
+We live in a global world. People often work for foreign companies and
+sometimes move abroad. In order to satisfy even their children, the
+gift bringers had to start cooperating. At the beginning, they used
+L<ASN.1|https://metacpan.org/pod/Convert::ASN1> to exchange the data,
+then switched to L<XML|https://metacpan.org/pod/XML::Compile::SOAP> at
+the beginning of the current century, to enter the Twenty-tens using
+L<JSON|https://metacpan.org/pod/JSON>.
+
+=head2 Baby Jesus on Red Hat Enterprise Linux
+
+Let’s look at Baby Jesus, responsible for the central part of Europe
+and Latin America. The author of this article is interested in him for
+two reasons: Baby Jesus brings the Christmas gifts to his children,
+and the Baby’s business runs on Perl.
+
+Until the end of the previous year, Baby Jesus had used Red Hat
+Enterprise Linux 6. It featured Perl version 5.10.1, and the web
+service used L<JSON::XS|https://metacpan.org/pod/JSON::XS> version
+2.27 provided by the vendor. When the Christmas 2017 was over, Kris
+Kringle decided to upgrade the system to RHEL7, which included Perl
+upgrade to 5.16.3 and JSON::XS to 3.01. Surprisingly, this wasn’t
+smooth at all.
+
+After the upgrade, JSON data were different. Some numbers that were
+previously not quoted started to appear in double quotes, while others
+originally quoted lost their quotes sometimes. Perl powered gift
+bringers didn’t have to worry as Perl doesn’t care, but there were
+Java businesses that required the format to stay stable. BJ couldn’t
+but accept their argument that the data should roundtrip: when you
+POST a JSON, you expect to GET the same JSON back.
+
+=head2 System Perl
+
+The investigation carried out showed two causes of the problem: Perl’s
+internal flags had changed across the versions, as well as the
+heuristics used by the JSON::XS module to guess whether a number
+should be quoted or not.
+
+“We told you not to use the system Perl!” shouted other programmers in
+the office.
+
+“Good advice,” replied Baby Jesus, “but it wouldn’t have helped us.
+We’d have probably only discovered the problem earlier when upgrading
+Perl or the library.”
+
+=head2 Alternatives
+
+There are several JSON encoding/decoding modules in the wild. Each of
+them has its own peculiarities. Baby Jesus compared the behaviour of
+L<JSON::PP|https://metacpan.org/pod/JSON::PP>,
+L<Cpanel::JSON::XS|https://metacpan.org/pod/Cpanel::JSON::XS>, and
+L<JSON::XS|https://metacpan.org/pod/JSON::XS>, the latter under Perls
+5.10.1 and 5.16.3.
+
+=over 4
+
+=item *
+
+  encode_json([$$, "" . $$])
+
+JSON::XS in 5.10.1 returns C<["213","213"]>, but C<[213,"213"]> in
+5.16.3 (the behaviour of JSON::PP and Cpanel::JSON::XS).
+
+=item *
+
+  $x = 12; utf8::decode($x); encode_json([$x])
+
+JSON::XS in 5.10.1 returns C<[12]> in 5.10.1, but C<["12"]> in 5.16.3
+(the behaviour of JSON::PP and Cpanel::JSON::XS).
+
+=item *
+
+  $x = '19a'; $x += 0; encode_json([$x])
+
+Here, Cpanel::JSON::XS is the one that differs; it returns C<[19.0]>,
+while all the others return C<[19]>.
+
+=item *
+
+  use Data::Dumper; Dumper(decode_json('[1e4]'))
+
+This time, it’s JSON::PP who begs to differ, returning C<[10000]>
+without quotes. All other libraries return the number quoted.
+
+=item *
+
+  $x = 1844674407370955161; encode_json([$x, $x / 10])
+
+Another example of JSON::PP being not only slow but also inconsistent
+with the other libraries. It returns
+C<[1844674407370955161,1.84467440737096e+17]> contrary to
+C<[1.84467440737096e+18,1.84467440737096e+17]>.
+
+=item *
+
+Tied variables are handled differently in JSON::XS. Consider this snippet:
+
+    #! /usr/bin/perl
+    use warnings;
+    use strict;
+
+    {   package MyIncrementer;
+        use Tie::Scalar;
+        use parent -norequire => 'Tie::StdScalar';
+        sub TIESCALAR { my ($class, $val) = @_; bless \$val, $class }
+        sub FETCH { my $s = shift; $$s++ }
+    }
+
+    use JSON::XS;
+    my $json = 'JSON::XS'->new->allow_nonref;
+
+    tie my $x, 'MyIncrementer', 'Xa';
+    print $json->encode($x) for 1 .. 4;
+
+JSON::XS returns C<"Xb""Xd""Xf""Xh"> regardless of the Perl version,
+both other libraries return C<"Xa""Xb""Xc""Xd">. So it seems JSON::XS
+calls the C<FETCH> method twice when encoding a value to JSON.
+
+=item *
+
+The behaviour of JSON::XS has changed across Perl versions, too.
+
+    $j = 'JSON::XS'->new->allow_nonref;
+    $x = 12;
+    print $j->decode($x), $j->encode($x);
+
+In Perl 5.10.1, JSON::XS version 2.27 returns C<12"12">, while 3.01
+returns C<1212>, which is consistent with the other libraries.
+
+=back
+
+=head2 Quick Solution
+
+“Let’s just quickly fix the data before serialisation,” was the
+initial idea of BJ’s team. They wanted to call C<int> on integers,
+concatenate strings to the empty string, and add floats to zero:
+
+    #! /usr/bin/perl
+    use warnings;
+    use strict;
+
+    use JSON::XS;
+
+    my $integer = "12";
+    my $string  = 42;
+    my $float   = "122e-1";
+
+    print encode_json([
+        int $integer,
+        "" . $string,
+        0 + $float
+    ]);
+
+But when they started changing the code, they realised it wasn’t so
+easy. Nested structures turned out to be hard to track, as they were
+usually built in steps in different parts of the code. Unintentionally
+inspecting a value could lead to an encoding error, and there was no
+easy way how to mark a value as “ready for serialisation”. Moreover,
+the whole endeavour was confusing for non-Perl teams who needed to
+touch the code occasionally.
+
+Furthermore, a formal API description already existed, so adding the
+same information to the code felt redundant.
+
+=head2 Proper Solution
+
+The final decision was to enforce the types in exactly one place,
+right before the serialisation. Fortunately, a company located in
+Christkind’s territory of activity also needed to solve the same
+problem, and they were able to convince Reini Urban, the maintainer of
+Cpanel::JSON::XS, to include their solution to his distribution.
+
+Both the methods C<encode> and C<decode> now took an optional argument
+that described the types of the encoded or decoded structure. When
+encoding, the programmer had to provide the types, when decoding, the
+second argument had to be writable and would be populated by a
+structure describing the types.
+
+For example:
+
+    #! /usr/bin/perl
+    use warnings;
+    use strict;
+
+    use Cpanel::JSON::XS;
+    use Cpanel::JSON::XS::Type;
+
+    my $type = {count      => JSON_TYPE_INT,
+                average    => JSON_TYPE_FLOAT,
+                name       => JSON_TYPE_STRING,
+                is_enabled => JSON_TYPE_BOOL,
+                orders     => json_type_arrayof(JSON_TYPE_INT)};
+
+    print 'Cpanel::JSON::XS'->new->pretty->canonical
+        ->encode({count      => '12',
+                  average    => '11.2',
+                  name       => 100 / 3,
+                  is_enabled => 1,
+                  orders     => [ 1 .. 10 ]
+        }, $type);
+
+Which returns
+
+    {
+       "average" : 11.2,
+       "count" : 12,
+       "is_enabled" : true,
+       "name" : "33.3333333333333",
+       "orders" : [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+       ]
+    }
+
+The module
+L<Cpanel::JSON::XS::Type|https://metacpan.org/pod/Cpanel::JSON::XS::Type>
+exported the constants C<JSON_TYPE_INT>, C<JSON_TYPE_STRING> and
+similar, as well as functions like C<json_type_arrayof> to declare
+types of nested structures.
+
+The decoder worked in the same fashion:
+
+    #! /usr/bin/perl
+    use warnings;
+    use strict;
+
+    use Cpanel::JSON::XS; use Cpanel::JSON::XS::Type;
+
+    my $struct = 'Cpanel::JSON::XS'->new
+        ->decode('[null,1,1.1,"1",[0],true]', my $type);
+
+And the variables then contained
+
+    $struct = [ undef, 1, '1.1', '1', [0], 1 ];
+    $type   = [   256, 2,     3,   4, [2], 1 ];
+
+where the meanings of the constants could be found in the source code
+of the XS file (they should be exported by an independent module so
+other JSON libraries could use them, too):
+
+    /* types */
+    #define JSON_TYPE_SCALAR      0x0000
+    #define JSON_TYPE_BOOL        0x0001
+    #define JSON_TYPE_INT         0x0002
+    #define JSON_TYPE_FLOAT       0x0003
+    #define JSON_TYPE_STRING      0x0004
+    /* flags */
+    #define JSON_TYPE_CAN_BE_NULL 0x0100
+    /* null type */
+    #define JSON_TYPE_NULL        JSON_TYPE_CAN_BE_NULL
+
+When modelling family relations, Ježíšek used trees. The description
+of a tree structure is tricky, though, as it leads to a cyclic
+reference, which causes a memory leak:
+
+    use Cpanel::JSON::XS; use Cpanel::JSON::XS::Type;
+
+    my $node = {value => JSON_TYPE_STRING};
+    $node->{children} = json_type_arrayof($node);
+
+The proper way to describe a recursive structure is to use the C<json_type_weaken> function:
+
+    $node->{children} = json_type_arrayof(
+        json_type_weaken($node)
+    );
+
+=head2 Similar Stories
+
+Niño Diós wasn’t the only one to encounter the problem. See for
+example L<Did the JSON module
+change?|https://www.perlmonks.org/?node_id=1210167> on PerlMonks.
+
+Moreover, the problem isn’t particular to JSON. Whenever Perl needs to
+talk to a system with different type system, you might get fall into
+the same trap. See for example L<Why does DBI implicitly change
+integers to
+strings|https://stackoverflow.com/questions/40800205/why-does-dbi-implicitly-change-integers-to-strings> on StackOverflow.
+
+In Perl, the internal type of a value shouldn’t be important. The only
+exception to this were the bitwise operators, but the introduction of
+the C<bitwise> feature in 5.22 fixed it, so you can now always specify
+the type explicitly by using the appropriate operator.
+Cpanel::JSON::Type follows the same philosophy.
+
+=head2 Thanks
+
+The Baby Jesus would like to thank
+L<Pali|https://metacpan.org/author/PALI> for implementing the
+features, L<Reini Urban|https://metacpan.org/author/RURBAN> for
+releasing them, and L<GoodData|https://gooddata.com/> for sponsoring
+open source.
+
+=head2 Notes
+
+Based on the
+L<talk|http://act.perlconference.org/tpc-2018-glasgow/talk/7340>
+presented at The Perl Conference in Glasgow 2018
+(L<video|https://www.youtube.com/watch?v=KrGSg7uVZj0&t=10590s>,
+L<slides|http://choroba.matfyz.cz/18-yapc>).
+
+=cut
