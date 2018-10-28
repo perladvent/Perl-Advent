@@ -1,0 +1,139 @@
+Title: Lost in legacy arguments
+Topic: Sub::Params
+Author: Branislav Zahradník <barney@cpan.org>
+
+=encoding utf8
+
+=head1 Working with legacy code
+
+Delivering gifts is hard job. Every culture / every country has different traditions,
+different bringer old man (Santa Claus, Father Christmas, Grandfather Frost, ...),
+child (Baby Jesus, Christ Child, Child God, ...) or other (The Three Kings, Yule Goat, ...)
+different days (eg: 7 January according Gregorian calendar or 2 January in Japan)
+(source: wikipedia);
+
+To help with this problem someone in the history started with C<< deliver_gift >>.
+Well intention, well named, but it grown little bit:
+
+   sub deliver_gift {
+      my ($gift, $child, $location, $delivery_day, $old_man_bringer, $delivery_method, $child_bringer, $other_bringer) = @_;
+
+      # few hundreds of lines of code untouched this millenium follows
+      ...
+   }
+
+
+=head1 Nightmare Before Christmas
+
+Nightmare begins - this function needs new functionality - delivery_time.
+
+=over
+
+=item only first three arguments are mandatory
+
+=item function is called from many places
+
+=item optional arguments are often omitted
+
+=back
+
+=head2 Bad solution
+
+Put new argument after last mandatory field and let's break we didn't break anything.
+(except tests, we can mock everything properly there)
+
+=head2 Slightly better solution
+
+Quit a job, you deserve peace and harmony :-)
+
+=head2 Better solution
+
+Change function's calling style from positional to named arguments so you can call it like:
+
+   deliver_gift (
+       gift          => $gift,
+       child         => $child,
+       location      => $location,
+       ...,
+       # our new functionality
+       delivery_time => 'after-dinner',
+    );
+
+But how to do that?
+
+=head3 (A) deliver_gift_with_named_arguments
+
+=over
+
+=item implementation: introduce new function
+
+=item implementation: make old function wrapper over new one
+
+=item implementation: replace old function's calls with new one
+
+=item cleanup: rename new function into old name, create wrapper
+
+=item cleanup: replace new function name with old name
+
+=item cleanup: get rid of wrapper
+
+=back
+
+Lot of steps?
+In these days of zero downtime deployment via microservices lot of synchronization
+points required, multiplied by number of modules that uses this function.
+
+=head3 (B) Make function to accept both positional and named arguments
+
+There is a handy module on CPAN L<< Sub::Params >> that handles
+calling style duality, reducing number of necessary changes into:
+
+=over
+
+=item implementation: introduce duality
+
+=item implementation: change positional style to named style
+
+=item cleanup: remove duality
+
+=back
+
+   use Sub::Params qw[ named_or_positional_arguments ];
+   sub delivery_gift {
+      my ($self, @args) = @_;
+
+      my %args = named_or_positional_arguments (
+         args => \@args,
+         names => [
+             'gift',
+             'child',
+             'location',
+             'delivery_day',
+             'old_man_bringer',
+             'delivery_method',
+             'child_bringer',
+             'other_bringer,
+         ],
+      );
+   }
+
+From now on function can be called both styles (though cannot be mixed):
+
+    delivery_gift (
+       $gift,
+       $child,
+       ...
+    );
+
+    delivery_gift (
+       gift => $gift,
+       gift => $child,
+       ...
+    );
+
+Merry Christmas and Happy Refactoring :-)
+
+=head2 Thanks
+
+L<GoodData|https://gooddata.com/> for contributing to open source.
+
