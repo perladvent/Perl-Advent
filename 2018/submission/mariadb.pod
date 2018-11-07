@@ -1,0 +1,111 @@
+Title: DBD::mysql versus DBD::MariaDB
+Topic: DBD::MariaDB
+Author: E. Choroba <choroba@cpan.org>
+
+=encoding utf8
+
+To connect to the MySQL database from Perl, one always used the
+L<DBD::mysql|https://metacpan.org/pod/DBD::mysql> module. It worked
+with the MariaDB fork, too.
+
+Recently, the new module
+L<DBD::MariaDB|https://metacpan.org/pod/DBD::MariaDB> has been
+released. Has it confused you? Which one should you use?
+
+=head2 Why you should switch
+
+=over 4
+
+=item *
+
+DBD::mysql has problems to compile with the recent MySQL and MariaDB
+clients (versions 8.0+ and 10.2.4+, respectively).
+
+=item *
+
+The original module can use insecure connection even if you requested
+it connect securely, see
+L<CVE-2017-10789|https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-10789>.
+This can lead to a man-in-the-middle attack. The new one refuses to
+connect if secure connection was requested but it can’t be provided.
+
+=item *
+
+The new module fixes
+L<CVE-2017-10788|https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-10788>
+which allowed remote attacker to cause a denial of service
+(use-after-free), also causing test failures on some platforms.
+
+=item *
+
+There are several more vulnerabilities that the new module fixes (e.g.
+workarounds for
+L<CVE-2015-3152|https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2015-3152>,
+L<CVE-2017-3305|https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-3305>,
+or
+L<CVE-2018-2767|https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-2767>).
+
+=item *
+
+Unicode is fully supported in the new module and uses the standard
+Perl Unicode model, i.e. when writing code you always use decoded
+Unicode strings. Recent L<DBD::Pg|https://metacpan.org/pod/DBD::Pg>
+and L<DBD::SQLite|https://metacpan.org/pod/DBD::SQLite> implement the
+same behaviour.
+
+=item *
+
+The new module has better support for prepared statements and bind
+parameters.
+
+=back
+
+For a more detailed overview, visit the
+L<Changes|https://metacpan.org/changes/release/PALI/DBD-MariaDB-1.00>.
+
+=head2 Why you shouldn’t switch
+
+=over 4
+
+=item *
+
+The way how DBD::mysql handled Unicode was broken. It’s possible that
+switching to the new module would break your application, returning
+suddenly double encoded UTF-8 strings. Fixing a database where some
+values are encoded incorrectly is an uneasy task and the risk of
+breaking the data completely might prevent you from making such a
+decision.
+
+=back
+
+=head2 History
+
+If you’d like to understand the reasons why DBD::mysql was forked, you
+can read L<this thread at
+PerlMonks|https://www.perlmonks.org/index.pl?node_id=1223996>.
+Basically, the most critical fixes were originally applied to
+DBD::mysql, but because of the reason described here under I<Why you
+shouldn’t switch>, they were reverted. The L<GoodData
+company|https://www.gooddata.com> couldn’t wait for months, so they
+decided to fork the module.
+
+Various combinations of Perl, server and client versions are continuously
+tested in L<Travis CI|https://travis-ci.org/gooddata/DBD-MariaDB>.
+Currently, there are 158 different combinations.
+
+=head2 Notes
+
+You can report any problems or submit your pull requests to the
+L<GitHub repository|https://github.com/gooddata/DBD-MariaDB>.
+
+Thanks to Pali for fixing the issues and
+L<GoodData|https://gooddata.com> for supporting contribution to open
+source.
+
+Based on a L<lightning
+talk|http://act.perlconference.org/tpc-2018-glasgow/talk/7509>
+presented at The Perl Conference in Glasgow 2018
+(L<video|https://youtu.be/xGishnF1bQI?t=351>,
+L<slides|http://choroba.matfyz.cz/18-light>).
+
+=cut
