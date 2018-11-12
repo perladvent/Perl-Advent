@@ -4,9 +4,216 @@ Author: Andrew Solomon <andrew@geekuni.com>
 
 =encoding utf8
 
-On December 24 each year since the beginning of time (ok, 280 AD), Saint
-Nicholas of Myra (aka Santa Claus) has traversed the world, depositing
+On December 24 each year since the beginning of time (ok, since about 280 AD), Saint
+Nicholas of Myra (aka Santa Claus) has travelled the world, depositing
 lollipops in the stockings of nice children and for the naughty ones,
 a lump of coal.
+
+His age aside, did you ever wonder how he manages to do it?
+The answer is Alabaster "Ali" Snowball - Elf Administrator of the
+nice-and-naughty list. But what does he actually do?
+
+=head2 The Night Before Christmas
+
+Just like your parents did while trying to get you to sleep, I'll let you
+follow this fairy tale with the happy ending. Ali has a list like:
+
+    my @neighbourhood = (
+        {
+            name      => 'Donald',
+            age       => 3,
+            behaviour => 'naughty',
+            stocking  => [],
+        },
+        {
+            name      => 'Theresa',
+            age       => 5,
+            behaviour => 'nice',
+            stocking  => [],
+        },
+        {
+            name      => 'Angela',
+            age       => 17,
+            behaviour => 'nice',
+            stocking  => [],
+        },
+        ...
+    );
+
+Then he goes through like this
+
+    foreach my $person (@neighbourhood) {
+        next unless $person->{age} < 16;
+        if ($person->{behaviour} eq 'nice') {
+            push @{$person->{stocking}}, 'lollipop';
+        }
+        else {
+            push @{$person->{stocking}}, 'coal';
+        }
+    }
+
+Or, if his code is as terse as he is in conversation it's more likely to be:
+
+    map {
+        push @{$_->{stocking}},
+            $_->{behaviour} eq 'nice' ? 'lollipop' : 'coal';
+    }
+    grep { $_->{age} < 16 } @neighbourhood;
+
+From which we get a neighbourhood of
+
+    (
+        {
+            name      => 'Donald',
+            age       => 3,
+            behaviour => 'naughty',
+            stocking  => ['coal'],
+        },
+        {
+            name      => 'Theresa',
+            age       => 5,
+            behaviour => 'nice',
+            stocking  => ['lollipop'],
+        },
+        {
+            name      => 'Angela',
+            age       => 17,
+            behaviour => 'nice',
+            stocking  => [],
+        },
+        ...
+    )
+
+and I<everyone> lives happily ever after (especially Donald).
+
+=head2 The Recursive Falling Dream
+
+Alas, like all good children on the list, you're rather naive. You
+see, even in 280AD Myra was a boomtown without a simple linear list of
+properties, and dealing with the whole world in modern times it's an
+even more complex data structure with snippets like:
+
+    $world = [
+        {
+            name        => 'USA',
+            type        => 'Country',
+            territories => [
+                ...
+                {
+                    name    => 'Washington, D.C',
+                    type    => 'District',
+                    streets => [
+                        {
+                            type       => 'Avenue',
+                            name       => 'Pennsylvania',
+                            properties => [
+                                {
+                                    type        => 'House',
+                                    colour      => 'White',
+                                    inhabitants => [
+                                        {
+                                            name      => 'Donald',
+                                            age       => 3,
+                                            behaviour => 'naughty',
+                                            stocking  => [],
+                                        },
+                                        ...
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+
+Scary, isn't it? Do you have that queasy, roller-coaster-after-Christmas-pudding feeling?
+
+If you need to traverse deeply nested data where you're not sure of the
+structure B<don't reinvent the wheel> -  L<Data::Rmap|Data::Rmap> has done it for you.
+
+    use Data::Rmap qw/rmap_hash/;
+
+    rmap_hash {
+        push(@{$_->{stocking}}, what_they_deserve($_))
+            if they_deserve_anything_at_all($_)
+    } $world;
+
+
+In that snippet C<rmap_hash> recursively traverses the data structure and applies the code block
+to every hash reference it finds. Then it's simply a matter of implemeting these two
+validation methods:
+
+    sub they_deserve_anything_at_all {
+        my $person = shift;
+
+        foreach my $key (qw/name age behaviour stocking/) {
+            return unless exists($person->{$key});
+        }
+        return unless ref($person->{stocking}) eq 'ARRAY';
+        return unless $person->{age} < 16;
+        return 1;
+    }
+
+
+    sub what_they_deserve {
+        my $person = shift;
+
+        return $person->{behaviour} eq 'nice' ? 'lollipop' : 'coal';
+    }
+
+=head2 Avoiding the Trap
+
+The problem is that the world is more than just a bunch of countries. Apart from countries
+there are other entities like:
+
+    {
+        name  => 'Jungle',
+        type  => 'Company',
+        staff => [
+            {
+                name      => 'Jeff',
+                age       => 7,
+                behaviour => 'naughty',
+                stocking  => [],
+                role      => 'CEO',
+            }
+        ],
+    }
+
+and
+
+    {
+        name    => 'Monaco',
+        type    => 'Tax Haven',
+        evaders => [
+            {
+                name      => 'Ebenezer "Bono" Scrooge',
+                age       => 12,
+                behaviour => 'nice',
+                stocking  => [],
+                role      => 'Philanthropist',
+            }
+        ],
+    }
+
+In this case, rather than wasting treats or Ali's time, we ignore these branches with
+Data::Rmap's C<cut> method.
+
+    rmap_hash {
+        Data::Rmap::cut if $_->{type} =~ m{^(Company|Tax Haven)$};
+
+        push(@{$_->{stocking}}, what_they_deserve($_))
+            if they_deserve_anything_at_all($_)
+    } $world;
+
+=head2 ... and a Happy New Year
+
+As you can see, Santa's performance has been improved by skipping large portions of the world, but it's
+still a CPU intensive trip. Don't recurse through your data if you can avoid it.
+
+If you can't avoid recursion though, don't reinvent the wheel. Let Data::Rmap do the traversal
+so you can just focus on the reasoning.
 
 =cut
