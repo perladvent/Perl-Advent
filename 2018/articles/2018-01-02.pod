@@ -1,0 +1,135 @@
+Title: Perl in the Browser
+Topic: WebPerl
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+"Busted Presents!", Tinsle Gumdrop complained. "I I<hate> re-writing code."
+
+It was Tinsle's job to port a whole bunch of backend validation logic code from
+their Perl based internet web app to the JavaScript front end so the validation
+could run client side too.
+
+"I bet those Valentine's cherubs who code in Node don't have this problem",
+she thought to herself.  "At least they can run the same code on the
+server and in the browser."
+
+If only there was a way to run I<Perl> code within the browser also...
+
+=head2 WebPerl
+
+The JavaScript engines in modern web browsers are crazy powerful optimized
+insanity - even on occasion shipping an entire LLVM compiler to just in
+time compile the JavaScript code down into native instructions in order to
+get native performance.
+
+In order to help get this level of performance you can use
+L<asm.js|http://asmjs.org/> - a specialist subset of JavaScript to represent low
+level operations that the JavaScript engine can easily compile down to native
+code.  Or, if your modern browser supports it (like recent versions of Chrome,
+Firefox, Safari and IE do) you can skip the JavaScript representation entirely
+and use a machine independent binary format to describe operations the
+JavaScript engine should run with L<WebAssembly|https://webassembly.org/>.
+
+It's possible to compile C code using L<Emscripten> to produce JavaScript code
+or WebAssembly that (when further automatically compiled for JIT performance in
+the browser) will run at near-native speed.  Of course, Tinsel doesn't want to
+run any C based code in the browser - she wants to run Perl code.  What you need
+to run Perl code is perl - the Perl interpreter - which, as luck would have it,
+is itself a C based program.  So using Enscripten we can compile a version of
+perl that can be used, with a bunch of shims and bridges, to execute Perl code
+embedded in our HTML source code.
+
+This all sounds like a lot of work - or would be, if the L<webperl
+project|https://webperl.zero-g.net/> hadn't done all the hard work for us
+already.  All we need to do to run Perl code is include a single script tag in
+our HTML linking to a JavaScript file containing the precompiled perl
+interpreter and suddenly we're able to write Perl code directly in our webpages.
+
+=head2 A working example
+
+For fun, let's write some code to generate Fibonacci numbers in our browser...in
+Perl.
+
+    #!html
+    <html>
+        <head>
+            <script src="https://webperlcdn.zero-g.net/v0.07-beta/webperl.js"
+            integrity="sha256-jL8SB7St5ou4+hb0frK0k6VCQXsWQ1wolDrdU7i4juc="
+            crossorigin="anonymous"></script>
+            <script src="https://code.jquery.com/jquery-3.3.1.min.js"
+            integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+            crossorigin="anonymous"></script>
+        </head>
+        <body>
+            fib(
+                <input id="in" type="number" min="1" max="49">
+            ) = <span id="out"></span>
+
+            <script type="text/perl">
+                use Memoize qw( memoize );
+                sub fib { 
+                    return 1 if $_[0] <= 2;
+                    return fib($_[0] - 1) + fib($_[0] - 2);
+                }
+                memoize('fib');
+
+                my $jq = js('jQuery');
+                $jq->('#in')->on('change', sub {
+                    $jq->('#out')->text(
+                        fib( $jq->('#in')->val )
+                    );
+                });
+            </script>
+        </body>
+    </html>
+
+Assuming you're reading this article with a recent web browser then this
+code is entirely runnable directly L<fib.html|in the browser>.
+
+There's a lot to unpack in this dense example:
+
+=over
+
+=item *
+
+At the very top of the script we load the webperl code from the webperl
+CDN.  We don't even have to host this on our own server.
+
+=item *
+
+Once we've done that we're able to use a special form of the C<< <script> >>
+tag to write Perl code in our webpage by using the C<type="text/perl">
+attribute.
+
+=item *
+
+We're even able to load core modules from within our embedded Perl code.
+In the example above we load L<Memoize> to cache the output of the
+C<fib> function so our code runs efficiently.
+
+=item *
+
+It's possible to run JavaScript within our Perl code using the C<js(...)>
+function.  In the above example we're just evaluating C<jQuery> to get
+a reference to the jQuery function we can then use to access jQuery
+within Perl.
+
+=item *
+
+The bridge between Perl and JavaScript is pretty flexible.  Here we're executing
+the jQuery function from within Perl, calling a further method on the result on
+what it returns, and then we're even passing an anonymous Perl subroutine to
+jQuery as a callback it should execute whenever the input field changes.
+Remember, jQuery has no idea that it's being called from and itself is calling
+Perl code at all!
+
+=back
+
+=head2 Alls Well That Ends Well
+
+In the end Tinsel was able to copy and paste the more complex logic from the backend
+Perl code without having to rewrite any of it (and avoiding adding additional
+logic bugs along the way.)
+
+With the extra time she had saved, she was able to take advantage of another
+Enscripten project - a compile of L<Quake 3|http://www.quakejs.com> to run
+in the browser.
