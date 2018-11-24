@@ -5,8 +5,8 @@ Author: E. Choroba <choroba@cpan.org>
 =encoding utf8
 
 How does Santa manage to deliver all the presents to all the children
-on one day? The answer is simple: He doesn’t. In many countries, there
-are different creatures responsible for the job (if you’re curious,
+on one day? The answer is simple: He doesn't. In many countries, there
+are different creatures responsible for the job (if you're curious,
 consult the L<List of Christmas and winter gift
 bringers|https://en.wikipedia.org/wiki/List_of_Christmas_and_winter_gift-bringers_by_country>
 for details).
@@ -21,40 +21,40 @@ L<JSON|https://metacpan.org/pod/JSON>.
 
 =head2 Baby Jesus on Red Hat Enterprise Linux
 
-Let’s look at Baby Jesus, responsible for the central part of Europe
+Let's look at Baby Jesus, responsible for the central part of Europe
 and Latin America. The author of this article is interested in him for
 two reasons: Baby Jesus brings the Christmas gifts to his children,
-and the Baby’s business runs on Perl.
+and the Baby's business runs on Perl.
 
 Until the end of the previous year, Baby Jesus had used Red Hat
 Enterprise Linux 6. It featured Perl version 5.10.1, and the web
 service used L<JSON::XS|https://metacpan.org/pod/JSON::XS> version
 2.27 provided by the vendor. When the Christmas 2017 was over, Kris
 Kringle decided to upgrade the system to RHEL7, which included Perl
-upgrade to 5.16.3 and JSON::XS to 3.01. Surprisingly, this wasn’t
+upgrade to 5.16.3 and JSON::XS to 3.01. Surprisingly, this wasn't
 smooth at all.
 
 After the upgrade, JSON data were different. Some numbers that were
 previously not quoted started to appear in double quotes, while others
 originally quoted lost their quotes sometimes. Perl powered gift
-bringers didn’t have to worry as Perl doesn’t care, but there were
-Java businesses that required the format to stay stable. BJ couldn’t
+bringers didn't have to worry as Perl doesn't care, but there were
+Java businesses that required the format to stay stable. BJ couldn't
 but accept their argument that the data should roundtrip: when you
 POST a JSON, you expect to GET the same JSON back.
 
 =head2 System Perl
 
-The investigation carried out showed two causes of the problem: Perl’s
+The investigation carried out showed two causes of the problem: Perl's
 internal flags had changed across the versions, as well as the
 heuristics used by the JSON::XS module to guess whether a number
 should be quoted or not.
 
-“We told you not to use the system Perl!” shouted other programmers in
+"We told you not to use the system Perl!" shouted other programmers in
 the office.
 
-“Good advice,” replied Baby Jesus, “but it wouldn’t have helped us.
-We’d have probably only discovered the problem earlier when upgrading
-Perl or the library.”
+"Good advice," replied Baby Jesus, "but it wouldn't have helped us.
+We'd have probably only discovered the problem earlier when upgrading
+Perl or the library."
 
 =head2 Alternatives
 
@@ -92,7 +92,7 @@ while all the others return C<[19]>.
 
   use Data::Dumper; Dumper(decode_json('[1e4]'))
 
-This time, it’s JSON::PP who begs to differ, returning C<[10000]>
+This time, it's JSON::PP who begs to differ, returning C<[10000]>
 without quotes. All other libraries return the number quoted.
 
 =item *
@@ -144,8 +144,8 @@ returns C<1212>, which is consistent with the other libraries.
 
 =head2 Quick Solution
 
-“Let’s just quickly fix the data before serialisation,” was the
-initial idea of BJ’s team. They wanted to call C<int> on integers,
+"Let's just quickly fix the data before serialisation," was the
+initial idea of BJ's team. They wanted to call C<int> on integers,
 concatenate strings to the empty string, and add floats to zero:
 
     #! /usr/bin/perl
@@ -164,11 +164,11 @@ concatenate strings to the empty string, and add floats to zero:
         0 + $float
     ]);
 
-But when they started changing the code, they realised it wasn’t so
+But when they started changing the code, they realised it wasn't so
 easy. Nested structures turned out to be hard to track, as they were
 usually built in steps in different parts of the code. Unintentionally
 inspecting a value could lead to an encoding error, and there was no
-easy way how to mark a value as “ready for serialisation”. Moreover,
+easy way how to mark a value as "ready for serialisation". Moreover,
 the whole endeavour was confusing for non-Perl teams who needed to
 touch the code occasionally.
 
@@ -179,7 +179,7 @@ same information to the code felt redundant.
 
 The final decision was to enforce the types in exactly one place,
 right before the serialisation. Fortunately, a company located in
-Christkind’s territory of activity also needed to solve the same
+Christkind's territory of activity also needed to solve the same
 problem, and they were able to convince Reini Urban, the maintainer of
 Cpanel::JSON::XS, to include their solution to his distribution.
 
@@ -288,17 +288,17 @@ The proper way to describe a recursive structure is to use the C<json_type_weake
 
 =head2 Similar Stories
 
-Niño Diós wasn’t the only one to encounter the problem. See for
+Niño Diós wasn't the only one to encounter the problem. See for
 example L<Did the JSON module
 change?|https://www.perlmonks.org/?node_id=1210167> on PerlMonks.
 
-Moreover, the problem isn’t particular to JSON. Whenever Perl needs to
+Moreover, the problem isn't particular to JSON. Whenever Perl needs to
 talk to a system with different type system, you might get fall into
 the same trap. See for example L<Why does DBI implicitly change
 integers to
 strings|https://stackoverflow.com/questions/40800205/why-does-dbi-implicitly-change-integers-to-strings> on StackOverflow.
 
-In Perl, the internal type of a value shouldn’t be important. The only
+In Perl, the internal type of a value shouldn't be important. The only
 exception to this were the bitwise operators, but the introduction of
 the C<bitwise> feature in 5.22 fixed it, so you can now always specify
 the type explicitly by using the appropriate operator.
