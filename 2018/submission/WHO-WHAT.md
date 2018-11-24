@@ -34,15 +34,15 @@ Data::Rmap
 
 Text::CSV::Pivot
 
+### choroba
+
+DBD::MariaDB
+
 ## In Repo
 
 ### happy-barney
 
 Sub::Params refactoring
-
-### choroba
-
-DBD::MariaDB
 
 ### manwar
 
