@@ -30,29 +30,29 @@ JSON numbers verses string
 
 Data::Rmap
 
+### manwar
+
+Text::CSV::Pivot
+
 ## In Repo
 
 ### happy-barney
 
 Sub::Params refactoring
 
-### 9. choroba
+### choroba
 
 DBD::MariaDB
 
-### 11. manwar
+### manwar
 
 Test::Excel
 
-### 7. manwar
+### manwar
 
 Method::ParamValidator
 
-### 10. manwar
-
-Text::CSV::Pivot
-
-### 6. edwart
+### edwart
 
 Hash::Flatten
 
