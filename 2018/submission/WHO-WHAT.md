@@ -38,6 +38,14 @@ Text::CSV::Pivot
 
 DBD::MariaDB
 
+### 2shortplanks
+
+App::sigfix
+
+### 2shortplanks
+
+Babel
+
 ## In Repo
 
 ### happy-barney
@@ -75,14 +83,6 @@ Types and Parameter Validation
 SVG
 
 ## Mark Has Drafts
-
-### 2shortplanks
-
-App::sigfix
-
-### 2shortplanks
-
-Babel
 
 ### 2shortplanks
 

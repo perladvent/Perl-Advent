@@ -1,0 +1,129 @@
+Title: Perl in the Browser
+Topic: App::Sigfix
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+One of the distinct advantages of writing code at the north pole is that
+Santa's elves always deployed the latest versions of perl to their
+production servers.  This meant that the elves were able to make use of
+the latest Perl features to make their day easier.
+
+In fact, the elves had gone one step further and become additcted to the new
+subroutine signatures feature of Perl - most of the younger elves would refuse
+to program without it.  While still technically an experimental feature, it'd
+been available since seeminly forever (as of this Christmas it'd been available
+not only in the latest major release of perl, but also in the old maintenance
+release before that, and in the now deprecated major release before I<that>, the
+now deprecated major release before I<that too>, and even the now deprecated
+major release before I<that as well>...you get the idea.)
+
+Not only had subroutine signatures been around I<forever>, but they made writing
+the code I<so> much nicer.  Rather than writing something complicated like this:
+
+    #!perl
+    sub fetch_reindeer {
+        my $self = shift;
+        my $name = shift or die "Missing argument!";
+        die "Extra argument" if @_;
+
+        ...
+    }
+
+The elves only had to write this:
+
+    #!perl
+    use experimental 'signatures';
+
+    sub fetch_reindeer ($self, $name) {
+       ...
+    }
+
+Which was why it was such a shock when they suddenly found themselves unable
+to use them.
+
+=head2 Time Waits For No Man (or Elf)
+
+It'd probably been a mistake outsourcing hosting some of the application code to
+an organization not so full of the the Christmas spirit.  But Santa's operation
+was the definition of a seasonal business, and they'd just run out of capacity.
+
+"Our rules of conduct say you're not allowed to use any experimental features at
+all.  And while you're in our house, you follow our rules", Father Time said.
+Being the embodiment of 2018 by December he'd changed from the young baby he'd
+been back in January into the grouchy old man that was enforcing the pointless
+rules today.
+
+There was nothing for it.  The elves would have to go through all their code and
+rip out the subroutine signatures, replacing them with older style code.  What a
+lot of work! And it's not like they were on a hard deadline or anything!
+
+=head2 A fix!
+
+One of the virtues of a Perl programmer is laziness.  In particular, never doing
+by hand what you can get a computer to do for you.
+
+The elves considered writing a Perl program to go through all their Perl code
+and remove all the signatures and insert comparable code.  This, of course,
+would probably be a Hard problem.  Traditionally parsing Perl code is one of the
+hardest things a Perl program can do, with its user friendly (but not
+necessarily compiler friendly) syntax making it a collection of nasty edge
+cases.  The question is would the elves be prepared to put in the hard work to
+be sufficiently lazy?
+
+Luckily the Wise Old Elf had been to The Perl Conference in Glasgow this year
+and had heard about a tool that could help them: L<App::sigfix>.
+
+C<sigfix> is a command line program that you can run against your Perl code.
+It'll parse the source code, find signatures, and then transform them into
+code that executes on older versions of perl.  For example given our
+C<ReindeerFactory> code:
+
+    #!perl
+    package ReindeerFactory;
+
+    use strict;
+    use warnings;
+
+    use experimental 'signatures';
+
+    sub fetch_reindeer ($self, $name) {
+        ...
+    }
+
+We can feed it into C<sigfix>
+
+    shell$ sigfix -i -t plain ReindeerFactory.pm
+
+And get out the transformed version:
+
+    package ReindeerFactory;
+
+    use strict;
+    use warnings;
+
+
+
+    sub fetch_reindeer { my ($self, $name) = @_;
+        ...
+    }
+
+C<sigfix> has worked hard to not change the line numbers code in the source code
+(so when the elves ship the generated version of their code out to Father Time
+any error messages will line up with the line numbers in the original version
+in git).  The C<experimental> line has been totally stripped (meaning that this
+code will work now on older versions of perl that don't ship with that module.)
+
+With the right C<find> command the elves could C<-exec> C<sigfix> on all their
+source code and make it shippable in seconds.
+
+=head2 For Us Mere Mortals
+
+While this is useful for the elves in removing the I<experimental> C<subroutine>
+feature as a matter of policy, the main advantage for most of us comes from
+being able to produce code that'll run on older versions of Perl that don't
+support subroutine signatures.  It means that we can use subroutine signatures
+in our development environments and still produce a shippable version of our
+code that will run on older perls.
+
+If only there was a way to remove other more modern features like `say`, '//`,
+`state`, etc too...you know, that sounds like something I could write about in
+another article...
