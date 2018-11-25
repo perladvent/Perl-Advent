@@ -71,9 +71,8 @@ planning on something like this:
 
 The main tree is four triangles. There's a brown rectangle at the bottom for
 the trunk and, below that, a red trapezium for the pot. There are a number
-of circles for baubles, a few curves to represent tinsel and, finally, a star
-on top. All of these can be described simply and, therefore, represented in
-SVG.
+of circles for baubles, and, finally, a star on top. All of these can be
+described in terms of simple shapes and, therefore, can represented in SVG.
 
 What variables might we want to alter.
 
@@ -81,11 +80,11 @@ What variables might we want to alter.
 
 =item *
 
-The number of triangles in the bofy of the tree.
+The number of triangles in the body of the tree.
 
 =item *
 
-The angle at the top of each of the triangles.
+The colour of the body of the tree
 
 =item *
 
@@ -93,14 +92,116 @@ The length of the trunk.
 
 =item *
 
-The number and colours of the baubles.
-
-=item *
-
-The colour of the tinsel.
-
-=item *
-
-The number of points on the star.
+The colour of the baubles and the star.
 
 =back
+
+(There are probably more that you can think of, but these will be enough to
+solve Elfname's current problem.)
+
+Elfname set to on this task and quickly managed to write code to draw some
+shapes that looked like a tree. And then, she bundled the code up into a Moose
+class which she uploaded to CPAN. Like most classes, this class starts by
+loading Moose and defining some attributes. The most important attribute is the
+one that contains the SVG object itself.
+
+    has svg => (
+      isa  => 'SVG',
+      is   => 'ro',
+      lazy_build => 1,
+    );
+
+    sub _build_svg {
+      my $self = shift;
+
+      return SVG->new(
+        width => $self->width,
+        height => $self->height,
+      );
+    }
+
+Then there are a number of attributes that define the various characteristics
+of the tree that we might want to change. Here are some examples:
+
+    has layers => (
+      isa => 'Int',
+      is  => 'ro',
+      default => 4,
+    );
+
+    has trunk_length => (
+      isa => 'Str',
+      is  => 'ro',
+      default =>
+    );
+
+    has leaf_colour => (
+      isa => 'Str',
+      is  => 'ro',
+      default => 'rgb(0,127,0)',
+    );
+
+There's a main driver method that actually draws the tree.
+
+    sub as_xml {
+      my $self = shift;
+
+      $self->pot;
+      $self->trunk;
+      my $width = 600;
+      my $tri_bottom = 700;
+      for (1 .. $self->layers) {
+        my $h = $self->triangle(90, $width, $tri_bottom);
+        $self->bauble(500 - ($width/2), $tri_bottom);
+        $self->bauble(500 + ($width/2), $tri_bottom);
+        $width *= 5/6;
+        $tri_bottom -= ($h * .5)
+      }
+
+      return $self->svg->xmlify;
+   }
+
+This just calls various lower-level methods which draw the inidividual shapes
+that make up the tree before, finally, calling C<xmlify> on the SVG attribute
+which actually produces the XML output that describes the tree.
+
+As most of the parts of the tree are just coloured shapes, there's a method
+called C<coloured_shape> which does most of that work.
+
+    sub coloured_shape {
+      my $self = shift;
+      my ($x, $y, $colour) = @_;
+
+      my $path = $self->svg->get_path(
+        x => $x,
+        y => $y,
+        -type => 'polyline',
+        -closed => 1,
+      );
+
+      $self->svg->polyline(
+        %$path,
+        style => {
+          fill => $colour,
+          stroke => $colour,
+        },
+      );
+   }
+
+This takes three arguments: an array of X points, an array of Y points and
+a colour. It uses the C<SVG> modules, C<get_path> and C<polyline> methods to
+turn the X and Y co-ordinates into an SVG polyline element which it then adds
+to the SVG image.
+
+Finally, one of the methods that uses C<coloured_shape> looks like this. This
+is the C<pot> method (so notice that, currently, the co-ordinates are all
+fixed values).
+
+    sub pot {
+      my $self = shift;
+      $self->coloured_shape(
+        [  400, 350, 650,  600 ],
+        [ 1000, 800, 800, 1000 ],
+        $self->pot_colour,
+      );
+    }
