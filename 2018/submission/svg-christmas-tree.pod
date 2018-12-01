@@ -4,9 +4,9 @@ Author: Dave Cross <dave@perlhacks.com>
 
 =head1 Growing Christmas Trees
 
-ElfName was in a bit of a panic. She had been given the job of producing a
-series of designs for this year's North Pole Christmas cards and so far she
-had made no progress. And the print deadline was approaching fast.
+Twinkly the elf was in a bit of a panic. She had been given the job of
+producing a series of designs for this year's North Pole Christmas cards. So
+far she had made no progress. And the print deadline was approaching fast.
 
 The problem was just too complex. It wasn't just a case of taking a mildly
 embarrassing photo of the Clauses and then printing that on hundreds of cards.
@@ -15,7 +15,9 @@ graphics of Christmas trees. Also (and this was the hard part), he wanted
 dozens of different designs with different numbers of tree and tree of many
 different sizes. There just wasn't time to create that many designs.
 
-[ Invent silly situation which introduces Elf to the idea of SVG. ]
+Twinkly was having coffee with the Wise Old Efl in the North Pole Canteen
+when she mentioned her problem to him. He suggested that she used SVG to
+produce the images. Twinkly had never heard of SVG, so she did some research.
 
 =head2 Two Types of Graphics
 
@@ -41,7 +43,7 @@ And as you scale up the drawing area, those instructions remain just as valid.
 You'll get a bigger circle, but one that is still drawn with sharp edges.
 
 SVG (for "Scalable Vector Graphics") is an XML format for describing vector
-graphic. It has become very popular on the web and many browsers now have
+graphics. It has become very popular on the web and many browsers now have
 build-in support for displaying SVG images.
 
 Not all images are suitable for being represented in the SVG format. As an
@@ -54,7 +56,7 @@ For example, a cartoon representation of a Christmas tree.
 
 =head2 Varying the Design
 
-But that only gets us part of the way there. ElfName needs to produce many
+But that only gets us part of the way there. Twinkly needs to produce many
 different designs of her Christmas tree. How does SVG help us there?
 
 An SVG document isn't so much a description of an image. It's more of a recipe
@@ -70,9 +72,9 @@ planning on something like this:
 [ insert image of tree ]
 
 The main tree is four triangles. There's a brown rectangle at the bottom for
-the trunk and, below that, a red trapezium for the pot. There are a number
-of circles for baubles, and, finally, a star on top. All of these can be
-described in terms of simple shapes and, therefore, can represented in SVG.
+the trunk and, below that, a red trapezium for the pot and, finally, a few
+circular baubles hanging from the branches. All of these can be described in
+terms of simple shapes and, therefore, can represented in SVG.
 
 What variables might we want to alter.
 
@@ -92,18 +94,18 @@ The length of the trunk.
 
 =item *
 
-The colour of the baubles and the star.
+The colour of the bauble..
 
 =back
 
 (There are probably more that you can think of, but these will be enough to
-solve Elfname's current problem.)
+solve Twinkly's current problem.)
 
-Elfname set to on this task and quickly managed to write code to draw some
+Twinkly set to on this task and quickly managed to write code to draw some
 shapes that looked like a tree. And then, she bundled the code up into a Moose
-class which she uploaded to CPAN. Like most classes, this class starts by
-loading Moose and defining some attributes. The most important attribute is the
-one that contains the SVG object itself.
+class, called C<SAVG::ChristmasTree>, which she uploaded to CPAN. Like most
+classes, this class starts by loading Moose and defining some attributes. The
+most important attribute is the one that contains the SVG object itself.
 
     has svg => (
       isa  => 'SVG',
@@ -205,3 +207,51 @@ fixed values).
         $self->pot_colour,
       );
     }
+
+To create a Christmas tree you just need to create an object and call its
+C<as_xml> method:
+
+    use SVG::ChristmasTree;
+
+    my $tree = SVG::ChristmasTree;
+    print $tree->as_xml.
+
+If you want to vary the attributes, you do that as you create the object.
+
+    my $tree = SVG::ChristmasTree->new({
+      layers => 6,
+      leaf_colour => 'rgb(0,255,0)',
+    })
+
+(Notice that the colour attributes are defined using SVG's standard RGB
+notation.)
+
+Twinkly wanted to make her life as easy as possible, so she decided to write
+a C<tree> program that did all this for her. She was about to write a pile of
+command-line parsing code in order to handle all of the attributes when she
+remembered the existance of C<MooseX::Getopt> which did all of that for her.
+She simple had to add the following line to her class:
+
+    with MooseX::Getopt;
+
+And, then, in her C<tree> program, she replaced the call to C<new()> with one
+to C<new_with_options()>. Her code now looks like this.
+
+    use SVG::ChristmasTree;
+
+    my $tree = SVG::ChristmasTree->new_with_options;
+    say $tree->as_xml;
+
+And she can call her program like this:
+
+    $ ./tree --layers=6 --leaf_colour='rgb(0,255,0)'
+
+The Moose extension handles passing the command line options on to the object
+constructors. It even knows what the valid options are and displays a helpful
+message if you try to use an invalid one.
+
+Now, Twinkly just needs to call her C<tree> program with various combinations
+of command-line options to produce dozens of different trees. And Santa's
+Christmas cards will be at the printers in time to meet the deadline.
+
+Unlike this article.
