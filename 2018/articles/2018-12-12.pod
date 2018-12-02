@@ -1,0 +1,257 @@
+Title: Growing Christmas Trees
+Topic: SVG (and SVG::ChristmasTree)
+Author: Dave Cross <dave@perlhacks.com>
+
+=head1 Growing Christmas Trees
+
+Twinkly the elf was in a bit of a panic. She had been given the job of
+producing a series of designs for this year's North Pole Christmas cards. So
+far she had made no progress. And the print deadline was approaching fast.
+
+The problem was just too complex. It wasn't just a case of taking a mildly
+embarrassing photo of the Clauses and then printing that on hundreds of cards.
+No, Santa had decided that he didn't want a photo this year. He wanted cute
+graphics of Christmas trees. Also (and this was the hard part), he wanted
+dozens of different designs with different numbers of tree and tree of many
+different sizes. There just wasn't time to create that many designs.
+
+Twinkly was having coffee with the Wise Old Efl in the North Pole Canteen
+when she mentioned her problem to him. He suggested that she used SVG to
+produce the images. Twinkly had never heard of SVG, so she did some research.
+
+=head2 Two Types of Graphics
+
+Most image files that we come across every day are B<raster> images. Basically,
+the image is made up of a two-dimensional grid of points
+(called B<picture elements> or B<pixels>). Each pixel is set to be a
+particular colour and when we look at the complete set of coloured pixels, we
+see it as an image.
+
+Raster images are great for many uses. All of the JPG and PNG and GIF images
+that you come across every say on the internet are raster images. But they
+have a couple of downsides - one of which is that they don't scale very well.
+When you view a raster image at the intended size, you don't see the
+inidividual pixels. But as you scale up the image, there will come a point
+where each pixel becomes large enough to be seen. Initially, you might notice
+that a straight edge starts to look a bit jagged. Eventually, you'll see every
+pixel and the image turns into an unrecognisable pile of squares.
+
+Vector images are different. Vector images don't contain instructions saying
+that "this pixel is red" or "that pixel is blue". They contain higher level
+instructions like "draw a red circle with this radius, centred on this point".
+And as you scale up the drawing area, those instructions remain just as valid.
+You'll get a bigger circle, but one that is still drawn with sharp edges.
+
+SVG (for "Scalable Vector Graphics") is an XML format for describing vector
+graphics. It has become very popular on the web and many browsers now have
+build-in support for displaying SVG images.
+
+Not all images are suitable for being represented in the SVG format. As an
+SVG image is made up of lots (possibly hundreds) of shapes, something like a
+photo doesn't really work in this format. But if you can describe your image
+in terms of the shapes that make it up, then it would be a good candidate for
+being turned into an SVG document.
+
+For example, a cartoon representation of a Christmas tree.
+
+=head2 Varying the Design
+
+But that only gets us part of the way there. Twinkly needs to produce many
+different designs of her Christmas tree. How does SVG help us there?
+
+An SVG document isn't so much a description of an image. It's more of a recipe
+that tells you how to produce the image. And when you have a recipe, it's easy
+to vary parts of the recipe in order to vary the results we get out at the
+end. So we need to write a program which generates various different Christmas
+trees, depending on its input parameters. And, luckily, there is a CPAN module
+called SVG which we can use to output SVG documents.
+
+Let's think a little about what we need to draw a Christmas tree. I'm
+planning on something like this:
+
+[ insert image of tree ]
+
+The main tree is four triangles. There's a brown rectangle at the bottom for
+the trunk and, below that, a red trapezium for the pot and, finally, a few
+circular baubles hanging from the branches. All of these can be described in
+terms of simple shapes and, therefore, can represented in SVG.
+
+What variables might we want to alter.
+
+=over 4
+
+=item *
+
+The number of triangles in the body of the tree.
+
+=item *
+
+The colour of the body of the tree
+
+=item *
+
+The length of the trunk.
+
+=item *
+
+The colour of the bauble..
+
+=back
+
+(There are probably more that you can think of, but these will be enough to
+solve Twinkly's current problem.)
+
+Twinkly set to on this task and quickly managed to write code to draw some
+shapes that looked like a tree. And then, she bundled the code up into a Moose
+class, called C<SAVG::ChristmasTree>, which she uploaded to CPAN. Like most
+classes, this class starts by loading Moose and defining some attributes. The
+most important attribute is the one that contains the SVG object itself.
+
+    has svg => (
+      isa  => 'SVG',
+      is   => 'ro',
+      lazy_build => 1,
+    );
+
+    sub _build_svg {
+      my $self = shift;
+
+      return SVG->new(
+        width => $self->width,
+        height => $self->height,
+      );
+    }
+
+Then there are a number of attributes that define the various characteristics
+of the tree that we might want to change. Here are some examples:
+
+    has layers => (
+      isa => 'Int',
+      is  => 'ro',
+      default => 4,
+    );
+
+    has trunk_length => (
+      isa => 'Str',
+      is  => 'ro',
+      default =>
+    );
+
+    has leaf_colour => (
+      isa => 'Str',
+      is  => 'ro',
+      default => 'rgb(0,127,0)',
+    );
+
+There's a main driver method that actually draws the tree.
+
+    sub as_xml {
+      my $self = shift;
+
+      $self->pot;
+      $self->trunk;
+      my $width = 600;
+      my $tri_bottom = 700;
+      for (1 .. $self->layers) {
+        my $h = $self->triangle(90, $width, $tri_bottom);
+        $self->bauble(500 - ($width/2), $tri_bottom);
+        $self->bauble(500 + ($width/2), $tri_bottom);
+        $width *= 5/6;
+        $tri_bottom -= ($h * .5)
+      }
+
+      return $self->svg->xmlify;
+   }
+
+This just calls various lower-level methods which draw the inidividual shapes
+that make up the tree before, finally, calling C<xmlify> on the SVG attribute
+which actually produces the XML output that describes the tree.
+
+As most of the parts of the tree are just coloured shapes, there's a method
+called C<coloured_shape> which does most of that work.
+
+    sub coloured_shape {
+      my $self = shift;
+      my ($x, $y, $colour) = @_;
+
+      my $path = $self->svg->get_path(
+        x => $x,
+        y => $y,
+        -type => 'polyline',
+        -closed => 1,
+      );
+
+      $self->svg->polyline(
+        %$path,
+        style => {
+          fill => $colour,
+          stroke => $colour,
+        },
+      );
+   }
+
+This takes three arguments: an array of X points, an array of Y points and
+a colour. It uses the C<SVG> modules, C<get_path> and C<polyline> methods to
+turn the X and Y co-ordinates into an SVG polyline element which it then adds
+to the SVG image.
+
+Finally, one of the methods that uses C<coloured_shape> looks like this. This
+is the C<pot> method (so notice that, currently, the co-ordinates are all
+fixed values).
+
+    sub pot {
+      my $self = shift;
+      $self->coloured_shape(
+        [  400, 350, 650,  600 ],
+        [ 1000, 800, 800, 1000 ],
+        $self->pot_colour,
+      );
+    }
+
+To create a Christmas tree you just need to create an object and call its
+C<as_xml> method:
+
+    use SVG::ChristmasTree;
+
+    my $tree = SVG::ChristmasTree;
+    print $tree->as_xml.
+
+If you want to vary the attributes, you do that as you create the object.
+
+    my $tree = SVG::ChristmasTree->new({
+      layers => 6,
+      leaf_colour => 'rgb(0,255,0)',
+    })
+
+(Notice that the colour attributes are defined using SVG's standard RGB
+notation.)
+
+Twinkly wanted to make her life as easy as possible, so she decided to write
+a C<tree> program that did all this for her. She was about to write a pile of
+command-line parsing code in order to handle all of the attributes when she
+remembered the existance of C<MooseX::Getopt> which did all of that for her.
+She simple had to add the following line to her class:
+
+    with MooseX::Getopt;
+
+And, then, in her C<tree> program, she replaced the call to C<new()> with one
+to C<new_with_options()>. Her code now looks like this.
+
+    use SVG::ChristmasTree;
+
+    my $tree = SVG::ChristmasTree->new_with_options;
+    say $tree->as_xml;
+
+And she can call her program like this:
+
+    $ ./tree --layers=6 --leaf_colour='rgb(0,255,0)'
+
+The Moose extension handles passing the command line options on to the object
+constructors. It even knows what the valid options are and displays a helpful
+message if you try to use an invalid one.
+
+Now, Twinkly just needs to call her C<tree> program with various combinations
+of command-line options to produce dozens of different trees. And Santa's
+Christmas cards will be at the printers in time to meet the deadline.
+
+Unlike this article.
