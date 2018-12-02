@@ -6,103 +6,100 @@ Late submissions will bump something by 2shortplanks.  He's writing too many art
 
 ## Scheduled
 
-### 2shortplanks
-
-B::perlstring
-
-### 2shortplanks
-
-Array::StickyINC
-
-### 2shortplanks
-
-webperl
-
-### barbie
+### 1. barbie
 
 Calendar::List
 
-### choroba
+### 2. 2shortplanks
+
+webperl
+
+### 3. choroba
 
 JSON numbers verses string
 
-### andrewsolomon
+### 4. 2shortplanks
+
+B::perlstring
+
+### 5. andrewsolomon
 
 Data::Rmap
 
-### manwar
+### 6. 2shortplanks
+
+Array::StickyINC
+
+### 7. manwar
 
 Text::CSV::Pivot
 
-### choroba
+### 8. choroba
 
 DBD::MariaDB
 
-### 2shortplanks
+### 9. 2shortplanks
 
 App::sigfix
 
-### 2shortplanks
+### 10. 2shortplanks
 
-Babel
+Babble
 
-## In Repo
+### 11. 2shortplanks
 
-### happy-barney
+Mu
+
+### 12. davorg
+
+SVG
+
+### 13. happy-barney
 
 Sub::Params refactoring
 
-### manwar
+## In Repo
+
+### 1. manwar
 
 Test::Excel
 
-### manwar
-
-Method::ParamValidator
-
-### edwart
+### 2. edwart
 
 Hash::Flatten
 
 ## Otherwise Outstanding
 
-### jjatria
+### 1. jjatria
 
 Async programming
 
-### happy-barney
+### 2. happy-barney
 
 Context::Sigleton refactoring
 
-### vanHoesel
+### 3. vanHoesel
 
 Types and Parameter Validation
 
-### 5. davorg
+### 4. manwar
 
-SVG
+Method::ParamValidator
 
-## Mark Has Drafts
+## Mark To Write
 
-### 2shortplanks
+### 1. 2shortplanks
 
 App::ccdiff
 
-### 2shortplanks
+### 2. 2shortplanks
 
 Devel::hdb
 
-## Mark Needs To Write
-
-### 2shortplanks
-
-PPR
-
-### 2shortplanks
+### 3. 2shortplanks
 
 App::****this
 
-### 2shortplanks
+### 4. 2shortplanks
 
-CLI::Osprey
-
+PPR
