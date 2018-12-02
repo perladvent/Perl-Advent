@@ -2,8 +2,6 @@ Title: Growing Christmas Trees
 Topic: SVG (and SVG::ChristmasTree)
 Author: Dave Cross <dave@perlhacks.com>
 
-=head1 Growing Christmas Trees
-
 Twinkly the elf was in a bit of a panic. She had been given the job of
 producing a series of designs for this year's North Pole Christmas cards. So
 far she had made no progress. And the print deadline was approaching fast.
@@ -15,7 +13,7 @@ graphics of Christmas trees. Also (and this was the hard part), he wanted
 dozens of different designs with different numbers of tree and tree of many
 different sizes. There just wasn't time to create that many designs.
 
-Twinkly was having coffee with the Wise Old Efl in the North Pole Canteen
+Twinkly was having coffee with the Wise Old Elf in the North Pole Canteen
 when she mentioned her problem to him. He suggested that she used SVG to
 produce the images. Twinkly had never heard of SVG, so she did some research.
 
@@ -69,7 +67,8 @@ called SVG which we can use to output SVG documents.
 Let's think a little about what we need to draw a Christmas tree. I'm
 planning on something like this:
 
-[ insert image of tree ]
+=for html
+  <center><img src="shapes.jpg"></center>
 
 The main tree is four triangles. There's a brown rectangle at the bottom for
 the trunk and, below that, a red trapezium for the pot and, finally, a few
@@ -80,21 +79,13 @@ What variables might we want to alter.
 
 =over 4
 
-=item *
+=item The number of triangles in the body of the tree.
 
-The number of triangles in the body of the tree.
+=item The colour of the body of the tree
 
-=item *
+=item The length of the trunk.
 
-The colour of the body of the tree
-
-=item *
-
-The length of the trunk.
-
-=item *
-
-The colour of the bauble..
+=item The colour of the bauble..
 
 =back
 
@@ -103,10 +94,11 @@ solve Twinkly's current problem.)
 
 Twinkly set to on this task and quickly managed to write code to draw some
 shapes that looked like a tree. And then, she bundled the code up into a Moose
-class, called C<SAVG::ChristmasTree>, which she uploaded to CPAN. Like most
+class, called L<SVG::ChristmasTree>, which she uploaded to CPAN. Like most
 classes, this class starts by loading Moose and defining some attributes. The
 most important attribute is the one that contains the SVG object itself.
 
+    #!perl
     has svg => (
       isa  => 'SVG',
       is   => 'ro',
@@ -125,6 +117,7 @@ most important attribute is the one that contains the SVG object itself.
 Then there are a number of attributes that define the various characteristics
 of the tree that we might want to change. Here are some examples:
 
+    #!perl
     has layers => (
       isa => 'Int',
       is  => 'ro',
@@ -145,6 +138,7 @@ of the tree that we might want to change. Here are some examples:
 
 There's a main driver method that actually draws the tree.
 
+    #!perl
     sub as_xml {
       my $self = shift;
 
@@ -170,6 +164,7 @@ which actually produces the XML output that describes the tree.
 As most of the parts of the tree are just coloured shapes, there's a method
 called C<coloured_shape> which does most of that work.
 
+    #!perl
     sub coloured_shape {
       my $self = shift;
       my ($x, $y, $colour) = @_;
@@ -191,7 +186,7 @@ called C<coloured_shape> which does most of that work.
    }
 
 This takes three arguments: an array of X points, an array of Y points and
-a colour. It uses the C<SVG> modules, C<get_path> and C<polyline> methods to
+a colour. It uses the L<SVG> modules, C<get_path> and C<polyline> methods to
 turn the X and Y co-ordinates into an SVG polyline element which it then adds
 to the SVG image.
 
@@ -199,6 +194,7 @@ Finally, one of the methods that uses C<coloured_shape> looks like this. This
 is the C<pot> method (so notice that, currently, the co-ordinates are all
 fixed values).
 
+    #!perl
     sub pot {
       my $self = shift;
       $self->coloured_shape(
@@ -211,6 +207,7 @@ fixed values).
 To create a Christmas tree you just need to create an object and call its
 C<as_xml> method:
 
+    #!perl
     use SVG::ChristmasTree;
 
     my $tree = SVG::ChristmasTree;
@@ -218,6 +215,7 @@ C<as_xml> method:
 
 If you want to vary the attributes, you do that as you create the object.
 
+    #!perl
     my $tree = SVG::ChristmasTree->new({
       layers => 6,
       leaf_colour => 'rgb(0,255,0)',
@@ -232,11 +230,13 @@ command-line parsing code in order to handle all of the attributes when she
 remembered the existance of C<MooseX::Getopt> which did all of that for her.
 She simple had to add the following line to her class:
 
+    #!perl
     with MooseX::Getopt;
 
 And, then, in her C<tree> program, she replaced the call to C<new()> with one
 to C<new_with_options()>. Her code now looks like this.
 
+    #!perl
     use SVG::ChristmasTree;
 
     my $tree = SVG::ChristmasTree->new_with_options;
