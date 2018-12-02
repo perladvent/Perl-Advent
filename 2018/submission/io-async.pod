@@ -1,0 +1,221 @@
+Title: The future is now
+Topic: Future-based interfaces
+Author: José Joaquín Atria <jjatria@cpan.org>
+
+=encoding utf8
+
+Today was a big day for Gnomo Knullpöinter. They had recently started a new
+position as a coding elf at Santa's workshop, and they were eager to fulfil
+their calling as Santa's helper, and to start actually I<helping Santa>. And
+having finally passed their probation, today they were getting their first
+I<real> assignment. This was all I<very exciting>.
+
+"So you see, Gnomo... is that how you pronounce your name?" asked Santa,
+without really expecting a reply. "We need to modernise the way we send our
+gifts, and I want you to write a ... package, is it? One of those things to
+do it. Think you're up to the task?".
+
+Gnomo was very much up to the task.
+
+Always eager to please, Gnomo set out to write what was needed. The first
+version looked a bit like this:
+
+    #!perl
+    package Santa::Helper;
+
+    use HTTP::Tiny;
+
+    my $ua = HTTP::Tiny->new;
+
+    sub send_gifts {
+        while (@_) {
+            my ( $address, $gift ) = ( shift, shift );
+            my $res = $ua->post( $address, $gift );
+            if ($res->{success}) {
+                print "Gift was delivered to $address!\n";
+            }
+            else {
+                print "Could not deliver gift to $address :(\n";
+            }
+        }
+    }
+
+Which would then be called without much flourish like so:
+
+    #!perl
+    Santa::Helper::send_gifts(
+        'http://httpbin.org/delay/5'    => { code => 'teddy_bear'  },
+        'http://httpbin.org/status/500' => { code => 'raspberrypi' },
+        'http://httpbin.org/delay/1'    => { code => 'puppy'       },
+        'http://httpbin.org/delay/2'    => { code => 'bycicle'     },
+    )
+
+"I like it!" said Santa, impressed by the colours of the syntax highlighter.
+"What do you think, Ada?", he said, looking at Ada Slashdóttir the senior
+developer in the team.
+
+"Well, yeah, it's all well and good. It certainly gets the job done. But it's
+not very I<efficient>", said Ada. "This delivers the gifts one after the
+other. We have a lot of helpers. Why not send all the gifts out at the same
+time, and then let them take as long as they must? When the gifts are all
+delivered, then we can send the sleigh back to fetch more."
+
+"Oh, you mean send the gifts I<asynchronously>", replied Gnomo.
+
+Santa, was starting to lose focus. He had never been into the implementation
+details, and preferred to surround himself with people he could trust, like Ada.
+He let the developer elves flex their intellectual muscles, confident they could
+sort it out.
+
+After a little more coding, Gnomo came back with this:
+
+    #!perl
+    package Santa::Helper;
+
+    use IO::Async::Loop;
+    use Net::Async::HTTP;
+    use URI;
+
+    my $loop = IO::Async::Loop->new();
+
+    my $http = Net::Async::HTTP->new(
+        max_connections_per_host => 0,
+        fail_on_error            => 1,
+    );
+
+    $loop->add( $http );
+
+    sub send_gifts {
+        my @requests;
+        while (@_) {
+            my ( $address, $gift ) = ( shift, shift );
+            push @requests, $http->POST(
+                URI->new( $address ) => $gift,
+                on_response => sub {
+                    print "Gift was delivered to $address!\n";
+                },
+                on_error => sub {
+                    print "Could not deliver gift to $address :(\n";
+                },
+            );
+        }
+        @requests;
+    }
+
+Ada was pleased. "That's more like it!"
+
+"But hold on a second", said Duende Juniorsson, the junior developer. "If I
+call this like we did with the previous one, I<nothing happens>."
+
+Santa looked worried.
+
+"Oh, it only I<looks> like nothing happens because the function now returns
+immediately with a Future, and you are not waiting for it to actually get any
+work done", explained Gnomo.
+
+"Exactly", said Ada. "A Future represents the result of an action that, like
+its name implies, will be completed in the future. So you need to wait for it
+to complete before you can get a result."
+
+Santa looked worried I<and> confused.
+
+"So how I<should> we call it, then?", asked Duende.
+
+Gnomo replied: "You can wait on an individual Future, like this":
+
+    #!perl
+    Santa::Helper::send_gifts(
+        'http://httpbin.org/delay/5' => { code => 'teddy_bear'  },
+    )->get;
+
+"Or use a convergent Future, to wait for a set of them at once", suggested Ada:
+
+    #!perl
+    Future->wait_all(
+        Santa::Helper::send_gifts(
+            'http://httpbin.org/delay/5'    => { code => 'teddy_bear'  },
+            'http://httpbin.org/status/500' => { code => 'raspberrypi' },
+            'http://httpbin.org/delay/1'    => { code => 'puppy'       },
+            'http://httpbin.org/delay/2'    => { code => 'bycicle'     },
+        )
+    )->get;
+
+Santa started sweating profusely. Convergent I<what>? "I, um... just want it
+to send a gift... I didn't think we were going to start messing with the
+timeline, at least not just yet...". The developer elves looked at each other.
+
+"I mean, I like what Ada wanted, to make all the gifts be delivered
+asymptotically...", said Santa.
+
+"Asynchronously", corrected Ada.
+
+"Right", said Santa. "Asynchronously, that's what I said. I liked that bit. But
+I think things got a little confusing."
+
+Duende agreed. "Yeah, I mean, I'm only getting started, but even I could
+clearly understand what C<send_gift(...)> meant. But I've been staring at
+C<send_gift(...)->get> for a bit, and I still have no idea what it does. And
+don't even get me started on having ... futures that wait on other futures?".
+
+"Yes, this is true", said Ada. "The interface has got a bit more complicated,
+and not every user of this helper will want to deal directly with the Futures,
+or even know or care what they are."
+
+"How about," suggested Gnomo, "we leave the non-blocking implementation in the
+background, exposed through a function for those who need it, but make another
+function that can be used as a blocking interface for those who just want to
+send the gifts already?" This is what they had in mind:
+
+    #!perl
+    package Santa::Helper;
+
+    use IO::Async::Loop;
+    use Net::Async::HTTP;
+    use URI;
+
+    my $loop = IO::Async::Loop->new();
+
+    my $http = Net::Async::HTTP->new(
+        max_connections_per_host => 0,
+        fail_on_error            => 1,
+    );
+
+    $loop->add( $http );
+
+    # Non-blocking, returns Futures
+    sub send_gifts_f {
+        my @requests;
+        while (@_) {
+            my ( $address, $gift ) = ( shift, shift );
+            push @requests, $http->POST(
+                URI->new( $address ) => $gift,
+                on_response => sub {
+                    print "Gift was delivered to $address!\n";
+                },
+                on_error => sub {
+                    print "Could not deliver gift to $address :(\n";
+                },
+            );
+        }
+        @requests;
+    }
+
+    # Blocking, waits for all the Futures before returning
+    sub send_gifts { Future->wait_all( send_gifts_f( @_ ) )->get }
+
+"So now if you want or care about the Futures," explained Gnomo, "you can call
+the functions that end with C<_f>, and know what those will return immediately
+with a Future. But you can also use the helper as a vanilla non-blocking
+library if you want".
+
+"Incidentally," commented Ada, "there's already a bunch of libraries on CPAN
+that do exactly this. Some of them use C<_p> as the suffix, and others use
+entirely different names when they make sense. What matters is that Futures
+allow for this sort of versatility, so even non-blocking libraries, or those
+based on them, can also provide blocking interfaces."
+
+Santa nodded, wondering if he was expected to say something. It looked like he
+was safe, though, since everyone was smiling. He decided to leave the
+details in their hands and go back to more pressing matters.
+
+After all, those milk and cookies weren't going to eat themselves!
