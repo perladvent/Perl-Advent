@@ -6,15 +6,20 @@ Author: Branislav Zahradník <barney@cpan.org>
 
 =head1 Working with legacy code
 
-Delivering gifts is hard job. Every culture / every country has different traditions,
-different bringer old man (Santa Claus, Father Christmas, Grandfather Frost, ...),
-child (Baby Jesus, Christ Child, Child God, ...) or other (The Three Kings, Yule Goat, ...)
-different days (eg: 7 January according Gregorian calendar or 2 January in Japan)
-(source: wikipedia);
+Delivering Christmas gifts is a hard job. Every culture and every country has
+it's own different traditions.  Each country has it's own different gift bringer - an old man (Santa Claus, Father Christmas, Grandfather Frost, ...),
+a child (Baby Jesus, Christ Child, Child God, ...) or other (The Three Kings, Yule Goat, ...)
+And each country has different days, from Christmas Eve, or January 7th following the Gregorian calendar, or even January 2nd in Japan.
 
-To help with this problem someone in the history started with C<< deliver_gift >>.
-Well intention, well named, but it grown little bit:
+All these entities worked together in the Society of Annual Noel Transfer Association (S.A.N.T.A)
+to coordinate their deliveries.  And it was someone's job to keep track of
+what everyone had to do.
 
+To help with this problem they'd started with a C<< deliver_gift >> subroutine.
+Well intention, well named, but over time as more members had joined S.A.N.T.A.
+it'd grown little bit out of control:
+
+   #!perl
    sub deliver_gift {
       my ($gift, $child, $location, $delivery_day, $old_man_bringer, $delivery_method, $child_bringer, $other_bringer) = @_;
 
@@ -25,31 +30,38 @@ Well intention, well named, but it grown little bit:
 
 =head1 Nightmare Before Christmas
 
-Nightmare begins - this function needs new functionality - delivery_time.
+The Nightmare begins for our mainainr - this function needs yet more changes.
+He needs to add a C<delivery_time> argument to account for the time of day
+when presents are delivered (which again, aparently, varies between country).
 
-=over
+Now:
 
-=item only first three arguments are mandatory
+=for html
+    <ul>
+      <li>only first three arguments are mandatory</li>
+      <li>function is called from many places</li>
+      <li>optional arguments are often omitted</li>
+    </ul>
 
-=item function is called from many places
+=head2 A Bad Solution
 
-=item optional arguments are often omitted
+The hacky solution that maintainer can implment is to put a new argument after last mandatory field.
+Pity our poor maintainer who chooses this solution and failed to update every
+last place that the function is called in the production code and accidentially calls the function
+with an argument in the wrong place!
 
-=back
+=head2 A Slightly Better Solution
 
-=head2 Bad solution
+Our poor maintainer wants to spend Christmas at home with his family, not
+on call for bad code changes!  At this point his slightly better solution is
+simple: Quit his job and enjoy peace and harmony on earth!
 
-Put new argument after last mandatory field and let's break we didn't break anything.
-(except tests, we can mock everything properly there)
+=head2 The Better Solution
 
-=head2 Slightly better solution
+It was time for our maintainer to bite the bullet and change the function's
+calling style from positional to named arguments so it can be called like so:
 
-Quit a job, you deserve peace and harmony :-)
-
-=head2 Better solution
-
-Change function's calling style from positional to named arguments so you can call it like:
-
+   #!perl
    deliver_gift (
        gift          => $gift,
        child         => $child,
@@ -59,45 +71,36 @@ Change function's calling style from positional to named arguments so you can ca
        delivery_time => 'after-dinner',
     );
 
-But how to do that?
+But how to do that without breaking all the existing code?
 
-=head3 (A) deliver_gift_with_named_arguments
+=head3 Plan A: deliver_gift_with_named_arguments
 
-=over
+Our maintainer's first plan was a multi-step process:
 
-=item implementation: introduce new function
+=for html
+  <ul>
+  <li>implementation: introduce a new function</li>
+  <li>implementation: make the old function wrapper over the new one</li>
+  <li>implementation: replace the old function's calls with new one</li>
+  <li>cleanup: rename the new function into the old name, create a wrapper</li>
+  <li>cleanup: replace the new function name with the old name</li>
+  <li>cleanup: finally get rid of the wrapper</li>
+  </ul>
 
-=item implementation: make old function wrapper over new one
+Oh My! So many steps!
 
-=item implementation: replace old function's calls with new one
+In these days of zero downtime deployment via microservices a lot of synchronization
+points are required for such a compilcated plan, multiplied by number of modules that uses this function.
 
-=item cleanup: rename new function into old name, create wrapper
+Could we get all this done by Christmas?  Unlikely!  Our maintainer needed
+a better plan!
 
-=item cleanup: replace new function name with old name
+=head3 Plan B: Make function to accept both positional and named arguments
 
-=item cleanup: get rid of wrapper
+There is a handy module on CPAN called L<< Sub::Params >> that handles
+calling style duality.
 
-=back
-
-Lot of steps?
-In these days of zero downtime deployment via microservices lot of synchronization
-points required, multiplied by number of modules that uses this function.
-
-=head3 (B) Make function to accept both positional and named arguments
-
-There is a handy module on CPAN L<< Sub::Params >> that handles
-calling style duality, reducing number of necessary changes into:
-
-=over
-
-=item implementation: introduce duality
-
-=item implementation: change positional style to named style
-
-=item cleanup: remove duality
-
-=back
-
+   #!perl
    use Sub::Params qw[ named_or_positional_arguments ];
    sub delivery_gift {
       my ($self, @args) = @_;
@@ -117,8 +120,9 @@ calling style duality, reducing number of necessary changes into:
       );
    }
 
-From now on function can be called both styles (though cannot be mixed):
+With these changes the function can be called in either style:
 
+    #!perl
     delivery_gift (
        $gift,
        $child,
@@ -131,9 +135,17 @@ From now on function can be called both styles (though cannot be mixed):
        ...
     );
 
+Reducing the number of necessary changes into mearly:
+
+=for html
+   <ul>
+     <li>implementation: introduce duality</li>
+     <li>implementation: change positional style to named style</li>
+     <li>cleanup: remove duality</li>
+   </ul>
+
 Merry Christmas and Happy Refactoring :-)
 
 =head2 Thanks
 
 L<GoodData|https://gooddata.com/> for contributing to open source.
-
