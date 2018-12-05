@@ -58,6 +58,34 @@ SVG
 
 Sub::Params refactoring
 
+### 14. jjatria
+
+Async programming
+
+### 15. 2shortplanks
+
+App::ccdiff
+
+### 16. ???
+
+### 17. ???
+
+### 18. ???
+
+### 19. ???
+
+### 20. ???
+
+### 21. ???
+
+### 22. ???
+
+### 23. ???
+
+### 24. 2shortplanks
+
+App::httpthis
+
 ## In Repo
 
 ### 1. manwar
@@ -70,36 +98,26 @@ Hash::Flatten
 
 ## Otherwise Outstanding
 
-### 1. jjatria
-
-Async programming
-
-### 2. happy-barney
+### 1. happy-barney
 
 Context::Sigleton refactoring
 
-### 3. vanHoesel
+### 2. vanHoesel
 
 Types and Parameter Validation
 
-### 4. manwar
+### 3. manwar
 
 Method::ParamValidator
+
+### ???
 
 ## Mark To Write
 
 ### 1. 2shortplanks
 
-App::ccdiff
-
-### 2. 2shortplanks
-
 Devel::hdb
 
-### 3. 2shortplanks
-
-App::****this
-
-### 4. 2shortplanks
+### 2. 2shortplanks
 
 PPR
