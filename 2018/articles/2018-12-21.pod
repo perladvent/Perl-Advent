@@ -1,0 +1,211 @@
+Title: Debug Hard
+Topic: Devel::hdb
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+"Maybe I should just give up and go work in the TOY FACTORY!", Snowdrop
+Cookiefoot shouted as he picked up his laptop.  He was just about to throw
+it through the window when he noticed The Wise Old Elf watching from his office
+door.
+
+"Problems with your code, Mr Cookiefoot?" he gently enquired.
+
+"Yeah.  Sorry Wise Old Elf.  It's this code.  It's just, you know I<getting to me>.
+I just can't work out why it's doing what it's doing."
+
+"Ah, you need a good debugger."
+
+=head2 Debugging via the Browser
+
+There are many different choices for debuggers on Perl, each with their own
+strengths and weaknesses.  The Wise Old Elf had used them all, but given
+Snowdrop's, um, I<perilous state of mind> he decided he'd better show him one
+with a super friendly user interface with minimal learning curve.
+
+L<Devel::hdb> is a Perl debugger which uses a web browser for its front end.
+When it activates it starts up a web server which you can connect to and
+immediately see what's going on.
+
+To use it first you need to invoke your program with the C<-d> flag, using the
+colon syntax to pass C<hdb> to tell it to load C<Devel::hdb>.
+
+    perl -d:hdb deliver-presents.pl
+    Debugger pid 86416 listening on http://127.0.0.1:8080/debugger-gui
+
+You can see that it's printed out a URL for you to visit in the browser.
+One of the key advantages in Devel::hdb is that since it uses simple HTTP
+it's really easy to access the web page based debugger UI on a remote
+machine, and since proxying or tunneling the HTTP protocol is commonplace
+and widely understood you can even do this behind firewalls.
+
+The interface it loads in the browser is straightforward compared to
+esoteric command line interfaces offered by the inbuilt debugger and many
+of the other console debuggers available for Perl.
+
+=for :html
+  <center><img src="hdb.jpg" width="470" height="450"></center>
+
+=for :html
+<ul>
+<li>On the left hand side of the screen we have a stack trace.  Right now we can see that
+our main code called run, which called initialize_minicpan, which called the read_config
+method we're currently displaying.  Hovering over these shows us line numbers and clicking
+the links will show the calling line in the middle panel.</li>
+<li>In the middle panels is the code we're
+currently executing (with the blue highlight indicating the current line).  We can
+manually set breakpoints on a per-line basis for any line that has a statement on it by
+clicking on any uncrossed line number, turning it red like 754 is in the screenshot.  We can
+hover over any variable on screen to see what the current value is.  We can use the tab
+bar to switch between and open new source files to set breakpoints in other files.</li>
+<li>On the right hand side we can set watch expressions.  We can enter the name of any variable
+that we want to watch and break as soon as the value changes.</li>
+<li>At the top of the screen are a set of buttons.  We can click "Step Over" to move
+to the next statement on screen, "Step In" to debug further inside a statement by
+following the subroutines it calls, "Step Out" to run till the current subroutine ends,
+and "Run" to execute until the next breakpoint or watched expression change occurs.</li>
+</ul>
+
+=head2 A Ongoing Diliemma
+
+It was a week later when the Wise Old Elf heard the distinctive sound of a laptop
+soaring through the air and shattering on the ice shelf.  Slowly, shaking his head,
+he walked into Cookiefoot's office.
+
+"I take it the debugger didn't work out?"
+
+"Not really Wise Old Elf", Snowdrop agreed, "At first it was great but soon the
+whole thing became tedious.  I'd need to do the same things over and over again.
+Or I'd have something really complex and the web page just wasn't up to the job"
+
+"Well, when you get yourself a new laptop, you might want to take a look at
+the API documentation"
+
+=head2 Scripting Devel::hdb
+
+The web page interface for hdb is just a JavaScript front end to a bunch of JSON
+REST endpoints.  There's nothing stopping you making those exact same REST calls
+from a Perl script.
+
+For example, let's print out the current stack information:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    use Mojo::UserAgent;
+    use Mojo::Util qw(dumper);
+
+    my $ua = Mojo::UserAgent->new();
+    my $response = $ua->get('http://localhost:8080/stack')->res;
+    my $stack = $response->json;
+    print dumper $stack;
+
+Which generates:
+
+    #!perl
+    [
+    {
+        "args" => [
+        "CPAN::Mini::App"
+        ],
+        "autoload" => undef,
+        "bitmask" => "UUUUUUUUUUUUUUUUUU",
+        "callsite" => '140550668291808',
+        "evalfile" => undef,
+        "evalline" => undef,
+        "evaltext" => undef,
+        "filename" => "/opt/adventperl/lib/site_perl/5.28.1/CPAN/Mini/App.pm",
+        "hasargs" => 1,
+        "hints" => 1762,
+        "href" => "/stack/0",
+        "is_require" => undef,
+        "level" => 7,
+        "line" => 59,
+        "package" => "CPAN::Mini::App",
+        "serial" => 2089,
+        "subname" => "initialize_minicpan",
+        "subroutine" => "CPAN::Mini::App::initialize_minicpan",
+        "wantarray" => ""
+    },
+    {
+        "args" => [
+        "CPAN::Mini::App"
+        ],
+        "autoload" => undef,
+        "bitmask" => "UUUUUUUUUUUUUUUUUU",
+        "callsite" => '140550668347840',
+        "evalfile" => undef,
+        "evalline" => undef,
+        "evaltext" => undef,
+        "filename" => "/opt/adventperl/lib/site_perl/5.28.1/CPAN/Mini/App.pm",
+        "hasargs" => 1,
+        "hints" => 2018,
+        "href" => "/stack/1",
+        "is_require" => undef,
+        "level" => 8,
+        "line" => 47,
+        "package" => "CPAN::Mini::App",
+        "serial" => 2088,
+        "subname" => "run",
+        "subroutine" => "CPAN::Mini::App::run",
+        "wantarray" => undef
+    },
+    ...
+
+Or, we could write the same thing with a one liner with L<ojo>.
+
+    perl -Mojo -E 'print r g("http://localhost:8080/stack")->json'
+
+We're not limited to just reading state, we can make a JSON post request to
+set a breakpoint:
+
+    #!perl
+    use ojo;
+    p('http://localhost:8080/breakpoints', json => {
+        "code" => 1,
+        "filename" => "/opt/adventperl/lib/site_perl/5.28.1/CPAN/Mini/App.pm",
+        "inactive" => undef,
+        "line" => 64
+    });
+
+Step in or Step over, Run, etc.
+
+    perl -Mojo -E 'p("http://localhost:8080/stepin")'
+    perl -Mojo -E 'p("http://localhost:8080/stepover")'
+    perl -Mojo -E 'p("http://localhost:8080/continue")'
+
+Or even evaluate code in the context of the program we're debugging by POSTing
+JSON and then parsing the response JSON.
+
+    #!perl
+    use ojo;
+    print r p('http://localhost:8080/eval', json => {
+        "wantarray" => 0,
+        "code" => <<'PERL',
+            {
+                random_number => rand(),
+                date => scalar(gmtime)
+            }
+    PERL
+    })->json('/__value');
+
+Which prints out:
+
+    #!perl
+    {
+        "date" => "Thu Dec 21 02:17:03 2018",
+        "random_number" => "0.494246470413"
+    }
+
+The API is - obviously - able to do anything the web front end is.  It
+can get the current value of variables, it can set watchpoints or actions
+to be triggered when a line number and expression match.  It can get
+metainfo about packages and the source code installed on the machine
+the debugger is running on.
+
+In short, if Snowdrop Cookiefoot hasn't thrown his laptop out of the
+window he could have easily scripted the debugger to do whatever he
+wanted.
+
+
