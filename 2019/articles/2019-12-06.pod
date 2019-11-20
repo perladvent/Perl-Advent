@@ -1,0 +1,250 @@
+Title: The Weather Outside Is Frightful
+Topic: DarkSky::API
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=head2 Bad Weather
+
+Being at the North Pole snow is something that you have to get
+used to.  There's no snow days, you don't get to call in if
+the weather is bad, and there's no putting off Christmas no matter
+how much of the white stuff falls.
+
+Instead, you have to be prepared.
+
+It's really important that the elves know when there's a snowstorm
+coming, and they employ a whole team 
+
+But what about us mere mortals?  Shouldn't we be prepared too
+in case, say, at 6am on Christmas Morning a car containing
+radioactive isotopes flips in a snowstorm, crashes into the
+telegraph pole outside your house, rips down all the electrical
+cabling that provides power to your house and then bursts into
+flames (don't worry, that's only ever happened to me L<once|https://www.berkshireeagle.com/stories/richmond-crash-delays-delivery-of-cancer-treatment-materials,527955>).
+
+Well, we can't afford to have a team of elves working night and
+day to alert us of bad weather.  But we can have Perl do it for us.
+
+=head2 Dark Sky
+
+L<DarkSky|https://darksky.net/> is a very handy website for
+gathering weather predictions offering doppler radar maps, predictive
+forcasting for up to a week in advance, per minute rainfall for the next
+hour in easy to read graphical form, and a compelling timemachine
+feature for seeing both historical and predicted future weather.
+
+More importantly for our purposes, it offers a L<comprehensive API|https://darksky.net/dev>
+with a generous free tier that we can use to poll for weather
+updates throughtout the day.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.024;
+    use warnings;
+
+    use DarkSky::API;
+    my $forecast = DarkSky::API->new(
+        key       => '8e983a4b1eca4ebf9385f413f8ffa668',
+
+        # this is New York City, NY, USA
+        longitude => -74.0060,
+        latitude  => 40.7128,
+    );
+
+    my $weather = $forecast->currently;
+    say "$weather->{icon}: $weather->{summary}";
+
+
+=head2 Where are we?
+
+So far we've been passing fixed coordinates to the Dark Sky API.
+What we'd rather do is actually give weather reports from where
+we're actually located!
+
+The first step is to find out what our external IP is.  This isn't
+the local IP address that's been assignd to the computer we're
+using (which is more than likely something from the private IP
+address space assigned by your router) but the real, globally
+addressable, IP address that our ISP assigned to our router.
+
+The easiest way to do this is to contact an external web site
+and ask it what IP address it received the request from.  There's
+several JSON API services that will happlily do this for us.
+
+    #!perl
+    use JSON::PP qw( decode_json );
+    use HTTP::Tiny;
+
+    my $ip_response = HTTP::Tiny->new->get('https://api.myip.com');
+    die "Problem fetching IP" unless $ip_response->{success};
+
+    # the response contains JSON of the form
+    #   { "ip" : "50.116.23.211" ... }
+    my $ip_data = decode_json( $ip_response->{content });
+    my $ip = $ip_data->{ip};
+
+Now we have the IP address we need to translate that into
+latitude and longitude.  MaxMind offer a free downloadable database
+of IP addresses to aproximate locations that we can use
+to do this (they also offer more accurate databases for a fee
+which we can switch to if we want more accurate weather reports.)
+
+MaxMind publish some handy Perl modules on the CPAN that you can
+use to access these databases without much work:
+
+    #!perl
+    use GeoIP2::Database::Reader;
+
+    # download the database from
+    # https://dev.maxmind.com/geoip/geoip2/geolite2/
+    my $reader = GeoIP2::Database::Reader->new(
+        file    => 'GeoLite2-City.mmdb',
+        locales => [ 'en' ],
+    );
+    
+    my $city = $reader->city( ip => $ip );
+    my $location = $city->location;
+
+    # these are only aproximate, but good enough
+    # for our weather prediction
+    say 'Latitude:  ', $location->latitude;
+    say 'Longitude: ', $location->longitude;
+
+We can now feed those coordinates into the DarkSky
+API to get the weather where we are:
+
+    #!perl
+    my $forecast = DarkSky::API->new(
+        key       => '8e983a4b1eca4ebf9385f413f8ffa668',
+        longitude => $location->longitude,
+        latitude  => $location->latitude,
+    );
+    my $weather = $forecast->currently;
+    say "$weather->{icon}: $weather->{summary}";
+
+=head2 Look to the Future Now
+
+If we're going to be forewarned about weather we
+need to examine the response from DarkSky a little
+more closey.
+
+    #!perl
+    use Data::Dumper;
+    print Dumper $forecast->hourly;
+
+This gives us quite a lot of data:
+
+    #!perl
+    $VAR1 = {
+        'data' => [
+        {
+            'ozone' => '327.9',
+            'visibility' => '4.759',
+            'summary' => 'Overcast',
+            'humidity' => '0.91',
+            'uvIndex' => 0,
+            'icon' => 'cloudy',
+            'windGust' => '1.46',
+            'dewPoint' => '31.52',
+            'time' => 1574139600,
+            'apparentTemperature' => '33.92',
+            'cloudCover' => 1,
+            'precipProbability' => 0,
+            'windSpeed' => '1.46',
+            'temperature' => '33.92',
+            'windBearing' => 234,
+            'pressure' => '1004.9',
+            'precipIntensity' => 0
+        },
+        {
+            'time' => 1574143200,
+            'humidity' => '0.91',
+            'uvIndex' => 0,
+            'icon' => 'cloudy',
+            'windGust' => '4.77',
+            'dewPoint' => '31.27',
+            'summary' => 'Overcast',
+            'ozone' => '328.3',
+            'visibility' => '3.397',
+            'temperature' => '33.66',
+            'windBearing' => 275,
+            'pressure' => '1005.3',
+            'precipIntensity' => 0,
+            'windSpeed' => '4.77',
+            'precipProbability' => 0,
+            'apparentTemperature' => '29.23',
+            'cloudCover' => 1
+        },
+        ...
+        {
+            'ozone' => '336.1',
+            'visibility' => '2.837',
+            'summary' => 'Light Snow',
+            'uvIndex' => 0,
+            'windGust' => '0.16',
+            'icon' => 'snow',
+            'dewPoint' => '30.49',
+            'humidity' => '0.89',
+            'time' => 1574164800,
+            'precipAccumulation' => '0.4816',
+            'apparentTemperature' => '33.36',
+            'cloudCover' => 1,
+            'precipProbability' => 1,
+            'precipType' => 'snow',
+            'windSpeed' => '0.16',
+            'windBearing' => 257,
+            'temperature' => '33.36',
+            'precipIntensity' => '0.0507',
+            'pressure' => '1006.1'
+        },
+    ...    
+
+As you can see we've got lots of options for deciding
+if DarkSky thinks it's going to snow: The C<precipAccumulation>
+(how much build up there's going to be,), the C<precipProbability>
+(how likely we're going to get water falling from the sky) and
+C<precipType> (snow? sleet? rain?) But that's probably overthinking
+the entire problem; If DarkSky thinks it's going to snow
+that hour, it'll pick the snow C<icon>.
+
+Generating a summary is therefore straight forward 
+
+    #!perl
+    my @hourly = $forecast->hourly->{data}->@*;
+    for my $hour (@hourly) {
+        say scalar( localtime($hour->{time}) ),
+            q{ },
+            $hour->{icon};
+    }
+
+Which today gives us the dire warning that
+there's snow coming soon... 
+
+    Tue Nov 19 11:00:00 2019 cloudy
+    Tue Nov 19 12:00:00 2019 rain
+    Tue Nov 19 13:00:00 2019 rain
+    Tue Nov 19 14:00:00 2019 rain
+    Tue Nov 19 15:00:00 2019 rain
+    Tue Nov 19 16:00:00 2019 sleet
+    Tue Nov 19 17:00:00 2019 snow
+    Tue Nov 19 18:00:00 2019 snow
+    Tue Nov 19 19:00:00 2019 snow
+    Tue Nov 19 20:00:00 2019 cloudy
+    Tue Nov 19 21:00:00 2019 cloudy
+    Tue Nov 19 22:00:00 2019 cloudy
+    ...
+
+I'll install this on a cron job on the Raspberry Pi
+that I have sitting hidden in the mass of cables
+by my desk.  I'll have to get it to give me a
+warning if the snow is coming somehow:
+
+    my @hourly = $forecast->hourly->{data}->@*;
+    splice @hourly, 12;  # reduce @hourly to first 12 hours
+
+    use List::AllUtils qw( any );
+    if (any { $_->{icon} eq 'snow' } @hours) {
+        # turn my light blue!
+        # see http://perladvent.org/2019/2019-12-05
+        ...
+    }
