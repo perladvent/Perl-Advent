@@ -1,0 +1,554 @@
+Title: Christmas Lights 
+Topic: Phillips Hue Home Bridge
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=head1 Smart, but Dumb
+
+The lighting system in my house is I<smart>.  I can ask Alexa
+to turn lights on and off, or I can press buttons mounted
+on my wall to select preselected scenes of lights.  Lights
+come on automatically when it gets dark, and turn off
+automatically at last thing at night (since, you know,
+my kids are always leaving their closet lights on.)
+
+But the lights in my house are also I<dumb>.  They don't
+turn on when I wake up in the morning, they don't change
+their apearance due to whatever's going on in the world.
+They don't even know to get my attention when I get that
+all important email!
+
+Right now they look the same all year round.
+Heck, do they even know it's Christmas time at all?
+
+I can fix all of this though...with Perl.
+
+=head2 Phillips Hue Home Bridge
+
+My lights use the peer-to-peer zigbee wireless protocol
+to relay control messages to each other.  Command
+and control is handled by a Phillips Hue Home Bridge,
+a small 'puck' shaped device with an ethernet socket
+in the back that can monitor the zigbee sensors and
+send out zigbee commands.
+
+The normal way to control the Hue bridge is with the
+GUI of the Hue app from your smartphone.  But anything
+the smart phone can do you can also do through the
+Hub's HTTP REST API...and with that, from Perl.
+
+The first step is to find out what the local internal
+IP address of the Hue Bridge is.  If it can talk to the
+internet the Hue Bridge registers the current internal
+API it has with the central Phillips servers.  You can
+query them with a simple HTTP JSON API call:
+
+   $ curl https://www.meethue.com/api/nupnp
+   [{"id":"001788fffead6e94","internalipaddress":"192.168.1.2"}]
+
+Sweet.  The only other thing we need to do is get any API
+key we can use to talk to the bridge.  This can be achieved
+by POSTing some JSON to the local Hue Bridge.
+
+    $ curl -X POST -d '{"devicetype":"perl-interface"}' http://192.168.1.2/api
+    [{"error":{"type":101,"address":"","description":"link button not pressed"}}]
+
+Wait, that didn't give us an API key...oh, right, it now wants us to
+press the button on the top of the hub to prove we're authorized to
+get a new API key.  Let's press it, then try that again:
+
+    curl -X POST -d '{"devicetype":"perl-interface"}' http://192.168.1.2/api
+    [{"success":{"username":"xyznl1BwQryLMOhJ3uNPUxnR7eQIwwqrkd5Kt0dd"}}]
+
+Great, that I<username> is our key.  With it we can start making API calls:
+
+    curl http://192.168.1.2/api/xyznl1BwQryLMOhJ3uNPUxnR7eQIwwqrkd5Kt0dd/config | json_pp
+    {
+        "netmask" : "255.255.255.0",
+        "portalstate" : {
+            "signedon" : true,
+            "incoming" : false,
+            "outgoing" : true,
+            "communication" : "disconnected"
+        },
+        "apiversion" : "1.35.0",
+        "backup" : {
+            "status" : "idle",
+            "errorcode" : 0
+        },
+        "portalservices" : true,
+        ...
+
+=head2 Building a Bridge Class
+
+Messing around with the C<curl> command is going to get tiresome fast, so it's
+time to break out our Perl code.
+
+First let's start by writing a Bridge class that can handle the
+basics of talking HTTP to our Hue Bridge.
+
+    #!perl
+    package Bridge;
+
+    use Moo;
+    use HTTP::Tiny;
+    use JSON::PP qw( encode_json decode_json );
+    use experimental 'signatures';
+
+    has http_tiny => (
+        is => 'ro',
+        lazy => 1,
+        default => sub { return HTTP::Tiny->new },
+    );
+
+    has key => ( is => 'ro', default => $ENV{HUE_KEY} );
+
+    has ip_address => (
+        is => 'ro',
+        lazy => 1,
+        default => sub ($self, @) {
+            my $response = $self->http_tiny->get('https://www.meethue.com/api/nupnp');
+            die 'Failed!' unless $response->{success};
+            my $result = decode_json($response->{content});
+            return $result->[0]{internalipaddress};
+        },
+    );
+
+    # get the data from the URL fragment, and return the parsed JSON (if any)
+    sub get ($self, $fragment) {
+        my $url = $self->_url($fragment);
+        my $tiny = $self->http_tiny;
+
+        my $response = $tiny->get($url);
+        die 'Failed!' unless $response->{success};
+
+        return decode_json($response->{content})
+            if length $response->{content};
+        return undef;
+    }
+
+    # turn the URL fragment into a full API URL
+    sub _url ($self, $fragment) {
+        return 'http://' . $self->ip_address . '/api/' . $self->key
+            . $fragment
+    }
+
+    1;
+
+Let's use a simple script to see it in action 
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.024;
+    use warnings;
+
+    use Bridge;
+    use Data::Dumper;
+
+    my $bridge = Bridge->new();
+    print Dumper $bridge->get('/lights/1')
+
+This prints out I<so much information>:
+
+    #!perl
+    $VAR1 = {
+          'name' => 'Left office',
+          'type' => 'Dimmable light',
+          'modelid' => 'LWB014',
+          'manufacturername' => 'Philips',
+          'productid' => 'Philips-LWB014-1-A19DLv4',
+          'state' => {
+                       'reachable' => bless( do{\(my $o = 1)}, 'JSON::PP::Boolean' ),
+                       'mode' => 'homeautomation',
+                       'bri' => 254,
+                       'alert' => 'lselect',
+                       'on' => bless( do{\(my $o = 1)}, 'JSON::PP::Boolean' )
+                     },
+          'uniqueid' => '00:17:88:01:03:c0:d5:d1-0b',
+          'swversion' => '1.46.13_r26312',
+          'swconfigid' => '69806BE9',
+          'capabilities' => {
+                              'control' => {
+                                             'maxlumen' => 840,
+                                             'mindimlevel' => 2000
+                                           },
+                              'certified' => bless( do{\(my $o = 1)}, 'JSON::PP::Boolean' ),
+                              'streaming' => {
+                                               'renderer' => bless( do{\(my $o = 0)}, 'JSON::PP::Boolean' ),
+                                               'proxy' => bless( do{\(my $o = 0)}, 'JSON::PP::Boolean' )
+                                             }
+                            },
+          'swupdate' => {
+                          'state' => 'noupdates',
+                          'lastinstall' => '2019-05-06T18:53:05'
+                        },
+          'config' => {
+                        'function' => 'functional',
+                        'archetype' => 'classicbulb',
+                        'direction' => 'omnidirectional',
+                        'startup' => {
+                                       'configured' => bless( do{\(my $o = 1)}, 'JSON::PP::Boolean' ),
+                                       'mode' => 'safety'
+                                     }
+                      },
+          'productname' => 'Hue white lamp'
+    };
+
+=head2 Building Out the Abstraction
+
+Those are quite big data structures!  What we need to do is work on an abstraction
+layer or two that will make working with them easier.
+
+First let's implement a generic C<Item> role for all items.  This'll handle
+the nitty gritty of calling the API to fetch data whenever we want something:
+
+    package Role::Item;
+
+    use Moo::Role;
+    use experimental 'signatures';
+
+    use Bridge;
+
+    # we need an 'endpoint' method that'll give us the
+    # part of the URL we're constructing
+    requires 'endpoint';
+
+    has bridge => (
+        is => 'lazy',
+        default => sub { Bridge->new() },
+    );
+
+    has id => ( is => 'ro' );
+
+    # this is where the data from the server is lazy-loaded via
+    # the REST API
+    has _data => (
+        is => 'ro',
+        clearer => 'flush_cache',
+        lazy => 1,
+        default => sub ($self) {
+            return $self->bridge->get($self->endpoint.'/'.$self->id);
+        },
+    );
+
+    # all things in the Hue API (lights, sensors, rules, etc) have names
+    sub name ($self) { $self->_data->{name} }
+
+    1;
+
+And we can implement that in a basic Light class:
+
+    #!perl
+    package Light;
+
+    use Moo;
+    with 'Role::Item';
+
+    sub endpoint { '/lights' }
+
+    # a few basic facts about the light from the data structure
+    sub on         ($self) { $self->_data->{state}{on} }
+    sub brightness ($self) { $self->_data->{state}{bri} }
+
+    1;
+
+Which means we can easily write a script to find
+the status of a given light:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.024;
+    use warnings;
+
+    use Light;
+    my $light = Light->new( id => shift );
+    print $light->name, ' light is ';
+    say $light->on ? 'on' : 'off';
+
+So if we happen to know the ID of the light we want
+to talk to, we can now find out if it's on or not:
+
+    $ ./status 1
+    Left office is on
+
+=head2 More than one at a time?
+
+Of course, I don't tend to memorize the IDs of all the
+lightbulbs in my house.  It'd be much nicer to use the friendly
+name that we've assigned to the bulb.  It'd also be great to pull
+down all the information for all the bulbs in one go rather than
+making an individual API call for each.
+
+The Hue Bridge supports this by performing a simple GET request
+without the id as part of the URL:
+
+    curl http://192.168.1.2/api/xyZnl1BwQryLMNhJ3uNxUxnl7eQIwwqrkd5Kt0dd/lights
+    {
+    "2" : { ... },
+    "4" : { ... },
+    "15" : { ... },
+    "6" : { ... },
+    ...
+    }
+
+Each of the keys in this top level object is the id of the light, and
+each of the values is the exact same JSON data structure that we would have
+received had we made an individual HTTP call per id.
+
+Let's create a I<Factory> class that can use this API call to make
+multiple Light objects at once.
+
+First up, the generic Role again:
+
+    #!perl
+    package Role::Factory;
+
+    use Moo::Role;
+    use experimental 'signatures';
+
+    use Bridge;
+
+    # we need to know both the URL endpoint *and* the
+    # name of the class we're constructing
+    requires 'endpoint', 'item_class';
+
+    has bridge => (
+        is => 'ro',
+        lazy => 1,
+        default => sub { Bridge->new() },
+    );
+
+    has _data => (
+        is => 'ro',
+        clearer => 'flush_cache',
+        lazy => 1,
+        default => sub ($self) {
+            return $self->bridge->get( $self->endpoint );
+        },
+    );
+
+    sub items ($self) {
+        return $self->_data_to_items( $self->_data );
+    }
+
+    sub _data_to_items( $self, $data ) {
+        return map { 
+            $self->item_class->new(
+                bridge => $self->bridge,
+                _data => $data->{$_},
+                id => $_
+            )
+        } keys %{ $data };
+    }
+
+    1;
+
+Note how we're passing the C<_data> into the Light classes.
+Since we're directly populating those attributes the objects
+never have to lazily call their C<default> callbacks and
+don't have to make individual HTTP calls to populate themselves.
+Neat.
+
+The LightFactory class is tiny:
+
+    #!perl
+    package LightFactory;
+
+    use Moo;
+    use experimental 'signatures';
+
+    use Light;
+
+    with 'Role::Factory';
+
+    sub endpoint { '/lights' }
+    sub item_class { 'Light' }
+
+    1;
+
+We can now trivially write a script to show the status of
+all lights in the house:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.024;
+    use warnings;
+
+    use LightFactory;
+
+    my $lf = LightFactory->new;
+    foreach ($lf->items) {
+        print $_->name . ' light is ';
+        say $_->on ? 'on' : 'off';
+    }
+
+Which prints out some useful information:
+
+    Bottom Studio downlight light is on
+    Center Front Room light is on
+    Elder's Overhead 1 light is on
+    Elder's Overhead 2 light is on
+    Elder's’s Closet light is off
+    Left Front Room light is on
+    Left Studio Rooflight light is on
+    Left office light is on
+    Library by Computer light is on
+    Main door left light is on
+    Main door right light is on
+    Middle downlight studio light is on
+    Right office light is on
+    Right studio Rooflight light is on
+    South light is off
+    Top Downlight Studio light is on
+    Upstairs Studio light is on
+    West light is on
+    Younger's Closet light is off
+    Younger's overhead 1 light is on
+    Younger's overhead 2 light is on
+
+Hmm.  I need to turn some lights off.
+
+=head2 Turning the lights off
+
+Reading information about lights is all very well, but we want more
+control than that.
+
+If we look at our light data structure we can see the C<state> key
+are some values we'd like to change:
+
+    #!perl
+    $VAR1 = {
+            ...
+            'state' => {
+                        'reachable' => bless( do{\(my $o = 1)}, 'JSON::PP::Boolean' ),
+                        'mode' => 'homeautomation',
+                        'bri' => 254,
+                        'alert' => 'lselect',
+                        'on' => bless( do{\(my $o = 1)}, 'JSON::PP::Boolean' )
+                        },
+            ...
+
+Specifically we'd like to change the C<on> value to false.
+
+Making changes with the Hue Bridge is easy - you just have to
+PUT data instead of GETing it.
+
+    curl -X PUT \
+         -d '{"on":false} \
+         http://192.168.1.2/api/xyznl1BwQryLMOhJ3uNPUxnR7eQIwwqrkd5Kt0dd/lights/1/state
+
+There's two notable things about this curl command.  Firstly, note
+the C</state> at the end of the URL, meaning we're changing the
+C<state> key I<within> the C<lights/1> object.  Secondly, note
+that we're not specifying all the keys in the JSON we're putting
+to this URL - any key we don't mention will be unchanged.
+
+So, we want to do this from Perl space. Let's add a C<put>
+method to our Bridge class:
+
+    #!perl
+    sub put ($self, $fragment, $data) {
+        my $url = $self->_url($fragment);
+        my $tiny = $self->http_tiny;
+
+        $tiny->request('PUT', $url, { content => encode_json($data) });
+    }
+
+And then to the Lights class add a C<_set_state> method
+that will take a hashref of new state options
+
+
+    #!perl
+    sub _set_state( $self, $new_state ) {
+        $self->bridge->put(
+            join ('/', $self->endpoint, $self->id,'state'),
+            $new_state,
+        );
+    }
+
+Now we can write some quick wrappers to turn lights on and off
+easily:
+
+    sub turn ($self, $new) {
+        my $value = defined($new) && $new && $new !~ /^off$/i ?
+            JSON::PP::true : JSON::PP::false;
+        $self->_set_state({ on => $value } );
+    }
+    sub turn_on($self)  { $self->turn('on')  };
+    sub turn_off($self) { $self->turn('off') };
+
+Let's save some electricity!
+
+    #!perl
+    $_->turn_off foreach LightFactory->new-items;
+
+=head2 Christmas Lights
+
+On and off is all very good, but these lights
+are more capible than that.  They can be set to
+arbitary brightness levels, and the more advanced
+ones can be set to any color.
+
+Since it's Christmas, let's use this ability to make some christmas
+lights.
+
+In order to set the color of the lights we're going
+to need to work out the hue, saturation, and lightness
+rating for the colors we want to use.  To do this we're
+going to use the L<Convert::Color> module from the
+CPAN, specifically by creating a L<Convert::Color::VGA>
+instance from the name of the color we want to use and
+then converting it into an L<Convert::Color::HSL>
+instance.
+
+Let's wrap that up in a handy method inside the Light
+class:
+
+    #!perl
+    sub set_color($self, $color_name) {
+        my $hsl = Convert::Color::VGA->new( $color_name )
+                                     ->convert_to('hsl');
+
+        $self->_set_state({
+            hue => int( $hsl->hue/360*65535 ),
+            sat => int( $hsl->saturation*254 ),
+            bri => int( $hsl->lightness*254 ),
+        })
+    }
+
+Now we can finally write a simple script to get the lights
+to change in a Christmassy way:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.024;
+    use warnings;
+
+    use LightFactory;
+
+    my %all_lights = map {
+        $_->name => $_
+    } LightFactory->new->items;
+
+    # I really should have done a more consistent job of naming these
+    my @lights = @all_lights{
+        "Bottom Studio downlight",
+        "Middle downlight studio",
+        "Top Downlight Studio",
+    };
+
+    while (1) {
+        $lights[0]->set_color('red');
+        $lights[1]->set_color('green');
+        $lights[2]->set_color('red');
+        sleep 1;
+
+        $lights[0]->set_color('green');
+        $lights[1]->set_color('red');
+        $lights[2]->set_color('green');
+        sleep 1;
+    }
+
