@@ -22,7 +22,7 @@ a little more I<modern>.
 And thus the Wise Old Elf suddenly found himself with a bunch
 of Go code that he would love the main North Pole codebase
 to be able to make use of without having to rewrite any of
-their battletested Perl code in Go.  What he really needed
+their battle-tested Perl code in Go.  What he really needed
 was a way to call the new Go code from within Perl.
 
 =head2 Shared Library Time
@@ -31,7 +31,7 @@ The Wise Old Elf decided he should have an experiment
 of his own.  So he set himself a challenge: Write some
 trivial Go code and get it executed from within Perl.
 
-Go is perfectly capible of producing a shared library.
+Go is perfectly capable of producing a shared library.
 Here's a "Hello, World" type example for this time of the
 year.
 
@@ -83,7 +83,7 @@ We've got two new file, the header file (the C<merrychristmas.h>)
 and the shared object file (the C<merrychristmas.so> file.) We can
 safely discard the header file since we're not going to use the
 traditional C linking route here - we're going to use one of Perl's
-excellent Forien Function Interface libraries to access the shared
+excellent Foreign Function Interface libraries to access the shared
 object instead.
 
 As an aside you'll notice that  C<merrychristmas.so> is huge for
@@ -91,12 +91,12 @@ a library that has a single function that prints a simple string
 in it.  That's because it's not just that - it also contains all
 of the Go runtime and packages also!  We're able to distribute
 that shared object along with our Perl code without any
-other Go scafolding or support files.
+other Go scaffolding or support files.
 
 =head2 Bring On The Platypus
 
 So, now we have a shared object from our Go code, how can
-we access it from Perl?
+we access it from Perl?  With L<FFI::Platypus> of course!
 
     #!perl
     #!/usr/bin/perl
@@ -160,14 +160,14 @@ C<WhichMerryChristmas> to take an C<int>?  That's because
 we're not specifying the B<Go> type to FFI::Platypus, but
 the C<C> type.  And a Go C<int> is represented by a C C<long>.
 
-We can make this a whole lot clearer if we just use one
-of 
+We can make this a whole lot clearer if we teach FFI::Platypus
+about a I<type alias> for Go ints:
 
     #!perl
     # declare a type alias
     $ffi->type( long => 'go_int' );
 
-    # then make use of it idomatically when we attach
+    # then make use of it idiomatically when we attach
     $ffi->attach(MerryChristmas => ['go_int']);
 
 This mismatch between C types and Go types becomes even clearer
@@ -201,8 +201,8 @@ like this in C space:
 
 =head2 A Record Solution
 
-There's several aproaches we can take to helping cross
-the divide.  The simpliest solution is to define in
+There's several approaches we can take to helping cross
+the divide.  The simplest solution is to define in
 Perl space a wrapper for the struct we need to pass in
 
     #!perl
@@ -216,19 +216,16 @@ Perl space a wrapper for the struct we need to pass in
         'long'      => 'len',
     );
 
-This allows us to create records easily from Perl:
+ 
+ And now with a suitable argument declaration we can call it from Perl
 
     #!perl
-    my $string = 'Santa';
+    $ffi->attach(WishMerryChristmas => ['record(GoString)']);
+    my $stirng = 'Santa';
     my $go_string = GoString->new(
         p => $string,
         len => length($string),
     );
- 
- And now with a suitable 
-
-    #!perl
-    $ffi->attach(WishMerryChristmas => ['record(GoString)']);
     WishMerryChristmas($go_string);
 
 We finally get the output we wanted all along:
@@ -236,5 +233,23 @@ We finally get the output we wanted all along:
     $ perl merry.pl 
     We wish you a Merry Christmas, Santa
 
-=head2 Possiblities
+We can further simplify this by passing the C<attach> method
+a I<wrapper function> that does the conversion for us:
 
+    #!perl
+    $ffi->attach( WishMerryChristmas => ['record(GoString)'] => 'void', sub {
+        my $real_function = shift;
+        my $string = shift;
+
+        $real_function->(
+            GoString->new(
+                p => $string,
+                len => length($string),
+            )
+        )
+    });
+
+    WishMerryChristmas('Santa');
+
+So a Merry Christmas to you too - from multiple programming
+languages!
