@@ -1,0 +1,320 @@
+Title: Draft Solution
+Topic: HTTP::Message::PSGI
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=head2 Productivity
+
+Nougat Jinglebubbles was an expert in Productivity (with a capital P.)
+That meant that he could spend hours and hours of each day optomizing
+his computer setup to ensure that he'd shaved a few seconds off of
+his workflow rather than working on debugging the new Christmas letter
+OCR software like he was supposed to be doing.
+
+Today he was looking at the latest version of Drafts Pro for his macOS
+laptop.
+
+=for :html
+  <center><img src="drafts.jpg" widht="814" height="600" alt="Drafts"></center>
+
+Drafts is an application that allows you to capture text on
+your iPhone, iPad, Apple Watch or Mac and have that content sync
+between the devices.
+
+What's more, on iOS Drafts allows you to define actions to process
+that text, to easily ship it off to an email client, or create a
+calendar entry, or append it to a list in dropbox, or send it to your
+task management software.  Or, if you were feeling really adventurous
+you could setup actions that executed JavaScript code to do pretty
+much wanted you wanted.
+
+Tap, tap, productive! (Eventually, after many hours of debugging.)
+
+And now with this week's L<new release|https://www.macstories.net/reviews/drafts-for-mac-its-action-time/> enabling feature parity with
+the iOS releases, you can even set up processing actions on your
+Mac.  And of course running on the Mac without the restrictions of iOS
+you'll be able to do whatever you want - run Perl scripts, process
+files on the local file system, everything!
+
+Oh No. No, wait you can't.
+
+The problem is that JavaScript still runs inside the same type of
+sandbox on macOS.  There is no way to shell out to Perl and get some
+real programming done.
+
+Or is there?
+
+=head2 And now for something somewhat unrelated.
+
+Wouldn't it be nice to have a web server always running on your
+Mac.  We could quickly visit a local web page and get some graphs
+on disk usage, or visit a page that used AppleScript to pull out
+info from our calendar, or scraped some news from the web to show
+us or...the list goes on.
+
+The trouble is that our local laptops only have so much memory.  And
+if we run twenty or so web servers all the time, sitting idle waiting
+for requests, that memory quickly runs out.
+
+Worse, if we've got twenty web servers running we have to find some
+way to manage all of that.  To restart them all when we make code
+changes.  To ensure that they're running all the time.  That sounds
+like a real pain in the jingle bells.
+
+=head2 A different kind of serverless
+
+How can we run a web server on our local machine without running
+a web server?  What we need is a super-server - a server that can
+listen on any port we'd like to pretend there's a web server running
+and fire up some program on demand whenever someone connects to it.
+
+On Linux that kind of functionality it provided by inetd (or xinetd
+or any of the other itterations.)  On macOS that functionality is 
+just one of the things the all powerful C<launchd> daemon can do.
+
+launchd is enterprise level software - you can tell by the way you
+have to configure it using XML.  Here's an example I<plist> file:
+
+    #!vim xml
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>org.perladvent.example</string>
+
+        <!-- this is the program we want to run.  We can't specify
+            a script here with a shebang line, it has to be an
+            actual executable, so we specify our perl and pass
+            the name of the script as an argument -->
+        <key>ProgramArguments</key>
+        <array>
+            <string>/usr/bin/perl</string>
+            <string>/Users/Nougat/servers/example.pl</string>
+        </array>
+
+        <!-- we don't want to be loaded right away, we want to loaded
+            on demand when someone tries to connect to the port -->
+        <key>OnDemand</key>
+        <true/>
+
+        <!-- here's where we're listening - on port 54321 -->
+        <key>Sockets</key>
+        <dict>
+            <key>Listeners</key>
+            <array>
+                <dict>
+                    <key>SockFamily</key>
+                    <string>IPv4</string>
+                    <key>SockServiceName</key>
+                    <string>54321</string>
+                </dict>
+            </array>
+        </dict>
+
+        <!-- finally we want to configure launchd to emulate
+             inetd in 'nowait' mode.  This'll mean that launchd
+             will handle all the port stuff for us.  It'll
+             execute our program when someone connects and pass data
+             sent to the port to the program via STDIN and anything
+             output to STDOUT will be sent back across the port -->
+        <key>inetdCompatibility</key>
+        <dict>
+            <key>Wait</key>
+            <false/>
+        </dict>
+    </dict>
+    </plist>
+
+As we want the code to run as the user we're logged in as we need
+to create this file inside C<~/Library/LaunchAgents>.  It should
+be named C<org.perladvent.example.plist>, as that's what corresponds
+to the C<label> key in the plist.
+
+Once the file has been created we need to tell launchd to load it
+
+   $ launchctl load ~/Library/LaunchAgents/org.perladvent.example.plist
+
+No output from this command is good news!
+
+=head2 Writing the 'server' script
+
+We now need to write a program that takes input on STDIN and produces
+output on STDOUT.  Easy, right?
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.024;
+    use warnings;
+
+    # disable STDOUT buffering
+    $| = 1;
+
+    use Chatbot::Eliza;
+    my $bot = Chatbot::Eliza->new;
+
+    while (<STDIN>) {
+        say '-- ',$bot->transform( $_ );
+    }
+
+We can now connect to our server with telnet and talk to the bot
+over the local loopback interface:
+
+    $ telnet 127.0.0.1 54321
+    Trying 127.0.0.1...
+    Connected to localhost.
+    Escape character is '^]'.
+    Hello
+    -- Hi. What seems to be your problem?
+    I've run out of tape to wrap the presents
+    -- That's quite interesting.
+    Santa will be mad.
+    -- Does talking about this bother you?
+    A little.
+    -- I'm not sure I understand you fully.
+    No-one does.
+    -- Why 'no'?
+    Everything is no!
+    -- Are you saying no just to be negative?
+    ^]
+    telnet> quit
+    Connection closed.
+
+Okay, so we can write a simple 'server' that sends data back and
+forth.  How about handling web pages?
+
+=head2 PSGI
+
+The PSGI standard is a simple protocol that allows web servers and
+web frameworks to have a common standard to communicate with each other.
+In theory any framework that is PSGI compatible can be used with any
+PSGI compatible webserver and vice versa.
+
+Here's what the world's simplest PSGI compatible web app looks like:
+
+    #!perl
+    my $psgi = sub {
+        my $env = shift;
+        return [
+            '200',
+            [ 'Content-Type' => 'text/plain' ],
+            [ "Hello person using $env->{HTTP_USER_AGENT}" ],
+        ];
+    };
+
+Like all PSGI apps it's just a subroutine that takes a hash reference
+and returns a bunch of array refs.  Nothing more complicated than that.
+
+What we're going to do is write a shim so that when launchd executes
+our script it'll be able to use this - or any other PSGI compatible
+app - to generate the output.
+
+    #!perl
+    # Process via PSGI.  
+
+    use HTTP::Request;
+    use HTTP::Response;
+    use HTTP::Message::PSGI;
+
+    # Only bother gathering the headers, ignore the body of the request
+    my $input = "";
+    while (<STDIN>) {
+        last if /^\r\n$/;
+        $input .= $_;
+    }
+
+    print 'HTTP/1.1 ' . HTTP::Response->from_psgi(
+        $psgi->( HTTP::Request->parse( $input )->to_psgi )
+    )->as_string;
+
+Wow, that was pretty straight forward.  Does it work?
+
+    $ curl -v 127.0.0.1:54321
+    *   Trying 127.0.0.1...
+    * TCP_NODELAY set
+    * Connected to 127.0.0.1 (127.0.0.1) port 54321 (#0)
+    > GET / HTTP/1.1
+    > Host: 127.0.0.1:54321
+    > User-Agent: curl/7.64.1
+    > Accept: */*
+    >
+    < HTTP/1.1 200 OK
+    < Content-Type: text/plain
+    * no chunk, no close, no size. Assume close to signal end
+    <
+    Hello person using curl/7.64.1
+    * Closing connection 0
+
+Awesome
+
+=head2 Using a more advanced framework
+
+Okay, so now we can plug in any framework we want, like Mojolicious:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use Mojolicious::Lite;
+    use HTTP::Request;
+    use HTTP::Response;
+    use HTTP::Message::PSGI;
+
+    get '/' => sub {
+        my $c = shift;
+        my $input = $c->param('text');
+
+        my $output = reverse $input;
+
+        $c->render( text => $output );
+    }
+
+    # create a PSGI app from the Mojolicious app
+    app->log->level('error');
+    my $psgi = app->start('psgi');
+
+    # Process via PSGI.  Only bother with GET requests
+    my $input = "";
+    while (<STDIN>) { last if /^\r\n$/; $input .= $_ }
+    print 'HTTP/1.1 ' . HTTP::Response->from_psgi(
+        $psgi->( HTTP::Request->parse( $input )->to_psgi )
+    )->as_string;
+
+So there's a really simple example of a server that can manipulate
+any text that's passed into it.
+
+    $ curl 127.0.0.1:54321?text=Example
+    elpmaxE
+
+I wonder if Nougat would find this helpful?
+
+=head2 Back to the Draft
+
+One of the things that Drafts can from within JavaScript is make
+HTTP requests.  Including, say, to a server we have running on
+demand on localhost.
+
+    #!vim javascript
+    var response = HTTP.create().request({
+        "url": "http://127.0.0.1:54321",
+        "method": "GET",
+        "parameters": { "text" : draft.content }
+    })
+    draft.content = response.responseText
+
+So Nougat needs to take the following steps:
+
+=for :html
+ <ol>
+    <li>Configure a Launchd plist to run a Perl script whenever something connects to a port on localhost</li>
+    <li>Load the plist.  This only needs to be done once - it'll happen automatically on restart</li>
+    <li>Write a script that speaks PSGI at that location.  If you use Mojolicious or another framework you can have it do different things on different paths!</li>
+    <li>Configure an action in Drafts that uses a JavaScript step to call this URL
+ </ol>
+
+And with that, he can execute Perl actions to his heart's content!
+
+=for :html
+  <center><img src="drafts-before.jpg" widht="814" height="600" alt="Drafts: Before Transformation"></center>
+  <center><img src="drafts-after.jpg" widht="814" height="600" alt="Drafts: After TRansformation"></center>
+
+(Maybe he should get back to work though!)
