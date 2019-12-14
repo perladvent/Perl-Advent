@@ -1,0 +1,202 @@
+Title: Animated GIFs
+Topic: GD
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Ah, animated GIFs.  Truly the best thing on the Internet since cat
+videos!
+
+How do people make those?  I've no idea how other people do it, but I make 'em with Perl.
+
+=for :html
+   <center><img src="out.gif" width="500" height="442" alt="Animated GIF of Santa with the words to A Visit from St. Nicholas animated on it"></center>
+
+L<GD> can create animated GIFs piecemeal.  The simple steps involved
+are:
+
+=for :html
+    <ul>
+    <li>Print out the result of <code>gifanimbegin</code> to start the gif
+    <li>Create a new GD image.  For each image print out the result of calling <code>gifanimadd</code>, making sure to pass in the previous image you output so GD only has to write out the <i>changed</i> pixels.
+    <li>Finally print out the result of <code>gifanimend</code>
+    </ul>
+
+And that's all there really is to it.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    use GD::Image;
+
+    # constants
+    my $FONT_FACE = '/System/Library/Fonts/Supplemental/Bodoni 72 Smallcaps Book.ttf';
+    my $FONT_SIZE = 14;   # in pt
+    my $BLACK     = 0;    # color in the GIF89a color map
+    my $WHITE     = 100;  # color in the GIF89a color map
+
+    # write this out to a file
+    open my $out, ">:raw", "/tmp/out.gif";
+
+    # load the background image
+    my $image = background_image();
+
+    # start an animated gif
+    #   first argument means to use the global GIF89a color map
+    #   second argument means to turn on looping
+    print $out $image->gifanimbegin(1,1);
+
+    # send the background as the first frame of the animated gif
+    print $out $image->gifanimadd;
+
+    # process each line at a time
+    my $prev_frame = $image;
+    while (<DATA>) {
+        chomp;
+        my @words = split /\s+/, $_;
+
+        # for each of the words that we're going to highlight
+        # we need to write a new frame
+        for my $word_index (0..$#words) {
+            # create the GD image for that frame
+            my $frame = draw_frame(
+                words      => \@words,
+                word_index => $word_index,
+                line       => $line,
+            );
+
+            # add the frame.  Because we're enabling compression and
+            # passing in the previous frame only the pixels that are
+            # changed per frame are actually saved - not the entire
+            # image of santa each time
+            print $out $frame->gifanimadd(
+                0,                 # dummy
+                0,                 # dummy,
+                0,                 # dummy,
+                int(240 / @words), # two and a half seconds to read a line
+                1,                 # enabling comparing to previous frame
+                $prev_frame        # previous frame to compare to
+            );
+
+            # remember this frame for the next time round
+            $prev_frame = $frame;
+        }
+    }
+
+    # finally write out the end of the animated gif 
+    print $out $image->gifanimend;
+
+    sub background_image {
+        return GD::Image->new("/tmp/santa.jpg");
+    }
+
+    sub draw_frame {
+        my %args = @_;
+        my $new_image = background_image();
+
+        my @words = @{ $args{words} };
+
+        # "draw" the whole string as a class method, which doesn't
+        # actually draw at all, but lets us know how wide the whole
+        # string is so we can center it
+        my $width = (GD::Image->stringFT(
+            $BLACK,$FONT_FACE,$FONT_SIZE,0,
+            0,
+            0,
+            join(' ', @words),
+        ))[4];
+        my $x = 250 - $width/2;
+
+        # work out the three strings (left of / before hightlight,
+        # the middle / hightlight, and then right of / after highlight)
+        my $left_of  = join '', map { "$_ " } splice @words, 0, $args{word_index};
+        my $middle   = shift( @words ) . ' ';
+        my $right_of = join ' ', @words; 
+
+        # draw each string.  stringFT returns the bounds as an array.
+        # Index 4 of this array is the x in the top right corner, i.e.
+        # what we want to assing to $x so we start drawing there again.
+        $x = ($new_image->stringFT(
+            $BLACK, $FONT_FACE, $FONT_SIZE, 0,
+            $x,
+            425,
+            $left_of,
+        ))[4];
+
+        $x = ($new_image->stringFT(
+            $WHITE, $FONT_FACE, $FONT_SIZE, 0,
+            $x,
+            425,
+            $middle,
+        ))[4];
+
+        $new_image->stringFT(
+            $BLACK, $FONT_FACE, $FONT_SIZE, 0,
+            $x,
+            425,
+            $right_of,
+        );
+
+        return $new_image;
+    }
+
+    __DATA__
+    Twas the night before Christmas, when all through the house
+    Not a creature was stirring, not even a mouse;
+    The stockings were hung by the chimney with care,
+    In hopes that St. Nicholas soon would be there;
+    The children were nestled all snug in their beds,
+    While visions of sugar-plums danced in their heads;
+    And mamma in her kerchief, and I in my cap,
+    Had just settled our brains for a long winter's nap
+    When out on the lawn there rose such a clatter,
+    I sprang from my bed to see what was the matter,
+    Away to the window I flew like a flash,
+    Tore open the shutters and threw up the sash.
+    The moon, on the breast of the new-fallen snow,
+    Gave a lustre of mid-day to objects below;
+    When, what to my wondering eyes should appear,
+    But a miniature sleigh, and eight tiny rein-deer,
+    With a little old driver, so lively and quick,
+    I knew in a moment it must be St. Nick.
+    More rapid than eagles his coursers they came,
+    And he whistled, and shouted, and called them by name;
+    "Now, Dasher! now, Dancer! now, Prancer and Vixen!
+    On! Comet, on! Cupid, on! Dunder and Blitzen—
+    To the top of the porch, to the top of the wall!
+    Now, dash away, dash away, dash away all!"
+    As dry leaves that before the wild hurricane fly,
+    When they meet with an obstacle, mount to the sky,
+    So, up to the house-top the coursers they flew,
+    With a sleigh full of toys—and St. Nicholas too.
+    And then in a twinkling I heard on the roof,
+    The prancing and pawing of each little hoof.
+    As I drew in my head, and was turning around,
+    Down the chimney St. Nicholas came with a bound.
+    He was dressed all in fur from his head to his foot,
+    And his clothes were all tarnished with ashes and soot;
+    A bundle of toys he had flung on his back,
+    And he looked like a peddler just opening his pack;
+    His eyes how they twinkled! his dimples how merry!
+    His cheeks were like roses, his nose like a cherry;
+    His droll little mouth was drawn up like a bow,
+    And the beard on his chin was as white as the snow;
+    The stump of a pipe he held tight in his teeth,
+    And the smoke, it encircled his head like a wreath.
+    He had a broad face, and a little round belly
+    That shook when he laughed, like a bowl full of jelly.
+    He was chubby and plump—a right jolly old elf;
+    And I laughed when I saw him in spite of myself.
+    A wink of his eye, and a twist of his head,
+    Soon gave me to know I had nothing to dread.
+    He spoke not a word, but went straight to his work,
+    And filled all the stockings; then turned with a jerk,
+    And laying his finger aside of his nose,
+    And giving a nod, up the chimney he rose.
+    He sprang to his sleigh, to his team gave a whistle,
+    And away they all flew like the down of a thistle;
+    But I heard him exclaim, ere he drove out of sight,
+    "Merry Christmas to all, and to all a good night!"
+
+Maybe for my next gif I'll include the entire works of Shakespeare...
