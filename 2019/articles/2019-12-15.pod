@@ -1,0 +1,232 @@
+Title: Suddenly Serverless
+Topic: AWS::Lambda::Quick
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+It was five minutes to midnight on Christmas Eve.  And Sugarplum
+Snoozysnaps was going to have a heart attack.
+
+All these months of planning.  And it'd all come crashing down thirty
+seconds ago.  Literally.  They never should have made the server racks
+out of candy canes.  Too tempting for Yukon Cornelius' sweet tooth.
+
+Now in five minutes the elves on the shelves needed to know the exact
+moment to fly home so they wouldn't impact Santa coming the other way
+and the website that they were meant to check was down.
+
+"In the next five minutes I've got to write a whole new web service.
+I've got to deploy it live.  And it's got to scale up to millions
+of hits."
+
+Don't Panic Sugarplum!  You're the most experienced Elf that Santa
+has.  You can find a way to do the impossible again!
+
+=head2 AWS Lambda
+
+AWS Lambda is one of the new breed of I<serverless> infrastructure
+offerings.  Serverless doesn't mean that there aren't web servers
+running the code behind the scenes, but rather the programmer doesn't
+have to worry about them - their concerns only go as far as writing
+individual logic that creates the pages.  Someone else handles the
+rest.
+
+This means that Sugarplum doesn't have to worry about setting up
+new hardware in the next three hundred seconds she has to spare.  It
+even means that she doesn't have to worry about configuring a pack
+of virtual machines or even a bunch of Kubernetes pods.  All she has
+to worry about is writing the function - Amazon will take care of
+the compute for running them and scaling what's needed so the
+elves on the shelves don't overload anything.  The north pole will
+get the first million hits for free, then they'll be billed a small
+amount for each hit.
+
+So, what does a Lambda function look like in Perl?  Why it's nothing
+more than a script that contains a C<handler> function and ends with
+a true value.
+
+    #!perl
+    sub handler {
+        my $data = shift;
+        my $name = $data->{queryStringParameters}{who} // "Santa";
+        return {
+            statusCode => 200,
+            headers => {
+                'Content-Type' => 'text/plain',
+            },
+            body => "Hello, $name",
+        };
+    }
+
+    1;
+
+Deploying with Lambda is quick - it takes just a few seconds to
+push up some code and enable it live.  Can Sugarplum get it done in
+time?
+
+=head2 Do It I<Quickly>
+
+Okay, first things first.  Sugarplum has to install the AWS tooling on
+her machine.  This'll take her about thirty seconds.  She only has to
+copy and paste three lines from the AWS webpages to her command line:
+
+    shell$ curl "https://s3.amazonaws.com/aws-cli/awscli-bundle.zip" -o "awscli-bundle.zip"
+    shell$ unzip awscli-bundle.zip
+    shell$ sudo ./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
+
+Luckily for Sugarplum the north pole has already set up an Amazon
+account for use with AWS, and has funding source associated with it
+(less lucky for the Wise Old Elf whose credit card is about to take a
+pounding in the next few minutes.)
+
+She can spend about a minute L<finding the AWS credentials for her account|https://aws.amazon.com/blogs/security/how-to-find-update-access-keys-password-mfa-aws-management-console>
+which she can then use in conjunction with the C<aws configure> command:
+
+    shell$ aws configure
+    AWS Access Key ID [********************]:
+    AWS Secret Access Key [********************]:
+    Default region name [us-east-1]:
+    Default output format [None]:
+
+She now has access to the awesome power of AWS.  She's got three minutes
+and thirty seconds to get everything live!
+
+=head2 The Actual Coding
+
+Three minutes later she's got the most basic of web pages ready to go:
+
+    #!perl
+    use lib qw( lib );
+    use NorthPole::ElfOnTheShelfDispatch qw( time_to_go );
+
+    my $template = <<'HTML';
+    <html>
+        <head><title>Elf on the Shelf Dispatch Instructions</title></head>
+        <body>
+        <h1>INSTRUCTION</h1>
+        <p>It is absolutely imperative at this time you INSTRUCTION</p>
+    </html>
+    HTML
+
+    sub handler {
+        my $data = shift;
+        my $name = $data->{queryStringParameters}{name};
+        
+        my $instruction = time_to_go($name) ? 'LEAVE NOW' : 'STAY PUT';
+        my $html = $template;
+        $template =~ s/INSTRUCTION/$instruction/g;
+
+        return {
+            statusCode => 200,
+            headers => {
+                'Content-Type' => 'text/html',
+            },
+            body => $html
+        };
+    }
+
+    1;
+
+Thank goodness she was able to re-use the NorthPole::ElfOnTheShelfDispatch
+module that used to run on those destroyed servers.  Using a combination
+of the time of day and the elf's family name (the clan the Elf was in
+determined where they'd been deployed around the world) it was able
+to work out what the elf should do at the moment they refreshed the
+page.
+
+Now all Sugarplum has to do was work out how to deploy this code to AWS.
+Should be straight forward, right...it's just a few API calls.
+
+=head2 Complexity
+
+The great thing about AWS is that it's a super powerful set of
+infrastructure that's capable of doing almost anything you can ask
+of it.  The problem is, you have to work out how to ask for exactly
+what you want.
+
+To configure the AWS Lambda function to respond to a HTTP URL you
+need to take the following steps:
+
+=over
+
+=item Create a zip file containing all your code and supporting code.
+
+=item Create (or update) an AWS Lambda function with this zip file, and configure Lambda to use the latest Perl layers to automatically bring in the necessary AWS::Lamba support code.
+
+=item Define a Role with the permissions to run your code.
+
+=item Create a REST API with AWS Gateway API.
+
+=item Configure a resource for that REST API for this script.
+
+=item Set up a method and put method response for that resource.
+
+=item Manage an integration and integration response for that resource.
+
+=back
+
+Nothing too complicated...I'm I<sure> Sugarplum can get all that
+done in the next thirty seconds.
+
+=head2 CPAN to the Rescue!
+
+When you need to setup a Lambda function in a hurry there's
+L<AWS::Lambda::Quick>.
+
+All you need to do is put a single use statement at the top
+of your code:
+
+    #!perl
+    use AWS::Lambda::Quick (
+        name => 'elf-on-the-shelf-go',
+    );
+
+Or, rather, since we need to also upload the C<lib> directory:
+
+    #!perl
+    use AWS::Lambda::Quick (
+        name => 'elf-on-the-shelf-go',
+        extra_files => ['lib'],
+    );
+
+And then run the script.
+
+    shell$ perl elf-on-the-shelf-go.pl
+    https://52p3rf890b.execute-api.us-east-1.amazonaws.com/quick/elf-on-the-shelf-go
+
+Look, it's printed out a URL where it's already live!
+
+AWS::Lambda::Quick has handled all the interactions with AWS for us,
+uploading a copy of the script (slightly modified so it no longer
+depends on AWS::Lambda::Quick> and configuring AWS to serve it for
+us on the URL it printed out.  That didn't even take 30 seconds!
+
+If we want, we can even see what it's up to:
+
+    shell$ export AWS_LAMBDA_QUICK_DEBUG=1
+    shell$ perl elf-on-the-shelf-go.pl
+    updating function code
+    function code updated
+    updating function configuration
+    searching for existing role
+    found existing role
+    function configuration updated
+    searching for existing rest api
+    found existing existing rest api
+    searching of existing resource
+    found exiting resource
+    checking for existing method
+    found existing method
+    checking for existing method response
+    found existing method response
+    checking for existing integration
+    found existing integration
+    checking for existing integration response
+    found existing integration response
+    https://52p3rf890b.execute-api.us-east-1.amazonaws.com/quick/elf-on-the-shelf-go
+
+All that's left for us to do is test it:
+
+L<https://52p3rf890b.execute-api.us-east-1.amazonaws.com/quick/elf-on-the-shelf-go?who=Candy+Sweettooth>
+
+L<https://52p3rf890b.execute-api.us-east-1.amazonaws.com/quick/elf-on-the-shelf-go?who=Zippy+Flyfast>
+
+Well done Sugarplum, Christmas is once again truly saved!
