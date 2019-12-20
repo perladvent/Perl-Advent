@@ -1,0 +1,168 @@
+Title: Controlling your Terminal with Perl
+Topic: iTerm and Perl
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+L<iTerm|https://iterm2.com/> is a heck of a terminal emulator for
+macOS.  Not only is it rock solid, fast, and efficient - it's also
+exteremly powerful - and can both be controlled B<by Perl> and B<can control
+Perl>.
+
+=head2 Are We Nearly There Yet?
+
+In addition to the standard control sequences iTerm supports L<Proprietary Escape Codes|https://iterm2.com/documentation-escape-codes.html>
+that can get it to do non-standard things a real dumb terminal would never
+be able to do.
+
+For example, my standard wrapper for running tests in Perl looks like this:
+
+   perl -e 'print "\e]50;ClearScrollback\a"' &&
+   yath -v -Ilib t/01mytest.t \
+   && perl -e 'print "\e]9;\nALL OK\a"' || perl -e 'print "\e]9;\nFAILED\a"'
+
+That first sends the control sequence to clear the screen and delete all history
+(so scrolling to the top takes me to the top of the test.)  It then runs the
+tests, and I can go make a cup of tea, because the script will send a
+notification that'll bleep as soon as tests are done running to tell me if
+it's succeeded or failed.
+
+=head2 Clickable Links
+
+Another neat trick that iTerm supports allowing programs to markup their output
+so that text becomes clickable.  For example this creates a clickable link to
+google about Perl.
+
+    #!perl
+    print "Search more about ";
+    my $href = 'http://google.com?q=Perl';
+    my $text = 'Perl';
+    print "\e]8;;$href\a$text\e]8;;\a";
+    print ".\n";
+
+Of course, the links don't have to be pages on the web - you can trigger
+anything that has a URL scheme on macOS.  Here I can click on the bullet
+point links to add them to OmniFocus:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.024;
+    use warnings;
+    use experimental 'signatures';
+
+    say "* ".clickable_link('Buy Milk', 'omnifocus:///add?name=Buy%20milk');
+    say "* ".clickable_link('Debug Program', 'omnifocus:///add?name=Debug%20Program');
+
+    sub clickable_link($text, $href) {
+        return "\e]8;;$href\a$text\e]8;;\a";
+    }
+
+=head2 Clickable Recognizable Text
+
+So far we've been talking about having the programs running in the terminal
+in control.  What if we want to do it the other way round - configure the
+terminal to react to things in the terminal and decide what to do itself?
+
+This kind of thing is configured in the I<Profiles> section of iTerm's
+preferences.  iTerm can be configured to switch to any profile you create
+automatically.  For example here I've configured it to switch to this
+profile whenever I'm in the C<RuleTheWorld> project dir in my homedir.
+
+=for :html
+  <center><img src="autoswitch.png" width="542" height="507" ></center>
+
+Now I can click on the C<Edit> button below C<Smart Selection> to define
+some new selection rules.  Let's create one for Perl error messages.
+
+=for :html
+  <center><img src="perlerr.jpg" width="804" height="354" ></center>
+
+Now if if hit C<Edit> I can start defining context menu opens for when I
+right click on anything that matches the regex.  The first menu item I
+create can also be activated by cmd-clicking on the match.
+
+=for :html
+  <center><img src="actions.jpg" width="564" height="282" ></center>
+
+Now when I command-click on an error message it'll open the file in
+VSCode at the right line number.
+
+=head2 Triggers
+
+Triggers are similar to clickable text, except you don't have to click on
+them - they happen immediately as the terminal sees the text being sent to
+it.  
+
+For example, you might recognize the message Hypnotoad prints out when starting
+up and open the browser window.  Or you might have a command on the remove
+server print out something (like a file name) in a recognizable format and have
+the local machine do something like it (such as trigger a script to download
+that file and open in the editor).
+
+One of my all time favorite hacks is to have iTerm color code the backgrounds
+of my Perl error messages so they're easy to spot.
+
+=for :html
+  <center><img src="highlight.png" width="558" height="108" ></center>
+
+I use two different colors for the highlighting - red indicates the error
+message came from an absolute path (meaning it's an installed library, not
+my code, and I'm less likely to change it) whereas green means it's local
+code that I probably need to fix.
+
+=for :html
+  <center><img src="term.png" width="512" height="281" ></center>
+
+Of course, combined with the previous tip, I can cmd-click on these links to
+open them in vscode.
+
+=head2 Complete Control
+
+For the ultimate control you can have iTerm start a "coprocess".  This means
+that as well as rendring what it's being sent it'll also send a copy to an
+external running program (a I<co-process>.)  That process can either simply
+monitor what's being printed to the terminal, or it can send it's own output
+which will be interpreted as the user having typed that at the terminal.
+
+Coprocessses can be started manually, or by a user key combination, or even
+by a trigger recognizing some text that indicates a program you want to control
+automatically from you
+
+=head2 Syncing our C<lib> directory
+
+One cool trick I use coprocesses for is transferring my C<lib> directory of
+custom modules to any machine I'm connected to.  Rather than worrying about
+if that machine can access the internet, if I can put the fils in my home
+directory somewhere insecure or not, or if I can connect directly to the
+machine I'm logged into to transfer files - I ave a different solution.
+
+I just type them in again on each machine.
+
+Or rather, the co-process does this for me.  Here's an the example coprocess
+script to transfer the lib directory.
+
+    #!/bin/sh
+
+    echo 'stty_orig=`stty -g`'
+    echo 'stty -echo'
+    echo 'clear'
+    echo 'echo "Please wait, transfering"'
+    echo "cd ~";
+    echo "base64 -d | tar -xzf -"
+    cd ~
+    tar -czf - -C ~ lib | base64 -b 72
+    perl -e 'print "\x{04}"'
+    echo 'clear'
+    echo 'echo "All done!"'
+    echo 'stty $stty_orig'
+
+If you squint hard enough you can actually work out what this is doing.
+It types a command on the remote machine to base64 decode anything that the user
+types and send it to tar to spit out to the filesystem.  It then runs a
+command locally to tarball of the lib dir and print out the base64 encoding
+- effectively typing it over the wire to the command we just set up.  It finally
+sends a ctrl-d to let the other end we're done before resetting the terminal.
+
+=head2 Conclusion
+
+I've barely scratchd the surface of what iTerm2 can do here, but I hope I've
+convinced you to give yourself th gift of an optimized environment this year!
