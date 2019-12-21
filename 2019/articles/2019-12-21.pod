@@ -1,0 +1,289 @@
+Title: Test2: Test Harder (but easier)
+Topic: Test2::V0
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+"Right, my fellow Elves, calm down", the Wise Old Elf shouted over the
+rabble gathed in the elf lecture hall, "Today I'm going to be talking to you
+about Testing"
+
+There were loud groans from the audience.  They'd been writing tests
+for I<years>.  It was like teaching their Grandmother to suck Eggnog.
+
+"Now now...how many of you are familiar with the latest changes in Test2?"
+
+Less noise now.  Maybe there was something here they could learn after all.
+
+"There's so much to cover.  I could tell you about the underlying event system
+that allows decoupling of parts of the test system.  I could talk about the
+new structure of creating interoperable test frameworks.  I could talk to
+about the new harness features...but today, today I'm going to talk to you
+about L<Test2::V0>. 
+
+Test2::V0 is like a smorgasbord of all the good bits of Test2
+wrapped up in one delectable package.  When you might previously grab
+Test::More, you should grab Test::V0.  Because...because it not only uses
+all of the cool tech on its backend, but because it's so darn handy to use."
+
+=head2 Making the Easy Stuff Easy: Strictness, Warnings and UTF8
+
+"Lazyness! One of the greatest virtue of the Perl programmer!  Why type
+a lot when you can type a little?  Why not have sensible defaults."
+
+There were plenty of nodding heads now.  Writing tests is a Cost of Doing
+Business - so making it as simple as possible to do the right thing without
+thinking about it is critical.
+
+The Wise Old Elf threw the most basic Perl script up on the screen.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    use Test::More tests => 1;
+
+    ok(1, 'Do we want to build a \N{SNOWMAN}?');
+
+"Now here's the same code written in an idiomatic fashion with Test2::V0."
+
+    #!perl
+    #!/usr/bin/perl
+
+    use Test2::V0;
+
+    ok(1, "Do you want to build a \N{SNOWMAN}?");
+
+    done_testing;
+
+"Who can spot the difference?"
+
+Tiramisu Shinytree raised her hand.  "There's no strict or warnings!"
+
+"Correct! Test::V0 (like Moose, Mojolicious, and many other common
+tools) turns those on for you automatically.  Anything else?"
+
+It was Bluebell Brandycake's turn. "There's no plan!"
+
+"Well yes, Test2 allows you to use C<done_testing> rather than having to
+count each and every test and declare a plan, but modern versions of
+Test::More allow that too.  Anything else?  Anyone spot the bug?"
+
+Silence.  Can you spot it?  The Wise Old Elf decided to show the class
+the output of the scripts.
+
+    shell $ perl /tmp/more.t
+    1..1
+    Wide character in print at /opt/perl/bin/lib/site_perl/5.28.1/Test2/Formatter/TAP.pm line 144.
+    ok 1 - Do you want to build a X?
+
+    shell $ perl /tmp/more.t
+    ok 1 - Do you want to build a X?
+    1..1
+
+The crowd groaned.  They'd forgotten Fowler's Rule on Unicode (there's always
+another unicode bug, you just haven't found it yet)
+
+"Yep.  Test2::V0 also reconfigures the output handles to encode as UTF-8 which
+I bet you always forget - until you see that warning message."
+
+=head2 Deep Testing
+
+"The next thing you'll notice is that Test2::V0 based tests are, well, naturally
+I<deeper> than their Test::More counterparts.  Where in Test::More if you
+wanted to test data structures you'd have to use C<is_deeply>..."
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    use Test::More tests => 1;
+
+    use Reindeer::Santa  qw(original_team);
+    my @results = original_team();
+
+    is_deeply(\@original_tam, [
+        'Dasher', 'Dancer', 'Prancer', 'Vixen',
+        'Comet', 'Cupid', 'Donner', 'Blitzen',
+    ], 'check reindeer');
+
+"With Test2::V0 you'd just use C<is>."
+
+    #!perl
+    #!/usr/bin/perl
+
+    use Test2::V0
+
+    use Reindeer::Santa  qw(original_team);
+    my @results = original_team();
+
+    is(\@original_tam, [
+        'Dasher', 'Dancer', 'Prancer', 'Vixen',
+        'Comet', 'Cupid', 'Donner', 'Blitzen',
+    ], 'check reindeer');
+
+The Wise Old Elf went onto explain it was so much more.  To demonstrate,
+he set a little programming exercise.
+
+Write a test that checks the output is a hashref that has three entries in
+it.  The first is a name (which must be a string).
+The second is an age which must be equal to eighteen or the string "adult".
+The third is an info array that has four elements: A true value, an instance of
+Snowman, an instance that has an C<as_string> method that returns C<Anna>, and finally something
+that is a valid RFC 1123 date time.  The top level hash can have any other
+alphanumeric keys except C<error>.
+
+The elves spent a long time producing page after page of code.  There were
+debates.  Arguments.  And thirty minutes later no-one was done.
+
+They were quite shocked when the Wise Old elf showed them his simple solution:
+
+    #!perl
+    is($data, hash {
+       # insist that name is a string (not a ref, etc!)
+       field name => match qr//;
+
+       # insist that the person's age 18 (or 18.0, etc) or "adult"
+       field age  => in_set(number(18), "adult");
+
+       # info is an array
+       field info => array {
+           # the first element must be a true value
+           item T();
+
+           # the second element must be an instance of Snowman
+           item object { blessed => 'Snowman' };
+
+           # the third element must return 'Anna' when as_string is called on it
+           item object { call as_string => 'Anna' };
+
+           # the fourth element must be parseable as a RFC 1123 time
+           # the validator sub must return true if passes, false if not
+           # (and Try::Tiny's try returns undef on exception)
+           item validator(sub {
+               return try {
+                   DateTime::Format::HTTP->parse_datetime( $_ );
+                   1;
+               };
+           });
+
+           # and there must only be four elements
+           end();
+       };
+
+       # we don't want a field called "error"
+       field error => DNE();  # does not exist
+
+       # allow any other fields that keys are alphanumeric
+       all_keys(match qr/^[A-Za-z0-9]+$/aa);
+       etc();
+   }, "compare");
+
+=head2 Exception Checking
+
+"Sparkle Candytoes, what are an elf's favorite colors?"
+
+Sparkle beamed.  "Red and Green, Wise Old Elf"
+
+"Correct! When we write good tests we don't just test the I<green> path - what
+our code does wh   its supposed to, we also check the I<red> path.  Does it
+handle hte errors correctly".
+
+"We want to make sure that our code throws the right exceptions.  Without
+the exception breaking our test of course!  Test2::V0 has its own exception
+capturing code:"
+
+   #!perl
+    use autodie;
+
+   ok(dies {
+       open my $fh, "<", "file-that-does-not-exist";
+   }, 'open throws exception on non existent file');
+
+"Since C<dies> returns the actual exception thrown we can improve the test,
+by checking if the exception contained the right string:
+
+    like(dies {
+       open my $fh, "<", "file-that-does-not-exist";
+    }, qr/No such file/, 'open throws exception on non existent file');
+
+Or even check that something dies with the right kind of errors
+
+    isa_ok(dies {
+        Mojo::Exception->throw('boom')
+    }, 'Mojo::Exception', 'exception was an instance of Mojo::Exception);
+
+=head2 Subtests
+
+"Now class, who can spot the problem with this code?"
+
+    #!perl
+    use Test::More;
+
+    subtest 'horse' => sub {
+        is $cart, 'cart', 'cart';
+    };
+
+    done_testing;
+
+No hands up.  "Cinnamon Candybubbles, how about you".
+
+"I think it works, Wise Old Elf"
+
+"Oh, it does, it does.  It just looks confusing"
+
+    # Subtest: horse
+        not ok 1 - cart
+        #   Failed test 'cart'
+        #   at - line 4.
+        #          got: undef
+        #     expected: 'cart'
+        1..1
+        # Looks like you failed 1 test of 1.
+    not ok 1 - horse
+    #   Failed test 'horse'
+    #   at - line 5.
+    1..1
+
+"You have to read the comments to figure out what's going on.  The cart
+is literally before the horse."
+
+The Wise Old Elf showed them the same code in Test2::V0:
+
+    #!perl
+    use Test2::V0;  # only this line changed!
+
+    subtest 'horse' => sub {
+        is $cart, 'cart', 'cart';
+    };
+
+    done_testing;
+
+But the output is very different
+
+    not ok 1 - horse {
+        not ok 1 - cart
+        # Failed test 'cart'
+        # at - line 5.
+        # +---------+-------+
+        # | GOT     | CHECK |
+        # +---------+-------+
+        # | <UNDEF> | cart  |
+        # +---------+-------+
+        1..1
+    }
+    # Failed test 'horse'
+    # at - line 6.
+    1..1
+
+=head2 And More
+
+"Now class, I'd like to talk to you about...", began the Wise Old Elf, only
+to be interrupted by the ringing of the lunch bell.  Test2 is a big topic.
+More will have to wait for another day...
+
+
+
+
