@@ -1,0 +1,342 @@
+Title: Comparing More
+Topic: Test2::Compare::Base
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Cinnamon Candybubbles has been really interested in the Wise Old
+Elf's L<lecture yesterday|http://www.perladvent.org/2019/2019-12-21.html>
+on Test2.  She'd been particularly intregied by the comparison
+operators that allow you to build a complex datastructure of comparisons
+to pass into C<is>.
+
+L<Test2::Tools::Compare> lists a whole bunch of these operators that
+are immediately available in L<Test2::V0>.  But what she wanted to
+extend the operators?
+
+What Cinnamon wants to do is write a simple comparison function that she
+can use to check if a value is one of Santa's reindeer or not.
+
+    #!/usr/bin/perl
+    use Test2::V0;
+    use Test2::Tools::SantasReindeer;
+
+    my $ds = {
+        reindeer => [ 'Donner', 'Prancer', 'Robbie' ],
+        driver   => 'Santa',
+    };
+
+    # insist that all reindeer are Santa's reindeer
+    is($ds, hash {
+        field reindeer => array {
+            all_items(santas_reindeer());
+            etc();
+        };
+        etc();
+    });
+
+    done_testing();
+
+How can she do this?
+
+=head2 Writing a Test2::Tools Class
+
+Test2's standard extension mechanism is to provide tools in the C<Test2::Tools>
+namespace that provide functions that interoperate with existing Test2
+functionality.  These classes don't need to subclass any particular class nor
+have any specific functions or method defined - they can access anything
+they need to about the Test2 context by using the C<context> function from
+L<Test2::API>.
+
+In this case Cinnamon isn't even going to do that - she's not actually
+writing any code that performs a test per ce.  She's providing a function
+that the tests in L<Test2::Tools::Compare> can use to compare data structures.
+
+Writing a Test2::Tools class that exports comparison functions isn't that
+hard - it's just like any other Exporter based code.
+
+    package Test2::Tools::SantasReindeer;
+    use base qw(Exporter);
+    our @EXPORT = qw( santas_reindeer );
+
+    # we're going to re-use existing Test2 comparison classes
+    use Test2::Compare::Set;
+    use Test2::Compare::String;
+
+    # return the same as in_set(qw(Rudolph Dasher Dancer...))
+    sub santas_reindeer {
+        my $set = Test2::Compare::Set->new( checks => [
+            map { Test2::Compare::String->new( input => $_ ) } qw(
+                Rudolph Dasher Dancer Prancer Vixen Comet Cupid Donner Blitzen
+            )
+        ]);
+        $set->set_reduction('any');
+        return $set;
+    };
+
+    1;
+
+This works, and correctly identifies that C<Robbie> is not one of Santa's
+reindeer:
+
+    shell$  perl -Ilib /tmp/testing.t
+    not ok 1
+    # Failed test at /tmp/testing.t line 17.
+    # +-------------------------+-----------------------+----+---------+--------+
+    # | PATH                    | GOT                   | OP | CHECK   | LNs    |
+    # +-------------------------+-----------------------+----+---------+--------+
+    # |                         | HASH(0x7f9fab817670)  |    | <HASH>  | 14, 17 |
+    # | {reindeer}              | ARRAY(0x7f9fab817658) |    | <ARRAY> | 15     |
+    # | {reindeer}[2] <Check 0> | Robbie                | eq | Rudolph |        |
+    # | {reindeer}[2] <Check 1> | Robbie                | eq | Dasher  |        |
+    # | {reindeer}[2] <Check 2> | Robbie                | eq | Dancer  |        |
+    # | {reindeer}[2] <Check 3> | Robbie                | eq | Prancer |        |
+    # | {reindeer}[2] <Check 4> | Robbie                | eq | Vixen   |        |
+    # | {reindeer}[2] <Check 5> | Robbie                | eq | Comet   |        |
+    # | {reindeer}[2] <Check 6> | Robbie                | eq | Cupid,  |        |
+    # | {reindeer}[2] <Check 7> | Robbie                | eq | Donner  |        |
+    # | {reindeer}[2] <Check 8> | Robbie                | eq | Blitzen |        |
+    # +-------------------------+-----------------------+----+---------+--------+
+
+Though it's a little on the verbose side - the Cinnamon doesn;t really want to
+know all the names that don't match, they want to simply know that it doesn't
+match any of Santa's reindeer
+
+=head2 Writing a Custom Comparison
+
+The tools we previously wrote simply re-used existing comparisons.  How
+about Cinnamon writes her own comparison operator, so she can have full control
+over the output?
+
+This makes her Tools module considerable simplier at least..
+
+    #!perl
+    package Test2::Tools::SantasReindeer;
+    use base qw(Exporter);
+    our @EXPORT = qw( santas_reindeer );
+
+    use Test2::Compare::SantasReindeer;
+
+    sub santas_reindeer {
+        return Test2::Compare::SantasReindeer->new;
+    };
+
+    1;
+
+Test2::Compare::SantasReindeer should be a subclass of the
+L<Test2::Compare::Base> class.  A simple implementation would be:
+
+    #!perl
+    package Test2::Compare::SantasReindeer;
+    use base qw(Test2::Compare::Base);
+
+    use strict;
+    use warnings;
+
+    use List::Util qw( any );
+
+    sub name { "Santa's Reindeer" }
+
+    sub verify {
+        my $self = shift;
+        my %params = @_;
+
+        # if this value didn't exist at all, need to return false
+        return 0 unless $params{exists};
+
+        # return true if and only if what we got matches
+        return any { $params{got} eq $_ } qw(
+            Rudolph Dasher Dancer Prancer Vixen Comet Cupid Donner Blitzen
+        );
+    }
+
+    1;
+
+Cinnamon had to implement two methods: C<name> (which returns the name
+of the test that will be shown in output) and C<verify> (which returns true
+or false if it matches or not).
+
+The output is much more readable now
+
+    shell$ $  perl -Ilib /tmp/testing.t
+    not ok 1
+    # Failed test at /tmp/testing.t line 17.
+    # +---------------+-----------------------+------------------+--------+
+    # | PATH          | GOT                   | CHECK            | LNs    |
+    # +---------------+-----------------------+------------------+--------+
+    # |               | HASH(0x7f917f001870)  | <HASH>           | 14, 17 |
+    # | {reindeer}    | ARRAY(0x7f917f001858) | <ARRAY>          | 15     |
+    # | {reindeer}[2] | Robbie                | Santa's Reindeer |        |
+    # +---------------+-----------------------+------------------+--------+
+
+=head2 Embracing The Negative
+
+Ever since the cuban missle crisis Grand-Santa hasn't been allowed to
+fly the sliegh any more.  This is easy to express in a test with the C<!>
+operator:
+
+    #!perl
+    #!/usr/bin/perl
+    use Test2::V0;
+
+    my $ds = {
+        driver => 'Grand-Santa',
+    };
+
+    # no Grand-Santa!
+    is($ds, hash {
+        field driver => !string("Grand-Santa");
+        etc();
+    });
+
+This helpfully prints out useful info in the diagnostics making it
+clear that the test was negated too.
+
+    # Seeded srand with seed '20191220' from local date.
+    not ok 1
+    # Failed test at - line 12.
+    # +----------+----------------------+----+-------------+-------+
+    # | PATH     | GOT                  | OP | CHECK       | LNs   |
+    # +----------+----------------------+----+-------------+-------+
+    # |          | HASH(0x7fa50d817040) |    | <HASH>      | 9, 12 |
+    # | {driver} | Grand-Santa          | ne | Grand-Santa | 10    |
+    # +----------+----------------------+----+-------------+-------+
+
+What if Cinnemon does't want any of Santa's reindeer on our sleigh?  It should
+be as simple as writing the following:
+
+    #!perl
+    #!/usr/bin/perl
+    use Test2::V0;
+    use Test2::Tools::SantasReindeer;
+
+    my $ds = {
+        type     => 'training flight',
+        reindeer => [ 'Donner', 'Prancer', 'Robbie' ],
+        driver   => 'Arthur',
+    };
+
+    # insist that all reigndeer aren't Santa's
+    is($ds, hash {
+        field reindeer => array {
+            all_items(!santas_reindeer());
+            etc();
+        };
+        etc();
+    });
+
+    done_testing();
+
+Does that work?
+
+    perl -Ilib /tmp/testing.t
+    # Seeded srand with seed '20191220' from local date.
+    not ok 1
+    # Failed test at /tmp/testing.t line 18.
+    # +---------------+-----------------------+----+---------+--------+
+    # | PATH          | GOT                   | OP | CHECK   | LNs    |
+    # +---------------+-----------------------+----+---------+--------+
+    # |               | HASH(0x7f9501017670)  |    | <HASH>  | 15, 18 |
+    # | {reindeer}    | ARRAY(0x7f9501017658) |    | <ARRAY> | 16     |
+    # | {reindeer}[0] | Donner                | eq |         |        |
+    # | {reindeer}[1] | Prancer               | eq |         |        |
+    # | {reindeer}[2] | Robbie                | eq |         |        |
+    # +---------------+-----------------------+----+---------+--------+
+
+Ooops, Cinnamon now checking that the names are equal to false.  What changes
+does she have to make?
+
+The Test2::Compare::SantasReindeer needs to overload the C<!> operator, save
+that in the instance, and then the code can decide what comparison to run in
+C<verify> later on.
+
+Thankfully, Cinnamon doesn't have to code all of that - the overloading
+aspect can be handled just by loading L<Test2::Compare::Negatable> which will
+set the C<+NEGATED> attribute for us.
+
+    package Test2::Compare::SantasReindeer;
+    use base qw(Test2::Compare::Base);
+
+    use strict;
+    use warnings;
+
+    use List::Util qw( any none );
+
+    # Overloads '!' for us.
+    use Test2::Compare::Negatable;
+
+    my @REINDEER = qw(
+        Rudolph Dasher Dancer Prancer Vixen Comet Cupid Donner Blitzen
+    );
+
+    sub name { "Santa's Reindeer" }
+
+    sub verify {
+        my $self = shift;
+        my %params = @_;
+
+        # Always check if $got exists! This method must return false if no
+        # value at all was received.
+        return 0 unless $params{exists};
+
+        return none { $params{got} eq $_ } @REINDEER if $self->{+NEGATE};
+        return any  { $params{got} eq $_ } @REINDEER;
+    }
+
+    1;
+
+Now Cinnamon's test works as it should:
+
+    mark@Tarrant:~/tmp$  perl -Ilib /tmp/testing.t
+    # Seeded srand with seed '20191220' from local date.
+    not ok 1
+    # Failed test at /tmp/testing.t line 18.
+    # +---------------+-----------------------+------------------+--------+
+    # | PATH          | GOT                   | CHECK            | LNs    |
+    # +---------------+-----------------------+------------------+--------+
+    # |               | HASH(0x7f857200ea70)  | <HASH>           | 15, 18 |
+    # | {reindeer}    | ARRAY(0x7f857200ea58) | <ARRAY>          | 16     |
+    # | {reindeer}[0] | Donner                | Santa's Reindeer |        |
+    # | {reindeer}[1] | Prancer               | Santa's Reindeer |        |
+    # +---------------+-----------------------+------------------+--------+
+
+But the output is still a little confusing;  Currently the diagnostics are
+saying that the problem is that Donner and Prancer aren't Santa's Reindeer
+when the point of the test was that they are, but we don't want them to be.
+
+Cinnamon has one more method to override in the class to get the output
+she desires:
+
+    #!perl
+    sub operator { shift->{+NEGATE} ? "isn't one of" : "is one of" }
+
+Now the output looks like
+
+    shell$ perl -Ilib /tmp/testing.t
+    not ok 1
+    # Failed test at /tmp/testing.t line 18.
+    # +---------------+-----------------------+--------------+------------------+--------+
+    # | PATH          | GOT                   | OP           | CHECK            | LNs    |
+    # +---------------+-----------------------+--------------+------------------+--------+
+    # |               | HASH(0x7ff5e2802870)  |              | <HASH>           | 15, 18 |
+    # | {reindeer}    | ARRAY(0x7ff5e2802858) |              | <ARRAY>          | 16     |
+    # | {reindeer}[0] | Donner                | isn't one of | Santa's Reindeer |        |
+    # | {reindeer}[1] | Prancer               | isn't one of | Santa's Reindeer |        |
+    # +---------------+-----------------------+--------------+------------------+--------+
+
+Or
+
+    shell$ perl -Ilib /tmp/testing.t
+    not ok 1
+    # Failed test at /tmp/testing.t line 18.
+    # +---------------+-----------------------+-----------+------------------+--------+
+    # | PATH          | GOT                   | OP        | CHECK            | LNs    |
+    # +---------------+-----------------------+-----------+------------------+--------+
+    # |               | HASH(0x7f8687017670)  |           | <HASH>           | 15, 18 |
+    # | {reindeer}    | ARRAY(0x7f8687017658) |           | <ARRAY>          | 16     |
+    # | {reindeer}[2] | Robbie                | is one of | Santa's Reindeer |        |
+    # +---------------+-----------------------+-----------+------------------+--------+
+
+=head2 Comparatively Good
+
+Cinnamon Candybubbles ended up with a comparison that was not only quick
+to type, but more importantly very easy to understand when looking at the
+diagnostic output.
