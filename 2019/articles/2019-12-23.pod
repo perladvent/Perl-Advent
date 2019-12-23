@@ -1,0 +1,199 @@
+Title: Testing our Impatience
+Topic: App::yath
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+"I can make your tests take half the time", was the claim that
+Garland Snowboughs had made.
+
+Twice as fast?  Rustic Mullingfig had hardly started building out
+the implementation of his Christmas Tree class. It wasn't possible
+that he'd made the code go slow yet - there really wasn't much of
+it.
+
+"Go on then mate, I'll bet you a mince pie that you can't manage it."
+
+The bet was on.
+
+=head2 The Tests in Question
+
+There really wasn't much to the code yet.  So far Rustic had only
+implemented the planted attribute (that defaulted to the time the
+object was created) and some stringification.
+
+    #!perl
+    package XmasTree;
+    use Moose;
+    use experimental 'signatures';
+
+    use DateTime;
+    has 'planted' => (
+        is => 'ro',
+        default => sub { DateTime->now }
+    );
+
+    use overload '""' => 'as_string';
+    sub as_string ($self) {
+        return "A Xmas Tree, planted on @{[ $self->planted ]}";
+    }
+
+    1;
+
+And he'd written two basic tests - one for the stringification:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use Test2::V0;
+    use XmasTree;
+
+    # look, a year 2020 bug!
+    like( XmasTree->new, qr/An Xmas Tree, planted on 2019/ );
+
+    done_testing;
+
+And one for the planted attribute itself:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use Test2::V0;
+    use XmasTree;
+
+    is( XmasTree->new, object {
+        call planted => object {
+            prop blessed => 'DateTime';
+
+            # look, a year 2020 bug!
+            call year => 2019;
+        };
+    });
+    done_testing;
+
+These ran pretty darn quickly:
+
+    shell$ yath -Ilib t
+
+    ** Defaulting to the 'test' command **
+
+    ( PASSED )  job  1    t/planted.t
+    ( PASSED )  job  2    t/stringification.t
+
+    ================================================================================
+
+    Run ID: A60F80C6-251F-11EA-ADBC-83BD753448D3
+
+    All tests were successful!
+
+
+    1.17659s on wallclock (0.19 usr 0.02 sys + 0.93 cusr 0.11 csys = 1.25 CPU)
+
+How is Garland going to speed those tests up?
+
+=head2 Faster
+
+The first thing Garland changed was to add the C<-P> option to
+C<yath>.
+
+C<yath> is the Test2 test harness (yath stands for Yet Another Test
+Harness.)  Each test it runs forks a new process, executes the
+test script, and gathers the STDERR and STDOUT of the child process
+in the parent test harness process to work out the results.
+
+The C<-P> option tells the harness to load the mentioned module
+I<before> it forks.  So by specifying C<-PDateTime> we only have
+to load DateTime once in the parent process, not twice, once in
+each child process as it loads 
+
+    shell$ yath -PDateTime -PMoose  -Ilib t
+
+    ** Defaulting to the 'test' command **
+
+    ( PASSED )  job  1    t/planted.t
+    ( PASSED )  job  2    t/stringification.t
+
+    ================================================================================
+
+    Run ID: D10B83C4-251F-11EA-BDAA-9B6707E666E2
+
+    All tests were successful!
+
+
+    0.90175s on wallclock (0.19 usr 0.02 sys + 0.68 cusr 0.10 csys = 0.99 CPU)
+
+
+Whoo! That only took 77% of the time it previously did...but Garland
+had promised more!  Can we make it faster still?
+
+=head2 Faster Still
+
+The key realization is that not only that DateTime and other CPAN
+modules we use do not change between the different test scripts
+we execute, they don't change between different I<runs of the same
+test script>.  Or, to put it another way...we want to load them into
+memory once and then every time after (until we eventually upgrade our
+Perl modules) we won't have to run them again.
+
+To do this C<yath> has a I<daemon> mode.  You can start it up by
+using the C<start> command:
+
+    shell$ yath start -PDateTime -PMoose
+    Waiting for runner...
+
+    Persistent runner started!
+    Runner PID: 3199
+    Runner dir: /tmp/yath-test-3198-JClS5vpt
+    Runner logs:
+    standard output: /tmp/yath-test-3198-JClS5vpt/output.log
+    standard  error: /tmp/yath-test-3198-JClS5vpt/error.log
+
+    Use `yath watch` to monitor the persistent runner
+
+    0.58685s on wallclock (0.19 usr 0.02 sys + 0.00 cusr 0.00 csys = 0.21 CPU)
+
+Now whenever we run yath from this directory it'll contact this daemon
+and have I<it> run the tests instead - and its already loaded the
+modules!
+
+    shell$ yath t
+
+    ** Persistent runner detected, defaulting to the 'run' command **
+
+    ( PASSED )  job 3485-1    t/planted.t
+    ( PASSED )  job 3485-2    t/stringification.t
+
+    ================================================================================
+
+    Run ID: D682502A-2520-11EA-8563-D1A3990446BB
+
+    All tests were successful!
+
+
+    0.35264s on wallclock (0.18 usr 0.03 sys + 0.00 cusr 0.00 csys = 0.21 CPU)
+
+Okay, that took less than 30% of the original time it took - over
+three times as fast!
+
+Of course, this speed up will become more significant the more stable
+unchanging CPAN modules we pull in as our codebase becomes bigger.
+
+We can even make this easier by having a I<preload> module that we
+use whenever we get ready to start testing.
+
+    #!perl
+    package reloadStandard;
+
+    use 5.024;
+    use warnings;
+
+    use Moose ();
+    use DateTime ();
+
+    1;
+
+And then
+
+    shell$ yath start -PreloadStandard
+    ...
+
+But more importantly, what this means is that Garland is owed some
+mince pies!
