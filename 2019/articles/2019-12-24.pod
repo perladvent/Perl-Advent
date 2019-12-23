@@ -1,0 +1,136 @@
+Title: We Wish You a Meme Christmas
+Topic: Imager
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=for :html
+ <center><img src="confession_bear.jpg" alt="Confession Bear Meme: Sometimes I write advent calendar entries for what cool thing it creates rather than how cool the Perl it took to write it is" width="460" height="480"></center> 
+
+It's true.  I've featured L<cat pictures|http://perladvent.org/2018/2018-12-19.html> and L<animated gifs|>.  I've created
+L<Christmas playlists|http://perladvent.org/2018/2018-12-17.html>.  I've shown you images of L<Christmas lights|http://perladvent.org/2019/2019-12-05.html>.
+I've even had an excuse to L<embedded entire Chistmas movies|http://perladvent.org/2019/2019-12-08.html>.
+
+Now...it's finally time to create memes.
+
+=head2 Imager
+
+L<Imager> is a handy dandy image drawing library in Perl that we're
+going to be using for our Meme creation needs.
+
+Imager has about a gazillion methods to do pretty much every standard
+graphics manipulation you can imagine.  But, shockingly, it doesn't
+have a way to draw standard meme text (Impact font, white text,
+black outline.)  We can fix that by adding our own plugin:
+
+    #!perl
+    package Imager::MemeString;
+
+    use 5.024;
+    use warnings;
+    use experimental 'signatures';
+
+    use Imager ();
+    use Imager::Font ();
+
+    # the Imager way is to directly declare functions in the main
+    # 'Imager' namespace.  Here we're using the full package-qualified
+    # syntax for naming a function to place 'meme_string' directly in
+    # the 'Imager' namespace rather than our own.
+    sub Imager::meme_string( $img, %args) {
+        # meme text is upper case!
+        my $string = uc delete $args{string};
+
+        # Impact is the "classic" font for Memes. This should be the
+        # location for the ttf file on disk - this below is the standard
+        # location on macOS Catalina.
+        my $font = Imager::Font->new(
+            file => '/System/Library/Fonts/Supplemental/Impact.ttf',
+        );
+
+        # by default text will be centered around the middle of the image
+        my $x = delete $args{x} // $img->getwidth / 2;
+        my $y = delete $args{y};
+
+        # these are the defaults - you can override this by just
+        # specifying different things in the arguments.
+        my %defaults = (
+            font => $font,
+            aa => 1,
+            halign => 'center',
+        );
+
+        # We're cheating here.  If we were doing this properly we'd
+        # render the text to a different "layer" image and then use an
+        # algoritm to outline it black.  What we do instead is simplier:
+        # We just draw the same text over and over with horizontal and
+        # vertical offsets.
+        for my $xoffset ( -3 .. 3 ) {
+            for my $yoffset ( -3 .. 3) {
+                $img->align_string(
+                    x => $x + $xoffset,
+                    y => $y + $yoffset,
+                    %defaults,
+                    %args,
+                    color => 'black',
+                    string => $string,
+                );
+            }
+        }
+
+        # draw the same text one last time in white
+        $img->align_string(
+            x => $x,
+            y => $y,
+            %defaults,
+            %args,
+            color => 'white',
+            string => $string,
+        );
+    }
+
+    1;
+
+Now all we need is a wrapper script that loads our meme template,
+uses this new method to draw the meme text, and saves it out again:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.024;
+    use warnings;
+
+    use Imager ();
+    use Imager::MemeString();
+
+    my $template = shift or die 'Forgot to pass template filename!';
+    my $output   = shift or die 'Forgot to pass output filename!';
+
+    my $img = Imager->new;
+
+    # Read in the template image. The Imager object will have the same
+    # dimensions as the file we just read in
+    $img->read( file => $template ) or die $img->errstr;
+
+    # draw the meme string.  Because we're only passing in "y" not "x"
+    # it'll automatically be centred horizontally
+    $img->meme_string( string => "Hello, World", y => 50, size => 50 );
+
+    # and save the new image out
+    $img->write( file => $output, type => 'jpeg' )
+        or die "Cannot write: ",$img->errstr;
+
+Okay, bring on the memes! (email me links to any you create!)
+
+=for :html
+ <center><img src="ggg.jpg" alt="Good Guy Greg Meme: Good guy CPAN authors give me lots to write about in Advent Calendar" width="460" height="460"></center> 
+
+=for :html
+ <center><img src="penguin.jpg" alt="Penguin Awesome-Awkward Meme: Finally completed 24 Advent articles. What'll I do with my free time now?" widthB="460" height="461"></center> 
+
+=for :html
+ <center><img src="yall.jpg" alt="Y'All Meme: Y'All got any more of those days of advent?" width="460" height="361"></center> 
+
+=for :html
+ <center><img src="successkid.jpg" alt="Success Kid Meme: Have time to turn best entries into modules" width="460" height="460"></center> 
+
+=for :html
+ <center><img src="distractedboyfriend.jpg" alt="Distracted Boyfriend Meme: Christmas / Me / Using a computer" width="460" height="307"></center> 
