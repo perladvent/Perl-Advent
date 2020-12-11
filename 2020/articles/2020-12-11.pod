@@ -1,0 +1,103 @@
+Title: CPAN::Mini
+Topic: CPAN::Mini
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=for :html
+<div class="bestof">
+2020 has been time consuming - a global pandemic, giant fires, horrific floods
+and political unrest - which has left us little time for side projects.
+This year we're looking back to happier times into the 20+ year archive with the
+Best of the Perl Advent Calendar.
+</div>
+
+As you can probably guess, I like CPAN.  I've come to rely on the fact
+that I have thousands of modules at my fingertips that enable me to do
+a wide range of stuff using other people tools.  Which is a bit of a
+problem when I'm working offline.  There's nothing more frustrating
+when you're coding Perl than hacking on a quick script and thinking
+something like "It'd be nice to use DBD::SQLite to store this data"
+then discovering it's not installed, and you're offline so you can't
+download it.
+
+What I actually want is a copy of CPAN on my laptop so that I can
+always install modules whenever I want.  Of course, CPAN is big -
+several gigabytes - and I don't really have the patience to download
+the whole thing using rsync.  Rather than the whole thing, I just
+need the latest version of each module - on the odd occasion I want
+an older version of a module I can wait till I'm back online.
+
+Enter the C<minicpan> script, part of B<CPAN::Mini>.  This script
+creates (and update) a small - but perfectly usable - local copy of
+CPAN.  I'm never going to be stuck up the proverbial creek without a
+Perl module to paddle with again.
+
+Creating a mirror of CPAN couldn't be easier.  First you need
+to install CPAN::Mini with the C<cpan> shell (or use cpanplus if
+you prefer)
+
+  travis:~ mark$ sudo cpan
+  cpan shell -- CPAN exploration and modules installation (v1.76)
+  ReadLine support enabled
+
+  cpan> install CPAN::Mini
+
+Then you need to work out which CPAN you're going to mirror from and
+where you're going to store it locally.  The former is easy - you can
+either go to the list of mirrors on cpan.org, or you
+can just set it to be whatever you set the C<cpan> shell to use:
+
+  bash$ sudo cpan
+  cpan shell -- CPAN exploration and modules installation (v1.76)
+  ReadLine support enabled</pre>
+
+  cpan> o conf urllist
+          urllist           
+          ftp://ftp.demon.co.uk/pub/CPAN/
+
+Where you put your local mirror isn't really important - anywhere
+that's got half a gigabyte of free space will do.  I put mine in my
+webserver's document root (C</Library/WebServer/Documents/CPAN>) so it
+can be accessed from a webbrowser if I need to.
+
+All that's left for us to do now is run the C<minicpan> command
+passing the remote server with C<-r> and the local location with
+C<-l>.
+
+  bash$ minicpan -r ftp://ftp.demon.co.uk/pub/CPAN/ \
+                 -l /Library/WebServer/Documents/CPAN
+
+This'll then chug away for a fair old time downloading the CPAN
+indexes and every file pointed to in the indices (with the exception
+of new versions of Perl or Ponie).  A few days later when you want to
+update your mirror you just need to run the same command again:
+
+  bash$ minicpan -r ftp://ftp.demon.co.uk/pub/CPAN/ \
+                 -l /Library/WebServer/Documents/CPAN</pre>
+
+And it'll redownload these indices, download any new files and delete
+any files that it's previously downloaded that aren't needed anymore.
+It'll be much much quicker this time as probably only a few modules
+will have been released for the first time or updated in that time
+period.
+
+=head2 Using Your New Mirror
+
+If you want to quickly configure the cpan shell to use the mirror (if
+for example you're offline at the time) then you can tell it to use
+your mirror for the rest of the session
+
+  bash$ sudo cpan
+  cpan shell -- CPAN exploration and modules installation (v1.76)
+  ReadLine support enabled</pre>
+
+  cpan> o conf urllist unshift file:///Library/WebServer/Documents/CPAN/
+
+If you want to always use your mirror (which will be much much quicker
+but you'll have to remember to keep it up to date) you can then save that
+new configuration:
+
+  cpan> o conf commit
+
+And that's it!  You now have a fast copy of CPAN that you can use
+wherever you are.
+ 

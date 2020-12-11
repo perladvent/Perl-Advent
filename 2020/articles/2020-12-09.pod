@@ -1,0 +1,184 @@
+Title: Speedy Validation
+Topic: Params::ValidationCompiler
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=for :html
+<div class="bestof">
+2020 has been time consuming - a global pandemic, giant fires, horrific floods
+and political unrest - which has left us little time for side projects.
+This year we're looking back to happier times into the 20+ year archive with the
+Best of the Perl Advent Calendar.
+</div>
+
+Cheerful Candytree had just pulled an all-nighter trying to track down an
+elusive bug in the code.  For some reason the code that loaded the sled was
+getting stuck, not returning anything.
+
+    #!perl
+    sub load_sled {
+        my $self         = shift;
+        my $present_name = shift;
+        my $qty          = shift // 1;
+
+        my $present = $self->get_present( $present_name )
+            or die "Unknown present: $present_name";
+        my $sled = $self->sled;
+
+        while ($qty != 0) {
+            $qty--;
+            $present->add_to_sled( $sled );
+        }
+    }
+
+Looks good, doesn't it?  So why did it never terminate?  After much much head
+scratching Cheerful tracked it down to a little addition some cheeky little
+elves had snuck in:
+
+    #!perl
+    # Load inflight movies!
+    $loader->load(22, $movie);
+
+Apparently the couple of dozen elves that accompanied Santa on his trip get
+bored during the long flight over the Atlantic and had decided to load
+twenty-two copies of a movie to put in their portable DVD players (presumably
+a couple were still helping steer.)
+
+Since they'd snuck this in without code review, they'd somehow managed to mix up
+the argument orders.  And the movie they'd picked? The 2006 Milla Jovovich film
+L<.45|http://www.imdb.com/title/tt0259822/>. Not being an integer number, and
+therefore never reaching zero when it was decremented, the sleigh loader had
+tried to load an infinite number of copies of Taylor Swift's hit single
+L<22|https://www.youtube.com/watch?v=AgFeZr5ptV8> instead.  Ooops.
+
+The problem was quickly solved with (a) Swapping the order of the parameters
+in the code and (b) Giving the offending elves a severe talking to.
+
+=head2 Parameter Validation
+
+Cheerful knew that once this bug had occurred once, it was likely to happen
+again.  The first step was to switch to named parameters throughout the
+codebase:
+
+    #!perl
+    $loader->load( qty => 22, present_name => $movie );
+
+    sub load_sled {
+        my $self = shift;
+        my %p    = @_;
+
+        my $present_name = $p{present_name} or die "No present name";
+        my $qty          = $p{qty} // 1;
+
+        ...
+
+Now at least the parameters can't get mixed up!  But there's still the chance
+that C<$qty> would contain an non-interger.  Cheerful would really like an
+exception to be thrown rather than going into a never ending loop.
+
+Maybe we could validate those parameters?  The old venerable module for doing
+this is L<Params::Validate>, which we L<originally covered|http://www.perladvent.org/2002/10th/>
+in the Perl Advent Calendar over fifteen years ago.
+
+    #!perl
+    use Params::Validate qw( validate );
+
+    sub load_sled {
+        my $self = shift;
+        my %p    = validate( @_, {
+                present_name => {
+                    regex    => qr/./,
+                },
+                qty          => {
+                    regex    => qr/\A[1-9][0-9]*$/,
+                    optional => 1,
+                },
+            },
+        );
+
+        my $present_name = $p{present_name};
+        my $qty          = $p{qty} // 1;
+
+        ...
+
+=head2 Speed Concerns
+
+There's a couple of key problems with using Params::Validate:
+
+=for :list
+* B<Slow to run>.  Params::Validate can be pretty slow.  Not only does it have to validate the arguments each time C<load_sled> is called, it also has to parse the arguments to C<validate> and work out exactly how it has to validate the arguments.  Every.  Single.  Time.
+* B<Slow to write>.  There's a lot of code inside the parameters to C<validate>, none of which is particularly easy to independently test, or after it's written, easy to understand without having to re-read all the code.  Our Moose and Moo attributes support a rich reusable type system for validating values, it would be awesome if we could re-use that code to avoid re-writing anything and provide clarity of intent on what the validation system is doing.
+
+In order to address these issues Dave Rolsky wrote a new module called
+L<Params::ValidationCompiler>.  Let's see it in action in Candytree's codebase:
+
+    #!perl
+    use Params::ValidationCompiler qw( validation_for );
+    use MooseX::Types::Common::String qw( NonEmptySimpleStr );
+    use MooseX::Types::Common::Numeric qw( PositiveInt );
+
+    my $validator = validation_for(
+        params => {
+            present_name => { type => NonEmptySimpleStr },
+            qty          => { type => PositiveInt, default => 1 },
+        },
+    );
+
+    sub load_sled {
+        my $self = shift;
+        my %p    = $validator->(@_);
+
+        my $present_name = $p{present_name};
+        my $qty          = $p{qty};
+
+Firstly, you'll notice that Params::ValidationCompiler is using Moose types
+for it's validation routines (though it'll accept Type::Tiny or Specio types
+as well if you're using those in your codebase instead.)  This means that the
+code is significantly more readable than it was before, and Cheerful has a lot
+less code to write, maintain, and edge cases to test.
+
+Secondly, you'll note that assigning default values has moved within the realm
+of the validation routine, meaning we don't have to mess around with that stuff
+when we're extracting our values from the hash.  While we could have also
+done similar default handling with Params::Validate, the reason this becomes
+really useful with Params::ValidationCompiler is when we use the
+C<named_to_list> option to skip the intermediate hash altogether:
+
+    #!perl
+    my $validator = validation_for(
+        params => [
+            present_name => { type => NonEmptySimpleStr },
+            qty          => { type => PositiveInt, default => 1 },
+        ],
+        named_to_list => 1,
+    );
+
+    sub load_sled {
+        my $self = shift;
+        my ($present_name, $qty) = $validator->(@_);
+
+The validator now returns the extracted values in the order in which they
+were specified in C<validation_for>.
+
+The third and most striking change is that we've split the validation
+I<compiling> out from the actual call for validation.  It's now a two step
+process - first compile a validator when we first load our code up, once and
+only once, and then execute it when the subroutine is called.  This is
+significantly quicker.
+
+One of the reasons that this is much quicker is because Params::ValidationCompiler
+actually I<compiles> a validator, not just builds one.  Under the hood it uses
+L<Eval::Closure> (as we discussed L<earlier in the month|http://www.perladvent.org/2017/2017-12-10.html>)
+to build Perl source code to make the fastest possible validator that validates the configuration
+that it was called with without introducing any
+extranious logic or subroutine calls.  It's even able to take advantage of
+the inlinable Moose types - Moose types that can themselves return Perl source
+code to implement their type checking - to bake-in that type checking directly
+inside that subroutine.  This essentially means that Params::ValidationCompiler
+is as fast as if you'd hand-coded a subroutine with logic to explicitly check
+the arguments.
+
+=head2 To Bed, Perchance to Dream
+
+Now the code was protected from crazy elves, Cherry Candytree was going to take
+a well earned kip.  Hopefully by the time he awoke they wouldn't have found
+another creative way to break things.
