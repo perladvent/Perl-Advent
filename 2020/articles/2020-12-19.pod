@@ -1,0 +1,187 @@
+Title: Gathering all the Presents
+Topic: List::Gather
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=for :html
+<div class="bestof">
+2020 has been time consuming - a global pandemic, giant fires, horrific floods
+and political unrest - which has left us little time for side projects.
+This year we're looking back to happier times into the 20+ year archive with the
+Best of the Perl Advent Calendar.
+</div>
+
+=pod
+
+Happy the Elf wasn't.  Normally Happy by name and happy by nature, the elf was
+uncharacteristically grumpy.  And the reason for this?  An email from Santa.
+
+    From: Santa <bigred@workshop.org.northpole>
+    To: All Staff <all@workshop.org.northpole>
+    Subject: Bonus Scheme
+
+    Greetings all!
+
+    Starting this year every elf working on project Christmas Eve will be
+    receiving a wonderful Christmas gift of their own!
+
+    Ho ho ho!
+    Santa.
+
+A well intentioned goodwill gesture for sure - however as usual no one had
+considered the effect this would have on the poor programmer-elf who would have to
+implement the code!  Case in point: the simple code Happy had written
+many moons ago in order to pick what presents were needed to be produced this
+year:
+
+  #!perl
+  sub present_list {
+     my $self = shift;
+
+     return
+         map  { $_->presents_asked_for }
+         grep { $_->naughty_or_nice eq 'nice' }
+         $self->children;
+  }
+
+It's simple functional code to get all presents asked for by all the nice children.
+
+Now, with these new requirements, Happy would probably have to introduce a
+temporary variable:
+
+  #!perl
+  sub present_list {
+      my $self = $shift;
+
+      my @entities;
+      push @entities, grep { $_->naughty_or_nice eq 'nice' } $self->children;
+      push @entities, grep { $_->worked_on_xmas_eve        } $self->elves
+          if $config->santa_extra_gift_enabled;
+
+      return map {
+         $_->presents_asked_for
+      } @entities;
+  }
+
+Feeling there must be a better solution, Happy scoured the CPAN until he found the
+L<List::Gather> module, which uses Perl's pluggable keyword facilities to provide
+new C<gather> and C<take> syntax.
+
+The C<gather> keyword introduces a block of code that returns the list of
+whatever is taken within that block by making calls to `take` within.
+
+  #!perl
+  use List::Gather qw( gather take );
+
+  sub presents {
+      my $self = shift;
+
+      return map {
+          $_->presents_asked_for
+      } gather {
+          take grep { $_->naughty_or_nice eq 'nice' } $self->children;
+          take grep { $_->worked_on_xmas_eve        } $self->elves
+              if $config->santa_extra_gift_enabled;
+      };
+  }
+
+Now this did make Happy happy.  What made him more happy was that when he got
+the next email from Santa with even more requirements he knew just what to do:
+
+  From: Santa <bigred@workshop.org.northpole>
+  To: All Staff <all@workshop.org.northpole>
+  Subject: Bonus Scheme EXTENDED!
+
+  Greetings all!
+
+  I'm feeling extra jolly because of all your hard work!  So jolly I've decided
+  to extend our bonus scheme to the wives and husbands of those people working
+  on Project Christmas Eve!
+
+  Ho ho ho!
+  Santa.
+
+Because C<gather { ... }> is a block containing arbitrary statements he was
+easily able to convert the C<push ... grep> into a more complex C<for> loop,
+right in the middle of the C<gather> statement:
+
+  #!perl
+  use List::Gather qw( gather take );
+
+  sub presents {
+      my $self = shift;
+
+      return map {
+          $_->presents_asked_for
+      } gather {
+          take grep { $_->naughty_or_nice eq 'nice' } $self->children;
+
+          if ($config->santa_extra_gift_enabled) {
+              for my $elf ($self->elves) {
+                  next unless $elf->worked_on_xmas_eve;
+                  take $elf;
+                  my $spouse = $elf->spouse;
+                  next unless $spouse;
+                  next if $spouse->worked_on_xmas_eve;
+                  take $spouse;
+              }
+          }
+      };
+  }
+
+=head2 Constructor
+
+Now that Happy had L<List::Gather> in his toolset he started to find all kinds of
+places that he could use it.
+
+The present wrapping code was a perfect example.  Here's the code Happy needed
+to modify:
+
+  #!perl
+  my $wrapping = Present::Wrapping->new(
+     color => 'green',
+  );
+
+Happy needed to make changes so that if the gift was large, the Present::Wrapping
+instance would be set up to use an extra large sheet, passing the
+C<extra_large_sheet> option if and only if C<< $gift->large >> was true.  His
+first attempt was to pull out the arguments into an array that he built up in
+advance:
+
+  #!perl
+  my @args = (
+    color => 'green';
+  );
+
+  push @args, extra_large_sheet => 1
+      if $gift->large;
+
+  my $wrapping = Present::Wrapping->new( @args );
+
+This code, besides taking many more lines than before, is also somewhat less
+readable.  Another programmer-elf looking at the code for the first time has no
+idea what the arguments being created are for until they read the very last
+line; Only at that point can they go back and make sense of why C<@args> is set up
+the way it is.
+
+The traditional way to write this inline is to abuse the ternary operation,
+producing the particularly unreadable:
+
+  #!perl
+  my $wrapping = Present::Wrapping->new(
+     color => 'green',
+     ( ($gift->large) ? ( extra_large_sheet => 1 ) : ()),
+  );
+
+Happy wasn't happy about this code.  All those brackets weren't only
+hard to type but forced Happy to think too hard whenever he was debugging code
+that used this construct.  Had he missed a brace?  Did he need to wrap the
+C<< $gift->large >> in brackets or not?
+
+Now that he had L<List::Gather> in his toolset, Happy was able to do something much
+more readable:
+
+  #!perl
+  my $wrapping = Present::Wrapping->new(gather {
+     take color => 'green';
+     take extra_large_sheet => 1 if $gift->large;
+  });

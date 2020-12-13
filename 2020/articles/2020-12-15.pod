@@ -1,0 +1,307 @@
+Title: A Christmas Memory
+Topic: Devel::MAT
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=for :html
+<div class="bestof">
+2020 has been time consuming - a global pandemic, giant fires, horrific floods
+and political unrest - which has left us little time for side projects.
+This year we're looking back to happier times into the 20+ year archive with the
+Best of the Perl Advent Calendar.
+</div>
+
+"I just don't get it!"
+
+An elf raising his voice was unheard of.  Normally softly spoken, Cedar
+Greentrifle was several decibels above where his voice should have been and
+getting louder.
+
+"Mr Greentrifle", the Wise Old Elf interjected, "May I be of some assistance?"
+
+"It's this baubling code! It keeps eating all the memory. And I can't work out
+why!"
+
+"Ah, then maybe this might be a good time to show you a tool I learned about
+at the London Perl Workshop that might be just the ticket!"
+
+=head2 Introducing Devel::MAT
+
+Devel::MAT is a handy dandy command line tool that can help you work out exactly
+what is taking up the memory in your Perl program.  You can trigger a dump
+summarizing your program's memory usage at any point in the execution, then load
+up the C<pmat> console and poke around in that dump to your heart's content
+until you figure out exactly what went wrong.
+
+Let's see how to use it on a simple example program that's going to allocate
+a B<huge> string.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    my $elf = "happy";
+    $elf x= 1024*1024*1024;  # 5 Gigs!
+
+In order to analyze the memory usage in our code we need to alter it so that
+it dumps a summary of the memory to a I<pmat> dump file during the execution
+of the code.  The simplest way to do this is to add a C<die> statement...
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    my $elf = "happy";
+    $elf x= 1024*1024*1024;  # 5 Gigs!
+
+    die;
+
+..then run the same code with the Devel::MAT::Dumper module configured on the
+command line to hook exception handling so that a dump file is written when the
+die occurs:
+
+    shell$ perl -MDevel::MAT::Dumper=-dump_at_DIE script.pl
+    Dumping to /Users/Cedar/test/script.pl.pmat because of DIE
+    Died at script.pl line 9.
+
+This creates a I<pmat> dump file on disk named the same as our Perl script 
+with an additional C<.pmat> extension:
+
+    shell$ ls
+    script.pl  script.pl.pmat
+
+We can load this into the C<pmat> interactive console
+
+    shell$ pmat script.pl.pmat
+    Perl memory dumpfile from perl 5.22.0
+    Heap contains 2366 objects
+    pmat>
+
+And away we go.  C<pmat> offers a bunch of commands, all of which can be listed
+with the C<help> option.
+
+    pmat> help
+    callstack - Display the call stack
+    count     - Count the various kinds of SV
+    elems     - List the elements of an ARRAY SV
+    find      - List SVs matching given criteria
+    help      - Display a list of available commands
+    identify  - Identify an SV by its referrers
+    io        - Commands working with IO SVs
+    largest   - Find the largest SVs by size
+    roots     - Display a list of the root SVs
+    show      - Show information about a given SV
+    sizes     - Summarize object and byte counts across different SV types
+    symbols   - Display a list of the symbol table
+    values    - List the values of a HASH-like SV
+
+=head2 Tracking down the largest things in your code
+
+The C<largest> command can be very helpful in tracking down what's taking up
+the most space:
+
+    pmat> largest
+    SCALAR(PV) at 0x7fab7d016a60: 5.0 GiB
+    HASH(540) at 0x7fab7d002e90=strtab: 33.6 KiB
+    INVLIST() at 0x7fab7e01bf88: 9.9 KiB
+    INVLIST() at 0x7fab7e01c018: 9.8 KiB
+    STASH(84) at 0x7fab7d0030d0=defstash: 3.1 KiB
+    others: 228.5 KiB
+
+There's our string, right there at the top: C<0x7fab7d016a60>.  Because our
+example code was so simple we already know which scalar that is.  But, if we
+didn't, we could easily ask pmat to identify it for us
+
+    pmat> identify 0x7fab7d016a60
+    SCALAR(PV) at 0x7fab7d016a60 is:
+    \-the lexical $elf at depth 1 of CODE() at 0x7fab7d003478=main_cv, which is:
+      \-the main code
+
+Oh, that's obvious.  If our code is a little more complex then things are still
+descriptive enough for us to understand what's happening.  For example:
+
+    #!perl
+    sub santas_workshop {
+        my $phrase = "happy";
+
+        my $elf = {
+            attributes => {
+                mood => scalar($phrase x (1024*1024*1024)),
+                height => 'short',
+            },
+            name => 'Cedar Greentrifle'
+        };
+
+        die();
+    }
+
+Results in the identification:
+
+    pmat> identify 0x7f9f9b011860
+    SCALAR(PV) at 0x7f9f9b011860 is:
+    \-value {state} of HASH(1) at 0x7f9f9b003250, which is:
+      \-(via RV) value {attr} of HASH(1) at 0x7f9f9b011878, which is:
+        \-(via RV) the lexical $elf at depth 1 of CODE(PP) at 0x7f9f9b016a78, which is:
+          \-the symbol '&main::santas_workshop'
+
+So, we can easily identify large strings.  What about big data structures
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    sub expand {
+        my $count = shift() - 1;
+        return "Merry Christmas" if $count == 0;
+        return {
+            map { $_ => expand($count) } 1..10
+        };
+    }
+
+    my $big_data_structure = expand(6);
+    die();
+
+
+This creates a tree with a million copies of the string C<Merry Christmas> in
+it.  What does C<pmat> make of this?
+
+    Perl memory dumpfile from perl 5.22.0
+    Heap contains 124628 objects
+    pmat> largest
+    HASH(548) at 0x7fb053002e90=strtab: 33.9 KiB
+    INVLIST() at 0x7fb053085f88: 9.9 KiB
+    INVLIST() at 0x7fb053086018: 9.8 KiB
+    STASH(85) at 0x7fb0530030d0=defstash: 3.2 KiB
+    HASH(70) at 0x7fb0530217c8: 2.7 KiB
+    others: 10.4 MiB
+
+Not so helpful, the largest thing is the C<strtab> (the cache of constant
+strings used in our code itself.)  Not very helpful.
+
+This is where the C<--owned> option for C<largest> comes in handy.  This
+takes a while to execute, but it can work out cumulative sizes.
+
+    pmat> largest --owned
+    CODE() at 0x7fb053003478=main_cv: 10.2 MiB: of which
+     |   PAD(3) at 0x7fb053003490: 10.2 MiB: of which
+     |    |   REF() at 0x7fb053016ad8: 10.2 MiB
+     |    |   HASH(10) at 0x7fb053011950: 10.2 MiB
+     |    |   others: 10.2 MiB
+     |   SCALAR(UV) at 0x7fb053016a60: 24 bytes
+    STASH(85) at 0x7fb0530030d0=defstash: 70.4 KiB: of which
+     |   GLOB(%*) at 0x7fb053017918: 22.6 KiB: of which
+     |    |   STASH(2) at 0x7fb053021678: 22.4 KiB
+     |    |   GLOB(%*) at 0x7fb053034d48: 22.1 KiB
+     |    |   others: 22.1 KiB
+     |   GLOB(%*) at 0x7fb053080b20: 14.6 KiB: of which
+     |    |   STASH(39) at 0x7fb053080b38: 14.5 KiB
+     |    |   GLOB(&*) at 0x7fb055015de0: 2.4 KiB
+     |    |   others: 12.7 KiB
+     |   GLOB(%*) at 0x7fb0530809e8: 3.9 KiB: of which
+     |    |   STASH(3) at 0x7fb053080a60: 3.8 KiB
+     |    |   GLOB(&*) at 0x7fb053080ad8: 3.3 KiB
+     |    |   others: 3.3 KiB
+     |   others: 26.1 KiB
+    HASH(548) at 0x7fb053002e90=strtab: 33.9 KiB
+    REF() at 0x7fb053085fb8: 10.0 KiB: of which
+     |   ARRAY(5) at 0x7fb053085fd0: 10.0 KiB: of which
+     |    |   INVLIST() at 0x7fb053085f88: 9.9 KiB
+     |    |   SCALAR(UV) at 0x7fb053085fa0: 24 bytes
+    REF() at 0x7fb0530f1450: 9.9 KiB: of which
+     |   ARRAY(5) at 0x7fb053085fe8: 9.9 KiB: of which
+     |    |   INVLIST() at 0x7fb053086018: 9.8 KiB
+     |    |   SCALAR(UV) at 0x7fb0530f1438: 24 bytes
+    others: 162.8 KiB
+
+So the largest thing is unsurprisingly the main code.  It owns a C<REF()>
+to a data structure at C<0x7fb053016ad8> that is just over ten megabytes in
+size.  And if we identify that:
+
+    pmat> identify 0x7fb053016ad8
+    REF() at 0x7fb053016ad8 is:
+    \-the lexical $big_data_structure at depth 1 of CODE() at 0x7fb053003478=main_cv, which is:
+      -\the main code
+
+...we see it's the C<$big_data_structure> we were expecting.
+
+=head2 Tracking Down Leaks
+
+Perl uses reference counting to keep track of memory.  When a data structure
+has nothing pointing to it anymore (i.e. no variables point to it, no other
+parts of a data structure point at it) it's unreachable by the program and
+can be cleared away.
+
+But what happens if we have a data structure point to itself?
+
+    #!perl
+    my $greeting;
+    $greeting = {
+        data => 'Merry Christmas',
+        link => \$greeting,
+    };
+
+Perl will never be able to reclaim that.  The anonymous hash will always be
+pointed to by the hash value, and the hash value will always be pointed to by
+the anonymous hash.  When C<$greeting> goes out of scope this will leak memory.
+Do that enough times and this will be the source of the extra memory your
+program is using.
+
+How can we find these?  It's tricky.  If the data structure is large enough
+we can use the C<largest> technique above.  Otherwise, we can search for things
+in the data structure to see if we've got more of these still hanging around
+than we might expect.  For example:
+
+    pmat> find pv --eq 'Merry Christmas'
+    SCALAR(PV) at 0x7fa2d56e3330: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d54fa2d0: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d57a0588: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d5052890: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d3901790: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d29b26a0: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d518f440: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d579dae0: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d391f868: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d2c7a2a8: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d5259f48: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d2c7b1a8: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d297ae00: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d2a53528: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d510f6a0: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d55ce980: "Merry Christmas"
+    SCALAR(PV) at 0x7fa2d401d0d8: "Merry Christmas"
+    ...
+
+C<identify> can tell us a little about each of these scalars (including that it
+has a loop), but obviously not which variable holds them (because none does):
+
+    pmat> identify 0x7fa2d56e3330
+    SCALAR(PV) at 0x7fa2d56e3330 is:
+    \-value {data} of HASH(2) at 0x7fa2d56e3300, which is (*A):
+      \-(via RV) the referrant of REF() at 0x7fa2d56e3348, which is:
+        \-value {link} of HASH(2) at 0x7fa2d56e3300, which is:
+          \-already found as *A
+
+You might be tempted to search for a hash key.  This won't go as well:
+
+    pmat> find pv --eq 'data'
+    SCALAR(PV) at 0x7fa2d2003340: "data"
+
+    pmat> identify 0x7fa2d2003340
+    SCALAR(PV) at 0x7fa2d2003340 is:
+    \-a constant of CODE() at 0x7fa2d2003478=main_cv, which is:
+      \-the main code
+
+That's because internally perl doesn't keep a copy of the hash key inside each
+hash - the one and only scalar containing C<data> is the one perl created for
+the constant string used in the code itself.
+
+=head2 A Happy Elf
+
+"I GOT IT I GOT IT I GOT IT"
+
+"Mr Greentrifle! Please keep the noise down..."
