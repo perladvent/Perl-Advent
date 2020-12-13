@@ -1,0 +1,217 @@
+Title: Tie::File
+Topic: Tie::File
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=for :html
+<div class="bestof">
+2020 has been time consuming - a global pandemic, giant fires, horrific floods
+and political unrest - which has left us little time for side projects.
+This year we're looking back to happier times into the 20+ year archive with the
+Best of the Perl Advent Calendar.
+</div>
+
+
+Have you ever wanted to use Perl to change a line in the middle of a
+data file?  While this may sound like a trivial thing for a human to do (or
+for a text editor) it's actually quite hard to do programattically.
+
+While you and I think of a text file as many separate lines of data,
+as far as the computer is concerned the file is just a big collection
+of characters, one after the other.  Perl can read in lines at a time
+by scanning for the special delimiting return characters, but changing
+it another story - one that involves much copying of data to make
+space for the data you're adding in or to remove the space the data you
+took out was taking up.
+
+What we need is a module that takes away the pain of dealing with a file
+and understands that if we want to insert a line, then it should silently
+do all the copying and manipulating and all the other complex stuff we
+don't want to think of ourselves for us.
+
+This is where B<Tie::File> is useful.  It lets us treat a file just as
+if it was a big array of lines that we can manipulate at will.
+Suddenly, editing files becomes trivial and we don't have to worry
+about all the things that suddenly seemed so hard before.  Isn't this
+what Perl modules are all about?
+
+B<Tie::File> uses Perl's tie interface.  This means that we 'tie' an
+object to a data structure - in this case an array.  Every time we do
+something to the array rather than manipulating a real array it calls
+methods on the object.  In the case of B<Tie::File> this object
+manipulates the underlying file that we're editing.
+
+Each entry in the array represents a single line of the file, so
+removing or adding lines removes or adds lines to the file, and
+changing lines changes the corresponding line in the file.
+
+  #!perl
+  #!/usr/bin/perl
+
+  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+  # tie the file 'file' to the array '@file'.  From this point
+  # on the lines of 'file' are the entries in @file and vice versa
+  use Tie::File;
+  tie my @file, "Tie::File", "file";
+
+  # add a line to the end of the file
+  push @file, "Program starting at: ".time
+
+Note how we don't bother ending the string we're pushing onto the
+array with a new line character - there's no need, each line is a new
+line in itself.  However having said that, ending the line with a
+'superfluous' newline is also perfectly acceptable - it'll just be
+silently removed.  So:>
+
+  #!perl
+  # add a line to the end of the file
+  push @file, "Program starting at: ". time . "\n";
+
+Would have be equally okay.  We can also read in lines as you
+might expect:
+
+   #!perl
+   print "The last line of the file is: $file[-1]\n";
+
+While adding a line to the end of a file isn't that complicated
+consider adding data to the start of a file.  With <b>Tie::File</b> it's
+this simple:
+
+  #!perl
+  # add a line to the start of the file
+  unshift @file, "Program Log";
+
+This is a much harder operation to code in straight Perl.  If you want
+to add data to the start of the file the simplest way to do this is to
+create a new file, write the line to it, copy the whole contents of
+the old file onto the end of the new file, then rename it to be the
+same name as the original file.  The code to do that is:
+
+ #!perl
+ use IO::AtomicFile;
+ use IO::File;</pre>
+
+ # open the files one for reading and one for writing
+ my $original = IO::File->;new("file")
+   or die "Can't write to 'file': $!";
+ my $changed  = IO::AtomicFile->;new("file",">")
+   or die "Can't write to 'file.TMP': $!";
+
+ # add the line
+ print {$changed} "Program Log\n";
+
+ # copy the rest of the data
+ print {$changed} $_ while (&lt;$original&gt;);
+
+And that's with B<IO::AtomicFile> doing the renaming of the file when
+we're done writing it for us!  You can can see how much easier
+B<Tie::File> is making our life already.  Changing lines in the middle
+of files can be even more problematic, however with B<Tie::File> we can
+simply rewrite individual lines by changing the contents of the array
+for that line:
+
+  #!perl
+  # change the 13th line to say it's unlucky
+  $file[12] = "I'm unlucky, oh woe is me";
+
+  # change every mention of Christmas to Xmas in the 10th line
+  $file[9] =~ s/Christmas/Xmas/gi;
+
+In the last line of the above example we see a substitution showing
+that we can read data in and write new data out and B<Tie::File> deals
+with all the complexities for us.  Even better that this, we can make
+use of some little known but very useful feature of Perl's C<foreach>
+loop to do the same kind of substitution over the entire file:
+
+  #!perl
+  # run over '@file' making '$line' the current line each loop
+  foreach my $line (@file)
+  {
+    print "Old line was: $line\n";
+ 
+    # change the line
+    $line =~ s/Christmas/Xmas/gi;</pre>
+
+    print "New line is: $line\n";
+  }
+
+Because C<$line> isn't assigned the value of the element of C<@file>
+we're dealing with - it I<is> the line - it's an I<implicit alias>,
+changing C<$line> will actually change the original element in
+C<@file> which in reality will change the line in the file.
+
+Adding lines and deleting lines in the middle of the file with
+B<Tie::File> is a little harder than simply editing them - mostly
+because we get to use the oft misunderstood C<splice>  operator on the
+array (though it's a lot easier than trying to read it in and write it
+out again.)  To remove lines with splice we simply need to state the
+array, the index of what we want to remove and how many lines we want
+to remove.
+
+  #!perl
+  # remove the 10th line from the file
+  splice @file, 9, 1;
+
+  # remove the 12th, 13th and 14th line from the file
+  splice @file, 11, 3;
+
+To replace lines from the file we simply add in replacement lines
+at the end of the splice operation.
+
+  #!perl
+  # remove the 12th, 13th and 13th line from the file
+  # and replace the three of them with two new lines
+  splice @file, 11, 3, "First Replacement Line",
+                       "Second Replacement Line";
+
+To just insert lines instead of replacing them all we need to do is
+set the third argument to C<splice> - the number of lines to be
+removed - to zero.
+
+  #!perl
+  # insert two lines after the 11th line before the 12th
+  splice @file, 11, 0, "First Replacement Line",
+                       "Second Replacement Line";
+
+=head2 Under The Hood
+
+Of course, B<Tie::File> actually has to manipulate the file itself
+somewhat like we described in the long winded example above.  In order
+to do this with some semblance of efficiency it will attempt to cache
+a little (but not too much) of the file in memory.  You can control
+how much memory it will use when you tie the file:
+
+ #!perl
+ # use lots and lots of memory
+ tie @file, 'Tie::File', $file, memory => 20_000_000;
+
+One trick that you might want to employ if you've got multiple programs
+running at the same time is to turn off all this caching.  This will cause
+the program to read the file every time you read from the array - vital
+if another program may have written to it and cached data might be wrong
+by now.
+
+ #!perl
+ # don't cache - other programs may be writing to 
+ # the file so our cached data might be wrong!
+ tie @file, 'Tie::File', $file, memory => 0;
+
+If you're interested in having multiple files access the file you should
+take a look at B<Tie::File>'s C<flock> method.
+
+There's lots of other good features that B<Tie::File> offers.  One
+wonderful feature is deferred writing, where changes aren't written to
+disk immediately.  This is useful if you're editing the same parts of
+the file over and over (so the changes only have to be written once)
+but of course raises issues like what happens if your program crashes
+before the write cache is flushed.  More details on this and other features
+are in the wonderful manual page.
+
+=for :html
+<ul>
+<li><a href="https://metacpan.org/pod/Tie::File">Tie::File</a></li>
+<li><a href="http://perl.plover.com/yak/tiefile/">MJD's Tie::File Talk Slides</a></li>
+<li><a href="http://www.perldoc.com/perl5.8.0/pod/perltie.html">perltie documentation</a></li></p>
+</ul>
