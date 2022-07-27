@@ -13,7 +13,7 @@ t/article_pod.t - check the Perl Advent articles' headers and pod
 
 	% prove t/article_pod.t
 
-	% prove t/article_pod.t file1 file2 ...
+	% perl t/article_pod.t file1 file2 ...
 
 =head1 DESCRIPTION
 
