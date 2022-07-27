@@ -34,7 +34,8 @@ Whatever the license is for https://github.com/perladvent/Perl-Advent
 unless( @ARGV ) {
 	# most years don't do the pod stuff the way we do it now
 	# make fancier later
-	@ARGV = glob( '202[012]/**/*.pod' );
+	my $y = join ',', 2011 .. 2022;
+	@ARGV = glob( "{$y}/articles/*.pod" );
 	}
 
 foreach my $path ( @ARGV ) {
