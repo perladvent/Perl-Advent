@@ -40,8 +40,10 @@ unless( @ARGV ) {
 foreach my $path ( @ARGV ) {
 	my( $header, $pod ) = split_text( read_text($path) )->@*;
 
-	subtest "header for $path" => sub { check_header( $header ) };
-	subtest "pod for $path"	   => sub { check_pod( $pod ) };
+	subtest $path => sub {
+		subtest "header for $path" => sub { check_header( $header ) };
+		subtest "pod for $path"	   => sub { check_pod( $pod ) };
+		};
 	}
 
 done_testing();
