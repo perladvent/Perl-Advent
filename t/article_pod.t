@@ -13,7 +13,7 @@ t/article_pod.t - check the Perl Advent articles' headers and pod
 
 	% prove t/article_pod.t
 
-	% prove t/article_pod.t file1 file2 ...
+	% perl t/article_pod.t file1 file2 ...
 
 =head1 DESCRIPTION
 
@@ -34,14 +34,17 @@ Whatever the license is for https://github.com/perladvent/Perl-Advent
 unless( @ARGV ) {
 	# most years don't do the pod stuff the way we do it now
 	# make fancier later
-	@ARGV = glob( '202[012]/**/*.pod' );
+	my $y = join ',', 2011 .. 2022;
+	@ARGV = glob( "{$y}/articles/*.pod" );
 	}
 
 foreach my $path ( @ARGV ) {
 	my( $header, $pod ) = split_text( read_text($path) )->@*;
 
-	subtest "header for $path" => sub { check_header( $header ) };
-	subtest "pod for $path"	   => sub { check_pod( $pod ) };
+	subtest $path => sub {
+		subtest "header for $path" => sub { check_header( $header ) };
+		subtest "pod for $path"	   => sub { check_pod( $pod ) };
+		};
 	}
 
 done_testing();
