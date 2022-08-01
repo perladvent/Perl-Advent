@@ -1,0 +1,132 @@
+Author: Thibault DUPONCHELLE <thibault.duponchelle@gmail.com>
+Title: Santa is on GitHub
+Topic: Pithub
+
+=encoding utf8
+
+=head1 Santa is on GitHub
+
+Last year, Santa lost his mind with missing gifts, hence he gathered a council with the elves and they decided to make the process more "rigorous" in 2023.
+This year, it has been decided to use a GitHub repository to organize and track the preparation of gifts for Christmas.
+
+Santa has created a repository called "gifts" in his account "santa".
+
+Each time an elf has finished preparing a toy, he commits a quick note and a helpful message, e.g. "A cowboy for James".
+
+So far, "What is the relation with Perl," you might ask. It's just a great opportunity to discover and use L<Pithub|https://metacpan.org/pod/Pithub> :)
+
+=head2 Look at last prepared toys (commits)
+
+Every once a while, Santa -- or the elves themselves -- want to check produced items, so they use Pithub for that:
+
+=begin perl
+
+	use Pithub::Repos;
+	
+	my $repos  = Pithub::Repos->new;
+	my $result = $repos->commits->list( user => 'santa', repo => 'gifts' );
+	
+	while ( my $row = $result->next ) {
+	    print $row->{commit}->{message} . "\n";
+	}
+
+=end perl
+
+And it produces for instance this kind of output:
+
+	A bicycle for Tom
+	A barbie for Lisa
+	A tranformer for Billy
+
+=head2 Gifts should remain a surprise!
+
+But wait, a public GitHub repository means any little young programmer frequenting GitHub will know in advance his Christmas present?! This is not good at all, so Santa decided to change visibility of the repository to "private".
+
+It seemed at first to work well but, sadly, even though Santa and the elves could still access the repo in GitHub UI, they were no longer able to list the commits via Pithub.
+
+They first started to add some error handling:
+
+=begin perl
+
+	unless ( $result->success ) {
+	    printf "Error: %s\n", $result->response->status_line;
+	    exit 1;
+	}
+
+=end perl
+
+And this confirmed that the repository is "not visible" with C<< Error: 404 Not Found >>.
+
+Fortunately, there is a solution to this: use a "token" to authenticate the access!
+
+The elves asked Santa to create one in the GitHub UI from L<settings/tokens|https://github.com/settings/tokens>:
+
+=begin html
+
+<center><img src="../share/static/pat.png" alt="GitHub Personal Access Token"></center> 
+
+=end html
+
+The elves provided the generated token to the Pithub constructor and regained access to the private repository:
+
+=begin perl
+
+	use Pithub::Repos;
+	
+	my $repos  = Pithub::Repos->new(token => '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');
+	my $result = $repos->commits->list( user => 'santa', repo => 'gifts');
+
+	unless ( $result->success ) {
+	    printf "Error: %s\n", $result->response->status_line;
+	    exit 1;
+	}
+	
+	while ( my $row = $result->next ) {
+	    print $row->{commit}->{message} . "\n";
+	}
+
+=end perl
+
+Using a token also allows you to increase your GitHub API rate limit.
+
+=head2 Sending gifts
+
+To materialize when a toy is about to be delivered, the elves are opening pull requests, and they once again use Pithub for this.
+
+Each elf is doing one Pull Request per family, and after Santa actually delivers the toys he merges the pull requests.
+(don't ask me to elaborate a full branching model).
+
+It's a little bit of work, but once again very easy and straighforward:
+
+=begin perl
+
+	use Pithub::PullRequests;
+	
+	my $pull  = Pithub::PullRequests->new(token => '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');
+	
+	print "Create pull request from [family-anderson] to [main]\n";
+	$result = $pull->create(
+	    user  => "santa",
+	    repo  => "gifts",
+	    data   => {
+	        base  => "main",
+	        body  => 'Delivery to family Anderson',
+	        head  => "family-anderson",
+	        title => 'Family Anderson',
+	    }
+	);
+	
+	unless ( $result->success ) {
+	    printf "Error: %s\n", $result->response->status_line;
+	    exit 1;
+	}
+
+=end perl
+
+=head2 Conclusion
+
+Thank to Pithub, elves were able to easily interact with GitHub API for both reading and writing.
+
+And if Christmas is once again a success this year, it would deserve some credits to L<Pithub|https://metacpan.org/pod/Pithub>! 
+
+=cut
