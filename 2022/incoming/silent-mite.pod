@@ -1,0 +1,194 @@
+Author: Toby Inkster <tobyink@cpan.org>
+Title: Silent Mite
+Topic: Zero-Dependency Object Oriented Programming with Mite
+
+=encoding utf8
+
+=head1 Silent Mite
+
+Ernest the Elf sat outside Santa's office. It was August, a time of year
+the boss was usually less stressed. A good thing, as he had some bad news
+to deliver.
+
+The door opened and an elf that Ernest vaguely recognized from the staff
+lunch room emerged and hurried down the hall. A booming voice came from
+inside the office. "Next!"
+
+Ernest hurried in and the old man gestured for him to take a seat. This
+was his first time meeting Santa in person since he'd started with the
+company. "Sir, I'm afraid I have some bad news about the ninja robot
+aliens."
+
+"Please," Santa said, "no need to call me 'Sir'. Everybody just calls me
+'Santa'. So what's going on with the ninja robot aliens? I know they're
+going to be popular. It's summer and I'm already getting letters. You're
+heading up the software development for them, right?"
+
+Ernest nodded. "Yes, we've been writing it using Moose." He paused. The
+silence was interrupted by Rudolf's honks outside in the field.
+
+"Appropriate!" Santa laughed, his belly shaking like a bowlful of jelly.
+
+"Indeed," said Ernest. "But legal have just told us we can't use Moose.
+No third party code unless it has a warranty."
+
+"Legal," grumbled the old man. "You know last year they tried telling me
+I can't drink an alcoholic drink at almost every house I stop at while
+I'm sleigh driving. Bunch of killjoys. Are you using the metaobject
+protocol?" Santa asked, displaying a knowledge of programming that Ernest
+was surprised by.
+
+"No," said Ernest. "But switching to Moo isn't an option anyway, because
+that doesn't have a warranty either. We can only use core Perl because
+our embedded hardware support contract covers that."
+
+Santa frowned. "I guess that would need a big rewrite. Is there enough
+time before December?" 
+
+Ernest shook his head. "Not if we want to leave enough time for code
+reviews, acceptance testing, quality assurance..." His voice trailed off.
+
+"Let's take a look at the code," Santa suggested, pulling up a fresh
+checkout of the repository and turning his screen around so Ernest could
+go through it with him. He opened up a random class.
+
+   use v5.24;
+   use experimental 'signatures';
+   
+   package Robot::Alien::Ninja::Face;
+   
+   use Moose;
+   use Time::HiRes 'sleep';
+   
+   my $eye_class = 'Robot::Alien::Ninja::Face';
+   
+   has eyes => (
+      is => 'ro',
+      isa => "ArrayRef[$eye_class]",
+      builder => '_build_eyes',
+   );
+   
+   ...;
+   
+   sub _build_eyes ( $self ) {
+      return [ $eye_class->new, $eye_class->new ];
+   }
+   
+   sub blink ( $self, %arg ) {
+      $_->close for $self->eyes->@*;
+      sleep( $arg{time} // 0.2 );
+      $_->open for $self->eyes->@*;
+   }
+
+   sub wink ( $self, %arg ) {
+      my $eye = $self->eyes->[ $arg{eye} // 0 ];
+      
+      $eye->close;
+      sleep( $arg{time} // 0.4 );
+      $eye->open;
+   }
+   
+   ...;
+   
+   __PACKAGE__->meta->make_immutable;
+
+Santa nodded while reading it. "Pretty clean code." His fingers flew
+across the keyboard, tapping in a few commands.
+
+   cpanm Mite
+   cd Robot-Alien-Ninja
+   mite init Robot::Alien::Ninja
+   mite compile
+
+He then edited Face.pm replacing C<< use Moose >> with
+C<< use Robot::Alien::Ninja::Mite -all >>, and replaced
+C<< __PACKAGE__->meta->make_immutable >> with C<< true >>.
+
+He ran C<< mite compile >> again and then started the test suite. It all
+passed.
+
+"So will legal let us distribute Mite?" Ernest asked, confused.
+
+"That's the beauty of it!" Santa smiled. "Your code doesn't depend on
+Mite. It depends on Robot::Alien::Ninja::Mite, which is about 300 lines
+long and you can audit in a few hours. Mite itself is a tool that lives
+on your development machine, but doesn't need to be installed on the
+ninja robot pirates."
+
+"Aliens," said Ernest.
+
+"Of course, aliens," said Santa. "Think about it this way. You use, what,
+emacs to edit your code?"
+
+Ernest nodded.
+
+"Well, the end user doesn't need emacs to run your code. Mite is just a
+development tool."
+
+It began to make sense to Ernest. "Does Mite support everything Moose does?"
+
+Santa shook his head. "There are some limitations, but skimming through
+your code, it should handle most of what you need. It has attributes with
+type constraints and coercion, triggers, defaults, and delegation; it has
+method modifiers; it has roles. In fact, it even has some features Moose
+doesn't have." His fingers flew into a blur on the keyboard.
+
+   use v5.24;
+   use experimental 'signatures';
+
+   package Robot::Alien::Ninja::Face;
+
+   use Robot::Alien::Ninja::Mite -all;
+   use Time::HiRes 'sleep';
+
+   my $eye_class = 'Robot::Alien::Ninja::Face';
+
+   has eyes => (
+      is      => ro,
+      isa     => "Tuple[ $eye_class, $eye_class ]",
+      builder => sub {
+         return [ $eye_class->new, $eye_class->new ]
+      },
+   );
+   
+   ...;
+   
+   signature_for blink => (
+      named => [
+         time => 'PositiveNum', { default => 0.2 },
+      ],
+   );
+   
+   sub blink ( $self, $arg ) {
+      $_->close for $self->eyes->@*;
+      sleep( $arg->time );
+      $_->open for $self->eyes->@*;
+   }
+   
+   signature_for wink => (
+      named => [
+         time => 'PositiveNum',       { default => 0.4 },
+         eye  => 'PositiveOrZeroInt', { default => 0 },
+      ],
+   );
+   
+   sub wink ( $self, $arg ) {
+      my $eye = $self->eyes->[ $arg->eye ];
+      
+      $eye->close;
+      sleep( $arg->time );
+      $eye->open;
+   }
+   
+   ...;
+   
+   1;
+
+Santa ran C<mite compile> and ran the test suite again.
+
+Ernest watched as it passed. "Do you mind committing that into a branch?
+I'd like to go back to my workstation and test it out some more."
+
+Santa nodded. "On your way out, could you send in the next elf?"
+
+=cut
