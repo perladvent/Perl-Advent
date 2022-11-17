@@ -1,0 +1,71 @@
+Title: Which Library Broke?
+Topic: Dist::Zilla::Plugin::ReportVersions::Tiny
+Author: Ricardo Signes <rjbs@cpan.org>
+
+=encoding utf8
+
+The CPAN is built on a few key principles that make it such a success.  One of
+them is that you don't have to write every part of the library you want to
+write.  You can declare that it depends on some other preexisting library, and
+that library will be found and installed.  Still, there's sometimes a cultural
+pressure to require as few prerequisites as to require as old a version as
+possible.  In other words, it's often preferable to avoid making anybody
+install or upgrade anything.  On the other hand, it's also frowned upon to put
+an upper limit on versions.  (Actually, it's technically difficult to specify a
+bounded range, so those frowns are redundant and maybe I just made them up.)
+
+Keeping track of what versions you I<actually need>, then, often works like
+this:
+
+=for :list
+1. declare that you need version 0
+2. wait for somebody to tell you things aren't working
+3. figure out what prerequisite library versions are unusual
+4. ask the user to upgrade or downgrade libraries until it works
+5. adjust the listed prequisites
+
+The problem here is #3.  It's a pain for the reporting user to go compile his
+installed versions, and it's a pain to do it yourself for comparison.  On the
+bright side, the CPAN Testers, who can never be sufficiently thanked for their
+contributions to the CPAN, usually submit reports that include all the data
+needed here.  You can look at L<almost any random
+report|http://cpantesters.org/cpan/report/05bc2cdc-4481-11e1-9d6f-f6dbfa7543f5>
+and find the prerequisites listed, both as they were requested and as they were
+found.  That's great, if you're getting reports from CPAN smoke bots.  It
+doesn't cover everybody else.
+
+For everybody else, the trick is to write a little program that prints out a
+table like the one in the tester's report:  for each prereq, it shows the
+requested and found version of the module.  L<A program to do
+that|http://cpansearch.perl.org/src/DOLMEN/Dist-Zilla-Plugin-ReportVersions-Tiny-1.08/t/000-report-versions-tiny.t>
+is simple, but sort of a tedious pain to write.  As with almost anything useful
+but boring, there's a L<Dist::Zilla> plugin to do it for you.
+
+Actually, there are several.
+
+L<Dist::Zilla::Plugin::ReportVersions::Tiny> spits out a
+F<000-report-versions-tiny.t> file like the one linked to above.  One of the
+best things about that plugin is that it generates a test program with no extra
+prerequisites.  It produces a simple, useful program that you can bundle along
+with your distribution, and whose output will be included, by default, with any
+test run, and there's no "cost" in more prereqs for the installing user.
+
+L<Dist::Zilla::Plugin::Test::ReportPrereqs> does much the same job, but lets
+you tweak the list a bit to add other libraries you know you care about that
+aren't otherwise in your module list — but it doesn't include the requested
+version in its output, and only runs if the C<AUTOMATED_TESTING> environment
+variable is set.
+
+Even if the reporting user isn't sending a "real" CPAN Testers report, it's
+easy to get the table you need.  Just ask the user to run:
+
+  $ perl -Mblib t/000-report-versions-tiny.t | nopaste
+
+(Everybody has L<nopaste|http://perladvent.org/2011/2011-12-14.html> installed,
+right?)
+
+=head1 See Also
+
+=for :list
+* L<Dist::Zilla::Plugin::ReportVersions::Tiny>
+* L<Dist::Zilla::Plugin::Test::ReportPrereqs>

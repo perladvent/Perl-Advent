@@ -1,0 +1,343 @@
+Title: Just What Are You Installing Now?
+Topic: Module::CPANFile
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Have you ever been installing a Perl module and wondered why the heck a
+module was being installed?  How the heck is I<that> module a dependency of
+I<this> module?  So have I.  So I decided to work it out, and when it all
+got too much to understand easily, I decided to make some pretty graphs:
+
+=for web_only
+ <iframe src="graph.html" width="100%" height="300px"></iframe>
+
+=for rss_only
+ <p><em>The article <a href="http://perladvent.org/2015/2015-12-10.html">on the web</a> has a interactive map you can use!</em></p>
+
+=head2 cpanfile
+
+The quest to understand why my distribution is requiring all these other
+modules to be installed starts with my C<cpanfile> file.
+
+The C<cpanfile> format is natural language way of specifying the dependencies
+that your module needs.  Here's an example one from Stepford:
+
+  #!perl
+  requires "Carp" => "0";
+  requires "File::Temp" => "0";
+  requires "Forest::Tree" => "0";
+  requires "List::AllUtils" => "0";
+  requires "Log::Dispatch" => "0";
+  requires "Log::Dispatch::Null" => "0";
+  requires "Module::Pluggable::Object" => "0";
+  requires "Moose" => "0";
+  requires "Moose::Role" => "0";
+  requires "MooseX::Params::Validate" => "0";
+  requires "MooseX::StrictConstructor" => "0";
+  requires "MooseX::Types" => "0";
+  requires "MooseX::Types::Combine" => "0";
+  requires "MooseX::Types::Common::Numeric" => "0";
+  requires "MooseX::Types::Common::String" => "0";
+  requires "MooseX::Types::Moose" => "0";
+  requires "MooseX::Types::Path::Class" => "0";
+  requires "Parallel::ForkManager" => "0";
+  requires "Path::Class" => "0";
+  requires "Scalar::Util" => "0";
+  requires "Scope::Guard" => "0";
+  requires "Throwable::Error" => "0";
+  requires "Time::HiRes" => "1.9726";
+  requires "Try::Tiny" => "0";
+  requires "namespace::autoclean" => "0";
+  requires "parent" => "0";
+  requires "perl" => "5.010";
+  requires "strict" => "0";
+  requires "warnings" => "0";
+   
+  on 'test' => sub {
+    requires "ExtUtils::MakeMaker" => "0";
+    requires "File::Copy" => "0";
+    requires "File::Spec" => "0";
+    requires "IPC::Signal" => "0";
+    requires "Log::Dispatch::Array" => "0";
+    requires "Test::Differences" => "0";
+    requires "Test::Fatal" => "0";
+    requires "Test::More" => "0.96";
+    requires "Test::Requires" => "0";
+    requires "Test::Warnings" => "0";
+    requires "autodie" => "0";
+    requires "lib" => "0";
+    requires "perl" => "5.010";
+  };
+   
+  on 'test' => sub {
+    recommends "CPAN::Meta" => "2.120900";
+  };
+   
+  on 'configure' => sub {
+    requires "ExtUtils::MakeMaker" => "0";
+    requires "perl" => "5.006";
+  };
+   
+  on 'develop' => sub {
+    requires "Code::TidyAll" => "0.24";
+    requires "File::Spec" => "0";
+    requires "IO::Handle" => "0";
+    requires "IPC::Open3" => "0";
+    requires "IPC::Signal" => "0";
+    requires "Perl::Critic" => "1.123";
+    requires "Perl::Tidy" => "20140711";
+    requires "Pod::Coverage::TrustPod" => "0";
+    requires "Test::CPAN::Changes" => "0.19";
+    requires "Test::Code::TidyAll" => "0.24";
+    requires "Test::EOL" => "0";
+    requires "Test::More" => "0.88";
+    requires "Test::NoTabs" => "0";
+    requires "Test::Pod" => "1.41";
+    requires "Test::Pod::Coverage" => "1.08";
+    requires "Test::Spelling" => "0.12";
+    requires "Test::Synopsis" => "0";
+    requires "Test::Version" => "1";
+  };
+
+As you can see this is essentially a list of modules, along with their minimum
+version requirements, that this distribution either requires or recommends.
+You'll also note that are multiple sections for the dependencies, allowing you
+to specify what dependencies you need to run this module on a production server
+and which modules you just need when you're testing or developing the code.
+
+The C<cpanfile> file, which is typically distributed in the top level directory
+of a distribution, can either be created manually or automatically through
+inspection of your code by tools like the Dist::Zilla::Plugin::CPANFile plugin
+for Dist::Zilla. As well as being directly consumed by various tools, it's often
+used to produce things like the C<Makefile.PL> and C<META.yaml> and C<META.json>
+files.
+
+In our case we want to parse it so we can start to build our dependency tree.
+
+=head2 Parsing the cpanfile format
+
+The cpanfile format can easily be parsed with the Module::CPANfile module to
+give us the list of direct dependencies we need:
+
+  #!perl
+  my @module_names = sort Module::CPANfile
+                      ->load('cpanfile')
+                      ->prereqs
+                      ->merged_requirements([
+                          'runtime',
+                          'build',
+                          'test',
+                          'configure',
+                          'develop',
+                      ],[
+                          'requires',
+                      ])
+                      ->required_modules;
+
+Whoa! That was a little dense.  Let's break this down a little by adding more
+variables and comments:
+
+  #!perl
+  # parse the on disk cpanfile
+  my $cpanfile = Module::CPANfile->load('cpanfile');
+
+  # get the CPAN::Meta::Prereqs instance that represents the prerequisites
+  my $prereqs = $cpanfile->prereqs;
+
+  # get the CPAN::Meta::Requirements that represents the requirements.  We want
+  # all the possible requirements that this module requires (i.e. those needed
+  # on a live server, but also those needed to build and test and develop it
+  # too) but not optional recommendations
+  my $requirements = $prereqs->merged_requirements([
+    'runtime', 'build', 'test', 'configure', 'develop',
+  ],[
+    'requires',
+  ]);
+
+  # And turn that into a sorted list of modules names
+  my @module_names = sort $requirements->required_modules;
+
+We now know the immediate direct dependencies of our distribution in terms of 
+module names, but how can we work out what distributions those modules are
+contained in, and in turn what those distributions themselves depend on?
+
+=head2 Using MetaCPAN to Produce a Full Dependency Tree
+
+MetaCPAN is, aside from being the most useful place to view the documentation
+and browse the code of everything on the CPAN, at its heart an Elasticsearch
+database that contains meta information on each of the modules.  We can use the
+MetaCPAN API to ask for the dependencies of modules, their dependencies, and so
+on to create a graph of each of the modules.
+
+Let's look at the code that's needed to do this.  First we create an instance of
+the C<MetaCPAN::Client> that can be used to connect to the MetaCPAN API that
+sits on top of the Elasticsearch database.
+
+  #!perl
+  my $mcpan = MetaCPAN::Client->new(
+    ua => HTTP::Tiny::Mech->new(
+      mechua => WWW::Mechanize::Cached->new(
+        cache => CHI->new(
+          driver   => 'File',
+          root_dir => '/tmp/metacpan-cache',
+        ),
+      ),
+    ),
+  );
+
+This invocation makes use of an on-disk cache for each request to MetaCPAN
+so when we run this script multiple times we don't need to re-lookup information
+we've already fetched.  This both speeds things up and makes the MetaCPAN admins
+considerably less grumpy!
+
+The code to look up the distribution a module comes in is straightforward:
+
+  #!perl
+  sub module_to_dist($module_name) {
+      my $dist;
+      unless(eval {
+          my $mod_obj = $mcpan->module( $module_name );
+          $dist = $mod_obj->distribution;
+      1 }) {
+          warn $@;
+          return;
+      }
+      return $dist;
+  }
+  memoize('module_to_dist');
+
+This will allow us to pass in module names like C<HTTP::Response> and get
+back responses like C<HTTP-Message> to tell us the distribution that contains
+C<HTTP::Response>.
+
+Similarly we can get the release object back for a given distribution:
+
+  #!perl
+  sub dist_to_release($dist_name) {
+      my $release;
+      unless(eval {
+          $release = $mcpan->release( $dist_name );
+      1 }) {
+          warn $@;
+          return;
+      }
+      return $release;
+  }
+  memoize('dist_to_release');
+
+This release object has a C<dependency> method that returns an array reference
+containing the names of all the modules this particular release (in this case
+the latest one on the CPAN for that name) depends on.
+
+  #!perl
+  foreach my $dep ($release->dependency->@*) {
+    say " * $dep ";
+  }
+
+Using these two methods we can then easily build a hash mapping dependencies:
+
+  #!perl
+  my %map;
+  sub add_mapping($from, $to) {
+      $map{ $from } ||= [];
+      push $map{ $from }->@*, $to;
+      return;
+  }
+
+  sub lookup_module($module_name) {
+      return if $map{ "mod:$module_name" };
+      return if $module_name eq 'perl';
+      return if Module::CoreList->first_release( $module_name );
+
+      # work out the distribution for this module
+      my $dist = module_to_dist( $module_name )
+          or return;
+
+      add_mapping( "mod:$module_name", "dist:$dist" );
+      lookup_dist($dist);
+  }
+
+  sub lookup_dist($dist) {
+      return if $map{ "dist:$dist" };
+
+      my $release = dist_to_release( $dist )
+          or return;
+
+      # okay, need to work out this distribution's dependencies and repeat
+      foreach my $dep ($release->dependency->@*) {
+          my $mod = $dep->{module};
+          next if $mod eq 'perl';
+          next if Module::CoreList->first_release( $mod );
+          add_mapping( "dist:$dist", "mod:$mod" );
+          lookup_module($mod);
+      }
+  }
+
+  foreach (@module_names) {
+      add_mapping( 'cpanfile', "mod:$_" );
+      lookup_module($_);
+  }
+
+=for html
+  <p>And then you can obviously dump that out to as JSON into a
+<a href="stepford.js">JavaScript file</a>.</p>
+
+   #!perl
+   print 'data='.encode_json(\%map);
+
+=head2 Graphing
+
+As comprehensive as this data structure is, it's not easy to understand at a
+glance.  What we want to do is turn this into some sort of easy to follow
+directed graph with nodes for the distributions and modules connected together
+with lines representing the dependencies.
+
+Any number of JavaScript libraries can be used to turn the chunk of JavaScript
+we just created into an on-screen graph in a web browser.  My personal favorite
+is VivaGraph, simply because CPAN dependency graphs can get very very large and
+it has excellent performance on larger graphs, especially when used in WebGL
+mode opposed to the default SVG rendering engine.
+
+The actual code to build the graph is fairly straightforward:
+
+  #!perl
+  var graph = Viva.Graph.graph();
+
+  var nodesAlreadyAdded = {};
+  var maybeAddNode = function(nodeName) {
+      if (nodesAlreadyAdded[nodeName])
+          return;
+      nodesAlreadyAdded[nodeName] = 1;
+      graph.addNode(nodeName);
+  }
+  var addEdge = function(from,to) {
+      maybeAddNode(from);
+      maybeAddNode(to);
+      graph.addLink(from, to);
+  }
+  for (var key in data)
+       for (var index = 0; index<data[key].length; index++)
+          addEdge( key, data[key][index] );
+
+=for html
+  <p>VivaGraph is quite customizable, and the full code to fiddle with the
+presentation options, switch on WebGL mode, add custom colors, labels, alter
+the length of the links depending what's linking, etc, etc is all worth 
+<a href="graph-script.js">taking a look</a>.
+
+=head2 Conclusion
+
+Several projects I work on install half of the CPAN.  While this is a good
+thing (since I don't have to write or maintain all the code that constitutes
+half of the CPAN,) I often find I end up depending on some hard to install or
+unreliable module.  By graphing my dependency tree I can work out exactly
+why I'm depending on a module and work out what steps I can take to mitigate
+the situation.
+
+=head1 SEE ALSO
+
+=for :list
+* L<Module::CPANfile>
+* L<MetaCPAN::Client>
+* L<WWW::Mechanize::Cached>
+* L<https://github.com/anvaka/VivaGraphJS>
+

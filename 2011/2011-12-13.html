@@ -1,0 +1,98 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2011 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2011.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2011 - 
+The new /r flag
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2011</a></h1>
+        </div>
+
+        <p id="tagline">2011 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>The new /r flag</h1>
+<div class='subtitle'>s///r - 2011-12-13</div>
+
+<div class='pod'><p>Perl 5.14 introduced a new feature for the substitution operator to return a modified string while leaving the original alone. Normally, the substitution operator changes the bound string (if it matches) and returns the count of the number of substitutions:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$count</span> <span class="operator">=</span> <span class="symbol">$string</span> <span class="operator">=~</span> <span class="substitute">s/PATTERN/REPLACEMENT/g</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>If you didn&#39;t want to change the string, you had to create a new one, often leading to this idiom:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="structure">(</span> <span class="keyword">my</span> <span class="symbol">$new</span> <span class="operator">=</span> <span class="symbol">$old</span> <span class="structure">)</span> <span class="operator">=~</span> <span class="substitute">s/PATTERN/REPLACEMENT/g</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>This way, <code>$new</code> gets a copy and is actually the target of the <code>s///</code>. Instead of that, you can use the new <code>/r</code> flag. That idiom then changes to this similar, but different statement:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$new</span> <span class="operator">=</span> <span class="symbol">$old</span> <span class="operator">=~</span> <span class="substitute">s/PATTERN/REPLACEMENT/gr</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>This binds to <code>$old</code> and returns the modified string to store in <code>$new</code>. Working out the precedence, it looks like the parentheses have shifted:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$new</span> <span class="operator">=</span> <span class="structure">(</span> <span class="symbol">$old</span> <span class="operator">=~</span> <span class="substitute">s/PATTERN/REPLACEMENT/gr</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>This turns out to be much more useful inside a <code>map</code>, where it&#39;s easy to forget that you don&#39;t get the modified string back:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@new</span> <span class="operator">=</span> <span class="word">map</span> <span class="structure">{</span> <span class="substitute">s/PATTERN/REPLACEMENT/g</span> <span class="structure">}</span> <span class="symbol">@old</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>After your <code>@new</code> fills with <code>1</code>&#39;s and <code>0</code>&#39;s, you remember that you need a different last expression in the <code>map</code> block:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@new</span> <span class="operator">=</span> <span class="word">map</span> <span class="structure">{</span> <span class="substitute">s/PATTERN/REPLACEMENT/g</span><span class="structure">;</span> <span class="magic">$_</span> <span class="structure">}</span> <span class="symbol">@old</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>But then, you find out that <code>@new</code> is the same as <code>@old</code> because the <code>s///</code> with the aliased <code>$_</code> actually changes the original data. So, you expand the block a bit:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@new</span> <span class="operator">=</span> <span class="word">map</span> <span class="structure">{</span> <span class="keyword">my</span> <span class="symbol">$s</span> <span class="operator">=</span> <span class="magic">$_</span><span class="structure">;</span> <span class="symbol">$s</span> <span class="operator">=~</span> <span class="substitute">s/PATTERN/REPLACEMENT/g</span><span class="structure">;</span> <span class="symbol">$s</span> <span class="structure">}</span> <span class="symbol">@old</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>That&#39;s ugly. So, you upgrade to Perl 5.14 to get back to almost what you had before. Once you convince your entire company to upgrade, update all of your operating systems and packages, and reinstall all the modules, the <code>/r</code> flag saves you a lot of hassle inside the block:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@new</span> <span class="operator">=</span> <span class="word">map</span> <span class="structure">{</span> <span class="substitute">s/PATTERN/REPLACEMENT/rg</span> <span class="structure">}</span> <span class="symbol">@old</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>This is useful with <code>printf</code> too, where you might want to modify a string just for the output, but leaving the original alone:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">printf</span> <span class="double">&quot;%s %s\n&quot;</span><span class="operator">,</span> <br />&nbsp;&nbsp;<span class="substitute">s/PATTERN/REPLACEMENT/rg</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="substitute">s/PATTERN2/REPLACEMENT/rg</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>With the <code>/r</code> flag, it&#39;s now convenient to have the <code>s///</code> in the middle of larger expressions.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/168427dea0a034607ee7850f3de98ea2?r=g&s=80&d=retro />
+This article contributed by: brian d foy &lt;bdfoy@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Now I have an SQL machine gun" href="2011-12-12.html">Previous</a></li>
+
+    <li class="next"><a title="Don&#39;t Get Kickbanned" href="2011-12-14.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

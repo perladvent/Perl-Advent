@@ -1,0 +1,137 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2013 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2013.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2013 - 
+Swarm your webserver
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2013</a></h1>
+        </div>
+
+        <p id="tagline">2013 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Swarm your webserver</h1>
+<div class='subtitle'>App::Legion - 2013-12-03</div>
+
+<div class='pod'><p>&quot;My name is Legion, for we are many.&quot;&sup1;</p>
+
+<p>App::Legion is a tool for loading up your server(s) and seeing how well the load is handled. It is specifically written for static content served to many clients. Obviously you <i>could</i> use it for dynamic content, and if you are pro enough to serve dynamic content to thousands of concurrent requests I tip my hat to you.</p>
+
+<p>The special feature that Legion brings to the table is that it can use multiple computers as clients concurrently. If you have <i>ssh</i> access to a unix machine it is likely that it can work as a Legion client with little work on your end. There are three things that are required for Legion to use a server as a client:</p>
+
+<dl>
+
+<dt>ssh access</dt>
+<dd>
+
+<p>ssh is how Legion connects to clients and ships code and data over the wire</p>
+
+</dd>
+<dt>perl</dt>
+<dd>
+
+<p>Perl must be installed on the unix machine that is slated to be a client for Legion to run</p>
+
+</dd>
+<dt>ab</dt>
+<dd>
+
+<p>This is probably the only requirement that a typical unix box doesn&#39;t already meet. <i>ab</i> is the &quot;apache bench&quot; tool that comes from the <i>apache2-utils</i> package in debian based systems. (Eventually I&#39;d like to support <i>wrk</i>, but I&#39;d like to wait until it is prepackaged for major distributions before supporting it.)</p>
+
+</dd>
+</dl>
+
+<h3 id="Example">Example</h3>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">App::Legion</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Devel::Dwarn</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$stats</span> <span class="operator">=</span> <span class="word">App::Legion</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">server_host</span>  <span class="operator">=&gt;</span> <span class="single">'test-server-1'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">client_hosts</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'frew@client1'</span><span class="operator">,</span> <span class="single">'frew@client2'</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">concurrency</span>  <span class="operator">=&gt;</span> <span class="number">100</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">requests</span>     <span class="operator">=&gt;</span> <span class="number">5_000</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">urls</span>         <span class="operator">=&gt;</span> <span class="structure">[</span><span class="words">qw(<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/css.css<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/js.js<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/sound/cache/123.wav<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/static/cache/123.html<br />&nbsp;&nbsp;&nbsp;)</span><span class="structure">]</span><span class="operator">,</span><br /><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">run</span><span class="structure">;</span><br /><br /><span class="word">DwarnF</span> <span class="structure">{</span> <span class="double">&quot;rps per url: $_[0]&quot;</span> <span class="structure">}</span> <span class="symbol">$stats</span><span class="operator">-&gt;</span><span class="word">requests_per_second_by_url</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>The above will fire up clients on the hosts client1 and client2, hit four distinct urls at a concurrency of 100 <i>each</i>, totalling to a concurrency of about 800 against the server. Obviously numbers need to be tweaked for your usecase.</p>
+
+<p>The object returned from <code>run</code> contains all of the information measured by each <code>ab</code> instance. There are a few methods that you can use to query it, but as I suspect that I don&#39;t know what all people want to know, I decided to just store the information in a SQLite database that can easily be queried against to do more complicated reporting. If you are a fan of <a href="https://metacpan.org/module/DBIx::Class">DBIx::Class</a> you can use that to query the db:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="operator">+</span><span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="word">map</span> <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">url</span><span class="structure">}</span> <span class="operator">=&gt;</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">tpr</span><span class="structure">}</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">_schema</span><span class="operator">-&gt;</span><span class="word">resultset</span><span class="structure">(</span><span class="single">'Measurement'</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">(</span><span class="core">undef</span><span class="operator">,</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">columns</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">tpr</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">avg</span> <span class="operator">=&gt;</span> <span class="single">'time_per_request'</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">url</span> <span class="operator">=&gt;</span> <span class="single">'url.url'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">join</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="words">qw(url)</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">group_by</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="words">qw(url.url)</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">result_class</span> <span class="operator">=&gt;</span> <span class="single">'DBIx::Class::ResultClass::HashRefInflator'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">})</span><span class="operator">-&gt;</span><span class="word">all</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>or if you prefer to just use raw sql, that&#39;s obviously fine too:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$stats</span><span class="operator">-&gt;</span><span class="word">dbh</span><span class="operator">-&gt;</span><span class="word">selectrow_hashref</span><span class="structure">(</span><span class="heredoc">&lt;&lt;'SQL'</span><span class="structure">)</span><br /><span class="heredoc_content"><br />FROM &quot;measurements&quot; &quot;me&quot;<br />JOIN &quot;urls&quot; &quot;url&quot; ON &quot;me&quot;.&quot;url_id&quot; = &quot;url&quot;.&quot;id&quot;<br />GROUP BY &quot;url&quot;.&quot;url&quot;<br /></span><span class="heredoc_terminator">SQL<br /></span></code><br />&nbsp;</td></table>
+
+<p>The structure of the schema can be seen <a href="https://metacpan.org/module/App::Legion::Schema">here</a>.</p>
+
+<h3 id="Guts">Guts</h3>
+
+<p>I think that how Legion works is pretty interesting. Basically it&#39;s just the glue between two technologies: <code>ab</code> and <a href="https://metacpan.org/module/Object::Remote">Object::Remote</a>. <code>ab</code> is not super exciting but it certainly can hit servers harder than I could with pure Perl. <a href="https://metacpan.org/module/Object::Remote">Object::Remote</a>, on the other hand, is a much more interesting beast.</p>
+
+<p><a href="https://metacpan.org/module/Object::Remote">Object::Remote</a> is a tool that allows you to write Perl (explicitly pure Perl, which means Moose, DBI, and many other cpan modules are not allowed) objects and run them elsewhere. It&#39;s not quite bulletproof yet, but for the most part it has worked for me.</p>
+
+<p>It has a fairly in depth logging system; the ability to run remote code (what this module uses), local code (forks instead of remote connections), and local superuser code. It could use more documentation, but I&#39;m sure the authors would be willing to take patches for that.</p>
+
+<h3 id="Next-Steps">Next Steps</h3>
+
+<p>Because <a href="https://metacpan.org/module/Object::Remote">Object::Remote</a> gives us this incredibly useful ability to run code on servers with basically no configuration (everything has ssh and perl, right?) there are some really handy ideas that can come in the future. I would like to refactor Legion to be a wrapper around a generic <a href="http://research.google.com/archive/mapreduce.html">MapReduce</a> library.</p>
+
+<h3 id="A-Warning">A Warning</h3>
+
+<p>Due to the nature of what Legion is and the tools it leverages, it is far from perfect. It is perfectly suited to loading up a web server and seeing how the web server holds up. On the other hand, if you were to use it as some kind of core tech in your application I would say you should either hold off and wait or work with <a href="http://shadow.cat/">Shadowcat</a> to improve <a href="https://metacpan.org/module/Object::Remote">Object::Remote</a>. On top of that, <code>ab</code> sometimes gives up and crashes earlier than I&#39;d rather, but there is little I can do about that aside from increasing timeouts and whatnot.</p>
+
+<h2 id="Footnotes">Footnotes</h2>
+
+<ul>
+
+<p>1 Bible quotes are Christmassy, right? &mdash; Ed.</p>
+
+</ul>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Object::Remote">Object::Remote</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/99d7d0aba169ea255ffa5c8c63f652ae?r=g&s=80&d=retro />
+This article contributed by: Arthur Axel &quot;fREW&quot; Schmidt &lt;frew@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Dancer Goes Megasplat" href="2013-12-02.html">Previous</a></li>
+
+    <li class="next"><a title="Gift Exchanges as a Practical Example of Cyclic Directional Graphs" href="2013-12-04.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

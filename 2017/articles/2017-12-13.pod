@@ -1,0 +1,73 @@
+Title: It's All There in the Numbers!
+Topic: Unicode::UCD
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+The number of letters Santa received each year was truly staggering requiring
+the operations team at the North Pole to invest heavily in automation just to
+keep up.  With state of the art OCR and lexical analysis AI to process the
+inputs - light-years ahead of what the humans were using - they were able to
+process almost any letter into an ordered list that their fulfillment team
+could process:
+
+    1 Barbie
+    3 Oranges
+    24 Coloring pencils
+
+Which is why Ponsettia Fairytrifle, head of the Letter Processing Team was
+surprised when Yule Cuddlefluff, head of the fulfillment team burst into her
+office door with a complaint right when she was in the middle of morning tea
+break.
+
+"It's no good", he said, "we're just getting garbage out the other end.  It'll
+need to be scrapped.  Go back to the old way, with teams of elves reading the
+letters round the clock"
+
+"Just wait a minute", Ponsettia countered, "before we throw the elfling out
+with the bathwater, how about you show me what's wrong?"
+
+"What's Wrong!  What's Wrong! Just look at this!"
+
+=for html
+   <pre><code>    &#2535;&#2536; Shopkins</code></pre>
+
+"Pure garbage!"
+
+Well, Ponsettia did agree that did look a little unusual, but she thought she'd
+dig a little before scrapping her entire department.  She wondered what those
+weird characters were, and decided to find out.  Perl's C<charnames::viacode> is
+able to print out the name for any unicode codepoint, and C<ord> can turn any
+individual character into a codepoint, so...
+
+=for html
+  <table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">utf8</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">charnames</span> <span class="words">qw(:full)</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">@chars</span> <span class="operator">=</span> <span class="word">split</span> <span class="match">//</span><span class="operator">,</span> <span class="double">&quot;&#2535;&#2536;&quot;</span><span class="structure">;</span><br /><span class="word">say</span> <span class="word">charnames::viacode</span><span class="structure">(</span><span class="word">ord</span> <span class="magic">$_</span><span class="structure">)</span> <span class="word">foreach</span> <span class="symbol">@chars</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+
+At which point the script printed out:
+
+    BENGALI DIGIT ONE
+    BENGALI DIGIT TWO
+
+And everything became clear! The weird I<junk> was just numbers in another
+script! After all, the letters did come in from all around the world...
+
+"Don't worry, I can fix this", Ponsettia explained to Yule, "It's just a
+minor change to the code".
+
+Unicode::UCD is a core module that has been shipping with Perl since the
+pre-releases of Perl 5.8.  One of the things it can do is turn digits of
+any script into something Perl will be able treat as a number.
+
+=for html
+  <table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Unicode::UCD</span> <span class="words">qw(num)</span><span class="structure">;</span><br /><span class="word">say</span> <span class="word">num</span><span class="structure">(</span><span class="double">&quot;&#2535;&#2536;&quot;</span><span class="structure">);</span>  <span class="comment"># prints &quot;12&quot;</span></code><br />&nbsp;</td></table>
+
+However, it's clever enough to return undefined if you start mixing your
+scripts (as that's likely pure nonsense)
+
+    #!perl
+    use Unicode::UCD qw(num);
+    say 'junk'
+      if !defined num("\N{DEVANAGARI DIGIT THREE}\N{CHAM DIGIT TWO}");
+
+A few minutes after Yule had left Ponsettia had already checked in a change to
+her codebase to make the lists print out the right thing.  Disaster quickly
+averted she returned to her still warm cup of tea.

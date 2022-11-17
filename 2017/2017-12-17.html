@@ -1,0 +1,98 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2017 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2017.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2017 - 
+Making a constructor argument list, checking it twice.
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2017</a></h1>
+        </div>
+
+        <p id="tagline">2017 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Making a constructor argument list, checking it twice.</h1>
+<div class='subtitle'>MooseX::StrictConstructor - 2017-12-17</div>
+
+<div class='pod'><p>&quot;Wise Old Elf, Wise Old Elf&quot;, Licorice Stripysparkles called out, &quot;I think your code is broken.&quot;</p>
+
+<p>&quot;Broken, you say, Licorice? That&#39;s odd, it passes all its tests.&quot;</p>
+
+<p>&quot;Yeah, Wise Old Elf, I know that. But look, when I try setting the lead reindeer to Robbie, Rudolph&#39;s son, when I&#39;m constructing the Sleigh, it just doesn&#39;t work! It keeps using the default from the lazy builder, giving me back Rudolph each time.&quot;</p>
+
+<p>&quot;Nonsense, young one. There&#39;s a test for that. Are you sure that <code>_build_lead_reindeer</code> is being erroneously called?&quot;</p>
+
+<p>&quot;Yep, I put some debug code in it to print out to STDERR, and by jove, it&#39;s being called each and every time, if I pass a value for <code>lead_reindeer</code> to the constructor or not.&quot;</p>
+
+<p>&quot;Most odd. Show me exactly what you&#39;re doing.&quot;</p>
+
+<p>Stripysparkles opened up his editor and showed the Wise Old Elf his code:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># create the test sleigh<br /></span><span class="keyword">my</span> <span class="symbol">$sleigh</span> <span class="operator">=</span> <span class="word">SantasSleigh</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lead_raindeer</span> <span class="operator">=&gt;</span> <span class="word">Robbie</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="word">say</span> <span class="word">ref</span> <span class="symbol">$sleigh</span><span class="operator">-&gt;</span><span class="word">lead_reindeer</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>&quot;Licorice, my boy, that&#39;s <i>not</i> how you spell reindeer. R-E-I-N not R-A-I-N!&quot;</p>
+
+<p>&quot;Oops, sorry Wise Old Elf, My Bad!&quot;</p>
+
+<p>&quot;No, Licorice, I don&#39;t really think it is your <i>bad</i>. If it&#39;s anyone&#39;s <i>bad</i> it&#39;s mine.&quot;</p>
+
+<h3 id="Not-Strict-Enough">Not Strict Enough</h3>
+
+<p>By default Moose lets you pass any argument you want to the constructor method. If it doesn&#39;t have a corresponding attribute for that parameter Moose happily ignores the parameter.</p>
+
+<p>This can, as Licorice Stripysparkles had discovered, often lead to some hard to diagnose bugs. The solution is to throw an exception if someone passes you a duff argument.</p>
+
+<p>Now, we could write some complex code in a <code>BUILDARGS</code> method that checked the arguments. But it would be fragile, and we would have to keep updating it when our class (or superclasses, or roles) added new attributes. Why don&#39;t we instead take advantage of Moose to do some introspection on the object and work this out dynamically for us? Better yet, we could use a reusable class trait (a role for the class&#39;s metaclass) that does all of this for us without having to actually write any code for our particular class.</p>
+
+<p>This is exactly what the CPAN module <a href="https://metacpan.org/module/MooseX::StrictConstructor">MooseX::StrictConstructor</a> does. Loading this class in your Moose class monkeys around with the metaclass for the class you&#39;re writing in order to add strict constructor checks. So once the Wise Old Elf changed the code to include one extra use statement...</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">SantasSleigh</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Moose</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">MooseX::StrictConstructor</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>It meant that when Licorice ran his broken code he got an actual helpful error message:</p>
+
+<pre><code>    Found unknown attribute(s) init_arg passed to the constructor: lead_raindeer</code></pre>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="For Elves, Shorter is Better" href="2017-12-16.html">Previous</a></li>
+
+    <li class="next"><a title="Project Multipli-sleigh-ion" href="2017-12-18.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

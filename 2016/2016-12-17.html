@@ -1,0 +1,394 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2016 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2016.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2016 - 
+Writing command line tools made easy
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2016</a></h1>
+        </div>
+
+        <p id="tagline">2016 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Writing command line tools made easy</h1>
+<div class='subtitle'>App::Spec - 2016-12-17</div>
+
+<div class='pod'><p>Dear Santa,</p>
+
+<p>I want to eliminate programming. Well, the boring kind of programming, at least.</p>
+
+<p>Ok, that&#39;s a huge wish. Let&#39;s talk about commandline tools for a start.</p>
+
+<h3 id="Command-line-options">Command line options</h3>
+
+<p>There&#39;s really good support in Perl for reading options. For example, see the well known modules <a href="https://metacpan.org/module/Getopt::Long">Getopt::Long</a>, <a href="https://metacpan.org/module/Getopt::Long::Descriptive">Getopt::Long::Descriptive</a>, <a href="https://metacpan.org/module/Getopt::Long::DescriptivePod">Getopt::Long::DescriptivePod</a>, <a href="https://metacpan.org/module/Pod::Usage">Pod::Usage</a> and several more on the CPAN. In fact, there are so many modules for processing command line options in Perl that this year perlancar is writing a whole <a href="https://perlancar.wordpress.com/2016/12/">advent calendar</a> just about them!</p>
+
+<p>Do any of them do exactly what I want though? I actually want subcommands, nested. And named parameters. And validation. And shell completion. And still be able to define it all in one place.</p>
+
+<p>Let&#39;s imagine writing a hypothetical command line weather application that can be used to look up and predict the weather around the world. How would we like our application to function? And what would we like the corresponding code to look like?</p>
+
+<h3 id="Desired-Feature:-Subcommands">Desired Feature: Subcommands</h3>
+
+<p>So in addition to being able to pass simple commands to our application like <code>forcast</code>:</p>
+
+<pre><code>    % weather forecast</code></pre>
+
+<p>I want to have subcommands - passing a top level command like <code>list</code> and then having that take another command to tell it to list <code>countries</code> or <code>cities</code>:</p>
+
+<pre><code>    % weather list countries
+    % weather list cities</code></pre>
+
+<p>And I want each of those three things to have different options and parameters:</p>
+
+<pre><code>    % weather forecast [(--show-temperature | -T)] \
+      [--celsius|--fahrenheit] &lt;country&gt; &lt;city&gt;
+    % weather list countries
+    % weather list cities [(--country | -c) &lt;country&gt;]</code></pre>
+
+<p>How would we like each of those commands to look like in the App::Weather class? How about a subroutine for each command:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">forecast</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$run</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$country</span>   <span class="operator">=</span> <span class="symbol">$run</span><span class="operator">-&gt;</span><span class="word">parameters</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">country</span><span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$city</span>      <span class="operator">=</span> <span class="symbol">$run</span><span class="operator">-&gt;</span><span class="word">parameters</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">city</span><span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$show_temp</span> <span class="operator">=</span> <span class="symbol">$run</span><span class="operator">-&gt;</span><span class="word">options</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="double">&quot;show-temperature&quot;</span><span class="structure">};</span><br /><br /><span class="comment">    # While you can use print directly, using C&lt;out&gt; makes<br />&nbsp;&nbsp;&nbsp;&nbsp;# it easier to test the app, and give plugins the possibility<br />&nbsp;&nbsp;&nbsp;&nbsp;# to modify the output<br /></span>    <span class="symbol">$run</span><span class="operator">-&gt;</span><span class="word">out</span><span class="structure">(</span><span class="double">&quot;Snow in $city, $country&quot;</span><span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$show_temp</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$symbol</span> <span class="operator">=</span> <span class="double">&quot;\N{DEGREE SIGN}C&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$temperature</span> <span class="operator">=</span> <span class="word">forecast</span><span class="structure">(</span><span class="operator">...</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$run</span><span class="operator">-&gt;</span><span class="word">options</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">fahrenheit</span><span class="structure">})</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$symbol</span> <span class="operator">=</span> <span class="double">&quot;\N{DEGREE SIGN}F&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$temperature</span> <span class="operator">=</span> <span class="word">c2f</span><span class="structure">(</span><span class="symbol">$temperature</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$run</span><span class="operator">-&gt;</span><span class="word">out</span><span class="structure">(</span><span class="double">&quot;Temperature: $temperature$symbol&quot;</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<h3 id="Desired-Feature:-One-place-for-specification-and-documentation">Desired Feature: One place for specification and documentation</h3>
+
+<p>But how would we like to specify which subroutine mapped to which command or subcommand? With a simple YAML spec file:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synIdentifier">name</span><span class="synSpecial">:</span> weather<br /><span class="synIdentifier">appspec</span><span class="synSpecial">:</span> <span class="synSpecial">{</span> <span class="synIdentifier">version</span><span class="synSpecial">:</span> <span class="synConstant">'0.001'</span> <span class="synSpecial">}</span><br /><span class="synIdentifier">title</span><span class="synSpecial">:</span> Weather forecast<br /><span class="synIdentifier">class</span><span class="synSpecial">:</span> App::Weather<br /><span class="synComment"># no global options; -h|--help will be there automatically</span><br /><span class="synIdentifier">options</span><span class="synSpecial">:</span> <span class="synSpecial">[]</span><br /><span class="synIdentifier">subcommands</span><span class="synSpecial">:</span><br />&nbsp;&nbsp;<span class="synIdentifier">forecast</span><span class="synSpecial">:</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">summary</span><span class="synSpecial">:</span> Show forecast for a city<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">op</span><span class="synSpecial">:</span> forecast <span class="synComment"> # the method in App::Weather</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">parameters</span><span class="synSpecial">:</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synStatement">- </span><span class="synIdentifier">spec</span><span class="synSpecial">:</span> country=s --Country name<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synStatement">- </span><span class="synIdentifier">spec</span><span class="synSpecial">:</span> city=s    --City name<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">options</span><span class="synSpecial">:</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synStatement">- </span><span class="synIdentifier">spec</span><span class="synSpecial">:</span> show-temperature|T   --Display temperature<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synStatement">- </span><span class="synIdentifier">spec</span><span class="synSpecial">:</span> fahrenheit           --Temperature in Fahrenheit<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synStatement">- </span><span class="synIdentifier">spec</span><span class="synSpecial">:</span> celsius              --Temperature in Celsius<br />&nbsp;&nbsp;<span class="synIdentifier">list</span><span class="synSpecial">:</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">subcommands</span><span class="synSpecial">:</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">countries</span><span class="synSpecial">:</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">summary</span><span class="synSpecial">:</span> List countries<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">op</span><span class="synSpecial">:</span> weather_countries<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">cities</span><span class="synSpecial">:</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">summary</span><span class="synSpecial">:</span> List cities<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">op</span><span class="synSpecial">:</span> weather_cities<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">options</span><span class="synSpecial">:</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synComment"> # The first element of the spec here is actually very similar</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synComment"> # to the syntax for Getopt::Long</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synStatement">- </span><span class="synIdentifier">spec</span><span class="synSpecial">:</span> country|c=s --Country name</code><br />&nbsp;</td></table>
+
+<p>There are many advantages in having a seperate specification. It&#39;s the same idea as having an OpenAPI or similar specification for a REST API where everything is specified in one place and multiple tools can make use of the information to do things with it.</p>
+
+<p>As we look at other features we&#39;ll see how having this specification is a really powerful idea.</p>
+
+<h3 id="Desired-Feature:-Validation">Desired Feature: Validation</h3>
+
+<p>I want to specify a type or other constraints in the spec for options and parameters. If validation fails, the error message and usage should be generated for me by the framework. Ideally the usage output will color the invalid/missing item in red.</p>
+
+<pre><code>    % multiply foo 23
+    Parameter x: invalid integer</code></pre>
+
+<p>I also want the possibility to callback the app itself for validation where it&#39;s not possible ahead of time to know all the options in a fixed specification:</p>
+
+<pre><code>    % weather forecast Romania Cluj
+    ...
+    % weather forecast Northpole Santa
+    ...
+    % weather forecast Moon Darkside
+    Sorry, we don&#39;t have Darkside, Moon in our database</code></pre>
+
+<p>In our hypotheticaly module the app command in my Perl program could be called with the information that the parameter <code>country</code> is about to be validated. The app should then return the list of possible countries, which the framework could then automatically compare to the parameter passed in.</p>
+
+<p>The same happens for the parameter <code>city</code>. Now the app takes the <code>country</code> parameter and returns the list of cities in that country.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># in validation mode<br /></span><span class="keyword">my</span> <span class="symbol">$country</span> <span class="operator">=</span> <span class="symbol">$run</span><span class="operator">-&gt;</span><span class="word">parameters</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">country</span><span class="structure">};</span><br /><br /><span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$param_to_validate</span> <span class="operator">eq</span> <span class="single">'country'</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">[</span> <span class="word">country_list</span><span class="structure">()</span> <span class="structure">];</span><br /><span class="structure">}</span><br /><span class="keyword">elsif</span> <span class="structure">(</span><span class="symbol">$param_to_validate</span> <span class="operator">eq</span> <span class="single">'city'</span><span class="structure">)</span> <span class="structure">{</span><br /><span class="comment">    # Currently there's no way to add a custom error message<br />&nbsp;&nbsp;&nbsp;&nbsp;# like this:<br />&nbsp;&nbsp;&nbsp;&nbsp;# Sorry, we don't have Darkside, Moon in our database<br /></span>    <span class="keyword">return</span> <span class="structure">[</span> <span class="word">city_list</span><span class="structure">(</span><span class="symbol">$country</span><span class="structure">)</span> <span class="structure">];</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Of course, I could do that validation also myself, when the actual command is called, but this way I save the code for comparing the list with the given parameter, and for the error message.</p>
+
+<p>Some of the modules on the CPAN already support features like this: <a href="https://metacpan.org/module/App::Cmd">App::Cmd</a> and <a href="https://metacpan.org/module/MooseX::App">MooseX::App</a> both support types in their own way, though I don&#39;t know about such callbacks though.</p>
+
+<h3 id="Desired-Feature:-Shell-Tab-Completion">Desired Feature: Shell Tab Completion</h3>
+
+<p>Tab is probably my most used key when working on the commandline. Even more since I switched from bash to zsh a couple of years ago.</p>
+
+<p>Here are some simple things I want to have supported out of the box:</p>
+
+<pre><code>    # Static completion
+    % weather &lt;TAB&gt;
+    forecast -- Show forecast
+    list     -- List countries or cities
+    % weather list &lt;TAB&gt;
+    cities    -- List cities
+    countries -- List countries
+    % weather list cities --&lt;TAB&gt;
+    --country  -- country name(s)
+    --help -h  -- help</code></pre>
+
+<p>This gets a bit more complicated:</p>
+
+<pre><code>    # Dynamic completion, calls back the app from the shell.
+    % weather list cities --country &lt;TAB&gt;
+    Romania Spain Netherlands
+    % weather forecast &lt;TAB&gt;
+    Romania Spain Netherlands
+    % weather forecast Netherlands &lt;TAB&gt;
+    Echt Amsterdam Rotterdam</code></pre>
+
+<p>I want to be able to specify some static values for completion and validation in the spec, but also be able to call back the app, like in the previous examples.</p>
+
+<p>Like in validation mode, the app is called with the information that a certain parameter is about to be completed. For example when completing the city in the last example. I have access to the country parameter and now return the list of cities. Completion code will then be generated and returned to the shell.</p>
+
+<p>Additionally here I can also return a list of hashrefs so that the completion will be shown with a description.</p>
+
+<p>I can even output some dynamic information in the completion description. As an example see the convert command which takes a unit type, a source unit, a value and a target unit.</p>
+
+<pre><code>    % convert distance foot 23 &lt;TAB&gt;
+    inch   -- 276.000in
+    meter  -- 7.010m</code></pre>
+
+<p>So the convert app already calculates the corresponding values when doing completion.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># in completion mode<br /></span><span class="keyword">my</span> <span class="symbol">$type</span>   <span class="operator">=</span> <span class="symbol">$run</span><span class="operator">-&gt;</span><span class="word">parameters</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">type</span><span class="structure">};</span>   <span class="comment"># distance or temperature</span><br /><span class="keyword">my</span> <span class="symbol">$source</span> <span class="operator">=</span> <span class="symbol">$run</span><span class="operator">-&gt;</span><span class="word">parameters</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">source</span><span class="structure">};</span> <span class="comment"># source unit (meter, inch, ...)</span><br /><span class="keyword">my</span> <span class="symbol">$value</span>  <span class="operator">=</span> <span class="symbol">$run</span><span class="operator">-&gt;</span><span class="word">parameters</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">value</span><span class="structure">};</span><br /><span class="keyword">my</span> <span class="symbol">$target</span> <span class="operator">=</span> <span class="symbol">$run</span><span class="operator">-&gt;</span><span class="word">parameters</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">target</span><span class="structure">};</span> <span class="comment"># target unit</span><br /><br /><span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$param_to_complete</span> <span class="operator">eq</span> <span class="single">'target'</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">[</span> <span class="word">target_units_for</span><span class="structure">(</span><span class="symbol">$type</span><span class="operator">,</span> <span class="symbol">$source</span><span class="structure">)</span> <span class="structure">];</span><br /><br /><span class="comment">    # alternatively here you can return a list of hashrefs with<br />&nbsp;&nbsp;&nbsp;&nbsp;# descriptions or any dynamic value<br />&nbsp;&nbsp;&nbsp;&nbsp;# depending on $type, $source and $value<br />&nbsp;&nbsp;&nbsp;&nbsp;# return [<br />&nbsp;&nbsp;&nbsp;&nbsp;#    { name =&gt; &quot;inch&quot;, &quot;276.000in&quot; },<br />&nbsp;&nbsp;&nbsp;&nbsp;#    ...<br />&nbsp;&nbsp;&nbsp;&nbsp;# ];<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<h3 id="The-new-wheel">The new wheel</h3>
+
+<p>Is there anything on the CPAN that can already do what we want? When searching for existing modules I found <a href="https://metacpan.org/module/App::Cmd">App::Cmd</a>, <a href="https://metacpan.org/module/MooseX::App">MooseX::App</a>, <a href="https://metacpan.org/module/MooseX::App::Cmd">MooseX::App::Cmd</a>, <a href="https://metacpan.org/module/MouseX::App::Cmd">MouseX::App::Cmd</a>, <a href="https://metacpan.org/module/MooX::Cmd">MooX::Cmd</a> and many more.</p>
+
+<p><a href="https://metacpan.org/module/App::Cmd">App::Cmd</a> has some nice ideas: For the options it uses <a href="https://metacpan.org/module/Getopt::Long::Descriptive">Getopt::Long::Descriptive</a>. However, it doesn&#39;t support named parameters. I find the mix of writing pod and using methods it uses a bit confusing, and although it has the advantage of keeping the spec near the code it limits reuse of the specification in different ways. Shell tab completion integration is a bit complicated; I think I got it working for dzil and bash, no zsh, and still the completion seemed to do only basic things.</p>
+
+<p><a href="https://metacpan.org/module/MooseX::App">MooseX::App</a> is also very nice and I stole some ideas from there also. I like the colorized output. Specification of options and parameters is of course very moosish. Disadvantage is that it&#39;s quite heavy. There was bash completion support and I wrote the port for zsh.</p>
+
+<h4 id="Introducing-App::Spec">Introducing App::Spec</h4>
+
+<p>So, to make the long story short, Santa said, there is no such module. I would have to write it myself.</p>
+
+<p>I called it <a href="https://metacpan.org/module/App::Spec">App::Spec</a>. If this sounds interesting and useful, please have a look.</p>
+
+<p>The examples here are variations of the <code>myapp</code> example command included in the distribution. I also use it for testing.</p>
+
+<p>The things I described are already working.</p>
+
+<h4 id="The-appspec-command">The <code>appspec</code> command</h4>
+
+<p>For generating a quick start app, completion, pod and schema validation, look at <a href="https://metacpan.org/module/appspec">appspec</a> and <a href="https://metacpan.org/module/App::AppSpec">App::AppSpec</a>.</p>
+
+<p>This is the core advantage in having the YAML spec file - the same file can then be used by several tools. So with the <code>appspec</code> tool I can simply give a spec file and generate completion and pod, or validate my file against the schema.</p>
+
+<pre><code>    % appspec validate myapp.yaml
+    % appspec completion myapp.yaml --zsh &gt; dir/_myapp
+    % appspec pod myapp.yaml &gt; myapp.pod</code></pre>
+
+<p>If this framework is ported to another language, these things don&#39;t have to be ported, because there is already this Perl tool. (Of course, validation might include language specific restrictions, though.)</p>
+
+<p>Also, if I have an existing command which lacks completion, I can write a spec for it and generate the completion files without needing to touch the app itself!</p>
+
+<h4 id="Future-Improvements">Future Improvements</h4>
+
+<p>There are many things that aren&#39;t fixed yet, but I hope most future changes will mostly concern the internals.</p>
+
+<dl>
+
+<dt>Types</dt>
+<dd>
+
+<p>I don&#39;t know how to define complex types for validation yet. For now, there&#39;s flag, string, integer, file, dir. <code>file</code> automatically checks if the file exists. I want to have some kind of alternation <code>file|integer</code>. Maybe I can use <a href="https://metacpan.org/module/Params::Validate">Params::Validate</a> somehow, like <a href="https://metacpan.org/module/Getopt::Long::Descriptive">Getopt::Long::Descriptive</a> does?</p>
+
+</dd>
+<dt>Classes and subcommands</dt>
+<dd>
+
+<p>Currently an app consists of one class and one method per subcommand, and you have to specify the method name. Other frameworks use one class per subcommand.</p>
+
+<p>Both can make sense, so I want to suppprt both. I have to figure out how configuration would look like</p>
+
+</dd>
+<dt>Plugins</dt>
+<dd>
+
+<p>I started to work on plugins by converting the help subcommand to a plugin. I think I have to do some refactoring here.</p>
+
+</dd>
+</dl>
+
+<p>The spec itself will have versioning, so that you can write a spec in an old format, and if there are changes, it will make the necessary conversions.</p>
+
+<h3 id="Final-Desired-Feature:-Generating-whole-apps">Final Desired Feature: Generating whole apps!</h3>
+
+<p>So it turns out I had one more desired feature, which turned out to be related and was one of the reasons why I really had to reinvent the wheel.</p>
+
+<p>I like the command line, like you could have guessed by now, and I would like to be able to query an API from there.</p>
+
+<p>I don&#39;t want to remember and type all the endpoints and possible options. I want to do:</p>
+
+<pre><code>    % githubcl &lt;TAB&gt;
+    DELETE  -- DELETE call
+    GET     -- GET call
+    PATCH   -- PATCH call
+    POST    -- POST call
+    PUT     -- PUT call
+    help    -- Show command help
+    % githubcl GET /&lt;TAB&gt;
+    zsh: do you wish to see all 568 possibilities (143 lines)? n
+    % githubcl GET /users/:username&lt;TAB&gt;
+    /users/:username                  -- Get a single user.
+    /users/:username/events           -- If you are authenticated as the given user, you wi...
+    /users/:username/events/orgs/:org -- This is the user&#39;s organization dashboard. You mus...
+    ...
+    % githubcl GET /issues --&lt;TAB&gt;
+    --q-direction
+    --q-sort
+    --q-labels    -- String list of comma separated Label names.
+    --q-filter    -- Issues assigned to you / created by you / mentioning you / ...
+    --q-since     -- Optional string of a timestamp in ISO 8601 format: ...
+    % githubcl GET /issues --q-filter &lt;TAB&gt;
+    all         assigned    created     mentioned   subscribed</code></pre>
+
+<p>As it turns out, there is an unofficial github OpenAPI spec.</p>
+
+<p>So, I have a document which describes the API very well. I can write a script to turn that into an App::Spec commandline app!</p>
+
+<p>When I played with MooseX::App, I tried to generate an app from an OpenAPI file. Every endpoint should be a separate subcommand, because the possible options and parameters depend on the endpoint.</p>
+
+<p>So I would have generated over 500 Moose classes for this example. That didn&#39;t seem right.</p>
+
+<p>In App::Spec, I can have a number of nested subcommands, but the command to be called can be the same for all. That&#39;s possible by defining the name of the op at the top command and leave the subcommands&#39; op fields empty.</p>
+
+<pre><code>    # appspec
+    name: githubcl
+    ...
+    subcommands:
+      GET:
+        op: request
+        subcommands:
+          /issues:
+            summary: List issues
+            # no op defined here
+            options: ...
+          /user:
+            summary: Info about the current authenticated user
+            ...
+      POST:
+        op: request
+        options:
+          - spec: data-file= +file --File with the input for the post request
+        subcommands:
+          /gists:
+            summary: Create a gist
+            options: ...
+      PATCH:
+        op: request
+        ...</code></pre>
+
+<p>This way the <code>request</code> method of the app will be called, with additional information which subcommands were called.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">request</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$run</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$commands</span> <span class="operator">=</span> <span class="symbol">$run</span><span class="operator">-&gt;</span><span class="word">commands</span><span class="structure">;</span><br /><span class="comment">    # [ 'POST', '/gists' ]<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>With this, I now have a generic REST API CLI framework: <a href="https://metacpan.org/module/API::CLI">API::CLI</a>.</p>
+
+<p>It&#39;s still very experimental. There are some problems with completion under bash (probably caused by <code>:</code> in endpoints)</p>
+
+<h3 id="SEE-ALSO">SEE ALSO</h3>
+
+<dl>
+
+<dt><a href="https://metacpan.org/module/App::Spec">App::Spec</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/App::AppSpec">App::AppSpec</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/App::Spec::Tutorial">App::Spec::Tutorial</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/API::CLI">API::CLI</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/Getopt::Long">Getopt::Long</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/Getopt::Long::Descriptive">Getopt::Long::Descriptive</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/Getopt::Long::DescriptivePod">Getopt::Long::DescriptivePod</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/MooseX::Getopt">MooseX::Getopt</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/Pod::Usage">Pod::Usage</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/Applify">Applify</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/App::Cmd">App::Cmd</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/MooseX::App">MooseX::App</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/MooseX::App::Cmd">MooseX::App::Cmd</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/MouseX::App::Cmd">MouseX::App::Cmd</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/MooX::Cmd">MooX::Cmd</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/CLI::Framework">CLI::Framework</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/CLI::Dispatch">CLI::Dispatch</a></dt>
+<dd>
+
+</dd>
+<dt><a href="https://metacpan.org/module/Term::ShellUI">Term::ShellUI</a></dt>
+<dd>
+
+</dd>
+<dt>OpenAPI specs <a href="https://github.com/APIs-guru/openapi-directory">https://github.com/APIs-guru/openapi-directory</a></dt>
+<dd>
+
+</dd>
+</dl>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/41d992bb7c01d13ffb8b7bf1ed355e91?r=g&s=80&d=retro />
+This article contributed by: Tina M&uuml;ller &lt;tinita@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="A Geo Parser for vast amounts of Text " href="2016-12-16.html">Previous</a></li>
+
+    <li class="next"><a title="Warm and Fuzzy Inside" href="2016-12-18.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

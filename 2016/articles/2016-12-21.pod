@@ -1,0 +1,203 @@
+Title: Organizing catalogues and wishlists with Dancer::SearchApp
+Topic: Dancer::SearchApp
+Author: Corion <corion@cpan.org>
+
+=pod
+
+=encoding utf8
+
+=head1 Finding presents instead of searching
+
+Many children are under the assumption that Santa needs to work only one day a
+year, when he distributes all the presents across the world. But there is a lot
+of work that has to go into the preparation for this day. Especially the choice
+of presents is an issue - while Santa knows who's been naughty and who's been
+nice, he also has a list of the wishes of each child. Santa also needs to
+monitor closely the demand and availability of presents to match the wishes to
+the gifts.
+
+=for html
+   <center><img src="dancer-searchapp-jungle.png"></center>
+
+Of course, Santas suppliers provide even the most festive descriptions of the
+items.  The sheer supply of possible gifts makes it difficult even for Santa and
+his elves to remember the numbering schemes and descriptions of the various
+items. And as the wishes and potential presents come in at a time when the
+preparations are already in full swing and Christmas is close, there is little
+time to dedicate elves to categorizing the gifts.
+
+=head2 Finding things
+
+Ideally, any of the elves could use some kind of search engine to find an
+appropriate present for a child. Of course, companies like Google already
+provide a solution to finding the most appropriate thing in the stack of
+proposed gifts for a wish of a child. But Santa is peculiar about sharing his
+knowledge with others. While he knows who's going to get their wish and who's
+going to get coal, he feels that sharing that knowledge with other parties is
+not a good approach. What is known at the North Pole stays at the North Pole.
+
+So his approach is to build his own search engine.
+
+=head2 Parts
+
+The search engine consists of three parts, the Crawler, the Index and the
+Searchform.
+
+=head3 Crawler
+
+Most catalogues come in as files on the filesystem, one file per potential
+present. The letters and wishlists all get stored in a large IMAP server. The
+crawler is then responsible for reading all the information about gifts and
+storing it in the index. Currently, the module comes with two separate crawlers,
+one for the filesystem and one for an IMAP store. Both crawlers take all items,
+read them and extract the text from them and write them to the search index.
+
+Santa wants to store some key facts as metadata with every document. For example
+the author and sent date are extracted for every wishlist. Imagine giving a gift
+for a 40-year old to their 8 year old self.
+
+=head3 Index
+
+The search index is provided by the Elasticsearch search index, with
+L<Search::Elasticsearch> as the Perl interface. The index is a data structure
+that allows for quick retrieval of documents given some words that are
+associated with the documents. When storing the document information,
+Elasticsearch also adds more data like synonyms so that the wish for I<a
+tricycle> can also find I<ASIN20161225, vehicle, three wheeled> or other
+synonyms.
+
+=head3 Searchform
+
+The front end is provided by a Dancer application. It consists mostly of a form
+field where elves enter the wish and submit the query. The L<Dancer> application
+ties together the Elasticsearch index and search functionality and returns word
+completion and matching documents for each query.
+
+=head2 Making presents
+
+Santa himself cannot make his presence known, but a reimplementation of the
+search engine has been released on CPAN as L<Dancer::SearchApp>. It includes the
+two crawler programs and the search form. You still need to add the special
+spice that is Elasticsearch.
+
+=head3 Installation and setup
+
+Before you can search your documents, you have to install the prerequisites
+and then import some documents. The upside is that there are importers that
+read from the filesystem and IMAP mail stores. The downside is that you will
+need to install some software that is not available via CPAN.
+
+=over 4
+
+=item *
+
+Install Java JRE 8
+
+That's what Elasticsearch needs.
+
+=item *
+
+Install Elasticsearch 5.x
+
+Installing Elasticsearch is as easy as downloading the latest release
+from L<https://www.elastic.co/downloads/elasticsearch>. For this document,
+we'll assume that you the Elasticsearch configuration directory is
+at C<< /opt/elasticsearch/config >>.
+
+=item *
+
+Configure Elasticsearch
+
+The search engine needs an English dictionary of synonyms.
+A good English synonym dictionary can be found at
+L<https://sites.google.com/site/kevinbouge/synonyms-lists>. Download the
+file for English from there and save it to
+
+  /opt/elasticsearch/config/synonyms/synonyms_en.txt
+
+If you don't want to install one, create an empty file.
+
+=item *
+
+Download L<Dancer::SearchApp> from CPAN
+
+These instructions download the distribution into a temporary directory for this
+test run.
+If you are satisfied with the configuration, copy the complete tree to a more
+permament location.
+
+  cpanm --look Dancer::SearchApp
+  cpanm --installdeps .
+
+Note the current directory, as that is where the configuration will happen.
+
+=item *
+
+Install Apache Tika
+
+Download the Tika server from L<https://tika.apache.org/download.html>
+
+The current version is
+L<http://www.apache.org/dyn/closer.cgi/tika/tika-server-1.14.jar>
+
+Copy the JAR file into the directory C< jar/> of the distribution.
+
+=item *
+
+Launch Elasticsearch
+
+Before starting to save data in the index, Elasticsearch needs to be running.
+It doesn't need additional configuration beyond the synonym file.
+
+=item *
+
+Launch the web interface
+
+Launching the web interface is done through the following command:
+
+  plackup -Ilib bin/app.pl
+
+You can then access the web interface at L<http://0:5000/>.
+
+=back
+
+=for html
+   <center><img src="dancer-searchapp-homepage.png"></center>
+
+=head3 Indexing content
+
+Indexing content is done from the installation directory where you unpacked
+the CPAN distribution into. As Elasticsearch updates its index live there is
+no need to wait for an index run to finish before you can start searching your
+data through the web interface.
+
+=over 4
+
+=item *
+
+Indexing files on the disk
+
+Files on disk are indexed by invoking C<< bin/index-filesystem.pl >> and giving
+it one or more directories.
+
+  perl -Ilib -w bin/index-filesystem.pl -f t/documents
+
+For better control, you can give it a configuration file.
+This allows inclusion and exclusion of specific directories and file patterns.
+There is an example
+configuration file in the C<< config-examples/ >> directory of the distribution.
+
+=item *
+
+Indexing an IMAP account
+
+If you want to be able to search your email, you have to import it from the
+IMAP server into the search index.
+Copy the config file from C< config-examples/imap-import.yml >
+and edit the username, password, server and folders to index. Then run
+the IMAP indexer. If you are like me and have most of your email history
+available, this may take a while.
+
+  perl -Ilib -w bin/index-imap.pl -c my-imap-import.yml
+
+=back

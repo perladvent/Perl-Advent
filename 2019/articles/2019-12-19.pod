@@ -1,0 +1,274 @@
+Title: Memories of Past Lives
+Topic: Memoize::Expire
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Sometimes, Christmas can be the most stressful time of year.  Even at the
+North Pole, it's not all gumdrops and candycanes.
+
+Take, for example, one very red faced and obviously upset elf.  Jolly Pudding
+was muttering under his breath at his computer after his code had shown
+yet another error message and ground to a halt.
+
+"And breath!" the Wise Old Elf consoled, "And tell me what the matter is."
+
+"Well", Jolly explained, "I'm writing this quick one off script to produce
+a report on the toy produced this year.  The trouble is that the code keeps
+failing after about half an hour or so.  It's I<really> annoying to debug."
+
+"So you need it to run faster so you can debug it quicker?"
+
+"Yes.  That's exactly it!  Right now I have sit here, twiddling my thumbs
+for half an hour each time.  What's worse is by the time it fails again
+I've totally lost the train of thought."
+
+"What you need to do is cache the results of what you I<did> get to run okay
+between runs.", whe Wise Old Elf explained sagely, "Then you'd be able to
+get to the point where the code breaks instantly"
+
+"Oh, I don't know...that seems like a lot of work for a one off script."
+
+"I've got the perfect module for you: Memoize"
+
+"Memozie! You can't be serious!"
+
+=head2 A Blast from the past.
+
+Memoize was originally L<featured|http://perladvent.pm.org/2000/18/>
+in the first ever Perl Advent calendar entry twenty years ago, back before
+there even were articles on each module.
+
+Memoize can be used to cache the results of a function call so if it's called
+again with the same arguments the cached version is returned.  The classic
+example is the fibonacci sequence.
+
+Without memoize:
+
+    #!perl
+    sub fib($n) {
+        return 1 if $n <= 2;
+        return fib($n-1) + fib($n-2);
+    }
+
+    say fib(50);
+
+Running this takes a while to execute:
+
+    $ time perl fib.pl
+    102334155
+
+    real    1m6.912s
+    user    1m6.872s
+    sys     0m0.032s
+
+Now the sam code with Memoize:
+
+    #!perl
+    use Memoize;
+
+    sub fib($n) {
+        return 1 if $n <= 2;
+        return fib($n-1) + fib($n-2);
+    }
+    memoize('fib');
+
+    say fib(50);
+
+Runs much, much faster
+
+    $ time perl fib.pl
+    102334155
+
+    real    0m0.055s
+    user    0m0.009s
+    sys     0m0.009s
+
+=head2 Persisting between program runs
+
+This is all very well, but Memoize uses an I<in memory> cache.  Jolly's
+problem is that each time he runs his code his program has to re-do all
+the work up until the point that it crashes.  Using memoize like above
+won't speed up his code at all as every time the script runs it starts
+with a fresh empty cache.
+
+What we need to do is what the Wise Old Elf suggested - persist our
+results between program runs.
+
+Well, Memoize can do that:
+
+    #!perl
+    sub divide($n,$d) {
+        # make this take artificially long for the purposes of
+        # the demo
+        sleep 1;
+        
+        return $n / $d;
+    }
+
+    use DB_File;
+    tie my %cache => 'DB_File', '/tmp/memoize', O_RDWR|O_CREAT, 0666;
+    memoize 'divide', SCALAR_CACHE => [HASH => \%cache];
+
+    for (10..-10) {
+        say "100 divided by $_ is " . divide(100,$_);
+    }
+
+Now the first time we run this it takes a while:
+
+    $time perl div.pl 
+    100 divided by -10 is -10
+    100 divided by -9 is -11.1111111111111
+    100 divided by -8 is -12.5
+    100 divided by -7 is -14.2857142857143
+    100 divided by -6 is -16.6666666666667
+    100 divided by -5 is -20
+    100 divided by -4 is -25
+    100 divided by -3 is -33.3333333333333
+    100 divided by -2 is -50
+    100 divided by -1 is -100
+    Illegal division by zero at div.pl line 15.
+
+    real    0m11.051s
+    user    0m0.031s
+    sys     0m0.004s
+
+But the next time is much much quicker:
+
+    $ time perl div.pl 
+    100 divided by -10 is -10
+    100 divided by -9 is -11.1111111111111
+    100 divided by -8 is -12.5
+    100 divided by -7 is -14.2857142857143
+    100 divided by -6 is -16.6666666666667
+    100 divided by -5 is -20
+    100 divided by -4 is -25
+    100 divided by -3 is -33.3333333333333
+    100 divided by -2 is -50
+    100 divided by -1 is -100
+    Illegal division by zero at div.pl line 15.
+
+    real    0m1.028s
+    user    0m0.016s
+    sys     0m0.012s
+
+Whooo! instant death!
+
+=head2 Methods
+
+What if the thing we need to cache is a method call?
+
+    #!perl
+    package Fetcher;
+    use Mo;
+    use experimental 'signatures';
+
+    use HTTP::Tiny;
+
+    has 'url';
+
+    sub fetch ($self) {
+        my $response = HTTP::Tiny->new->get( $self->url );
+        die "Failed!\n" unless $response->{success};
+        return $response->{content};
+    }
+
+    use Memoize;
+    use DB_File;
+    tie my %cache => 'DB_File', '/tmp/memoize', O_RDWR|O_CREAT, 0666;
+    memoize 'fetch', SCALAR_CACHE => [HASH => \%cache];
+
+    1;
+
+Each time we run our Santa detecting script:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.024;
+    use warnings;
+
+    use Fetcher;
+
+    for (qw(
+        http://www.bbc.co.uk/news/
+        http://www.cnn.com/
+        http://news.ycombinator.com/
+    )) {
+        my $f = Fetcher->new( url => $_ );
+        say "SANTA IS HAPPENING" if $f->fetch =~ /santa/i;
+    }
+
+It takes the about same time:
+
+    $ time perl -I. santa.pl 
+
+    real    0m1.254s
+    user    0m0.090s
+    sys     0m0.026s
+
+    $ time perl -I. santa.pl 
+
+    real    0m2.921s
+    user    0m0.087s
+    sys     0m0.028s
+
+    $ time perl -I. santa.pl 
+
+    real    0m1.203s
+    user    0m0.085s
+    sys     0m0.024s
+
+The problem is that Memoize sees each instance of C<$f> as being different
+between each run - it can't tell that an C<$f> constructed with the same
+url will produce the same result.  We can fix this with a I<normalizer>
+
+    #!perl
+    memoize 'fetch',
+       SCALAR_CACHE => [HASH => \%cache],
+       NORMALIZER => sub ($f,@) {
+           return $f->url;
+       };
+
+It's the job of the normalizer to take the arguments and return a suitable
+cache key.  Here we're just using the URL that C<$f> has, as that's the only
+thing that matters.  Caching now works:
+
+    $ time perl -I. santa.pl 
+
+    real    0m3.503s
+    user    0m0.125s
+    sys     0m0.022s
+    
+    $ time perl -I. santa.pl 
+
+    real    0m0.068s
+    user    0m0.063s
+    sys     0m0.005s
+
+=head2 In Conclusion
+
+So it turns out what we'd been thinking purely as a way of speeding up
+our code in limited circumstances is even more valuable as a tool to create
+temporary code in development to help us stop going insane.  There's life
+in the old module yet!
+
+=head2 P.S. You can Leave it in the production code
+
+What if your one off script becomes something you run once a day or so?  We
+all know that happens more often than we'd like.
+
+The above code isn't suitable for that - it'll forever remember the news
+on the day the code was first run! (Or at least until the computer is
+restarted and C</tmp> is cleared out).  What we need is for our cache
+to expire after, say, an hour.
+
+Memoize, with the help of another core module, can do that too with layers
+of tied hashes:
+
+  #!perl
+  tie my %cache => 'DB_File', '/tmp/memoize', O_CREAT|O_RDWR, 0666];
+  tie my %forgetful => 'Memoize::Expire', LIFETIME => 3600, HASH => \%cache; 
+  memoize 'fetch',
+      SCALAR_CACHE => [HASH => \%forgetful],
+      NORMALIZER => sub ($f,@) {
+          return $f->url;
+      };

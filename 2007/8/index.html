@@ -1,0 +1,85 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" 
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>2007 Perl Advent Calendar: Choosing the perfect secret santa</title>
+<link rel="stylesheet" href="../style.css" type="text/css" />
+<link rel="stylesheet" href="grid.css" type="text/css" /></head>
+<body>
+<h1><a href="../">Perl Advent Calendar 2007-12</a>-08</h1>
+<h2 align="center">Choosing the perfect secret santa</h2>
+<h3 align="center">by David Westbrook</h3>
+
+<p>Some of Santa's Reindeer are gathering for a little holiday party, and wish to do <I>Secret Santa</I> for gift-giving, where everyone is assigned each to another to bring a gift. This can be assigned by drawing a name from a hat, and keeping it if it's someone else, and replacing it if you draw yourself. But Comet and Cupid give each other gifts all the time, and last year Donner gave to Dancer, so those shouldn't occur this year. Which means that the list has to really be checked twice & thrice, also to make sure that no one is left out or doubled up. <tt><a href="http://search.cpan.org/search?module=Math::Combinatorics">Math::Combinatorics</a></tt>, with some <tt>List::Util</tt> assistance, will give us all the possible combinations to check for one that works.</p>
+<p>The approach is make an NxN grid represented by a 1-D array <tt>0..N*N-1</tt>, and the solution (if any) will be one of the <tt>N*N-choose(N)</tt> combinations. So we'll get a random one of those, test it, and repeat until we find one or run out. Actually, it's (N*N-N-X) choose N, since the diagonal of the NxN, which is N elements, can immediately be excluded, as can any other (X of them) exclusions provided by the user.</p>
+
+<p>So for N=6, it's a 6x6 grid, with 36 elements 0-35, from 27 (36 minus 6 diagonals minus 3 exceptions) of which we'll choose 6. Those 9 exclusions are shown with strike-through in the grid below. Now <tt>shuffle((</tt> up the initial order of those 27, and then use <tt>Math::Combinatorics</tt> <sup><a href="#1">1</a></sup> to start iterating through the combinations with the <tt>next_combination()</tt> method. Once a combination passes all the checks, we have all our <I>Secret Santas</I> (shown in red on the grid) and display them in the output.</p>
+
+<p>
+<div id="wrapping">
+<table class="grid">
+<tr><th>&nbsp;</th><th class="grid">0</th><th class="grid">1</th><th class="grid">2</th><th class="grid">3</th><th class="grid">4</th><th class="grid">5</th></tr>
+<tr><th class="grid">&nbsp;0&nbsp;</th><td class="grid_d">0</td><td>1</td><td class="grid_m">2</td><td>3</td><td>4</td><td>5</td></tr>
+<tr><th class="grid">1</th><td>6</td><td class="grid_d">7</td><td>8</td><td class="grid_m">9</td><td>10</td><td>11</td></tr>
+<tr><th class="grid">2</th><td>12</td><td class="grid_m">13</td><td class="grid_d">14</td><td class="grid_x">15</td><td>16</td><td>17</td></tr>
+<tr><th class="grid">3</th><td>18</td><td>19</td><td class="grid_x">20</td><td class="grid_d">21</td><td class="grid_m">22</td><td>23</td></tr>
+<tr><th class="grid">4</th><td>24</td><td class="grid_x">25</td><td>26</td><td>27</td><td class="grid_d">28</td><td class="grid_m">29</td></tr>
+<tr><th class="grid">5</th><td class="grid_m">30</td><td>31</td><td>32</td><td>33</td><td>34</td><td class="grid_d">35</td></tr>
+</table>
+</div>
+
+<pre><span class="c">There are C(27,6) = 296010 total combinations.
+Tried 13074 combinations.
+Dasher => Comet
+Dancer => Cupid
+Comet => Dancer
+Cupid => Donner
+Donner => Blitzen
+Blitzen => Dasher</span></pre>
+
+<h2><a href="mod8.pl">mod8.pl</a></h2><pre>
+   1 <span class="k">use</span> <span class="w">Math::Combinatorics</span><span class="sc">;</span>
+   2 <span class="k">use</span> <span class="w">List::Util</span> <span class="q">qw/shuffle first/</span><span class="sc">;</span>
+   3 
+   4 <span class="c">#               0      1      2     3     4      5</span>
+   5 <span class="k">my</span> <span class="i">@set</span> = <span class="q">qw/ Dasher Dancer Comet Cupid Donner Blitzen /</span><span class="sc">;</span>
+   6 
+   7 <span class="k">my</span> <span class="i">$N</span> = <span class="k">scalar</span> <span class="i">@set</span><span class="sc">;</span>
+   8 <span class="k">my</span> <span class="i">@exclude</span> = <span class="s">(</span>
+   9   <span class="s">[</span> <span class="n">4</span> <span class="cm">=&gt;</span> <span class="n">1</span> <span class="s">]</span><span class="cm">,</span> <span class="c"># Donner =&gt; &#39;Dancer&#39;</span>
+  10   <span class="s">[</span> <span class="n">2</span> <span class="cm">=&gt;</span> <span class="n">3</span> <span class="s">]</span><span class="cm">,</span> <span class="c"># Comet  =&gt; &#39;Cupid&#39;</span>
+  11   <span class="s">[</span> <span class="n">3</span> <span class="cm">=&gt;</span> <span class="n">2</span> <span class="s">]</span><span class="cm">,</span> <span class="c"># Cupid  =&gt; &#39;Comet&#39;</span>
+  12 <span class="s">)</span><span class="sc">;</span>
+  13 
+  14 <span class="k">my</span> <span class="i">%exceptions</span> = <span class="k">map</span> <span class="s">{</span> <span class="k">my</span> <span class="s">(</span><span class="i">$r</span><span class="cm">,</span><span class="i">$c</span><span class="s">)</span> = <span class="i">@$_</span><span class="sc">;</span> <span class="i">$r</span>*<span class="i">$N</span>+<span class="i">$c</span> <span class="cm">=&gt;</span> <span class="k">undef</span> <span class="s">}</span> <span class="i">@exclude</span><span class="sc">;</span>
+  15 <span class="k">my</span> <span class="i">$combinat</span> = <span class="w">Math::Combinatorics</span><span class="w">-&gt;new</span><span class="s">(</span>
+  16   <span class="w">count</span> <span class="cm">=&gt;</span> <span class="i">$N</span><span class="cm">,</span>
+  17   <span class="w">data</span> <span class="cm">=&gt;</span> <span class="s">[</span><span class="w">shuffle</span> <span class="k">grep</span> <span class="s">{</span> <span class="k">int</span><span class="s">(</span><span class="i">$_</span>/<span class="i">$N</span><span class="s">)</span>!=<span class="i">$_</span>%<span class="i">$N</span> &amp;&amp; ! <span class="k">exists</span> <span class="i">$exceptions</span>{<span class="i">$_</span>} <span class="s">}</span> <span class="n">0</span> .. <span class="i">$N</span>*<span class="i">$N</span>-<span class="n">1</span><span class="s">]</span>
+  18 <span class="s">)</span><span class="sc">;</span>
+  19 
+  20 <span class="k">my</span> <span class="s">(</span><span class="i">%givers</span><span class="cm">,</span> <span class="i">%recips</span><span class="s">)</span><span class="sc">;</span>
+  21 <span class="k">my</span> <span class="i">$ct</span>=<span class="n">0</span><span class="sc">;</span>
+  22 <span class="k">my</span> <span class="i">$numItems</span> = <span class="i">$N</span>*<span class="i">$N</span>-<span class="i">$N</span>-<span class="k">scalar</span><span class="s">(</span><span class="k">keys</span> <span class="i">%exceptions</span><span class="s">)</span><span class="sc">;</span>
+  23 <span class="k">printf</span> <span class="q">&quot;There are C(%d,%d) = %.f total combinations.\n&quot;</span><span class="cm">,</span>
+  24 	<span class="i">$numItems</span><span class="cm">,</span> <span class="i">$N</span><span class="cm">,</span>
+  25 	<span class="i">factorial</span><span class="s">(</span><span class="i">$numItems</span><span class="s">)</span>/<span class="i">factorial</span><span class="s">(</span><span class="i">$numItems</span>-<span class="i">$N</span><span class="s">)</span>/<span class="i">factorial</span><span class="s">(</span><span class="i">$N</span><span class="s">)</span><span class="sc">;</span>
+  26 <span class="k">while</span><span class="s">(</span><span class="k">my</span> <span class="i">@combo</span> = <span class="i">$combinat</span><span class="i">-&gt;next_combination</span><span class="s">)</span><span class="s">{</span>
+  27   <span class="i">$ct</span>++<span class="sc">;</span>
+  28   <span class="i">%givers</span> = <span class="k">map</span> <span class="s">{</span> <span class="k">int</span><span class="s">(</span><span class="i">$_</span>/<span class="i">$N</span><span class="s">)</span> <span class="cm">=&gt;</span> <span class="i">$_</span>%<span class="i">$N</span> <span class="s">}</span> <span class="i">@combo</span><span class="sc">;</span>
+  29   <span class="i">@recips</span>{<span class="k">values</span> <span class="i">%givers</span>} = <span class="k">keys</span> <span class="i">%givers</span><span class="sc">;</span>  <span class="c"># invert hash</span>
+  30   <span class="k">do</span><span class="s">{</span> <span class="i">%givers</span>=<span class="s">(</span><span class="s">)</span><span class="sc">;</span> <span class="k">next</span> <span class="s">}</span> <span class="k">if</span>
+  31     <span class="k">keys</span><span class="s">(</span><span class="i">%givers</span><span class="s">)</span> != <span class="i">$N</span>
+  32     || <span class="k">keys</span><span class="s">(</span><span class="i">%recips</span><span class="s">)</span> != <span class="i">$N</span>
+  33   <span class="sc">;</span>
+  34   <span class="k">last</span><span class="sc">;</span>
+  35 <span class="s">}</span>
+  36 <span class="k">print</span> <span class="q">&quot;Tried $ct combinations.\n&quot;</span><span class="sc">;</span>
+  37 <span class="k">die</span> <span class="q">&quot;no valid combination exists&quot;</span> <span class="k">unless</span> <span class="i">%givers</span><span class="sc">;</span>
+  38 
+  39 <span class="k">printf</span> <span class="q">&quot;%s =&gt; %s\n&quot;</span><span class="cm">,</span> <span class="i">@set</span>[ <span class="i">$_</span><span class="cm">,</span> <span class="i">$givers</span>{<span class="i">$_</span>} ] <span class="k">for</span> <span class="k">keys</span> <span class="i">%givers</span><span class="sc">;</span>
+</pre>
+
+<p><a name="1"></a>1. The same module has a <tt>derange()</tt> method that should improve efficiency (it implicitly excludes the diagonal and enforces the 1-per-row/1-per-col constraints), but the concise algorithm using that is less transparent and left as an exercise to the reader.</p>
+
+</body>
+</html>

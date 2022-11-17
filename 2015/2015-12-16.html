@@ -1,0 +1,231 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2015 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2015.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2015 - 
+Building Santa&#39;s Naughty and Nice List with Stepford
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2015</a></h1>
+        </div>
+
+        <p id="tagline">2015 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Building Santa&#39;s Naughty and Nice List with Stepford</h1>
+<div class='subtitle'>Stepford - 2015-12-16</div>
+
+<div class='pod'><p>It&#39;s a little known fact that Santa&#39;s elves are the ones responsible for producing his yearly naughty and nice list. But working on the list has been taking up time that they&#39;d rather use for drinking pine juice and playing Dark Souls. They have a crufty <code>Makefile</code> but it doesn&#39;t do a great job of rebuilding things when dependencies change, so they&#39;re constantly finding output errors and having to delete old files. It also doesn&#39;t play all that nicely with the Perl code they wrote to do the real work.</p>
+
+<p>So the elves pooled their money and hired me to automate building the list. Looking at how they&#39;d built the list before, I realized that <a href="https://metacpan.org/release/Stepford">Stepford</a> was the perfect tool for the job!</p>
+
+<h3 id="What-is-Stepford">What is Stepford?</h3>
+
+<p><a href="https://metacpan.org/release/Stepford">Stepford</a> is a tool that takes a set of steps (tasks), figures out their dependencies, and then runs them in the right order to get the result that you ask for. The result itself is just another step that you specify when creating the <a href="https://metacpan.org/pod/Stepford::Runner"><code>Stepford::Runner</code></a> object. Steps are Perl classes built using <a href="https://metacpan.org/release/Moose"><code>Moose</code></a>.</p>
+
+<h4 id="Dependencies-and-Productions">Dependencies and Productions</h4>
+
+<p>The &quot;big thing&quot; that Stepford does for you is to figure out the dependencies needed to get to the final step. It does this by looking at the dependencies and productions of all your steps and then running those steps in the necessary order.</p>
+
+<p>Both dependencies and productions are declared as Moose attributes with a special <code>trait</code>. Here&#39;s an example:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">has</span> <span class="word">geolite2_database_file</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">traits</span>   <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'StepDependency'</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>       <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span>      <span class="operator">=&gt;</span> <span class="word">File</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">required</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="word">has</span> <span class="word">ip_scores_file</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">traits</span>  <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'StepProduction'</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>      <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span>     <span class="operator">=&gt;</span> <span class="word">File</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lazy</span>    <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">builder</span> <span class="operator">=&gt;</span> <span class="single">'_build_ip_scores_file'</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>You&#39;ll see how to actually populate the <code>ip_scores_file</code> later.</p>
+
+<p>Stepford matches a production to a dependency solely by name, which means that attribute names for productions and dependencies must be unique to a given set of steps.</p>
+
+<h4 id="Step-Classes">Step Classes</h4>
+
+<p>A &quot;Step class&quot; is any Moose class which consumes the <a href="https://metacpan.org/pod/Stepford::Role::Step"><code>Stepford::Role::Step</code></a> role (or another role which in turn consumes that role). This role in turn requires that a step class implement a few specific methods named <code>run</code> and <code>last_run_time</code>. You&#39;ll see examples of both of these methods as we go further.</p>
+
+<h3 id="What-Goes-Into-the-Naughty-and-Nice-List">What Goes Into the Naughty and Nice List?</h3>
+
+<p>The elves gave me a long list of requirements, but honestly it all seemed like too much trouble. And since these elves are not very technically savvy, I&#39;m going to take the easy route instead and just make some stuff up.</p>
+
+<p>Here&#39;s what I&#39;m going to do:</p>
+
+<ul>
+
+<li><p>Get the names and IP addresses for all the children in the world, or at least a few of them.</p>
+
+</li>
+<li><p>Assign each child a UUID so I can track them easily.</p>
+
+</li>
+<li><p>Download the <a href="http://dev.maxmind.com/geoip/geoip2/geolite2/">free GeoLite2 database</a> from MaxMind.</p>
+
+</li>
+<li><p>Use the GeoLite2 database to look at each child&#39;s geographical location and use that to give their IP a naughty/nice score. This will be very scientific.</p>
+
+</li>
+<li><p>Look at each child&#39;s name and use that to give their name a naughty/nice score. Again, this will be very scientific.</p>
+
+</li>
+<li><p>Combine the IP and name scores into a single score per child and generate a text file with the naughty/nice list.</p>
+
+</li>
+</ul>
+
+<p>Here&#39;s a graph of each step showing each steps&#39; dependencies:</p>
+
+<center><a href="step-graph.svg"><img src="step-graph.svg" height="450" width="450"></a></center>
+
+<p>Looking at this graph, you can see a couple interesting things. First, there are two steps, &quot;Get list of children&quot; and &quot;Download GeoLite2 databases&quot;, with no dependencies. Next, there are steps that are dependencies for more than one other steps, &quot;Assign UUIDs&quot; and &quot;Get list of children&quot;. Finally, the &quot;Combine scores&quot; step has three dependencies but is not a dependency of any other step.</p>
+
+<p>Figuring all this stuff out is what Stepford is for. In fact, it calculates a graph just like this internally.</p>
+
+<h3 id="Building-our-First-Step">Building our First Step</h3>
+
+<p>Let&#39;s start by building the step to &quot;Get list of children&quot;. All the step classes for a single set of steps should live under the same namespace. I&#39;m going to use <code>NN::Step</code> as our namespace prefix.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;<br />46:&nbsp;<br />47:&nbsp;<br />48:&nbsp;<br />49:&nbsp;<br />50:&nbsp;<br />51:&nbsp;<br />52:&nbsp;<br />53:&nbsp;<br />54:&nbsp;<br />55:&nbsp;<br />56:&nbsp;<br />57:&nbsp;<br />58:&nbsp;<br />59:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">NN::Step::Children</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">autodie</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">experimental</span> <span class="single">'signatures'</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Data::GUID</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">MooseX::Types::Path::Class</span> <span class="words">qw( Dir File )</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Text::CSV_XS</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Moose</span><span class="structure">;</span><br /><br /><span class="word">with</span> <span class="single">'Stepford::Role::Step::FileGenerator'</span><span class="structure">;</span><br /><br /><span class="keyword">no</span> <span class="pragma">warnings</span> <span class="single">'experimental::signatures'</span><span class="structure">;</span><br /><br /><span class="word">has</span> <span class="word">root_dir</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>      <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span>     <span class="operator">=&gt;</span> <span class="word">Dir</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">coerce</span>  <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">default</span> <span class="operator">=&gt;</span> <span class="single">'.'</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="word">has</span> <span class="word">children_file</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">traits</span>  <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'StepProduction'</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>      <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span>     <span class="operator">=&gt;</span> <span class="word">File</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lazy</span>    <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">builder</span> <span class="operator">=&gt;</span> <span class="single">'_build_children_file'</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">sub</span> <span class="word">run</span> <span class="prototype">($self)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$file</span> <span class="operator">=</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">children_file</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">logger</span><span class="operator">-&gt;</span><span class="word">info</span><span class="structure">(</span><span class="double">&quot;Writing names and IPs to $file&quot;</span><span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$data</span> <span class="operator">=</span> <span class="word">do</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">local</span> <span class="magic">$/</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="readline">&lt;DATA&gt;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br /><br /><span class="comment">    # CSV line ending per http://tools.ietf.org/html/rfc4180<br /></span>    <span class="symbol">$data</span> <span class="operator">=~</span> <span class="substitute">s/\n/\r\n/g</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$file</span><span class="operator">-&gt;</span><span class="word">spew</span><span class="structure">(</span><span class="symbol">$data</span><span class="structure">);</span><br /><span class="structure">}</span><br /><br /><span class="keyword">sub</span> <span class="word">_build_children_file</span> <span class="prototype">($self)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">root_dir</span><span class="operator">-&gt;</span><span class="word">file</span><span class="structure">(</span><span class="single">'children.csv'</span><span class="structure">);</span><br /><span class="structure">}</span><br /><br /><span class="word">__PACKAGE__</span><span class="operator">-&gt;</span><span class="word">meta</span><span class="operator">-&gt;</span><span class="word">make_immutable</span><span class="structure">;</span><br /><br /><span class="number">1</span><span class="structure">;</span><br /><br /><span class="separator">__DATA__</span><br /><span class="data">&quot;Alexander Marer&quot;,42.235.92.147<br />&quot;Andrew Bernard Cray&quot;,205.145.143.62<br />...</span></code><br />&nbsp;</td></table>
+
+<p>Let&#39;s look at the interesting bits more closely.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">with</span> <span class="single">'Stepford::Role::Step::FileGenerator'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>All Stepford classes must consume one of the Step roles provided by Stepford. This particular role tells Stepford that all of this step&#39;s outputs are in the form of files. This lets Stepford calculate the step&#39;s last run time by looking at the file&#39;s modification time. For non-file steps, you have to provide a <code>last_run_time</code> method of your own.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">has</span> <span class="word">root_dir</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>      <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span>     <span class="operator">=&gt;</span> <span class="word">Dir</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">coerce</span>  <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">default</span> <span class="operator">=&gt;</span> <span class="single">'.'</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="word">has</span> <span class="word">children_file</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">traits</span>  <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'StepProduction'</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>      <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span>     <span class="operator">=&gt;</span> <span class="word">File</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lazy</span>    <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">builder</span> <span class="operator">=&gt;</span> <span class="single">'_build_children_file'</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>This class has two attributes. The <code>root_dir</code> attribute is neither a dependency nor a production. You&#39;ll see how to set this attribute later on. The <code>children_file</code> attribute is a production. Some other steps will depend on this production.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">run</span> <span class="prototype">($self)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$file</span> <span class="operator">=</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">children_file</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">logger</span><span class="operator">-&gt;</span><span class="word">info</span><span class="structure">(</span><span class="double">&quot;Writing names and IPs to $file&quot;</span><span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$data</span> <span class="operator">=</span> <span class="word">do</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">local</span> <span class="magic">$/</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="readline">&lt;DATA&gt;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br /><br /><span class="comment">    # CSV line ending per http://tools.ietf.org/html/rfc4180<br /></span>    <span class="symbol">$data</span> <span class="operator">=~</span> <span class="substitute">s/\n/\r\n/g</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$file</span><span class="operator">-&gt;</span><span class="word">spew</span><span class="structure">(</span><span class="symbol">$data</span><span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Every Step class must provide a <code>run</code> method. This method is expected to do whatever work the step does. In this case I take the list of children in <code>DATA</code> and turn it into a CSV file.</p>
+
+<p>The <code>logger</code> attribute is provided to each step by the <a href="https://metacpan.org/pod/Stepford::Runner"><code>Stepford::Runner</code></a> class. You&#39;ll learn more about that class later.</p>
+
+<h4 id="Atomic-File-Steps">Atomic File Steps</h4>
+
+<p>I could have used <a href="https://metacpan.org/pod/Stepford::Role::Step::FileGenerator::Atomic"><code>Stepford::Role::Step::FileGenerator::Atomic</code></a> instead. If your step is writing a file, using this role will prevent you from leaving behind a half-finished file if the step dies. I didn&#39;t use it in my example code just to keep the code simpler, but I highly recommend it for production code.</p>
+
+<h3 id="More-Steps">More Steps</h3>
+
+<p>The other steps are pretty similar. They take some data and spit something new out. Let&#39;s take a look at some of the code from the step that adds the UUIDs:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">NN::Step::AssignUUIDs</span><span class="structure">;</span><br /><br /><span class="operator">...</span><br /><br /><span class="word">has</span> <span class="word">children_file</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">traits</span>   <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'StepDependency'</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>       <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span>      <span class="operator">=&gt;</span> <span class="word">File</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">required</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="word">has</span> <span class="word">children_with_uuids_file</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">traits</span>  <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'StepProduction'</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>      <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span>     <span class="operator">=&gt;</span> <span class="word">File</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lazy</span>    <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">builder</span> <span class="operator">=&gt;</span> <span class="single">'_build_children_with_uuids_file'</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>This step depends on the <code>children_file</code> created by the <code>Children</code> step. Stepford will figure this out and make sure that the steps are run in the correct order.</p>
+
+<p>The <code>AssignUUIDs</code> step in turn has its own <code>StepProduction</code> which future steps will depend on.</p>
+
+<p>The remaining steps follow a similar pattern. They take an input file and produce an output file. The last step, <code>WriteList</code>, is a little different, so let&#39;s see how:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">NN::Step::WriteList</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Moose</span><span class="structure">;</span><br /><br /><span class="word">with</span> <span class="single">'Stepford::Role::Step'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>The first difference is that I&#39;m consuming the <a href="https://metacpan.org/pod/Stepford::Role::Step"><code>Stepford::Role::Step</code></a> role instead of <a href="https://metacpan.org/pod/Stepford::Role::Step::FileGenerator"><code>Stepford::Role::Step::FileGenerator</code></a>.</p>
+
+<p>This is mostly so I can demonstrate how to write a <code>last_run_time</code> method.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">has</span> <span class="word">children_with_uuids_file</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">traits</span>   <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'StepDependency'</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>       <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span>      <span class="operator">=&gt;</span> <span class="word">File</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">required</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="word">has</span> <span class="word">ip_scores_file</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">traits</span>   <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'StepDependency'</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>       <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span>      <span class="operator">=&gt;</span> <span class="word">File</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">required</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="word">has</span> <span class="word">name_scores_file</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">traits</span>   <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'StepDependency'</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>       <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span>      <span class="operator">=&gt;</span> <span class="word">File</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">required</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>This step has three dependencies, unlike the previous steps you&#39;ve seen. Each of these dependencies comes from a separate step. Stepford will figure all that out for us and run those steps before this one.</p>
+
+<p>And here&#39;s the <code>last_run_time</code> method:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">last_run_time</span> <span class="prototype">($self)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$file</span> <span class="operator">=</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">_naughty_nice_list</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="core">undef</span> <span class="word">unless</span> <span class="operator">-e</span> <span class="symbol">$file</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$file</span><span class="operator">-&gt;</span><span class="word">stat</span><span class="operator">-&gt;</span><span class="word">mtime</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>This is pretty straightforward. If the file exists, I return its last modification time. If not, I return <code>undef</code>.</p>
+
+<p>Stepford uses the value of each step&#39;s <code>last_run_time</code> to determine whether or not a given step needs to be run at all. If the data in a dependency is newer than the data in the step that depends on that data, there&#39;s no point in regenerating the dependency&#39;s data.</p>
+
+<p>(By the way, the <code>last_run_time</code> method above is essentially the same as the one in <code>Stepford::Role::Step::FileGenerator</code>.)</p>
+
+<h3 id="Running-Your-Steps">Running Your Steps</h3>
+
+<p>Now that I&#39;ve written my steps, how do I run them? Here&#39;s the script I wrote:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/env perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">FindBin</span> <span class="words">qw( $Bin )</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">lib</span> <span class="double">&quot;$Bin/../lib&quot;</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Getopt::Long</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Log::Dispatch</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Stepford::Runner</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">main</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$debug</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$jobs</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$root</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">GetOptions</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'debug'</span>  <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">$debug</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'jobs:i'</span> <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">$jobs</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'root:s'</span> <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">$root</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$logger</span> <span class="operator">=</span> <span class="word">Log::Dispatch</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">outputs</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'Screen'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">newline</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">min_level</span> <span class="operator">=&gt;</span> <span class="symbol">$debug</span> <span class="operator">?</span> <span class="single">'debug'</span> <span class="operator">:</span> <span class="single">'warning'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Stepford::Runner</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">step_namespaces</span> <span class="operator">=&gt;</span> <span class="single">'NN::Step'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">logger</span>          <span class="operator">=&gt;</span> <span class="symbol">$logger</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">)</span><span class="operator">-&gt;</span><span class="word">run</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">config</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="symbol">$root</span> <span class="operator">?</span> <span class="structure">(</span> <span class="word">root_dir</span> <span class="operator">=&gt;</span> <span class="symbol">$root</span> <span class="structure">)</span> <span class="operator">:</span> <span class="structure">()</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">final_steps</span> <span class="operator">=&gt;</span> <span class="single">'NN::Step::WriteList'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">exit</span> <span class="number">0</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="word">main</span><span class="structure">();</span></code><br />&nbsp;</td></table>
+
+<p>The only interesting piece is my use of <a href="https://metacpan.org/pod/Stepford::Runner"><code>Stepford::Runner</code></a>.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">Stepford::Runner</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">step_namespaces</span> <span class="operator">=&gt;</span> <span class="single">'NN::Step'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">logger</span>          <span class="operator">=&gt;</span> <span class="symbol">$logger</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">jobs</span>            <span class="operator">=&gt;</span> <span class="symbol">$jobs</span> <span class="operator">//</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">)</span><span class="operator">-&gt;</span><span class="word">run</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">config</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="symbol">$root</span> <span class="operator">?</span> <span class="structure">(</span> <span class="word">root_dir</span> <span class="operator">=&gt;</span> <span class="symbol">$root</span> <span class="structure">)</span> <span class="operator">:</span> <span class="structure">()</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">final_steps</span> <span class="operator">=&gt;</span> <span class="single">'NN::Step::WriteList'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The <code>Stepford::Runner</code> constructor takes several named arguments. The <code>step_namespaces</code> argument tells Stepford under what namespace it should look for steps. It will load all the classes that it finds under this namespace.</p>
+
+<p>You can pass multiple namespaces as an array reference. When two steps have a production of the same name, then the step that comes first in the list of namespaces wins. This is useful for testing, as it lets you mock as many steps as you need to.</p>
+
+<p>The <code>logger</code> can be any object that provides a certain set of methods (<code>debug</code>, <code>info</code>, etc.).</p>
+
+<p>Finally, if you set <code>jobs</code> to a value greater than one, Stepford will run steps in parallel, running up to <code>$jobs</code> steps at once whenever possible.</p>
+
+<p>The call to the <code>run</code> method also accepts named arguments. Keys in the <code>config</code> argument which match constructor arguments for a step will be passed to that step class as the step is constructed. Remember way back up above when I mentioned that I&#39;d show you how to set the <code>root_dir</code> attribute of the <code>NN::Step::Children</code> class. This is how you do that.</p>
+
+<p>The <code>final_steps</code> argument can be a single step class name or an array reference of names. This is how you specify the result you&#39;re asking Stepford for.</p>
+
+<h3 id="Why-Stepford">Why Stepford?</h3>
+
+<p>Stepford is lot like <code>make</code>, <code>rake</code>, and many other tools. Stepford was originally created to help improve our automation around building <a href="https://www.maxmind.com/en/geoip2-databases">GeoIP databases</a> at <a href="https://www.maxmind.com/">MaxMind</a>.</p>
+
+<p>I investigated <code>make</code> and <code>rake</code>, which are both great tools. However, what makes them shine is how they integrate with certain environments. The <code>make</code> tool is great if you&#39;re interacting with a lot of existing command line tools like compilers, linkers, etc. And of course <code>rake</code> is great if you&#39;re dealing with existing Ruby code.</p>
+
+<p>But our database building code was is written in Perl, so it made sense to write a tool in Perl.</p>
+
+<p>If you&#39;re in a similar situation, with a Perl code base that executes a series of steps towards one or more final products, then Stepford might be a good choice for you as well.</p>
+
+<p>It certainly worked well for those elves. Sure, the naughty and nice list they get is complete and utter nonsense, but it&#39;s a lot quicker to generate, giving them more time for their pine juice-fueled Dark Souls speedruns.</p>
+
+<h3 id="The-Code">The Code</h3>
+
+<p>If you want to see all the step code for this article, check out <a href="https://github.com/autarch/perl-advent-calendar-2015-stepford">this article&#39;s GitHub repo</a>.</p>
+
+<h3 id="See-Also">See Also</h3>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/release/Stepford">Stepford</a></p>
+
+</li>
+<li><p><a href="https://www.gnu.org/software/make/">make</a></p>
+
+</li>
+<li><p><a href="http://docs.seattlerb.org/rake/">rake</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/ac0051ccbf2115f581f5da62fb56c219?r=g&s=80&d=retro />
+This article contributed by: Dave Rolsky &lt;autarch@urth.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Garlands of YAML and JSON" href="2015-12-15.html">Previous</a></li>
+
+    <li class="next"><a title="No More Leaking Glue" href="2015-12-17.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

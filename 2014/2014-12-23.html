@@ -1,0 +1,165 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+CLDR TL;DR
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>CLDR TL;DR</h1>
+<div class='subtitle'>Unicode CLDR - 2014-12-23</div>
+
+<div class='pod'><p>2014 has been an exciting year for CLDR development on the CPAN. But first, what is the CLDR? The <a href="http://cldr.unicode.org/">Unicode Common Locale Data Repository</a> is a standardized repository of locale data along with a specification for its use and implementation. The simplest use case is easy access to translations for use in user interfaces, including month and day names, country and language names, and units of measure such as hours, bytes, meters, and even furlongs. More complex uses include localized ranges of dates using the local calendaring and numbering systems.</p>
+
+<p>The <a href="http://www.unicode.org/reports/tr35/">CLDR specification</a>, however, is increasingly complex and the amount of data is increasingly large. This makes sense because natural languages are complex and each release supports additional minority locales. Fortunately, the CPAN has had more CLDR-based development this year than ever before. This means you don&rsquo;t have to worry about reading complex specifications or manually parsing large XML data structures.</p>
+
+<h3 id="What-are-locales">What are locales?</h3>
+
+<p>There are two parts to a locale: an identifier and data. The identifier is used to specify user preferences, generally based on languages and regions. The simplest locale is a language code alone, such as <b>es</b> for Spanish and <b>zh</b> for Chinese. Including the user&rsquo;s country in the locale can provide additional valuable information. For example there are many differences in displaying dates and even numbers between European Spanish (<b>es-ES</b>) and Mexican Spanish (<b>es-MX</b>). Much additional information can be explicitly included in the locale, but most of the time it&rsquo;s implicitly derived from the language and region. For example, many locales default to the Gregorian calendar while some to the Buddhist calendar or others; <b>zh-CN</b> defaults to Simplified Han script while <b>zh-TW</b> defaults to Traditional Han. However, if you want to get really explicit, you could say <b>tlh-Hira-AQ-u-ca-julian-nu-roman</b> for Klingon in the Hiragana script as used in Antarctica with the Julian calendar and Roman numerals.</p>
+
+<p>Whenever possible, include the user&rsquo;s language and country when constructing a locale identifier in order to provide the most localized experience.</p>
+
+<p>Now let&rsquo;s take a tour of some simple solutions to common localization problems using CPAN modules.</p>
+
+<h3 id="CLDR::Number">CLDR::Number</h3>
+
+<p><a href="https://metacpan.org/module/CLDR::Number">CLDR::Number</a> is a new module that become stable early this year and provides localized formatting of numbers, prices, and even percents and ranges of numbers. Full disclosure: I wrote this module and it powers Shutterstock in 20 languages, 150+ countries, and many currencies.</p>
+
+<p>Here&rsquo;s an example of formatting numbers:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">CLDR::Number</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$cldr</span> <span class="operator">=</span> <span class="word">CLDR::Number</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="word">locale</span> <span class="operator">=&gt;</span> <span class="symbol">$locale</span><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$decf</span> <span class="operator">=</span> <span class="symbol">$cldr</span><span class="operator">-&gt;</span><span class="word">decimal_formatter</span><span class="structure">;</span><br /><br /><span class="word">say</span> <span class="double">&quot;$locale: &quot;</span><span class="operator">,</span> <span class="symbol">$decf</span><span class="operator">-&gt;</span><span class="word">format</span><span class="structure">(</span><span class="float">123456.7</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Now let&rsquo;s see the results in European Spanish, Mexican Spanish, and Bengali:</p>
+
+<ul>
+
+<li><p>es-ES: 123 456,7</p>
+
+</li>
+<li><p>es-MX: 123,456.7</p>
+
+</li>
+<li><p>bn-IN: &#x9E7;,&#x9E8;&#x9E9;,&#x9EA;&#x9EB;&#x9EC;.&#x9ED;</p>
+
+</li>
+</ul>
+
+<p>This demonstrates that both the language and the country can significantly change the results of basic number formatting. Now let&rsquo;s see this applied to prices in different currencies.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$curf</span> <span class="operator">=</span> <span class="symbol">$cldr</span><span class="operator">-&gt;</span><span class="word">currency_formatter</span><span class="structure">(</span><span class="word">currency_code</span> <span class="operator">=&gt;</span> <span class="symbol">$currency</span><span class="structure">);</span><br /><br /><span class="word">say</span> <span class="double">&quot;$locale / $currency: &quot;</span><span class="operator">,</span> <span class="symbol">$curf</span><span class="operator">-&gt;</span><span class="word">format</span><span class="structure">(</span><span class="float">9.99</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Here are the results in American English and Canadian English for both US Dollars and Canadian Dollars.</p>
+
+<ul>
+
+<li><p>en-US / USD: $9.99</p>
+
+</li>
+<li><p>en-CA / USD: US$9.99</p>
+
+</li>
+<li><p>en-CA / CAD: $9.99</p>
+
+</li>
+<li><p>en-US / CAD: CA$9.99</p>
+
+</li>
+</ul>
+
+<p>This demonstrates that localized formatting is important even when your only supported language is English. When it comes to currency formatting, the language, country, and currency each can significantly change the results.</p>
+
+<h3 id="Locale::CLDR">Locale::CLDR</h3>
+
+<p><a href="https://metacpan.org/module/Locale::CLDR">Locale::CLDR</a> is another new module released earlier this year by John Imrie, with the goal of providing access to all of the CLDR via locale objects&mdash;an impressive task!</p>
+
+<p>Different locales use different punctuation and this is commonly ignored even in applications with translations in many languages. Fortunately, Locale::CLDR makes this aspect of localization easy.</p>
+
+<p>Here is a simple solution to formatting a list of strings for the user:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Locale::CLDR</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$cldr</span> <span class="operator">=</span> <span class="word">Locale::CLDR</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="symbol">$locale</span><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">@gifts</span> <span class="operator">=</span> <span class="words">qw( foo bar baz )</span><span class="structure">;</span><br /><br /><span class="word">say</span> <span class="double">&quot;$locale: &quot;</span><span class="operator">,</span> <span class="symbol">$cldr</span><span class="operator">-&gt;</span><span class="word">list</span><span class="structure">(</span><span class="word">map</span> <span class="structure">{</span> <span class="symbol">$cldr</span><span class="operator">-&gt;</span><span class="word">quote</span><span class="structure">(</span><span class="magic">$_</span><span class="structure">)</span> <span class="structure">}</span> <span class="symbol">@gifts</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The <code>quote</code> method is used to quote each element and the <code>list</code> method is used to format the entire list. Let&rsquo;s take a look at the results in Portuguese, French, and Urdu.</p>
+
+<ul>
+
+<li><p>pt: &ldquo;foo&rdquo;, &ldquo;bar&rdquo; e &ldquo;baz&rdquo;</p>
+
+</li>
+<li><p>fr: &laquo;foo&raquo;, &laquo;bar&raquo; et &laquo;baz&raquo;</p>
+
+</li>
+<li><p>ur: &rdquo;foo&ldquo;&#x60C; &rdquo;bar&ldquo;&#x60C; &#x627;&#x648;&#x631; &rdquo;baz&ldquo;</p>
+
+</li>
+</ul>
+
+<p>Note that for support of all locales, you currently have to use the Locale::CLDR v0.25.x release on CPAN instead of v0.26.x because the latter is in the process of being broken into locale bundles and that work is ongoing.</p>
+
+<h3 id="New-year-new-development">New year, new development</h3>
+
+<p>We&rsquo;ve had a great year for Perl localization and I hope 2015 will be even better. Once the most important <a href="https://metacpan.org/module/CLDR::Number::TODO">CLDR::Number::TODO</a> tasks are completed, <a href="https://metacpan.org/module/DateTime::Locale">DateTime::Locale</a> will receive some much needed love. The top gift on my wishlist is a Perl wrapper for <a href="http://site.icu-project.org/">ICU4C</a> (International Components for Unicode), which is a mature project providing full CLDR support. I&rsquo;m confident that if I continue to fill my uncle&rsquo;s boots with coleslaw on Yaksmas Eve, the Gilded Yak may finally deliver.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Locales">Locales</a> provides much of the basic CLDR data, such as names of countries and languages.</p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/DateTime">DateTime</a> provides CLDR-based formatting using <a href="https://metacpan.org/module/DateTime::Locale">DateTime::Locale</a>.</p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Geo::Region">Geo::Region</a> provides UN M.49 and CLDR geographical region and grouping data.</p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/3cab2cdaf129f5574e20c2b168b4c389?r=g&s=80&d=retro />
+This article contributed by: Nova Patch &lt;patch@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="A Holiday PAPR-ation" href="2014-12-22.html">Previous</a></li>
+
+    <li class="next"><a title="Out of Order Perl" href="2014-12-24.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

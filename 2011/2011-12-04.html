@@ -1,0 +1,147 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2011 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2011.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2011 - 
+Warn Different
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2011</a></h1>
+        </div>
+
+        <p id="tagline">2011 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Warn Different</h1>
+<div class='subtitle'>Carp::Always - 2011-12-04</div>
+
+<div class='pod'><h2 id="You-Need-Carp::Always">You Need Carp::Always</h2>
+
+<p>I was making a list of libraries to try to cover in this year&#39;s Advent calendar, and so I tried to think of the most useful stuff I could. I tried to think of libraries without which I&#39;d be lost. The first thing I thought of was Carp::Always &ndash; but it was a dumb idea. <i>Obviously</i>, it would have been covered already. Maybe a few times.</p>
+
+<p>After I&#39;d made my list and gotten started, though, something inside urged me to double-check. I brought up the <a href="http://perladvent.org/archives-AZ.html">big master Advent index</a> and was shocked &ndash; <i><b>shocked!</b></i> &ndash; to find no entry for Carp::Always. (Frankly, I was surprised not to see Carp, either, but there isn&#39;t all that much coverage of the core in the index. Maybe we&#39;ll have to work on that&hellip;)</p>
+
+<p>Then I almost gave up anyway, because <i>of course</i> everyone knows about Carp::Always. Suddenly, though, I was overwhelmed with a stream of memories all working like this:</p>
+
+<pre><code>  &lt;rjbs&gt; Anyway, just try it with Carp::Always.
+  &lt;dude&gt; What&#39;s Carp::Always?
+  &lt;rjbs&gt; ????????</code></pre>
+
+<p>So, let&#39;s get to it.</p>
+
+<h2 id="Death-Croaking-and-Confession">Death, Croaking, and Confession</h2>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Common</span> <span class="structure">{</span><br /><br />&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">func</span>  <span class="structure">{</span> <span class="word">die</span> <span class="double">&quot;func is unimplemented&quot;</span> <span class="structure">}</span><br /><span class="structure">}</span><br /><br /><span class="keyword">package</span> <span class="word">Program</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">minor_system</span> <span class="structure">{</span> <span class="word">Common::func</span><span class="structure">(</span><span class="number">90</span><span class="operator">,</span> <span class="number">80</span><span class="operator">,</span> <span class="number">70</span><span class="structure">)</span> <span class="structure">}</span><br />&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">subroutine</span>   <span class="structure">{</span> <span class="word">minor_system</span><span class="structure">(</span><span class="number">10</span><span class="operator">,</span> <span class="number">20</span><span class="operator">,</span> <span class="number">30</span><span class="structure">)</span> <span class="structure">}</span><br /><br />&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">run</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">subroutine</span><span class="structure">(</span><span class="number">123</span><span class="structure">);</span><br />&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span><br /><br /><span class="word">Program</span><span class="operator">-&gt;</span><span class="word">run</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Here&#39;s a ridiculously simple, pointless program. Well, not quite pointless: it exists just to build some simple call stack, and then die a few frames down it.</p>
+
+<p>We get an error like this:</p>
+
+<pre><code>  func is unimplemented at program.pl line 4.</code></pre>
+
+<p>If you pretend that Common is actually some library that&#39;s getting called all over the place, you can imagine how the error above is just about the <i>least useful thing ever</i>. Yeah, great. You go look up the error and find that it&#39;s from inside one of the most-used parts of your whole program. What&#39;s calling it? Well, you could start adding print statements, or maybe inspect <code>caller</code>, but you could just replace that <code>die</code> with a <code>croak</code>.</p>
+
+<p><code>croak</code>, provided by <a href="https://metacpan.org/module/Carp">Carp</a>, is just like <code>die</code>, but instead of reporting the line and file where the exception is thrown, it tells you what called the routine that died. In the great majority of cases, this is much more useful. Unless you&#39;re using <code>die</code> to print a user-visible error for a command line program, you should probably be using <code>croak</code> instead of <code>die</code> all the time.</p>
+
+<p>If we add a <code>use Carp;</code> line at line 3 and switch our exception to <code>croak</code>, we get:</p>
+
+<pre><code>  func is unimplemented at program.pl line 8</code></pre>
+
+<p>Despite looking almost the same, this is much more useful! We can go back to our code, find line 8, and see that the error is coming from that <i>particular</i> call to <code>func</code>. If our code was calling it all over the place, this would eliminate a huge mess of hunting around.</p>
+
+<p>So, already, knowing how to use the stuff in Carp is a huge win &ndash; but I haven&#39;t talked about all of it, just <code>croak</code>, which is like <code>die</code>. There&#39;s also <code>carp</code>, which is like <code>warn</code>. The other two similar functions in Carp are <code>confess</code> and <code>cluck</code>. They act like <code>die</code> and <code>warn</code>, respectively, but provide the whole stack trace.</p>
+
+<p>See, imagine that our stupidly simple example program was a dozen or more packages, with calls going from one to the other in different orders and forming all kinds of different stacks. Finding out that the caller of <code>func</code> was <code>Program::minor_system</code> wouldn&#39;t actually be that big of a deal, because we&#39;d want the caller of that, and the next one, too.</p>
+
+<p>We could go into our code for Common and replace <code>croak</code> with <code>confess</code>, and now we&#39;d get something like:</p>
+
+<pre><code>  func is unimplemented at program.pl line 4
+    Common::func() called at program.pl line 8
+    Program::minor_system() called at program.pl line 9
+    Program::subroutine(123) called at program.pl line 12
+    Program::run(&#39;Program&#39;) called at program.pl line 16</code></pre>
+
+<h2 id="Doesnt-everybody-love-stack-traces">Doesn&#39;t everybody love stack traces?</h2>
+
+<p>It turns out, not everybody loves seeing stack traces all the time. If you use <a href="http://moose.perl.org/">Moose</a>, you&#39;ve probably already got a complex set of feelings about stack traces. You might think things like, &quot;this isn&#39;t alway very useful&quot; or &quot;what the hell am I supposed to do with this?&quot; or &quot;boy, am I ever sick of stack traces!&quot;</p>
+
+<p>So, maybe you don&#39;t <i>want</i> <code>func</code> to use <code>confess</code>. Maybe most of the time, it would actually be a huge drag. Sometimes, though, you do want it, and you don&#39;t want to have to go edit the source just to get it. This is where <a href="https://metacpan.org/module/Carp::Always">Carp::Always</a> comes in.</p>
+
+<p>If we revert our program to the version that used <code>die</code>, but then run like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>$ perl -MCarp::Always program.pl</code><br />&nbsp;</td></table>
+
+<p>...we get a stack trace, and it looks just like the one above! We have to be a bit wary of these Carp::Always-provided stack traces, though. Carp::Always works by adding a <code>__DIE__</code> handler, which is tricky stuff. Sometimes, you get bogus output. For example, if we use <code>croak</code> in our program <i>and</i> run with <code>-MCarp::Always</code> we get a duplicated stack:</p>
+
+<pre><code>  func is unimplemented at program.pl line 4
+    Common::func() called at program.pl line 8
+    Program::minor_system() called at program.pl line 9
+    Program::subroutine(123) called at program.pl line 12
+    Program::run(&#39;Program&#39;) called at program.pl line 4
+    Common::func() called at program.pl line 8
+    Program::minor_system() called at program.pl line 9
+    Program::subroutine(123) called at program.pl line 12
+    Program::run(&#39;Program&#39;) called at program.pl line 16</code></pre>
+
+<p>Oops! This can be a big problem, but in practice it&#39;s not all that likely. Still, you have to keep in mind that it&#39;s not foolproof.</p>
+
+<p>Keep in mind that Carp::Always doesn&#39;t just convert die and croak to confess. It also converts warn and carp to cluck. That means that if your program throws a bunch of warnings before it finally dies, you&#39;re potentially going to start seeing huge streams of stack traces, all blending together. To deal with that, you can use <a href="https://metacpan.org/module/Carp::Always::Color">Carp::Always::Color</a>, which breaks the traces up by colorizing the message part of the first line of each warning or error: warnings become yellow, errors become red. This makes it easy to scan over the error output to see just what happened, where, and maybe even why.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Carp::Always">Carp::Always</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Carp">Carp</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Carp::Always::Color">Carp::Always::Color</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/cec6b9b88295ead26c65f8747a76561b?r=g&s=80&d=retro />
+This article contributed by: Ricardo Signes &lt;rjbs@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Keep it Clean" href="2011-12-03.html">Previous</a></li>
+
+    <li class="next"><a title="Stupid Command Line Tricks" href="2011-12-05.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

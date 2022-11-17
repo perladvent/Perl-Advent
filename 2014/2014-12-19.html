@@ -1,0 +1,99 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+Wrapping output 
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Wrapping output </h1>
+<div class='subtitle'>Capture::Tiny - 2014-12-19</div>
+
+<div class='pod'><p>Normally this is the time of year when people think about <i>unwrapping</i> things. Today, we&#39;re going to talk about wrapping output into some buffers.</p>
+
+<p>Capturing output from other tools is something that Perl is pretty good at - and there are about eleventy billion modules on CPAN to help you do it. Which one should you pick? Which one will solve 95% of your problems and not tie you down with tons of external dependencies? Which ones work on all supported Perl platforms including Windows?</p>
+
+<p>For this advent entry, we are going to take a look at <a href="https://metacpan.org/module/Capture::Tiny">Capture::Tiny</a>, a module which offers two simple functions <a href="https://metacpan.org/module/capture">capture</a> and <a href="https://metacpan.org/module/tee">tee</a> and which delivers on the &quot;Tiny&quot; premise of not requiring <b>any</b> dependencies outside of core perl. Yes, it works on Windows, too. As far as compatibility across Perl releases, Capture::Tiny works as far back as Perl 5.6.1 but, seriously, try not to use such an ancient Perl if you can help it. (Especially not if you need Unicode support; Unicode before 5.8.1 is super dodgy.)</p>
+
+<h2 id="External-commands">External commands</h2>
+
+<p>Most people think about capturing the output from external commands - and Capture::Tiny is great at that task. It&#39;s a simple as something like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Capture::Tiny</span> <span class="words">qw(capture)</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$out</span><span class="operator">,</span> <span class="symbol">$err</span><span class="operator">,</span> <span class="symbol">$exit</span><span class="structure">)</span> <span class="operator">=</span> <span class="word">capture</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="word">system</span><span class="structure">(</span><span class="double">&quot;/bin/ls&quot;</span><span class="operator">,</span> <span class="structure">(</span><span class="double">&quot;-l&quot;</span><span class="operator">,</span> <span class="double">&quot;/tmp&quot;</span><span class="structure">));</span><br /><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>It&#39;s important to note that none of the functions in Capture::Tiny are exported by default - you need to use <code>:all</code> or directly import the functions from the module.</p>
+
+<h2 id="Arbitrary-code">Arbitrary code</h2>
+
+<p>The interesting thing is we don&#39;t need to use <code>system</code> above. We can put arbitrary Perl code in that code block and Capture::Tiny will just do the right thing. Check it out:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Capture::Tiny</span> <span class="words">qw(capture)</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$out</span><span class="operator">,</span> <span class="symbol">$err</span><span class="operator">,</span> <span class="symbol">@results</span><span class="structure">)</span> <span class="operator">=</span> <span class="word">capture</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="word">for</span> <span class="single">'a'</span> <span class="operator">..</span> <span class="single">'z'</span><span class="structure">;</span><br /><span class="structure">};</span><br /><br /><span class="word">say</span> <span class="symbol">$out</span><span class="structure">;</span><br /><span class="comment"># prints<br /># a<br /># b<br /># c<br /># d<br /># ...</span></code><br />&nbsp;</td></table>
+
+<h2 id="Passing-through">Passing through</h2>
+
+<p>OK, there&#39;s a Unix command called <code>tee</code> that&#39;s been around for a long time. It saves standard out and standard error to a file, but also passes those sources through. In that spirit, Capture::Tiny has a function named <code>tee</code> which does the same thing. Functionally, it&#39;s almost the same as capture but instead of swallowing the output streams, it stuffs them into two scalars you specify.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Capture::Tiny</span> <span class="words">qw(tee)</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$out</span><span class="operator">,</span> <span class="symbol">$err</span><span class="structure">)</span> <span class="operator">=</span> <span class="word">tee</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="word">for</span> <span class="number">1</span> <span class="operator">..</span> <span class="number">10</span><span class="structure">;</span><br /><span class="structure">};</span><br /><br /><span class="word">say</span> <span class="word">length</span><span class="structure">(</span><span class="symbol">$out</span><span class="structure">);</span><br /><span class="comment"># prints<br /># 1<br /># 2<br /># ...<br /># 21 - 10 integers followed by \n</span></code><br />&nbsp;</td></table>
+
+<h2 id="In-summary">In summary</h2>
+
+<p><a href="https://metacpan.org/module/Capture::Tiny">Capture::Tiny</a> does everything you&#39;re likely to need in terms of grabbing standard output and/or standard error. It&#39;s easy to use, easy to install, has no non-core dependencies and works on every supported Perl platform. Instead of one of the many other CPAN modules, start using Capture::Tiny. It&#39;ll be a present to yourself you won&#39;t regret unwrapping.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Capture::Tiny">Capture::Tiny</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/7330b65ea54e1b90a987a552e5c5cf32?r=g&s=80&d=retro />
+This article contributed by: Mark Allen &lt;mrallen1@yahoo.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Christmas Timekeeping" href="2014-12-18.html">Previous</a></li>
+
+    <li class="next"><a title="Dumb In-struct-ions" href="2014-12-20.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

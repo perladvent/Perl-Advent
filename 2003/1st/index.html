@@ -1,0 +1,284 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: CGI::Untaint</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 1st day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">CGI::Untaint</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="/2002/25th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../2nd/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Whenever you get information passed back from a CGI form, you never
+really know what you're going to get.  No matter how much client side
+verification of the code you do, it's always possible for someone to
+bypass your crafted page and write their own html that submits to the
+same place.</p>
+<p>So your CGI script has to be prepared to deal with whatever it's
+passed.  It has to be untrusting, and check and double check the data.
+Writing code to do this is boring, time consuming, and very tempting
+to skip.  Anything that makes this easier is very welcome, and
+<b>CGI::Untaint</b> hits the hammer on the head.  It provides a framework
+for creating reusable components that can be used to extract various
+bits, and does it with the minimum of fuss.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?CGI::Untaint">[Read the documentation for CGI::Untaint on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>When you use <b>CGI</b> to get parameters the simplest way (but also the
+most sloppy way) is to do this:</p>
+<pre>  # create the cgi object
+  use CGI;
+  my $cgi = CGI-&gt;new();</pre>
+
+<pre>  # extract the data and call error_handling to print out errors
+  # if the data can't be extracted (i.e. it was missing)
+  my $age = $cgi-&gt;param("age");
+  error_handing() unless defined($age);</pre>
+
+<p>This can put anything in <code>$age</code> at all.  You're expecting a round
+number of years back, but for all you know some idiot's typed "eight"
+into the form or "12.5" and when you get round to inserting <code>$age</code>
+into your database it'll all fall over.  What you'll need to do is
+write some code to check this with a regular expression:</p>
+<pre>  # create the cgi object
+  use CGI;
+  my $cgi = CGI-&gt;new();</pre>
+
+<pre>  # extract the data and call error_handling to print out errors
+  # if the data can't be extracted (i.e. it was missing or malformed)
+  my $age = $cgi-&gt;param("age");
+  error_handing() unless defined($age);
+  ($age) = $age =~ m/^(\d+)$/; # extract it if it's all digits
+  error_handing() unless defined($age);</pre>
+
+<p>And you'll also have do all the same for all the other variables,
+hoping that the code you just typed hasn't got any subtle bugs in it.
+What <b>CGI::Untaint</b> allows you to do is to utilise collections
+of predefined regular expressions to pull things out of the cgi
+parameters instead.</p>
+<pre>  # create our untainting object
+  use CGI;
+  use CGI::Untaint;
+  my $cgi = CGI-&gt;new();
+  my $untaint = CGI::Untaint-&gt;new($cgi-&gt;Vars);</pre>
+
+<pre>  # extract 'age' from the parameters as an integer.
+  my $age = $untaint-&gt;extract( -as_integer =&gt; "age" );
+  error_handing() unless defined($age);</pre>
+
+<p>This has several advantages; Your code is quicker to develop as you're
+having to write less of the sticky logic yourself.  You're reusing
+code so any code you do write you only have to write once.  Finally,
+the code you're using to do the extraction will have been
+independently tested and checked that it's functioning correctly.</p>
+<p>The <code>extract</code> method takes two arguments, how the data is to be
+extracted (in this case as an integer) and the name of the cgi
+parameter to be extracted.  The former of these two actually names the
+module that provides the instructions to <b>CGI::Untaint</b> how to do the
+extraction (So <code>-as_integer</code> means that the <b>CGI::Untaint::integer</b>
+module should be used and <code>-as_printable</code> means that
+<b>CGI::Untaint::printable</b> will be used, and so on.) These 'handlers'
+can be thought as plug-ins to <b>CGI::Untaint</b> telling it about new ways
+to extract different types data.  The default handlers that are
+installed when you install the main CGI-Untaint distribution are:</p>
+<ul>
+<li><a name="item_CGI__Untaint__printable"></a><b>CGI::Untaint::printable</b>
+<p>printable strings, i.e. strings that don't contain control characters</p>
+</li>
+<li><a name="item_CGI__Untaint__integer"></a><b>CGI::Untaint::integer</b>
+<p>integer numbers, possibly starting with a plus or minus sign</p>
+</li>
+<li><a name="item_CGI__Untaint__hex"></a><b>CGI::Untaint::hex</b>
+<p>positive hexadecimal numbers (i.e. without a plus or minus sign)</p>
+</li>
+</ul>
+<p>In addition to this basic selection there's a wide collection of
+modules on the CPAN that can be downloaded and installed.  A few of
+the notable examples are:</p>
+<ul>
+<li><a name="item_CGI__Untaint__creditcard"></a><b>CGI::Untaint::creditcard</b>
+</li>
+<li><a name="item_CGI__Untaint__uk_postcode"></a><b>CGI::Untaint::uk_postcode</b>
+</li>
+<li><a name="item_CGI__Untaint__email"></a><b>CGI::Untaint::email</b>
+</li>
+<li><a name="item_CGI__Untaint__upload"></a><b>CGI::Untaint::upload</b>
+</li>
+<li><a name="item_CGI__Untaint__date"></a><b>CGI::Untaint::date</b>
+</li>
+</ul>
+<h2>Writing Your Own Extensions</h2>
+<p>Even though there's a great selection of untaint handlers available
+from the CPAN, sooner or later you're going to find that you're in a
+situation where you want to check something that there isn't an
+untaint handler for.  For example, you might want to check if a value
+is one of the options that you were offered from a drop down list, so
+that extraction handler will be unique to your own particular
+application.</p>
+<p>Creating your own handlers is as simple as writing a quick module that
+inherits from <b>CGI::Untaint::object</b> and defines a method called
+<code>_untaint_re</code> that returns a reference regular expression.  This
+regular expression should place the result of the extraction into
+<code>$1</code>.  This is all very simple as soon as you see an example.  Here's
+a handler that extracts red, green or blue, and fails for all other
+things passed to it:</p>
+<pre>  package CGI::Untaint::red_green_blue;
+  use base qw(CGI::Untaint::object);</pre>
+
+<pre>  # turn on perl's safety functions
+  use strict;
+  use warnings;</pre>
+
+<pre>  # define the regular expression that will do the test
+  sub _untaint_re { qr/^(red|green|blue)$/ }</pre>
+
+<pre>  # return true to keep perl happy
+  1;</pre>
+
+<p>Your module can define further checks by defining a <code>is_valid</code>
+method.  This method will be passed a reference to the object, on
+which <code>value</code> can be called to get the current value that's just been
+extracted by <code>_untaint_re</code>, and the routine should return true or
+false to indicate if that value was valid or nor.  Cunningly,
+<code>value</code> can also be used to assign to.  For example, here's an
+expansion of the above handler that doesn't care what case the names
+of the colours are:</p>
+<pre>  package CGI::Untaint::red_green_blue;
+  use base qw(CGI::Untaint::object);</pre>
+
+<pre>  # turn on perl's safety functions
+  use strict;
+  use warnings;</pre>
+
+<pre>  # define the regular expression that will do the test
+  sub _untaint_re { qr/^(red|green|blue)$/i }</pre>
+
+<pre>  sub is_valid
+  {
+    my $self = shift;
+    my $value = $self-&gt;value;</pre>
+
+<pre>    # make the value lower case.
+    $self-&gt;value(lc($value));</pre>
+
+<pre>    # return true as it's valid
+    return 1;
+  }</pre>
+
+<pre>  # return true to keep perl happy
+  1;</pre>
+
+<h2>Testing Your Own Extensions</h2>
+<p>When you're writing your own extraction handlers you really should
+check that you can extract what you expect, and can't extract what you
+shouldn't be able to.  The <b>Test::CGI::Untaint</b> module (blatent plug,
+since I wrote it) can help you here.  It defines two tests
+<code>is_extractable</code> and <code>unextractable</code> that check that the extraction
+handler you name either extracts a value as what you expect or doesn't
+extract anything at all respectively.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  # start the testing
+  use Test::More tests =&gt; 7;
+  use Test::CGI::Untaint;</pre>
+
+<pre>  # check if we can extract the basic colours
+  is_extractable("red",  "red",  "red_green_blue","try red");
+  is_extractable("green","green","red_green_blue","try blue");
+  is_extractable("blue", "blue", "red_green_blue","try green");</pre>
+
+<pre>  # check the case stuff works
+  is_extractable("Red","red","red_green_blue","try Red");
+  is_extractable("rEd","red","red_green_blue","try rEd");
+  is_extractable("reD","red","red_green_blue","try reD");</pre>
+
+<pre>  # but not yellow
+  unextractable("yellow","red_green_blue", "try yellow");</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/~profero/Test-CGI-Untaint/lib/Test/CGI/Untaint.pm">Test::CGI::Untaint</a></li>
+<li><a href="http://search.cpan.org/~tmtm/CGI-Untaint-date/lib/CGI/Untaint/date.pm">CGI::Untaint::date</a></li>
+<li><a href="http://search.cpan.org/~simon/CGI-Untaint-upload/upload.pm">CGI::Untaint::upload</a></li>
+<li><a href="http://search.cpan.org/~miyagawa/CGI-Untaint-email/lib/CGI/Untaint/email.pm">CGI::Untaint::email</a></li>
+<li><a href="http://search.cpan.org/~tmtm/CGI-Untaint-creditcard/lib/CGI/Untaint/creditcard.pm">CGI::Untaint::creditcard</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:54 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,349 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Have REST-ful Holidays
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Have REST-ful Holidays</h1>
+<div class='subtitle'>Web::Machine - 2012-12-24</div>
+
+<div class='pod'><h2 id="Have-REST-ful-Holidays">Have REST-ful Holidays</h2>
+
+<p>Your boss comes to you the day after Thanksgiving vacation (or if you&#39;re in Scotland, the day after St. Andrew&#39;s Bank Holiday; if you&#39;re not in Scotland or the US, adjust accordingly):</p>
+
+<pre><code>    Boss: We need a Web API for the Flibber data. I want it to be REST-ful.
+
+    You:  REST-ful API? Where did you hear about REST?
+
+    Boss: I&#39;ve started reading /r/programming. Everyone is making REST APIs
+          now. We need one.
+
+    You: *sigh* I&#39;ll get right on that.</code></pre>
+
+<p>So you need to build a REST-ful Web API in time for the Holidays. You may not even know what REST is, beyond some buzzword your boss picked up in an internet back-alley.</p>
+
+<h2 id="How-to-Explain-REST-to-Anyone-even-Ryan-Tomaykos-wife">How to Explain REST to Anyone &hellip; even Ryan Tomayko&#39;s wife.</h2>
+
+<p>On Ryan Tomayko blog he has <a href="http://tomayko.com/writings/rest-to-my-wife">a dialog with his wife</a> where he explains REST and why it&#39;s important. We really don&#39;t have time to go into all of the details so you should read it, but I&#39;ll try to cover the most important bits.</p>
+
+<pre><code>    Ryan: [...] The web is built on an architectural style called REST. REST
+          provides a definition of a resource, which is what those things point
+          to.
+
+    Wife: A web page is a resource?
+
+    Ryan: Kind of. A web page is a representation of a resource. Resources are
+          just concepts. URLs--those things that you type into the browser...
+
+    Wife: I know what a URL is..
+
+    Ryan: Oh, right. Those tell the browser that there&#39;s a concept somewhere. A
+          browser can then go ask for a specific representation of the concept.
+          Specifically, the browser asks for the web page representation of the
+          concept.</code></pre>
+
+<p>Basically the way the world wide web works is that clients request Representations of Resources identified by URLs (or URIs if you&#39;re pedantic). Clients and Servers use HTTP to give and return these requests. Most requests are by Browsers and they just want an HTML representation, but more and more clients are requesting non-HTML representations too. Thankfully the Web was designed to handle this, if we just write things in the right style.</p>
+
+<p>REST is the style of writing applications so that they take full advantage of HTTP and the design of the Web. Now you know what REST is. Knowing is half the battle.</p>
+
+<h2 id="HTTP-is-Hard">HTTP is Hard</h2>
+
+<center>
+<a href="https://raw.github.com/wiki/basho/webmachine/images/http-headers-status-v3.png">
+<img src="https://raw.github.com/wiki/basho/webmachine/images/http-headers-status-v3.png" width=600 />
+</a>
+</center>
+
+<p>This is a diagram of the state machine based on the HTTP protocol. It has 57 states asking 50 different questions about how to process any given HTTP request and generate the right response. That&#39;s a lot to keep in your head.</p>
+
+<p>Luckly there are frameworks on CPAN to help out with these. A good one for demonstrating these is <a href="https://metacpan.org/release/Web-Machine">Web::Machine</a> by Stevan Little. It is based on the Erlang Webmachine project by Basho (makers of Riak!) that generated the state machine diagram.</p>
+
+<p><code>Web::Machine</code> is broken into two parts. A Finite State machine that implements the diagram, and a Resource base class that provides sensible defaults that you can override in your own class. Let&#39;s just dive in.</p>
+
+<p>A note, while <code>Web::Machine</code> itself works on Perl 5.10.1 or higher, all examples will explicitly be using 5.16.2. Remember if you change the version line to enable strict.</p>
+
+<h2 id="Its-a-Time-Machine">It&#39;s a Time Machine!</h2>
+
+<p>So let&#39;s start with a basic web service. My Car doesn&#39;t have a clock in it, so to be properly Web 2.0 compliant, I&#39;ll write a JSON service that I can later target with an iOS client that will run from my phone. That won&#39;t be overkill at all.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="version">5.16.2</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Web::Machine</span><span class="structure">;</span><br /><br /><span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">package</span> <span class="word">WasteOfTime::Resource</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">use</span> <span class="pragma">parent</span> <span class="single">'Web::Machine::Resource'</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">use</span> <span class="word">JSON::XS</span> <span class="words">qw(encode_json)</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">content_types_provided</span> <span class="structure">{</span> <span class="structure">[{</span> <span class="single">'application/json'</span> <span class="operator">=&gt;</span> <span class="single">'to_json'</span> <span class="structure">}]</span> <span class="structure">}</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">to_json</span> <span class="structure">{</span> <span class="word">encode_json</span><span class="structure">({</span> <span class="word">time</span> <span class="operator">=&gt;</span> <span class="word">scalar</span> <span class="word">localtime</span> <span class="structure">})</span> <span class="structure">}</span><br /><span class="structure">}</span><br /><br /><span class="word">Web::Machine</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span> <span class="word">resource</span> <span class="operator">=&gt;</span> <span class="single">'WasteOfTime::Resource'</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="word">to_app</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p><code>Web::Machine</code> is a toolkit for building Resources. So after the standard boiler plate we start out by defining a resource class. Although <code>Web::Machine</code> was written by the same guy who brough you <code>Moose</code> it actually tries to be minimal about it&#39;s dependencies and doesn&#39;t sneak <code>Moose</code> in under the covers.</p>
+
+<p>So we create a class <code>WasteOfTime::Resource</code> that will be our Resource class, and we have it inherit from <code>Web::Machine::Resource</code> so that <code>Web::Machine</code> will know it&#39;s a Resource and so that the proper defaults are set. We could be done here, and our application would do nothing but throw a 406 NOT ACCEPTABLE. But that&#39;s less than useful.</p>
+
+<p>We know we want to provide a JSON API so we override the parent <code>content_types_provided</code> and say we will provide a representation of &#39;application/json&#39; and that we should use the <code>to_json</code> method to get it.</p>
+
+<p>Then we define the to_json representation. This resource doesn&#39;t have any state so we can just build the JSON inline. We use the scalar value of <code>localtime</code> because we want the nice string format not a list of numbers.</p>
+
+<p>Finally once our resource class is built, we create a <code>Web::Machine</code> instance, tell it which resource class to use and then have it provide us a Plack application. If we save all of this in a file (I chose <code>time.psgi</code>) we can run it.</p>
+
+<pre><code>    $ plackup time.psgi
+    HTTP::Server::PSGI: Accepting connections at http://0:5000/</code></pre>
+
+<p>Which we can now access using a web client.</p>
+
+<pre><code>    $ curl -v http://0:5000
+
+    * About to connect() to 0 port 5000 (#0)
+    *   Trying 127.0.0.1... connected
+    * Connected to 0 (127.0.0.1) port 5000 (#0)
+    &gt; GET / HTTP/1.1
+    &gt; User-Agent: curl/7.21.4 (universal-apple-darwin11.0) libcurl/7.21.4 OpenSSL/0.9.8r zlib/1.2.5
+    &gt; Host: 0:5000
+    &gt; Accept: */*
+    &gt;
+    * HTTP 1.0, assume close after body
+    &lt; HTTP/1.0 200 OK
+    &lt; Date: Sun, 09 Dec 2012 02:04:02 GMT
+    &lt; Server: HTTP::Server::PSGI
+    &lt; Content-Length: 35
+    &lt; Content-Type: application/json
+    &lt;
+    * Closing connection #0
+    {&quot;time&quot;:&quot;Sat Dec  8 21:04:02 2012&quot;}</code></pre>
+
+<p>And you can see our Representation there at the end. If we try a request that isn&#39;t allowed, say for an HTML representation, we will get the appropriate error too.</p>
+
+<pre><code>    $ curl -v http://0:5000 -H&#39;Accept: text/html&#39;
+
+    * About to connect() to 0 port 5000 (#0)
+    *   Trying 127.0.0.1... connected
+    * Connected to 0 (127.0.0.1) port 5000 (#0)
+    &gt; GET / HTTP/1.1
+    &gt; User-Agent: curl/7.21.4 (universal-apple-darwin11.0) libcurl/7.21.4 OpenSSL/0.9.8r zlib/1.2.5
+    &gt; Host: 0:5000
+    &gt; Accept: text/html
+    &gt;
+    * HTTP 1.0, assume close after body
+    &lt; HTTP/1.0 406 Not Acceptable
+    &lt; Date: Sun, 09 Dec 2012 02:07:47 GMT
+    &lt; Server: HTTP::Server::PSGI
+    &lt; Content-Length: 14
+    &lt;
+    * Closing connection #0
+    Not Acceptable</code></pre>
+
+<p>We get that 406 not acceptable again.</p>
+
+<h2 id="Many-Ways-to-Say-the-Same-Thing">Many Ways to Say the Same Thing</h2>
+
+<p>So far we&#39;re not doing bad for 20 lines of code, but what if we want that HTML representation too? Actually it&#39;s pretty simple. First we add a new content type.</p>
+
+<pre><code>    sub content_types_provided { [
+        { &#39;application/json&#39; =&gt; &#39;to_json&#39; },
+        { &#39;text/html&#39;        =&gt; &#39;to_html&#39; },
+    ] }</code></pre>
+
+<p>We say that &#39;text/html&#39; will be handled by <code>to_html</code>. Now we just define a <code>to_html</code> method to return our HTML representation.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">to_html</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">join</span> <span class="double">&quot;&quot;</span> <span class="operator">=&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'&lt;html&gt;'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'&lt;head&gt;'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'&lt;title&gt;The Time Now Is:&lt;/title&gt;'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'&lt;/head&gt;'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'&lt;body&gt;'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'&lt;h1&gt;'</span><span class="operator">.</span><span class="word">localtime</span><span class="operator">.</span><span class="single">'&lt;/h1&gt;'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'&lt;/body&gt;'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'&lt;/html&gt;'</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Notice that <code>Web::Machine</code> doesn&#39;t have any opinion on how you generate HTML. You&#39;re free to use whatever template system you want. You&#39;re also free to write all of the glue code for that. <code>Web::Machine</code> is pretty bare bones about that, this is why it&#39;s called a toolkit and not a framework.</p>
+
+<p>So if we add this code and we issue that last request we can see the change.</p>
+
+<pre><code>    $ curl -v http://0:5000 -H&#39;Accept: text/html&#39;
+
+    * About to connect() to 0 port 5000 (#0)
+    *   Trying 0.0.0.0... connected
+    * Connected to 0 (0.0.0.0) port 5000 (#0)
+    &gt; GET / HTTP/1.1
+    &gt; User-Agent: curl/7.21.4 (universal-apple-darwin11.0) libcurl/7.21.4 OpenSSL/0.9.8r zlib/1.2.5
+    &gt; Host: 0:5000
+    &gt; Accept: text/html
+    &gt;
+    * HTTP 1.0, assume close after body
+    &lt; HTTP/1.0 200 OK
+    &lt; Date: Sun, 09 Dec 2012 02:26:39 GMT
+    &lt; Server: HTTP::Server::PSGI
+    &lt; Vary: Accept
+    &lt; Content-Length: 103
+    &lt; Content-Type: text/html
+    &lt;
+    * Closing connection #0
+    &lt;html&gt;&lt;head&gt;&lt;title&gt;The Time Now Is:&lt;/title&gt;&lt;/head&gt;&lt;body&gt;&lt;h1&gt;Sat Dec  8 21:26:39 2012&lt;/h1&gt;&lt;/body&gt;&lt;/html&gt;</code></pre>
+
+<h2 id="The-Times-They-Are-A-Changing">The Times They Are A Changing</h2>
+
+<p>So we&#39;re returning multiple representations, and that&#39;s great but what if we want to alter the resource? Let&#39;s let ourselves change the timezone. We&#39;ll need to <code>use POSX qw(tzset)</code> and add some methods.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">POSIX</span> <span class="words">qw(tzset)</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">allowed_methods</span> <span class="structure">{</span> <span class="structure">[</span><span class="words">qw[ GET POST ]</span><span class="structure">]</span> <span class="structure">}</span><br /><br /><span class="keyword">sub</span> <span class="word">process_post</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$self</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$input</span> <span class="operator">=</span> <span class="word">eval</span> <span class="structure">{</span> <span class="word">JSON::XS</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">-&gt;</span><span class="word">decode</span><span class="structure">(</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">request</span><span class="operator">-&gt;</span><span class="word">content</span> <span class="structure">);</span> <span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$ENV</span><span class="structure">{</span><span class="word">TZ</span><span class="structure">}</span> <span class="operator">=</span> <span class="symbol">$input</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">timezone</span><span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">tzset</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="number">1</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Changing the <code>allowed_methods</code> lets <code>Web::Machine</code> know we are expecting POST requests as well as GET requests to this resource. Then when we process the post we simply set the appropriate value.</p>
+
+<pre><code>    $ curl -v -X POST http://0:5000 -H &#39;Content-Type: application/json&#39; -d &#39;{&quot;timezone&quot;:&quot;America/Los_Angeles&quot;}&#39;
+
+    * About to connect() to 0 port 5000 (#0)
+    *   Trying 127.0.0.1... connected
+    * Connected to 0 (127.0.0.1) port 5000 (#0)
+    &gt; POST / HTTP/1.1
+    &gt; User-Agent: curl/7.21.4 (universal-apple-darwin11.0) libcurl/7.21.4 OpenSSL/0.9.8r zlib/1.2.5
+    &gt; Host: 0:5000
+    &gt; Accept: */*
+    &gt; Content-Type: application/json
+    &gt; Content-Length: 34
+    &gt;
+    * HTTP 1.0, assume close after body
+    &lt; HTTP/1.0 204 No Content
+    &lt; Date: Sun, 09 Dec 2012 02:49:22 GMT
+    &lt; Server: HTTP::Server::PSGI
+    &lt; Vary: Accept
+    &lt; Content-Type: application/json
+    &lt;
+    * Closing connection #0</code></pre>
+
+<p>If we check now, we&#39;ll see that the time has changed.</p>
+
+<pre><code>    $ curl -v http://0:5000
+
+    * About to connect() to 0 port 5000 (#0)
+    *   Trying 127.0.0.1... connected
+    * Connected to 0 (127.0.0.1) port 5000 (#0)
+    &gt; GET / HTTP/1.1
+    &gt; User-Agent: curl/7.21.4 (universal-apple-darwin11.0) libcurl/7.21.4 OpenSSL/0.9.8r zlib/1.2.5
+    &gt; Host: 0:5000
+    &gt; Accept: */*
+    &gt;
+    * HTTP 1.0, assume close after body
+    &lt; HTTP/1.0 200 OK
+    &lt; Date: Sun, 09 Dec 2012 02:46:56 GMT
+    &lt; Server: HTTP::Server::PSGI
+    &lt; Vary: Accept
+    &lt; Content-Length: 35
+    &lt; Content-Type: application/json
+    &lt;
+    * Closing connection #0
+    {&quot;time&quot;:&quot;Sun Dec  9 02:46:56 2012&quot;}</code></pre>
+
+<p>Since the previous times were <code>America/New_York</code> the new times are the correct 3 hours behind.</p>
+
+<h2 id="Somethign-Witty-HERE">[Somethign Witty HERE]</h2>
+
+<p>In addition to supporting the standard HTTP methods, <code>Web::Machine</code> helps with much of the rest of the HTTP standard including things like Cache Control headers. To enable most basic cache controls simply provide a couple methods to generate ETag and last modified headers.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Digest::SHA</span> <span class="words">qw(sha1_hex)</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Web::Machine::Util</span> <span class="words">qw(create_date)</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">generate_etag</span> <span class="structure">{</span> <span class="word">sha1_hex</span><span class="structure">(</span><span class="word">scalar</span> <span class="word">localtime</span><span class="structure">)</span> <span class="structure">}</span><br /><br /><span class="keyword">sub</span> <span class="word">last_modified</span> <span class="structure">{</span> <span class="word">create_date</span><span class="structure">(</span><span class="word">scalar</span> <span class="word">localtime</span><span class="structure">)</span> <span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>We import two new modules here. <code>Digest::SHA</code> helps us just make a unique identifier for our resource. <code>Web::Machine::Util</code> helps us create the appropriate date object that <code>Web::Machine</code> is expecting.</p>
+
+<p>If we run our client against this now we&#39;ll see the new cache control headers.</p>
+
+<pre><code>    $ curl -v http://0:5000
+
+    * About to connect() to 0 port 5000 (#0)
+    *   Trying 0.0.0.0... connected
+    * Connected to 0 (0.0.0.0) port 5000 (#0)
+    &gt; GET / HTTP/1.1
+    &gt; User-Agent: curl/7.21.4 (universal-apple-darwin11.0) libcurl/7.21.4 OpenSSL/0.9.8r zlib/1.2.5
+    &gt; Host: 0:5000
+    &gt; Accept: */*
+    &gt;
+    * HTTP 1.0, assume close after body
+    &lt; HTTP/1.0 200 OK
+    &lt; Date: Sun, 09 Dec 2012 14:50:21 GMT
+    &lt; Server: HTTP::Server::PSGI
+    &lt; ETag: &quot;fa4c7582066e3b42fffd346cfba9714ea66cd645&quot;
+    &lt; Vary: Accept
+    &lt; Content-Length: 35
+    &lt; Content-Type: application/json
+    &lt; Last-Modified: Sun, 09 Dec 2012 14:50:21 GMT
+    &lt;
+    * Closing connection #0
+    {&quot;time&quot;:&quot;Sun Dec  9 09:50:21 2012&quot;}</code></pre>
+
+<p>And if we make a request for a resource that should be cached, we get the right response code.</p>
+
+<pre><code>    $ curl -v http://0:5000 -H&#39;If-Modified-Since: Sun, 09, Dec 2012 14:55:21 GMT&#39;
+
+    * About to connect() to 0 port 5000 (#0)
+    *   Trying 0.0.0.0... connected
+    * Connected to 0 (0.0.0.0) port 5000 (#0)
+    &gt; GET / HTTP/1.1
+    &gt; User-Agent: curl/7.21.4 (universal-apple-darwin11.0) libcurl/7.21.4 OpenSSL/0.9.8r zlib/1.2.5
+    &gt; Host: 0:5000
+    &gt; Accept: */*
+    &gt; If-Modified-Since: Sun, 09, Dec 2012 14:55:21 GMT
+    &gt;
+    * HTTP 1.0, assume close after body
+    &lt; HTTP/1.0 304 Not Modified
+    &lt; Date: Sun, 09 Dec 2012 14:55:11 GMT
+    &lt; Server: HTTP::Server::PSGI
+    &lt; ETag: &quot;f6da728260ea1563bd14ce999f0246a4817f6fee&quot;
+    &lt; Vary: Accept
+    &lt; Last-Modified: Sun, 09 Dec 2012 14:55:11 GMT
+    &lt;
+    * Closing connection #0</code></pre>
+
+<p>In addition to cache controls, <code>Web::Machine</code> provides methods for authentication, request validation, URI validation, charset and encoding variation, and most of the rest of the HTTP spec.</p>
+
+<h2 id="The-Downsides">The Downsides</h2>
+
+<p><code>Web::Machine</code> is pretty bare bones. It leaves a lot of opinions beyond HTTP up to the author. This is considered a bonus because these opinions are very much influenced heavily by the environment your application will be deployed in. If you want a framework that provides more pre-built wheels you may want to look at <a href="http://github.com/Tamarou/magpie">Magpie</a> which is a framework based upon the same principles as <code>Web::Machine</code> but takes a very different approach for it&#39;s implementation.</p>
+
+<p>One of the principles of REST is that hypertext is the engine of application state. Because <code>Web::Machine</code> has no opinions on templating, or really representation generation at all, it has no tools for building Hypermedia Documents. I highly recomend looking at the <a href="https://metacpan.org/module/stateless.co#hal_specification.html">Hypermedia Application Language</a> (HAL) specification for structuring hypermedia documents. It describes serializations in both JSON and XML depending on how old school you want to go.</p>
+
+<p>Currently <code>Web::Machine</code> also doesn&#39;t handle an asynchronous environment. To be honest HTTP really doesn&#39;t have an asynchronous mode. The closest HTTP has is multi-part responses which are uni-directional streams. An example of this is the Twitter streaming API. There has been talk about adding support for this to <code>Web::Machine</code> but if you&#39;re looking for this, or something like Websockets right now, <code>Web::Machine</code> isn&#39;t the right choice.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/release/Web-Machine">Web::Machine</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/stateless.co#hal_specification.html">Hypermedia Application Language</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/72ca0434d6998fb97198f278926c6abf?r=g&s=80&d=retro />
+This article contributed by: Chris Prather &lt;chris@prather.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Give and Receive the Right Number of Gifts" href="2012-12-23.html">Previous</a></li>
+
+    <li class="next"><a title="So long until next year!" href="2012-12-25.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

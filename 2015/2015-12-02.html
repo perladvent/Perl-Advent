@@ -1,0 +1,147 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2015 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2015.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2015 - 
+Fast CPAN Module Installation
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2015</a></h1>
+        </div>
+
+        <p id="tagline">2015 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Fast CPAN Module Installation</h1>
+<div class='subtitle'>App::cpm - 2015-12-02</div>
+
+<div class='pod'><p>&quot;This build is taking <i>forever</i>&quot;, complained Cookie Cutter, the newest elf to join Santa&#39;s Continuous Integration team, &quot;We&#39;ll be lucky if it&#39;s done by <i>next</i> Christmas, let alone this one!&quot;.</p>
+
+<p>&quot;Well, we do use a <i>lot</i> of CPAN modules&quot;, Snowstorm, head of the team, explained. &quot;They take a while to install on a new machine, but we&#39;re certainly not going to re-write all that code ourselves. I just wish it would install quicker.&quot;</p>
+
+<p>&quot;Well,&quot; Cookie Cutter smiled, &quot;I might have a way...&quot;</p>
+
+<h3 id="Solving-Cookie-Cutters-Problem">Solving Cookie Cutter&#39;s Problem</h3>
+
+<p>I write Perl everyday with great CPAN modules.</p>
+
+<p>To install modules from the CPAN, I was using <a href="https://metacpan.org/module/cpanm">cpanm</a>. I love it because it just works. One command not only installs the module, but first installs all the dependencies of that module that aren&#39;t already installed, and all the dependencies of those modules, and so on and so on</p>
+
+<pre><code>   shell&gt; cpanm Catalyst</code></pre>
+
+<p>If you develop a serious Perl software, it often depends on hundreds of CPAN modules. In fact, dependence on Catalyst implies dependence on 100+ CPAN modules at least.</p>
+
+<p>Because of this it can take quite a lot of time to install a module with <code>cpanm</code>. This is because <code>cpanm</code> installs them in series, downloading one and examining one module at a time.</p>
+
+<p>Like Cookie Cutter, I always hoped I could install CPAN modules faster.</p>
+
+<p>In Perl QA Hackathon 2015, Tatsuhiko Miyagawa, the author of <code>cpanm</code>, developed Menlo (the code name of cpanm 2.0). And he announced that Menlo would be maintained and released as a regular Perl module in <a href="http://weblog.bulknews.net/post/117034550339/cpanm-towards-20-menlo">his blog post</a>. This allows us to write Perl code that depends on Menlo. This is exciting, isn&#39;t it?</p>
+
+<p>Using Menlo I was finally able to write a CPAN module installer called <code>cpm</code> which installed in parallel. Rather than downloading one module and examining each module one at a time like <code>cpanm</code> does, as soon as <code>cpm</code> has identified multiple dependencies it starts download and install more than one module at once. This parallelism makes <code>cpm</code> faster than any other CPAN module installer.</p>
+
+<h3 id="Are-you-sure-cpm-is-fast">Are you sure cpm is fast?</h3>
+
+<p>As <code>cpm</code> is a module just like any other on the CPAN, its installation is straightforward:</p>
+
+<pre><code>   $ cpanm App::cpm</code></pre>
+
+<p>Now you have <code>cpm</code>! Let&#39;s try installing Plack with both <code>cpanm</code> and <code>cpm</code>, and compare their elapsed times. Because <code>cpm</code> does not run test cases, we need to execute <code>cpanm</code> with <code>--notest</code> option in order to get a fair test:</p>
+
+<pre><code>   $ time cpanm -L extlib --notest --quiet Plack
+   ...
+   real    0m47.705s</code></pre>
+
+<p>Next cpm:</p>
+
+<pre><code>   $ time cpm install Plack
+   ...
+   real    0m16.629s</code></pre>
+
+<p>Wow, this shows cpm (16sec) is about 3 times faster than cpanm (47sec)!</p>
+
+<center><img src="cpm.png" width="460" height="321"></center>
+
+<p>Of course results will change depending on the situation, so why don&#39;t you try it yourself?</p>
+
+<h3 id="TODO">TODO</h3>
+
+<p>In YAPC::Asia 2015, I could talked with miyagawa about cpanm. Then he said the parallel feature might be merged into cpanm itself. I was really happy to hear that.</p>
+
+<p>To merge cpm into cpanm, there are some TODOs or issues that must be resolved:</p>
+
+<ul>
+
+<li><p><code>cpm</code> will need to support platforms that do not have fork(2) system call. Currently <code>cpm</code> doesn&#39;t work on such platforms.</p>
+
+</li>
+<li><p>Messy log output (a big issue!) Currently cpm uses Menlo in parallel and the outputs of all the Menlos are just redirected to one file. So outputs are mixed and really messy. I believe the logging is important for stable software. Do you accept the messiness, or do you have any ideas to resolve this?</p>
+
+</li>
+</ul>
+
+<h3 id="Meanwhile-back-at-the-North-Pole">Meanwhile, back at the North Pole...</h3>
+
+<p>&quot;You see&quot;, said Cookie Cutter, &quot;cpm is a CPAN module installer which is faster than other CPAN module installers.&quot;</p>
+
+<p>&quot;And we can install it just with &#39;cpanm App::cpm&#39;?&quot;, asked Snowstorm, &quot;That&#39;s it?&quot;</p>
+
+<p>&quot;Yep! All we need to do is change one line in our installer script to start using it. And hopefully if we and other people find cpm useful and stable, then it may be merged into cpanm itself!&quot;&quot;</p>
+
+<h3 id="SEE-ALSO">SEE ALSO</h3>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/App::cpm">App::cpm</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/App::cpanminus">App::cpanminus</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Menlo">Menlo</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/e4967f90a08dadff9cc185b863cd99a7?r=g&s=80&d=retro />
+This article contributed by: Shoichi Kaji &lt;skaji@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Where in the World?" href="2015-12-01.html">Previous</a></li>
+
+    <li class="next"><a title="Winter Platypus" href="2015-12-03.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

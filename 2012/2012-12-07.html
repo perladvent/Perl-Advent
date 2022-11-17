@@ -1,0 +1,143 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Is your code&hellip; Safe?
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Is your code&hellip; Safe?</h1>
+<div class='subtitle'>Safe - 2012-12-07</div>
+
+<div class='pod'><p>Today we&#39;ll have a little chat about the <code>Safe</code> module. What does it do, how does it work and when to use it?</p>
+
+<h3 id="The-Purpose">The Purpose</h3>
+
+<p><a href="https://metacpan.org/module/Safe">Safe</a>&#39;s purpose is to provide a <i>restricted <code>eval()</code> function</i> to perl, which will function as the regular <code>eval(STRING)</code> built-in, except in two important points:</p>
+
+<ul>
+
+<li><p>This restricted <code>eval()</code> will refuse to compile certain built-ins (the list being customizable, so for example you can prevent compilation of all filesystem access functions, or just some, or none)</p>
+
+</li>
+<li><p>Moreover, it will compile code in a separate, quarantined namespace, where the data of your main program will not be accessible.</p>
+
+</li>
+</ul>
+
+<h3 id="The-Example">The Example</h3>
+
+<p>Quick, a code example, to see what it looks like:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="version">v5.14.0</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Safe</span><span class="structure">;</span><br /><br /><span class="comment"># create a Safe compartment<br /></span><span class="keyword">my</span> <span class="symbol">$compartment</span> <span class="operator">=</span> <span class="word">Safe</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="symbol">$compartment</span><span class="operator">-&gt;</span><span class="word">deny</span><span class="structure">(</span><span class="words">qw(:base_loop)</span><span class="structure">);</span><br /><br /><span class="magic">$_</span> <span class="operator">=</span> <span class="number">2</span><span class="structure">;</span><br /><br /><span class="comment"># First try<br /></span><span class="keyword">my</span> <span class="symbol">$result</span> <span class="operator">=</span> <span class="symbol">$compartment</span><span class="operator">-&gt;</span><span class="word">reval</span><span class="structure">(</span> <span class="literal">q{ 40 + $_ }</span> <span class="structure">);</span><br /><span class="core">defined</span> <span class="symbol">$result</span> <span class="operator">or</span> <span class="word">die</span> <span class="double">&quot;Safe compilation error: $@&quot;</span><span class="structure">;</span><br /><span class="word">say</span> <span class="symbol">$result</span><span class="structure">;</span><br /><br /><span class="comment"># Second try<br /></span><span class="symbol">$result</span> <span class="operator">=</span> <span class="symbol">$compartment</span><span class="operator">-&gt;</span><span class="word">reval</span><span class="structure">(</span> <span class="literal">q{ $_++ for 1..40 }</span> <span class="structure">);</span><br /><span class="core">defined</span> <span class="symbol">$result</span> <span class="operator">or</span> <span class="word">die</span> <span class="double">&quot;Safe compilation error: $@&quot;</span><span class="structure">;</span><br /><span class="word">say</span> <span class="symbol">$result</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>In this example we start by creating a fairly restricted Safe compartment, where not only the default set of built-ins is forbidden, but also all loop built-ins (<code>for</code>, <code>while</code>, etc.)</p>
+
+<p>The result of the first try will be 42, since the addition and the variable fetching are still permitted operations. The second try will fail with the error message:</p>
+
+<pre><code>  &#39;foreach loop entry&#39; trapped by operation mask</code></pre>
+
+<h3 id="The-Basics">The Basics</h3>
+
+<p>There are a couple of points worth noting even in such a small example.</p>
+
+<p>First, we use the <code>deny()</code> method to deny more operations than the default set. Safe provides <code>deny()</code>, <code>permit()</code>, <code>deny_only()</code> and <code>permit_only()</code> to customize this set more finely; you can pass to those methods lists of individual op names (as known to the perl internals) or handy predefined bundles (like <code>:base_loop</code>). Those bundles are listed in the <code>Opcode</code> man page.</p>
+
+<p>Secondly, just like <code>eval()</code>, a compilation error reported by the <code>reval()</code> method will be in the <code>$@</code> variable.</p>
+
+<p>Thirdly, we used <code>$_</code> in the string we&#39;ve been reval-ing. But the namespaces were supposed to be separated? Did I lie? Of course not, I did not lie, and this isn&#39;t a bug in Safe either. The fact is that <code>$_</code> is one of the few variables that are <i>shared</i> by default between the program&#39;s global namespace and the compartment&#39;s one.</p>
+
+<p>To verify this, change the &quot;first try&quot; lines to this, and observe how the <code>$result</code> will now be 40 instead of 42:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">our</span> <span class="symbol">$x</span> <span class="operator">=</span> <span class="number">2</span><span class="structure">;</span> <span class="comment"># or &quot;my $x = 2&quot;, does not matter</span><br /><span class="keyword">my</span> <span class="symbol">$result</span> <span class="operator">=</span> <span class="symbol">$compartment</span><span class="operator">-&gt;</span><span class="word">reval</span><span class="structure">(</span> <span class="literal">q{ 40 + $x }</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Of course, the list of variables you want to share can be changed, too:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">our</span> <span class="symbol">$x</span> <span class="operator">=</span> <span class="number">2</span><span class="structure">;</span><br /><span class="symbol">$compartment</span><span class="operator">-&gt;</span><span class="word">share</span><span class="structure">(</span><span class="single">'$x'</span><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$result</span> <span class="operator">=</span> <span class="symbol">$compartment</span><span class="operator">-&gt;</span><span class="word">reval</span><span class="structure">(</span> <span class="literal">q{ 40 + $x }</span> <span class="structure">);</span><br /><span class="word">say</span> <span class="symbol">$result</span><span class="structure">;</span> <span class="comment"># will now say '42'</span></code><br />&nbsp;</td></table>
+
+<p>You can specify that you want to share functions as well, so the reval-ed code will be able to call them. By default, Safe will share the <code>*_</code> glob (so, <code>$_</code>, <code>@_</code>, etc.) and a quite long list of built-in functions that are often called behind the scenes (like <code>&amp;UNIVERSAL::isa</code> or <code>&amp;utf8::downgrade</code>). Use the Source for the full list, which is perl-version-dependent.</p>
+
+<h3 id="The-Details">The Details</h3>
+
+<p>So what exactly is this new namespace that Safe is masking <code>main::</code> under? The <code>root()</code> method allows you to access it, as in the following example:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="version">v5.14.0</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Safe</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$compartment</span> <span class="operator">=</span> <span class="word">Safe</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$root</span> <span class="operator">=</span> <span class="symbol">$compartment</span><span class="operator">-&gt;</span><span class="word">root</span><span class="structure">;</span><br /><br /><span class="word">say</span> <span class="double">&quot;root namespace name: $root&quot;</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$result</span> <span class="operator">=</span> <span class="symbol">$compartment</span><span class="operator">-&gt;</span><span class="word">reval</span><span class="structure">(</span> <span class="literal">q{ $x = 42 }</span> <span class="structure">);</span><br /><span class="word">say</span> <span class="double">&quot;result = $result&quot;</span><span class="structure">;</span><br /><br /><span class="keyword">no</span> <span class="pragma">strict</span> <span class="single">'refs'</span><span class="structure">;</span><br /><span class="word">say</span> <span class="double">&quot;safe's \$x : &quot;</span><span class="operator">,</span> <span class="cast">$</span><span class="structure">{</span> <span class="symbol">$root</span><span class="operator">.</span><span class="single">'::x'</span> <span class="structure">};</span> <span class="comment"># 42 too !</span></code><br />&nbsp;</td></table>
+
+<p>On My Machine the <code>root()</code> method will return the string <code>Safe::Root0</code> in this example. So consequently the variable introduced as <code>$x</code> in the evaluated code will be known as <code>$Safe::Root0::x</code> in the outer program.</p>
+
+<p>Also, you&#39;ll notice that <code>$x</code> has been compiled by Safe without fussing about <i>Global symbol &quot;$x&quot; requires explicit package name</i>: the ambient pragmas are not passed to the <code>reval()</code>. If you want to enforce strictures in the compilation phase, you have to call <code>reval()</code> with a second boolean parameter set to true:</p>
+
+<pre><code>    my $result = $compartment-&gt;reval( q{ our $x = 42 }, 1 );</code></pre>
+
+<h3 id="The-Lengths">The Lengths</h3>
+
+<p>As you can imagine a popular game is to get Safe execute code that it shouldn&#39;t. Safe goes to some lengths to avoid this. Here are two of those, just to excite your imagination:</p>
+
+<p><i>Destructor destruction</i>. Before exiting from a <code>reval()</code>, Safe will check whether any class gained new methods, and if so, it will delete every <code>DESTROY</code> and <code>AUTOLOAD</code> it finds under its root namespace. This is to prevent destructors or functions created inside the department from being run outside of it (for example if the <code>reval()</code> returns to its caller a newly crafted object).</p>
+
+<p><i>Closure closing</i>. Safe provides a method <code>wrap_code_ref()</code> that will take a code reference as an argument, and return a version of it wrapped in a <code>reval()</code> (that&#39;s the short story -- check the source for the gory details). Subsequently, <code>reval()</code> will check its return values for any code references (recursively, if it returns hash or array references), and will invoke <code>wrap_code_ref()</code> on any code reference found there before passing them to you.</p>
+
+<h3 id="The-Caveats">The Caveats</h3>
+
+<p>TL;DR: No silver bullet, etc.</p>
+
+<p>Longer version (but really it&#39;s just common sense): the name of the Safe module is misleading. If should have been called <code>Restricted::Sortof</code> or something. It has its uses, but making evaluating foreign code safer is not one of these. Even in a very restricted compartment, it&#39;s possible to introduce a pathologically slow regular expression, or a pathologically long loop, or a pathologically big string. Any use of Safe for serious security purposes is basically misguided.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Safe">Safe</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/c022e34ab970896e998fee24efe7464b?r=g&s=80&d=retro />
+This article contributed by: Rafa&euml;l Garcia-Suarez &lt;rgs@consttype.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Checking Out Your Data Structures" href="2012-12-06.html">Previous</a></li>
+
+    <li class="next"><a title="Atomic Gift Wrapping" href="2012-12-08.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

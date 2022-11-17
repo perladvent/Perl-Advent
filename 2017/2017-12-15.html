@@ -1,0 +1,188 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2017 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2017.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2017 - 
+Mojolicious on the Command Line
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2017</a></h1>
+        </div>
+
+        <p id="tagline">2017 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Mojolicious on the Command Line</h1>
+<div class='subtitle'>ojo - 2017-12-15</div>
+
+<div class='pod'><p>Mojolicious provides a utility class, <a href="https://metacpan.org/module/ojo">ojo</a>, that allows us to leverage the power of Mojolicious from the command line:</p>
+
+<pre><code>    perl -Mojo -E &#39;say g(&quot;http://goo.gl/EsGk3b&quot;)-&gt;text&#39;</code></pre>
+
+<p>The <code>-M</code> flag tells perl to load the following module, so <code>-Mojo</code>, despite looking like a super secret Mojo flag to perl actually is a cheeky way of saying <code>use ojo</code>.</p>
+
+<p><code>ojo</code> provides a whole host of single letter functions that are shortcuts to Mojolicious utilities, allowing you to quickly do things like fetching urls, reading and writing files, encoding and decoding json, manipulating data structures and a whole host more.</p>
+
+<h3 id="A-Worked-Example">A Worked Example</h3>
+
+<p>Since the things you can do with <code>ojo</code> are virtually limitless, I thought a good intro to <code>ojo</code> might be to show a worked example from the command line.</p>
+
+<p>I like reading the Perl Weekly, the weekly Perl email newsletter that pops into my inbox every week. It&#39;s so good that I often find myself wanting to refer back to a linked article later in the week when the email has been buried deep in my ever increasing inbox. Rather than improving my email filing (I&#39;ll get around to that one day) I instead wrote a script to grab an archived copy of the email from the Perl Weekly website and print out all the links. How did I do that?</p>
+
+<p>So, let&#39;s start by having <code>ojo</code> fetch the archive and print it out</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">ojo</span><span class="structure">;</span><br /><br /><span class="word">print</span> <span class="word">g</span><span class="structure">(</span><span class="single">'http://perlweekly.com/archive/333.html'</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">text</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>The <code>g</code> function creates a GET request, returning a <a href="https://metacpan.org/module/Mojo::Message::Response">Mojo::Message::Response</a> object (which inherits a whole load of useful )</p>
+
+<p>Printing the results of the <code>text</code> method output the entire HTML of the newsletter, of which the bit we&#39;re interested in looks like this:</p>
+
+<pre><code>    &lt;div class=&quot;entry-title&quot;&gt;
+                &lt;a href=&quot;http://perladvent.org/2017/index.html&quot; style=&quot;
+                   font-size: 18px;
+                   font-weight: bold;
+                   &quot;&gt;Perl Advent Calendar&lt;/a&gt;
+              &lt;/div&gt;</code></pre>
+
+<p>So we can adapt our <code>ojo</code> script to use the <code>dom</code> method to pull out just these sections using a CSS selector:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">print</span> <span class="word">g</span><span class="structure">(</span><span class="double">&quot;http://perlweekly.com/archive/333.html&quot;</span><span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">-&gt;</span><span class="word">dom</span><span class="structure">(</span><span class="double">&quot;.entry-title a&quot;</span><span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">-&gt;</span><span class="word">join</span><span class="structure">(</span><span class="double">&quot;\n\n&quot;</span><span class="structure">)</span></code><br />&nbsp;</td></table>
+
+<p>The <code>dom</code> method returns a <a href="https://metacpan.org/module/Mojo::Collection">Mojo::Collection</a> - Mojolicious&#39;s super smart array wrapper - on which we can call methods. Here we&#39;re just joining them together (and stringifying the objects that <code>dom</code> returned) so we can check we got the right stuff. The output now looks like:</p>
+
+<pre><code>    &lt;a href=&quot;http://perladvent.org/2017/index.html&quot; style=&quot;
+                        font-size: 18px;
+                        font-weight: bold;
+                        &quot;&gt;Perl Advent Calendar&lt;/a&gt;
+
+    &lt;a href=&quot;https://perl6advent.wordpress.com/&quot; style=&quot;
+                        font-size: 18px;
+                        font-weight: bold;
+                        &quot;&gt;Perl 6 Advent Calendar&lt;/a&gt;
+
+    &lt;a href=&quot;https://mojolicious.io/blog/&quot; style=&quot;
+                        font-size: 18px;
+                        font-weight: bold;
+                        &quot;&gt;Mojolicious Advent Calendar&lt;/a&gt;
+    (etc)</code></pre>
+
+<p>Okay, we now want to break apart the <a href="https://metacpan.org/module/Mojo::DOM">Mojo::DOM</a> objects that <code>dom</code> returned to get the href and text of the link. To do this we use the <code>map</code> method on the collection that will call a subroutine on each element of the collection (similar to Perl&#39;s <code>map</code> keyword on arrays)</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">print</span> <span class="word">g</span><span class="structure">(</span><span class="double">&quot;http://perlweekly.com/archive/333.html&quot;</span><span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">-&gt;</span><span class="word">dom</span><span class="structure">(</span><span class="double">&quot;.entry-title a&quot;</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">map</span><span class="structure">(</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">attr</span><span class="structure">(</span><span class="double">&quot;href&quot;</span><span class="structure">)</span> <span class="operator">.</span> <span class="double">&quot;: &quot;</span> <span class="operator">.</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">text</span> <span class="operator">.</span> <span class="double">&quot;\n&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">})</span><span class="operator">-&gt;</span><span class="word">join</span></code><br />&nbsp;</td></table>
+
+<p>Calling <code>join</code> with no arguments joins the elements with the empty string. The output is much much closer to what we want:</p>
+
+<pre><code>    https://perl6advent.wordpress.com/: Perl 6 Advent Calendar
+    https://mojolicious.io/blog/: Mojolicious Advent Calendar
+    http://www.lenjaffe.com/AdventPlanet/2017/: Advent Planet 2017
+    http://blogs.perl.org/users/mohammad_s_anwar/2017/12/london-perl-workshop-2017---talks-review.html: London Perl Workshop 2017 - Talks Review
+    http://blogs.perl.org/users/sawyer_x/2017/12/perl-5-porters-mailing-list-summary-november-21st---december-5th.html: Perl 5 Porters Mailing List Summary: November 21st - December 5th
+    http://blogs.perl.org/users/ovid/2017/12/why-i-wrote-keyworddevelopment.html: Why I wrote Keyword::DEVELOPMENT
+    http://blogs.perl.org/users/ovid/2017/12/why-i-wrote-keyworddevelopment.html: And here we go!
+    https://p6weekly.wordpress.com/2017/12/04/2017-49-mischieventing/: 2017.49 Mischieventing
+    http://blogs.perl.org/users/brian_d_foy/2017/12/nominate-perl-heroes-for-the-2017-white-camel-awards.html: Nominate Perl heroes for the 2017 White Camel Awards
+    http://news.perlfoundation.org/2017/12/call-for-volunteers.html: Call for volunteers - TPC::NA 2018 (formerly knows as YAPC::NA)
+    http://news.perlfoundation.org/2017/11/booking-sponsors-the-perl-5.html: Booking.com Sponsors the P5CMF
+    http://niceperl.blogspot.com/: NICEPERL&#39;s lists
+    https://perlmaven.com/open-to-read-and-write: Open file to read and write in Perl, oh and lock it too
+    https://www.patreon.com/szabgab: Patreon for Gabor
+    https://perl.careers/jobs/rapid-growth-in-perl---developers-wanted-for-an-expanding-central-london-company/?utm_source=perlweekly&amp;utm_campaign=perlweekly&amp;utm_medium=perlweekly: Rapid Growth in Perl - developers wanted for an expanding central London company
+    https://perl.careers/jobs/be-a-trailblazer-in-a-time-of-growth---full-stack-architect-required-for-a-rapidly-expanding-london-company/?utm_source=perlweekly&amp;utm_campaign=perlweekly&amp;utm_medium=perlweekly: Be a trailblazer in a time of growth - Full Stack Architect required for a rapidly expanding London company
+    https://perl.careers/jobs/londons-trendiest-office-space---lead-perl-developer/?utm_source=perlweekly&amp;utm_campaign=perlweekly&amp;utm_medium=perlweekly: London&#39;s Trendiest Office Space - Lead and Mid-Level Perl Developer roles</code></pre>
+
+<p>But oh dear, some of those links are really really long. Maybe we should use a URL shortener service to make these shorter?</p>
+
+<p>Google&#39;s URL shortener works by posting a JSON data structure of the form:</p>
+
+<pre><code>    {
+        &quot;longURL&quot;: &quot;https://developers.google.com/url-shortener/v1/getting_started&quot;
+    }</code></pre>
+
+<p>To the URL <code>https://www.googleapis.com/urlshortener/v1/url?key=???</code> where the key is the API key obtained by clicking on the <code>GET A KEY</code> button in the <a href="https://developers.google.com/url-shortener/v1/getting_started">Google URL Shortener documentation</a>. It returns a JSON data structure of the form</p>
+
+<pre><code>    {
+      &quot;kind&quot;: &quot;urlshortener#url&quot;,
+      &quot;id&quot;: &quot;https://goo.gl/xwCNC&quot;,
+      &quot;longUrl&quot;: &quot;https://developers.google.com/url-shortener/v1/getting_started&quot;
+    }</code></pre>
+
+<p>Doing this with <code>ojo</code> is straight forward. Instead of using <code>g</code> to make a GET request, we use <code>p</code> to make a POST request. Using <code>json =&gt; ...</code> we can pass in the datastructure to be serialized as JSON and posted to the URL.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">ojo</span><span class="structure">;</span><br /><br /><span class="word">print</span> <span class="word">p</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;https://www.googleapis.com/urlshortener/v1/url?key=$ENV{API_KEY}&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">json</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">longUrl</span> <span class="operator">=&gt;</span> <span class="double">&quot;https://developers.google.com/url-shortener/v1/getting_started&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">text</span></code><br />&nbsp;</td></table>
+
+<p>But of course we don&#39;t want the response from the server as a string, we want it as a Perl data structure so we can grab the id field. That&#39;s as simple as using <code>json</code> instead of <code>text</code>.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">ojo</span><span class="structure">;</span><br /><br /><span class="word">print</span> <span class="word">p</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;https://www.googleapis.com/urlshortener/v1/url?key=$ENV{API_KEY}&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">json</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">longUrl</span> <span class="operator">=&gt;</span> <span class="double">&quot;https://developers.google.com/url-shortener/v1/getting_started&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">json</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">id</span><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>Or, even better, we can pass a <a href="https://tools.ietf.org/html/rfc6901">JSON pointer</a> to <code>json</code> and have it extract the value we actually want for us</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">ojo</span><span class="structure">;</span><br /><br /><span class="word">print</span> <span class="word">p</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;https://www.googleapis.com/urlshortener/v1/url?key=$ENV{API_KEY}&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">json</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">longUrl</span> <span class="operator">=&gt;</span> <span class="double">&quot;https://developers.google.com/url-shortener/v1/getting_started&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">json</span><span class="structure">(</span><span class="double">&quot;/id&quot;</span><span class="structure">)</span></code><br />&nbsp;</td></table>
+
+<p>Rolling that back into our original code like so:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">ojo</span><span class="structure">;</span><br /><br /><span class="word">print</span> <span class="word">g</span><span class="structure">(</span><span class="double">&quot;http://perlweekly.com/archive/333.html&quot;</span><span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">-&gt;</span><span class="word">dom</span><span class="structure">(</span><span class="double">&quot;.entry-title a&quot;</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">map</span><span class="structure">(</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">p</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;https://www.googleapis.com/urlshortener/v1/url?key=$ENV{API_KEY}&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">json</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">longUrl</span> <span class="operator">=&gt;</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">attr</span><span class="structure">(</span><span class="single">'href'</span><span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">)</span><span class="operator">-&gt;</span><span class="word">json</span><span class="structure">(</span><span class="double">&quot;/id&quot;</span><span class="structure">)</span> <span class="operator">.</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;: &quot;</span> <span class="operator">.</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">text</span> <span class="operator">.</span> <span class="double">&quot;\n&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">})</span><span class="operator">-&gt;</span><span class="word">join</span></code><br />&nbsp;</td></table>
+
+<p>Produces the output we&#39;d like:</p>
+
+<pre><code>    https://goo.gl/wS2jSu: Perl Advent Calendar
+    https://goo.gl/B7HqqD: Perl 6 Advent Calendar
+    https://goo.gl/xGpyAy: Mojolicious Advent Calendar
+    https://goo.gl/f9LBKS: Advent Planet 2017
+    https://goo.gl/8aigk1: London Perl Workshop 2017 - Talks Review
+    https://goo.gl/j2FzgA: Perl 5 Porters Mailing List Summary: November 21st - December 5th
+    https://goo.gl/ptZRF3: Why I wrote Keyword::DEVELOPMENT
+    https://goo.gl/ptZRF3: And here we go!
+    https://goo.gl/GxETF8: 2017.49 Mischieventing
+    https://goo.gl/8q2g21: Nominate Perl heroes for the 2017 White Camel Awards
+    https://goo.gl/VCCoHc: Call for volunteers - TPC::NA 2018 (formerly knows as YAPC::NA)
+    https://goo.gl/9BRvSA: Booking.com Sponsors the P5CMF
+    https://goo.gl/XmJ1wT: NICEPERL&#39;s lists
+    https://goo.gl/zPKg2u: Open file to read and write in Perl, oh and lock it too
+    https://goo.gl/RChQDF: Patreon for Gabor
+    https://goo.gl/wn3c2Q: Rapid Growth in Perl - developers wanted for an expanding central London company
+    https://goo.gl/mVZGDQ: Be a trailblazer in a time of growth - Full Stack Architect required for a rapidly expanding London company
+    https://goo.gl/4UZctX: London&#39;s Trendiest Office Space - Lead and Mid-Level Perl Developer roles</code></pre>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Prereqing around the Christmas Tree" href="2017-12-14.html">Previous</a></li>
+
+    <li class="next"><a title="For Elves, Shorter is Better" href="2017-12-16.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

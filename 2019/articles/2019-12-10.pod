@@ -1,0 +1,298 @@
+Title: Awaiting Christmas
+Topic: Mojo::AsyncAwait
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Fir Cidergift was working on a new project at the North Pole to
+monitor world events.  If there anything - anything at all - that was
+going on in the world that could impact Christmas deliveries, the
+elves need to know about it right away.
+
+=head2 A Blocking Solution
+
+Fir's prototype was a simple single process web server that would
+go off and scrape news sites and render them on one page.  The
+current version only scraped the top story on Slate, but it was a good
+start for a morning's work.  Not only had Fir got the scraping working,
+but he'd also made a stab at a simple caching mechanism that cached
+the rendered output for thirty seconds to prevent the troops of
+elves at the North Pole from overloading their internet connection
+as they refeshed every few seconds.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use Mojolicious::Lite;
+    use 5.024;
+    use experimental 'signatures';
+
+    sub update_cache ($c) {
+        state $time_to_update = 0;
+        return if time < $time_to_update;
+        $time_to_update = time + 30;
+
+        # get the home page of Slate
+        my $homepage = $c->ua->get('https://slate.com/');
+
+        # grab the url for the big headline
+        my $url =  $homepage->res
+                            ->dom
+                            ->at('.story-card__headline')
+                            ->parent
+                            ->parent
+                            ->attr('href');
+
+        # get the actual article
+        my $article = app->ua->get($url);
+        my $dom = $article->res->dom;
+
+        # render our homepage to a static file where we can have
+        # mojo serve as needed
+        $c->app->home->child('public','home.html')
+            ->spurt(
+                $c->render_to_string(
+                'template',
+                headline   => $dom->at('.article__hed')->text,
+                sub_header => $dom->at('.article__dek')->text,
+                )
+            );
+
+        # cache the main picture from the article into the 'public' dir
+        # where mojo will directly serve static files from
+        my $picture_url = $dom->at('.image__src')->attr('data-normal');
+        my $picture = $c->ua->get($picture_url);
+        $c->app->home->child('public','image.jpg')
+            ->spurt( $picture->res->body );
+    }
+
+    # if someone gets '/' just spit out the static home.html file,
+    # updating it if need be first
+    get '/' => sub ($c) {
+        update_cache($c);
+        $c->reply->static('home.html');
+    };
+
+    app->start;
+
+    __DATA__
+
+    @@ template.html.ep
+    <html>
+    <body>
+    <h1><%= $headline %></h1>
+    <p><%= $sub_header %></p>
+    <img src="image.jpg">
+    </html>
+
+"It's looking good", the Wise Old Elf commented.  "But every thirty
+seconds things are going to get bad for the users.  The unlucky elf
+that hit the page is going to have to sit there while all the websites
+are scraped.  Also, anyone else that comes along isn't going to
+get a page either - our webserver is single threaded and the thread
+is busy waiting around for webpages to come back to it over the
+internet, not serving data."
+
+=head2 Callbacks
+
+What Fir needed to do was change his code so that the end user always
+immediately be delivered the cached version of the page.  If the
+cache was out of date then Mojolicious should start to scrape a new
+version in the background ready for the next elf that came along while
+at the same time in the foreground serving the older version to the
+current elf immediately.  No more waiting for impatient elves!
+
+Fir read the documentation for Mojolicious and discovered that
+L<Mojo::UserAgent> doesn't have to block and return the scraped
+web page, but instead you can pass it a callback that will be executed
+when it's done fetching data.  A quick rewrite later and the
+C<update_cache> function now looked like this:
+
+    #!perl
+    sub update_cache($c) {
+        state $time_to_update = 0;
+        return if time < $time_to_update;
+        $time_to_update = time + 30;
+
+        # get the home page of Slate
+        $c->ua->get('https://slate.com/', sub ($, $homepage) {
+            # grab the url for the big headline
+            my $url =  $homepage->res
+                                ->dom
+                                ->at('.story-card__headline')
+                                ->parent
+                                ->parent
+                                ->attr('href');
+
+            # get the actual article
+            $c->ua->get($url, sub ($, $article) {
+                my $dom = $article->res->dom;
+
+                # render our homepage to a static file where we can have
+                # mojo serve as needed
+                $c->app->home->child('public','home.html')
+                    ->spurt(
+                        $c->render_to_string(
+                        'template',
+                        headline   => $dom->at('.article__hed')->text,
+                        sub_header => $dom->at('.article__dek')->text,
+                        )
+                    );
+
+                # cache the main picture from the article into the 'public' dir
+                # where mojo will directly serve static files from
+                my $picture_url = $dom->at('.image__src')->attr('data-normal');
+                $c->ua->get($picture_url, sub ($, $picture) {
+                    $c->app->home->child('public','image.jpg')
+                        ->spurt( $picture->res->body );
+                });
+            });
+        });
+    }
+
+The trouble was that the code had got decidedly harder to follow.
+Each network request resulted in another callback being scheduled
+from the parent callback.  By the time that the callback for
+downloading the graphic which was called from the callback for
+downloading the article which was called from the callback for
+downloading the homepage was called, things were getting pretty
+deep - and the amount of indenting was getting out of control.
+
+=head2 Promises
+
+It was time to take a different approach.  Fir remembered an article
+on L<Mojo::Promise> from L<last year's advent calendar|http://www.perladvent.org/2018/2018-12-19.html>.
+Could using promises help with the crazy indenting?
+
+    #!perl
+    sub update_cache($c) {
+        state $time_to_update = 0;
+        return if time < $time_to_update;
+        $time_to_update = time + 30;
+
+        # get the home page of Slate
+        $c->ua->get_p('https://slate.com/')
+        ->then(sub ($homepage, @) {
+            # grab the url for the big headline
+            my $url =  $homepage->res
+                                ->dom
+                                ->at('.story-card__headline')
+                                ->parent
+                                ->parent
+                                ->attr('href');
+
+            # get the actual article
+            return $c->ua->get_p($url);
+        })->then( sub ($article, @) {
+            my $dom = $article->res->dom;
+
+            # render our homepage to a static file where we can have
+            # mojo serve as needed
+            $c->app->home->child('public','home.html')
+                ->spurt(
+                    $c->render_to_string(
+                    'template',
+                    headline   => $dom->at('.article__hed')->text,
+                    sub_header => $dom->at('.article__dek')->text,
+                    )
+                );
+
+            # get the main picture
+            my $picture_url = $dom->at('.image__src')->attr('data-normal');
+            return $c->ua->get_p($picture_url);
+        })->then( sub ($picture, @) {
+            # cache the main picture from the article into the 'public' dir
+            # where mojo will directly serve static files from
+            $c->app->home->child('public','image.jpg')
+                ->spurt( $picture->res->body );
+            return;
+        });
+    }
+
+Now Fir had a pattern of the C<then> subroutines being called whenever
+the previous promise was resolved.  No more indenting!
+
+Personally however, I don't find this much more readable than the
+callback code.  Explicit promises are powerful things when you're
+passing them around your code, but when control is just flowing
+from the top of the page to the bottom as it is here they can add
+a lot of extra code that is distracting.  It's also
+adding a whole bunch of extra scopes which make it harder to access
+variables from the top of your code in the bottom and can easily
+make the code very torturous to write - the cure is worse than the
+disease.
+
+=head2 Async and Await
+
+What we need is Perl to be a little more like JavaScript.  JavaScript
+has an await keyword that can tell the interpreter to stop and wait
+for a promise to be fulfilled before continuing (just like
+C<< $promise->wait >> does) but B<also> allow other code to
+run at that point.  This typically isn't something we can add to
+a language without making changes to the interpret itself - after all
+you need the ability to hop out of the subroutine and then later jump
+right back into the middle of the subroutine where you left off.
+
+Luckily, Fir hadn't just been reading the Perl Advent Calendar last
+year, he'd also read the Mojolicious Advent Calendar's L<entry|https://mojolicious.io/blog/2018/12/24/async-await-the-mojo-way/>
+on the L<Mojo::AsyncAwait> module which does "XS and C-level shenanigans" in
+the Perl interpreter to allow the C<async> and C<await> keywords to
+suspend and resume execution.
+
+Now Fir could rewrite the C<update_cache> subroutine to run C<async>,
+and he could use the C<await> keyword to stop and await the
+promises (while executing other code while it waits!)
+
+    #!perl
+    async update_cache => sub ($c) {
+        state $time_to_update = 0;
+        return if time < $time_to_update;
+        $time_to_update = time + 30;
+
+        # get the home page of Slate
+        my $homepage = await $c->ua->get_p('https://slate.com/');
+
+        # grab the url for the big headline
+        my $url =  $homepage->res
+                            ->dom
+                            ->at('.story-card__headline')
+                            ->parent
+                            ->parent
+                            ->attr('href');
+
+        my $article = await $c->ua->get_p($url);
+        my $dom = $article->res->dom;
+
+        # render our homepage to a static file where we can have
+        # mojo serve as needed
+        $c->app->home->child('public','home.html')
+            ->spurt(
+                $c->render_to_string(
+                    'template',
+                    headline   => $dom->at('.article__hed')->text,
+                    sub_header => $dom->at('.article__dek')->text,
+                )
+            );
+
+        # get the main picture
+        my $picture_url = $dom->at('.image__src')->attr('data-normal');
+        my $picture = await $c->ua->get_p($picture_url);
+
+        # cache the main picture from the article into the 'public' dir
+        # where mojo will directly serve static files from
+        $c->app->home->child('public','image.jpg')
+                    ->spurt( $picture->res->body );
+
+    };
+
+This code looks identical to the original blocking code that
+Fir started out with, apart from the introduction of the C<async>
+keyword to declare the C<update_cache> subroutine and the
+use of C<< await $c->ua->get_p(...) >> instead of C<< $c->ua->get(...) >>.
+
+The behavior however is completely different - the subroutine
+stops executing as soon as it hits that first await and switches
+back to the caller, delivering the cached page while network
+requests continue in the background.
+
+Nice.  Now all he had to do was add scraping logic for another
+thirty or so websites and he'd have something awesome to show at
+standup tomorrow morning.

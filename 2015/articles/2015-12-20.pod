@@ -1,0 +1,162 @@
+Title:  Perl and Redis
+Topic:  Redis::*
+Author: Masayuki Matsuki <songmu@cpan.org>
+
+=pod
+
+Redis is high performance in memory key-value-store and data structure server.
+It runs as a simple daemon alongside your Perl code that you can talk to over
+the network sending data back and forward for it to persist between invocations
+and between processes.
+
+We find that it has affinity with the way we write our application code:  We can
+use Redis variables and data structures as I<super global variables> that are
+not only accessible from everywhere in a Perl script but from every process on
+every server in our infrastructure every time they run.  It is very useful and
+powerful (and dangerous :p).
+
+These global variables have lots of use, from a simple shared cache, to things
+like global work queues, process synchronization, or shared leader boards.
+
+    shell$ redis-cli ping
+    PONG
+    shell$ redis-cli set snowman frosty
+    OK
+    shell$ redis-cli get snowman
+    "frosty"
+    shell$ redis-cli lpush gifts gold
+    (integer) 1
+    shell$ redis-cli lpush gifts frankincense
+    (integer) 2
+    shell$ redis-cli lpush gifts myrrh
+    (integer) 3
+    shell$ redis-cli lpop gifts
+    "myrrh"
+    shell$ redis-cli lpop gifts
+    "frankincense"
+    shell$ redis-cli lpop gifts
+    "gold"
+    shell$ redis-cli lpop gifts
+    (nil)
+    shell$
+
+L<Redis's documentation|http://redis.io/documentation> is very full and we
+can try the commands in L<interactive console|http://redis.io/commands> in
+a web browser!
+
+Let's introduce the CPAN modules around Redis.
+
+=head2 L<Redis>
+
+The original Redis module is a Perl interface to talk to a Redis server: 
+
+    #!perl
+    my $redis = Redis->new;
+    $redis->incr('blah');
+
+Redis.pm is pure Perl implementation so, stable and easy to understand, but
+a little bit slow, especially for caching where you don't want a lot of
+overhead.
+
+=head2 L<Redis::Fast>
+
+L<Redis::Fast> is an alternative faster client module for Redis.  It has
+the same Redis.pm interfaces built using XS, so "Fast".  You can use
+Redis::Fast instead of Redis.pm without making any code changes other than
+initially instantiating a different object.
+
+    #!perl
+    my $redis = Redis::Fast->new;
+    $redis->incr('blah');
+
+In my work (online games, SNS and so on), Redis::Fast is also stable and very
+fast.
+
+=head2 L<Cache::Redis>
+
+L<Cache::Cache> is a standard caching interface while allows you to easily swap
+out backend caching technologies - in memory stores, on disk files, memcache,
+etc - without making changes to your code.
+
+I wanted to use Redis as caching storage so I wrote a L<Cache::Cache> compatible
+interface client library for Redis called Cache::Redis:
+
+    #!perl
+    my $redis = Redis::Fast->new; # you can use Redis.pm too.
+    my $cache = Cache::Redis->new(redis => $redis);
+    $cache->set(blah => 1);
+    say $cache->get('blah'); # 1
+
+Redis also has an interface, L<CHI::Driver::Redis>, to the L<CHI> caching
+framework.
+
+=head2 L<Redis::LeaderBoard>
+
+Redis not only allows you to store simple key/value pairs on the server, but
+has a rich API that allows you to manipulate more complex data structures that
+it can store.
+
+Redis's "sorted set" is very useful for creating leaderboards but, which don't
+return "unique" rank (cf. L<https://github.com/antirez/redis/issues/943>>). So I
+wrote the ranking module using Redis which takes care of "unique" rank.
+
+    #!perl
+    use Redis::Fast;
+    use Redis::LeaderBoard;
+    my $redis = Redis::Fast->new;
+    my $lb = Redis::LeaderBoard->new(
+        redis => $redis,
+        key   => 'leader_board:1',
+        order => 'asc', # asc/desc, desc as default
+    );
+    $lb->set_score(one => 100);
+    $lb->set_score(two =>  50);
+    my ($rank, $score) = $lb->get_rank_with_score('one'); #=> (1, 100)
+
+I introduce a technique. That is "using epoch as score".
+
+    #!perl
+    my $lb = Redis::LeaderBoard->new(
+        redis => $redis,
+        key   => 'recent_post',
+        limit => 20,
+    );
+    $lb->set_score($url, $updated->epoch);
+    ...
+    # you can get recent posts up to 20 entries
+    my $recent_posts = $lb->rankings;
+
+=head2 L<Redis::Namespace>
+
+Generally, key management of a key-value-store is very difficult and confusing
+(easy to conflict with existing keys used elsewhere in code or other
+applications using the same Redis server, typo and so on). Key-value-store is
+very cool, but with this "super global variables store" we must appropriately
+manage the keys.
+
+We can use Redis::Namespace for better key name management.
+
+    #!perl
+    my $redis = Redis::Fast->new;
+    my $ns = Redis::Namespace->new(redis => $redis, namespace => 'ranking');
+    $ns->set(foo => 'bar');    # will call $redis->set('fugu:foo', 'bar');
+    my $foo = $ns->get('foo'); # will call $redis->get('fugu:foo');
+
+The object of Redis::Namespace is to fill up the prefix namespace automatically.
+I recommend the all Redis objects are wrapped by Redis::Namespace.
+
+=head2 Conclusion
+
+CPAN's Redis modules allow you to quickly, easily, and safely leverage the
+power of Redis from Perl.
+
+=head1 SEE ALSO
+
+=for :list
+* L<Redis>
+* L<Redis::Fast>
+* L<CHI::Driver::Redis> and L<CHI>
+* L<Cache::Redis> an L<Cache::Cache>
+* L<Redis::LeaderBoard>
+* L<Redis::Namespace>
+* L<Redis's documentation|http://redis.io/documentation>

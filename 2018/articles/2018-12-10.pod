@@ -1,0 +1,200 @@
+Title: Christmas Tree Babbles
+Topic: Babble
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=encoding utf8
+
+Yesterday's exercise in getting a script runnable on an older version of
+perl had introduced the elves to App::sigfix, a tool that could transform
+their source code so that the subroutine signatures they'd been using
+would be removed and replaced with shim code that could allow their
+transformed code to run on older versions of perl.
+
+App::sigfix was just the forerunner of several similar tools that they were
+starting to learn about and take advantage of.
+
+=head2 Babel
+
+As much as the elves loved Perl, they, like most programmers, actually coded
+in several languages.  One of their most used was JavaScript.  JavaScript as
+a programming language has evolved over the years, but if it still has to run
+on older webbrowsers the code that is served on the webserver has to be
+written in the old and outdated dialect of JavaScript.
+
+To help with this in the JavaScript world they have a tool called
+L<Babel|https://babeljs.io/>.  Babel is able to translate modern idiomatic
+ES6 style JavaScript code like this:
+
+    #!vim javascript
+    ($ => $(() => {
+        const foo = $('#foo')
+        foo.on('click', () => console.log('foo'))
+    }))(jQuery)
+
+Into more traditional JavaScript like this:
+
+    #!vim javascript
+    (function ($) {
+        return $(function () {
+            var foo = $('#foo');
+            foo.on('click', function () {
+                return console.log('foo');
+            });
+        });
+    })(jQuery);
+
+Typically this is run with a tool like gulp whenever the JavaScript file is
+saved (or whatever other flavor of the month is in vogue in the JavaScript world
+this week), producing a shippable version that can be tested in the browser.
+
+=head2 Babble
+
+Babble is a Perl framework for essentially doing the same thing - taking
+Perl code and transpiling it into Perl code that can run on older
+versions of perl.
+
+It can run in various modes.  For example, it can run in a kind of Just in
+Time mode where the source code is transformed on the client computer
+(Babble itself along with its non-core dependencies is written in pure Perl
+code suitable for running on very old versions of perl):
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    # enable the ::DefinedOr filter to change all the //
+    use Babble::Filter qw(::DefinedOr);
+
+    my $name = shift() // "World";
+    print "Hello $name\n";
+
+The Babble::Filter command transforms the source code as it's executed
+so this code will run versions of perl that don't support the defined-or
+operator C<//>.  In fact, the code that perl will see when it executes
+the script will actually look like this:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    # enable the ::DefinedOr filter to change all the //
+    use Babble::Filter qw(::DefinedOr);
+
+    my $name = (map +(defined($_) ? $_ : "World"), shift ())[0];
+    print "Hello $name\n";
+
+Which isn't the most readable code...but it's not designed for you, it's
+designed for very old versions of perl!
+
+=head2 Source Filters?
+
+Perl has had source filters for countless years now, modules that can
+programmatically alter the source code as perl compiles.  What makes Babble so
+different?
+
+Normally source filters work by applying a dumb regular expression to the
+source code.  They search for a matching string and then replace it with
+something else.  They have no idea of the context the string is being used
+in - for example, if the string is in the middle of a string or heredoc - so
+are often fooled into doing the wrong thing.  Worse, multiple source filters
+don't play well together - source filter A doesn't like the unfiltered input
+designed to be processed by source filter B, and source filter B doesn't
+like the unfiltered input designed to be processed by source filter A.
+
+Under the hood Babble uses L<PPR>, a set of grammars for the Perl programming
+language.  This solves the context problem - rather than searching for a string
+to replace in isolation, Babble matches the entire document.  Babble plugins
+are also able to play together so you can have multiple plugins transforming
+the same source;  A Babble plugin works by changing the way the grammar is
+matched and interpreted, meaning essentially Babble ends up transforming the
+source for all plugins together rather than forcing one plugin to deal with
+the input for another.
+
+=head2 Shipping Transformed Code
+
+Earlier I mentioned that you can run Babble in different modes.  What's the
+other option?
+
+Rather than having Babble transform the code in Just In Time mode, you can
+transpile the source code on your local machine and then ship that transformed
+code to the end user.  This has the advantage that your end user doesn't have to
+have to install the Babble infrastructure, and it'll speed up startup time for
+your script.
+
+Transformation of source code is easy:
+
+    perl -MBabble::Filter=::DefinedOr -pe babble hello.pl
+
+Since very early versions of perl 5, Perl 5 has had the ability to use C<.pmc>
+files.  If a C<.pmc> file is located in the same directory as a C<.pm> file
+then perl will load the C<.pmc> file in preference to the C<.pm> file -
+meaning it's possible to ship I<Perl module compiled> code that you've
+created with Babble alongside the original source code.
+
+    perl -MBabble::Filter=::DefinedOr -pe babble MyModule.pm > MyModule.pmc
+
+Of course, running the above command for each module you want to ship will
+get tedious soon, and is an error prone technique (you're likely forget
+once and ship a C<.pmc> that's not a transformed version of the C<.pm>)  What
+you need is a build system that handles all of this for you.
+
+The most popular module build system for Perl L<Dist::Zilla> is able to
+support Babble with the L<Dist::Zilla::Plugin::Babble> plugin.  Simply
+add the following to your C<dist.ini>
+
+    [Babble]
+    plugin = ::DefinedOr
+
+And now whenever you execute C<dzil build> Babble will do the transformation
+for you.
+
+=head2 What's Possible with Babble today?
+
+Babel is very much an experimental tool, and as such should be treated with
+extreme care.  On an experimental basis Babble can do a bunch of things
+today:
+
+=over
+
+=item Babble::Plugin::CoreSignatures
+
+Bring support for subroutine signatures to older versions of perl.
+
+=item Babble::Plugin::DefinedOr
+
+Bring support for defined-or (C<//>) to older versions of perl.
+
+=item Babble::Plugin::PostfixDeref
+
+Bring support for postfix dereferencing (C<< ->*% >> and C<< ->*@ >>) to older
+versions of perl.
+
+=item Babble::Plugin::State
+
+Bring support for the C<state> keyword to older versions of perl.
+
+=item Babel::Plugin::SKT
+
+Bring support for the C<try> and C<catch> syntax from L<Syntax::Keyword::Try>
+without the Syntax::Keyword::Try module.  Especially useful for older versions
+of perl that don't support the pluggable syntax system that Syntax::Keyword::Try
+relies upon and it can't be installed on.
+
+=item Babble::Plugin::SubstituteAndReturn
+
+Bring support for substitution regular expressions returning the changes rather
+than altering their input (C<s///r>) to older versions of perl.
+
+=back
+
+=head2 Back at the North Pole
+
+With Babble the elves were able to ship even more of their code to run on third
+party servers - even those that only supported the ancient perl 5.8. Sure,
+Babble was experimental, but since the elves were able to do the transformation
+on the systems they controlled and test the code before they shipped it they had
+every confidence that what they shipped would work come Christmas Eve.

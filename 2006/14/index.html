@@ -1,0 +1,87 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>2006 Perl Advent Calendar: Three I/O Channels, Too Many Options, &amp; a Command to Run with IPC</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body>
+
+<H1><A HREF="../">Perl Advent Calendar 2006-12</A>-14</H1>
+<h2 align="center">Three I/O Channels, Too Many Options, &amp; a Command to Run with <a href="http://perldoc.perl.org/perlipc.html">IPC</a></h2>
+<h3 align="center">by Josh McAdams &amp; Jerrad Pierce</h3>
+
+<p>Yesterday's review of <tt><a href="../13/">Shell</a></tt> covered a simple
+but elegant way to integrate shell commands into your Perl programs. Alas,
+<tt>Shell</tt> only allows you to capture <tt>STDOUT</tt> of child processes.
+What do you do when you need more control?</p>
+
+<p>Perl staples such as <tt>system</tt>, <tt>qx</tt>, and <tt>open</tt> allow
+some degree of control over what is fed into your program, but not enough over
+the results. <tt>system</tt> only returns success or failure and inherits
+(partial) I/O from your program. <tt>qx</tt> returns captured <tt>STDOUT</tt>
+and sets <tt>$?</tt>.
+<tt><a href="http://perldoc.perl.org/perlopentut.html">open</a></tt> provides
+a little more control with the ability to open pipes, and dup descriptors.
+But still, all of these methods can be brittle, are fraught with complications,
+and make your code less portable across platforms. If you want to capture error
+messages you have to perform shell-specific tricks like redirecting
+<tt>STDERR</tt> to <tt>STDOUT</tt> i.e; <tt>2&gt;&amp;1</tt></p>
+
+<p>There have been many attempts to make interacting with child processes
+easier. The core distribution even includes modules such as <tt>IPC::Open2</tt>
+and <tt>IPC::Open3</tt>. However, the one module that seems to be relatively
+light-weight, Perlish, and portable<sup><a href="#1">1</a></sup> is
+<tt><a href="http://search.cpan.org/search?module=IPC::Run3">IPC::Run3</a></tt>.</p>
+
+<p><tt>IPC::Run3</tt> is capable of feeding a running subprocess's
+<tt>STDIN</tt> while seperately capturing its <tt>STDOUT</tt> and
+<tt>STDERR</tt>. The module exports a single subroutine, <tt>run3</tt>. This
+subroutine accepts a command list followed by expressions for handling input,
+output, and error. These expressions can be undefined, file handles, file
+names, or references to scalars. If the value is undefined, the child inherits
+the file descriptor from the parent process. If it is defined, then the
+specified file or expression is used for I/O, unless it is a reference to
+<tt>undef</tt> in which case the corresponding descriptor is opened to the
+local equivalent of <tt>/dev/null</tt></p>
+
+<p>The example below simply puts some data into a scalar variable and then
+calls <tt>perl</tt> itself with that data, splitting it into standard output
+and standard error portions. As you can see, <tt>IPC::Run3</tt> does what you
+would think that is should. It reads and writes data on the specified channels.
+The <tt>run3</tt> subroutine returns true for success and dies on failure. In
+addition, sub-program exit code is stored in <tt>$?</tt>. Just about the only
+thing to look out for is the error check after <tt>eval</tt>. Be sure to check
+<tt><a href="http://perldoc.perl.org/perlvar.html#$?">$?</a></tt> a.k.a.
+<tt><a href="http://perldoc.perl.org/perlvar.html#$?">$CHILD_ERROR</a></tt>
+for the process exit code.</p>
+
+<h1><a href="mod14.pl">mod14.pl</a></h1>
+<hr />
+<pre>
+   1 <span class="k">use</span> <span class="w">strict</span><span class="sc">;</span>
+   2 <span class="k">use</span> <span class="w">warnings</span><span class="sc">;</span>
+   3 <span class="k">use</span> <span class="w">IPC::Run3</span><span class="sc">;</span>
+   4 
+   5 <span class="k">my</span><span class="s">(</span><span class="i">$in</span><span class="cm">,</span> <span class="i">$out</span><span class="cm">,</span> <span class="i">$err</span><span class="s">)</span> = <span class="s">(</span><span class="q">&quot;merry\nxmas\n&quot;</span><span class="s">)</span><span class="sc">;</span>
+   6 <span class="k">my</span> <span class="i">@cmd</span> =
+   7   <span class="s">(</span><span class="q">q{perl -e 'print scalar &lt;STDIN&gt;; print STDERR scalar &lt;STDIN&gt;; exit 42;'}</span><span class="s">)</span><span class="sc">;</span>
+   8 
+   9 <span class="k">eval</span> <span class="s">{</span>
+  10   <span class="i">run3</span><span class="s">(</span><span class="i">@cmd</span><span class="cm">,</span> \<span class="i">$in</span><span class="cm">,</span> \<span class="i">$out</span><span class="cm">,</span> \<span class="i">$err</span><span class="s">)</span><span class="sc">;</span>
+  11 <span class="s">}</span><span class="sc">;</span>
+  12 
+  13 <span class="k">if</span><span class="s">(</span><span class="i">$@</span><span class="s">)</span> <span class="s">{</span>
+  14   <span class="k">die</span> <span class="q">&quot;Something bad happened: $@\n&quot;</span><span class="sc">;</span>
+  15 <span class="s">}</span>
+  16 
+  17 <span class="k">if</span><span class="s">(</span><span class="i">$?</span><span class="s">)</span> <span class="s">{</span>
+  18   <span class="k">printf</span> <span class="q">&quot;Exit code indicates problems: %i\n&quot;</span><span class="cm">,</span> <span class="i">$?</span>&gt;&gt;<span class="n">8</span><span class="sc">;</span>
+  19 <span class="s">}</span>
+  20 
+  21 <span class="q">s/\n/\\n/g</span> <span class="k">foreach</span><span class="s">(</span><span class="i">$in</span><span class="cm">,</span> <span class="i">$out</span><span class="cm">,</span> <span class="i">$err</span><span class="s">)</span><span class="sc">;</span>
+  22 <span class="k">print</span> <span class="q">&quot;IN: $in\nOUT: $out\nERR: $err\n&quot;</span><span class="sc">;</span>
+</pre>
+
+<a name="1">1</a>. With the limitation that concurrent children running via
+<tt>IPC::Run3</tt> may not be threadsafe, YMMV.
+</body></html>

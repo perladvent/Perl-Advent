@@ -1,0 +1,212 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: Date::Parse</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 14th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Date::Parse</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../13th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../15th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Quite often you need to specify a time and date to a computer
+program.  This can be hard.  And confusing.  And you can easily make
+mistakes.</p>
+<p>The way Perl natively deals with times is to use Unix epoch seconds,
+which is the number of seconds that have elapsed since midnight on the
+first of January 1970.  This is not particularly easy to deal with -
+it's very hard to know 1071357230 means 11:13:50pm on the 13th of
+December.  It's much easier to specify the dates in human readable
+strings and convert these to epoch seconds when you need to.  And the
+easiest way to do this is <b>Date::Parse</b>.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Date::Parse">[Read the documentation for Date::Parse on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>There's really not that much to say about this module, except it's a
+lot less convoluted to use than <b>Time::Local</b>.  When you load it it
+exports one function, <code>str2date</code>, which converts a string to epoch
+seconds.  And that's it - really, it is that easy.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # get what was specified on the command line
+  my $time = join ' ', @ARGV;</pre>
+
+<pre>  # convert that to seconds
+  use Date::Parse;
+  my $secs = str2time($time);</pre>
+
+<pre>  # check we got something useful back
+  unless (defined $secs)
+   { die "Can't parse '$time' as a time or date\n" }</pre>
+
+<pre>  # print out the result
+  print "'$time' parses as:\n",
+        "'$secs' (".gmtime($secs).")\n";</pre>
+
+<p>This works on pretty much any string I feel like throwing at it
+that vaguely looks like a common time:</p>
+<pre>  bash-2.05b$ time2epoch 4th March 1978 5:30pm
+  '4th March 1978 5:30pm' parses as:
+  '257880600' (Sat Mar  4 17:30:00 1978)</pre>
+
+<p>Of course, it does get some things 'wrong'</p>
+<pre>  bash-2.05b$ time2epoch 4/3/1978 5:30pm
+  '4/3/1978 5:30pm' parses as:
+  '260469000' (Mon Apr  3 16:30:00 1978)</pre>
+
+<p>But that's because the module is using the American standard not
+the English.  Of course, this is your own fault for using an
+ambiguous date format.  The ISO standard date format is of
+course supported, and should be favoured:</p>
+<pre>  bash-2.05b$ time2epoch 1978-03-04 17:30
+  '1978-03-04 17:30' parses as:
+  '257880600' (Sat Mar  4 17:30:00 1978)</pre>
+
+<pre>  bash-2.05b$ time2epoch 19780304T1730
+  '19780304T1730' parses as:
+  '257880600' (Sat Mar  4 17:30:00 1978)</pre>
+
+<p>Note that the module will try and do it's best to work out what
+exactly you mean with respect to timezones.  If you don't specify a
+timezone it'll assume that it's in localtime.  For example, if I tell
+it 2pm on the 4th of July this year, it'll assume (since I'm in the UK
+and that's in the summertime and we're one hour ahead of GMT then)
+that I mean 1pm on the 4th of July GMT</p>
+<pre>  bash-2.05b$ time2epoch 4th July 2003 2pm
+  '4th July 2003 2pm' parses as:
+  '1057323600' (Fri Jul  4 13:00:00 2003)</pre>
+
+<p>I can always tell it I really mean GMT</p>
+<pre>  bash-2.05b$ time2epoch 4th July 2003 2pm GMT
+  '4th July 2003 2pm GMT' parses as:
+  '1057327200' (Fri Jul  4 14:00:00 2003)</pre>
+
+<p>There are a wide range of formats that <b>Date::Parse</b> accepts, all of
+which are covered in the manual page. </p>
+<p>The only problem with Date::Parse that you should be aware of is that
+the module will not cope with dates outside of the range of epoch
+seconds.  This means that you can only represent times between
+Thursday January 1st 00:00:00 1970 and Tuesday January 19 03:14:07
+2038.  This isn't a problem for me in day to day computer operation.</p>
+<h2>Number::Compare::Date</h2>
+<p><b>Number::Compare</b> allows you to produce objects that allow arbitrary
+comparisons on numbers.  For example, you can create an object
+that checks if a number is less that a hundred.</p>
+<pre>   use Number::Compare;
+   my $compare = Number::Compare-&gt;new("&lt;100");</pre>
+
+<pre>   print "Will print" if $compare-&gt;(30);
+   print "Won't print" if $compare-&gt;(200);</pre>
+
+<p>This is most useful when you're trying to create some arbitrary test
+that you then pass into a subroutine.  For example, a subroutine
+that checks if the current time against what you pass.</p>
+<pre>   if (compare_time("&gt;=1072916000"))
+    { print "Perl 5.8.3 should have been released\n" }     
+  
+   use Number::Compare;
+   sub compare_time
+   {
+      my $comparison = Number::Compare-&gt;new(shift);
+      return $comparison-&gt;(time());
+   }</pre>
+
+<p>Of course, this is fine, but who knows that 1072916000 means the
+turn of new year.  After two or three costly mistakes, I decided
+to extend <b>Number::Compare</b> to allow you to use anything that
+<b>Date::Parse</b> can parse:</p>
+<pre>   if (compare_time("&gt;=1st Jan 2004 GMT"))
+    { print "Perl 5.8.3 should have been released\n" }     
+  
+   use Number::Compare::Date;
+   sub compare_time
+   {
+      my $comparison = Number::Compare::Date-&gt;new(shift);
+      return $comparison-&gt;(time());
+   }</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/dist/Number-Compare/Compare.pm">Number::Compare</a></li>
+<li><a href="http://search.cpan.org/dist/Number-Compare-Date/lib/Number/Compare/Date.pm">Number::Compare::Date</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:56 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

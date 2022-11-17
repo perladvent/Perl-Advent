@@ -1,0 +1,197 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2017 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2017.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2017 - 
+Custom Relationships with DBIx::Class
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2017</a></h1>
+        </div>
+
+        <p id="tagline">2017 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Custom Relationships with DBIx::Class</h1>
+<div class='subtitle'>Custom Relationships with DBIx::Class - 2017-12-22</div>
+
+<div class='pod'><p>Today we pick up our <a href="http://perladvent.org/2017/2017-12-21.html">story from yesterday</a> where Chestnut Emberflakes was working at break-neck speed to produce a tool that could be used to track the missed deliveries - which needed to be done before Santa completed his current orbit of the planet so he could immeditately head out with a list of what he needed to redo!</p>
+
+<p>The next requirement to be dropped in Emberflakes&#39; lap was that the system needed a classification system to <i>tag</i> each missed delivery with one or more reasons why the delivery was missed. This way when re-delivery was attempted Santa would know what to expect and how to overcome the issues.</p>
+
+<p>No problem, thought Chestnut, as he added a little more SQL:</p>
+
+<pre><code>    CREATE TABLE reason (
+        child_id UUID NOT NULL,
+        tag TEXT NOT NULL,
+        notes TEXT
+    );
+
+    ALTER TABLE ONLY reason
+        ADD CONSTRAINT reason_pkey
+        PRIMARY KEY (child_id, tag);
+
+    ALTER TABLE ONLY reason
+        ADD CONSTRAINT child_idfkey
+        FOREIGN KEY (child_id)
+        REFERENCES  child(child_id)
+        DEFERRABLE;</code></pre>
+
+<p>Now each child would have tags (with notes). Chestnut regenerated the DBIx::Class schema:</p>
+
+<pre><code>    bash$ dbicdump -o dump_directory=./lib \
+        Prototype::Schema &#39;dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432&#39;</code></pre>
+
+<p>Which created a <code>Prototype::Schema::Result::Reason</code> class, and added the extra relationship to the <code>Prototype::Schema::Result::Child</code> class:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="pod">=head2 reasons<br /><br />Type: has_many<br /><br />Related object: L&lt;Prototype::Schema::Result::Reason&gt;<br /><br />=cut<br /></span><br /><span class="word">__PACKAGE__</span><span class="operator">-&gt;</span><span class="word">has_many</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="double">&quot;reasons&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="double">&quot;Prototype::Schema::Result::Reason&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">{</span> <span class="double">&quot;foreign.child_id&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;self.child_id&quot;</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">{</span> <span class="word">cascade_copy</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span> <span class="word">cascade_delete</span> <span class="operator">=&gt;</span> <span class="number">0</span> <span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h3 id="Accessing-the-Tags-Inefficently">Accessing the Tags, Inefficently</h3>
+
+<p>One problem that Santa had to overcome was the rogue family dog. Some dogs are protective of the household and wants to take a bite out of the stranger in the red suit. Other dogs are so happy Santa&#39;s there that they need to bark to let the whole family know how exciting it all is.</p>
+
+<p>While dogs are always a problem, the elite team of elf problem solvers had recently come up with a sure fire solution for Santa&#39;s next orbit:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$child</span><span class="operator">-&gt;</span><span class="word">delivery_problem_with_dog</span> <span class="structure">))</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">break_out_the_bacon</span><span class="structure">();</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Now all Chestnut had to do was implement <code>delivery_problem_with_dog</code>. Chestnut quickly produced a basic solution by adding an extra method to <code>Prototype::Schema::Result::Reason</code> (below the section that said <code>DO NOT MODIFY THIS OR ANYTHING ABOVE</code> so his code wouldn&#39;t be overwritten by future updates.)</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">delivery_problem_with_dog</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$self</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$rs</span> <span class="operator">=</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">search_related</span><span class="structure">(</span><span class="single">'Reason'</span><span class="operator">,</span> <span class="structure">{</span> <span class="word">tag</span> <span class="operator">=&gt;</span> <span class="single">'dog'</span> <span class="structure">});</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$rs</span><span class="operator">-&gt;</span><span class="word">first</span><span class="structure">;</span>  <span class="comment"># will be undef if there's no matching row</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Looks good, right? Well...not entirely.</p>
+
+<h3 id="Performance-Woes">Performance Woes</h3>
+
+<p>Apparently Christmas Eve is a very bad time to put extra stress on the elves&#39; database server, which according to the sysadmin elves was &quot;overloaded enough thank you very much without you doing a whole bunch of extra selects.&quot; Chagrined Chestnut decided to try and investigate exactly what SQL DBIx::Class was sending to the database.</p>
+
+<p>First, he needed another test fixture. Chestnut gave his Kevin fixture a dog problem:</p>
+
+<pre><code>    fixtures/Reason.json:
+    [
+        {
+            &quot;child_id&quot;: &quot;f69eaf6c-bf77-4b29-9eca-78cda6fd2db7&quot;,
+            &quot;tag&quot;: &quot;dog&quot;
+        }
+    ]</code></pre>
+
+<p>Once he&#39;d repopulated his database from the new JSON fixtures using the script we showed you yesterday, Chestnut was ready examine what database calls DBIx::Class was making when he tried simple operations with it. The easiest way to do this is to set the <code>DBIC_TRACE</code> environment variable which will cause DBIx::Class to print out all the SQL it&#39;s executing. This can be be combined with <code>reply</code> to give us a blow-by-blow view of what&#39;s going on in the database:</p>
+
+<pre><code>    bash$ DBIC_TRACE=1 reply -Ilib -MPrototype::Schema
+    0&gt; my $schema = Prototype::Schema-&gt;connect(&#39;dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432&#39;); 1;
+    $res[0] = 1
+
+    1&gt; my $child = $schema-&gt;resultset(&#39;Child&#39;)-&gt;find(&quot;f69eaf6c-bf77-4b29-9eca-78cda6fd2db7&quot;); 1
+    SELECT me.child_id, me.stocking_address_id, me.name FROM child me
+    WHERE ( me.child_id = ? ):
+    &#39;f69eaf6c-bf77-4b29-9eca-78cda6fd2db7&#39;
+    $res[1] = 1
+
+    2&gt; $child-&gt;delivery_problem_with_dog &amp;&amp; &quot;yes&quot;
+    SELECT me.child_id, me.tag, me.notes FROM reason me
+    WHERE ( ( me.child_id = ? AND tag = ? ) ):
+    &#39;f69eaf6c-bf77-4b29-9eca-78cda6fd2db7&#39;, &#39;dog&#39;
+    $res[2] = &#39;yes&#39;</code></pre>
+
+<p>Oh no! The <code>delivery_problem_with_dog</code> is making another SQL call. While one extra call doesn&#39;t seem too bad it would mean in production instead of making one call to select all the children his call would be making an extra SQL call per child! Is there any way Chestnut could optimize that?</p>
+
+<h3 id="Teaching-DBIx::Class-about-delivery_problem_with_dog">Teaching DBIx::Class about delivery_problem_with_dog</h3>
+
+<p>The problem here is that DBIx::Class isn&#39;t able to bring to bear any of its smarts on the <code>delivery_problem_with_dog</code> method because Emberflakes had implemented it just as a plain old Perl method. What he should have done instead is define a new DBIx::Class relationship that did the same thing.</p>
+
+<p>Creating basic relationships in DBIx::Class using the basic syntax is straight forward, but DBIx::Class is actually capable of being configured to build any join that you can create <a href="https://metacpan.org/module/SQL::Abstract">SQL::Abstract</a> syntax for.</p>
+
+<p>For example, joining against the <code>reason</code> table with a condition that the <code>tag</code> is <code>dog</code>.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">__PACKAGE__</span><span class="operator">-&gt;</span><span class="word">might_have</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="double">&quot;delviery_problem_with_dog&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="double">&quot;Prototype::Schema::Result::Reason&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$args</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;$args-&gt;{foreign_alias}.child_id&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">-ident</span> <span class="operator">=&gt;</span> <span class="double">&quot;$args-&gt;{self_alias}.child_id&quot;</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;$args-&gt;{foreign_alias}.tag&quot;</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="single">'='</span><span class="operator">,</span> <span class="single">'dog'</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The final argument to <code>might_have</code> can be a subroutine that should return parameters for SQL::Abstract - which it can build using the prefixes passed to it in its first argument.</p>
+
+<p>Running this as-is doesn&#39;t change any of our performance characteristics at all:</p>
+
+<pre><code>    bash$ DBIC_TRACE=1 reply -Ilib -MPrototype::Schema
+    0&gt; my $schema = Prototype::Schema-&gt;connect(&#39;dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432&#39;); 1;
+    $res[0] = 1
+
+    1&gt; my $child = $schema-&gt;resultset(&#39;Child&#39;)-&gt;find(&quot;f69eaf6c-bf77-4b29-9eca-78cda6fd2db7&quot;); 1
+    SELECT me.child_id, me.stocking_address_id, me.name FROM child me
+    WHERE ( me.child_id = ? ):
+    &#39;f69eaf6c-bf77-4b29-9eca-78cda6fd2db7&#39;
+    $res[1] = 1
+
+    2&gt; $child-&gt;delivery_problem_with_dog &amp;&amp; &quot;yes&quot;
+    SELECT me.child_id, me.tag, me.notes FROM reason me
+    WHERE ( ( me.child_id = ? AND tag = ? ) ):
+    &#39;f69eaf6c-bf77-4b29-9eca-78cda6fd2db7&#39;, &#39;dog&#39;
+    $res[2] = &#39;yes&#39;</code></pre>
+
+<p>But now DBIx::Class understands the new relationship we can ask it to do much more for us - like prefetching the value of <code>delivery_problem_with_dog</code> when it fetches the Child in the first place!</p>
+
+<pre><code>    bash$ DBIC_TRACE=1 reply -Ilib -MPrototype::Schema
+    0&gt; my $schema = Prototype::Schema-&gt;connect(&#39;dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432&#39;); 1;
+    $res[0] = 1
+
+    1&gt; my $child = $schema-&gt;resultset(&#39;Child&#39;)-&gt;find(&quot;f69eaf6c-bf77-4b29-9eca-78cda6fd2db7&quot;,
+       { prefetch =&gt; &quot;delivery_problem_with_dog&quot; }); 1
+    SELECT me.child_id, me.stocking_address_id, me.name,
+           delivery_problem_with_dog.child_id, delivery_problem_with_dog.tag,
+           delivery_problem_with_dog.notes FROM child me
+    LEFT JOIN reason delivery_problem_with_dog ON (
+      delivery_problem_with_dog.child_id = me.child_id
+      AND delivery_problem_with_dog.tag = ?
+    )
+    WHERE ( me.child_id = ? ):
+         &#39;dog&#39;, &#39;f69eaf6c-bf77-4b29-9eca-78cda6fd2db7&#39;
+    $res[1] = 1
+
+    2&gt; $child-&gt;delivery_problem_with_dog &amp;&amp; &quot;yes&quot;
+    $res[2] = &#39;yes&#39;</code></pre>
+
+<p>Note that the third line (labeled with <code>2&gt;</code>) doesn&#39;t cause a second SQL query to be executed anymore.</p>
+
+<h3 id="All-Done">All Done</h3>
+
+<p>With those changes pushed to deployment (and the sysadmin elves no longer out for his blood) Chestnut Emberflakes could finally relax.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Quickly Building DBIx::Class Schemas" href="2017-12-21.html">Previous</a></li>
+
+    <li class="next"><a title="Speedy Validation" href="2017-12-23.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

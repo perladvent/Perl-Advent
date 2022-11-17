@@ -1,0 +1,152 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2011 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2011.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2011 - 
+Stupid Command Line Tricks
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2011</a></h1>
+        </div>
+
+        <p id="tagline">2011 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Stupid Command Line Tricks</h1>
+<div class='subtitle'>the -M switch - 2011-12-05</div>
+
+<div class='pod'><h2 id="The-Basics-of--M">The Basics of <code>-M</code></h2>
+
+<p><code>perl</code> understands a bunch of command line switches. Some of them, like <code>-f</code>, you will probably never use. Others, like <code>-e</code> and <code>-d</code>, you might use all the time. The <code>-M</code> switch is somewhere in between. You might use it in the most trivial case, but it can probably do a lot more than you know it can.</p>
+
+<p>The general use case is this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>perl -MCarp::Always::Color some-script.pl</code><br />&nbsp;</td></table>
+
+<p>The general effect is that &quot;<code>use Carp::Always::Color;</code>&quot; is injected at the beginning of the program to be run, as if it had been in the source itself. It&#39;s great for things that affect the global execution environment, like <a href="http://perladvent.org/2011/2011-12-04.html">Carp::Always</a>, but it&#39;s got a bunch of other little uses.</p>
+
+<h3 id="Importing">Importing</h3>
+
+<p>If you want to write a one-liner that needs an import, for example, you can use the equals sign:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>perl -MList::Util=first -E &#39;say first { /rjbs/ } @INC&#39;</code><br />&nbsp;</td></table>
+
+<p>The string after the <code>=</code> is passed to List::Util&#39;s <code>import</code> routine. If it has commas, the string is split on commas and the result is passed in.</p>
+
+<p>This is how <a href="http://perladvent.org/2011/2011-12-01.html">local::lib</a>&#39;s one-liner form works! local::lib has a tricky <code>import</code> routine, and you pass it a path name by using <code>-M&hellip;=&hellip;</code></p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>perl -Mlocal::lib=~/local/testing</code><br />&nbsp;</td></table>
+
+<p>By default, <code>import</code> is called with no arguments, because libraries given to the <code>-M</code> switch are loaded with <code>use Module;</code>. You can skip the imports by using <code>-m</code> instead. <code>-mMODULE</code> becomes <code>use Module ();</code>.</p>
+
+<h3 id="Version-Checks">Version Checks</h3>
+
+<p>Usually, if I want to know what version(s) of a module I have installed, I run <a href="https://metacpan.org/module/which_pm">which_pm</a>, but when I don&#39;t have it &ndash; or more likely, when giving advice to someone on IRC, I can use <code>-M</code>. If I think someone&#39;s seeing a bug because they&#39;ve got an old version of Sub::Exporter, I can tell them to run:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>~$ perl -MSub::Exporter\ 999<br />Sub::Exporter version 999 required--this is only version 0.982.<br />BEGIN failed--compilation aborted.</code><br />&nbsp;</td></table>
+
+<h3 id="no-MODULE"><code>no MODULE</code></h3>
+
+<p>Most of the time, we load libraries with <code>use</code>, but <code><a href="https://metacpan.org/module/perlfunc#no">no</a></code> is useful, too. (Instead of calling <code>import</code>, it calls <code>unimport</code>.) Mostly, <code>no</code> is used by libraries that are loaded to forbid undesirable behavior. <a href="https://metacpan.org/module/indirect">indirect</a> lets you ban indirect method invocation. <a href="https://metacpan.org/module/circular::require">circular::require</a> lets you ban circular module loading.</p>
+
+<p>In your source for <i>Foo.pm</i>, you might write:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">no</span> <span class="word">circular::require</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Bar</span><span class="structure">;</span> <span class="comment"># if Bar tries to &quot;use Foo&quot;, we'll die because of no circular::require</span></code><br />&nbsp;</td></table>
+
+<p>...but circular::require affects the global behavior of <code>require</code>. You probably don&#39;t want to always load it everywhere. You just want to use it sometimes when testing. You can&#39;t say <code>-Mcircular::require</code>, because that would use <code>use</code> instead of <code>no</code>. To get <code>no</code>, just throw in another dash:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>~$ perl -M-circular::require -MFoo -e0</code><br />&nbsp;</td></table>
+
+<p>The code above will be silent if Foo has no circular requirements, and emit a string of warnings of it has them.</p>
+
+<h2 id="Further-Madness">Further Madness</h2>
+
+<p>So, for testing versions, I showed:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>~$ perl -MString::Truncate\ 999</code><br />&nbsp;</td></table>
+
+<p>For importing, I showed:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>~$ perl -MString::Truncate=trunc,elide -e &#39;...&#39;</code><br />&nbsp;</td></table>
+
+<p>What if we want to combine these? They&#39;re not really compatible. What if we want to pass something more complex than a list of strings? The bits after the equals sign aren&#39;t <code>eval</code>ed, so they can&#39;t be complex.</p>
+
+<p>The secret lies in understanding how that version-testing code worked. The space after &quot;String::Truncate&quot; and everything following that is just tacked into the template <code>use MODULE REST ;</code></p>
+
+<p>This means you can put <i>almost anything</i> there. Do you want to import a renamed version of <code>trunc</code>, but only if you have a recent version?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>~$ perl -M&#39;String::Truncate 1.100000 trunc =&gt; { -as =&gt; &quot;truncate&quot; }&#39; -e ...</code><br />&nbsp;</td></table>
+
+<p>Your program will be run with the following line of code prepended:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">String::Truncate</span> <span class="float">1.1000</span> <span class="word">trunc</span> <span class="operator">=&gt;</span><span class="structure">{</span> <span class="word">-as</span> <span class="operator">=&gt;</span> <span class="double">&quot;truncate&quot;</span> <span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>This is where it gets a little nutty: <code>perl</code> doesn&#39;t care whether you give it more than one statement. You can put all kinds of stuff in <code>-M</code>&#39;s argument. In fact, if the stuff you want to put in is important, but the module isn&#39;t, you can just use something meaningless like <code>5</code>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>~$ perl -M&#39;5; warn &quot;pid: $$\n&quot;&#39; your-actual-program.pl</code><br />&nbsp;</td></table>
+
+<p>The <code>use 5</code> just ensures that you&#39;re under Perl 5 or later, and then the code you actually wanted to inject is added.</p>
+
+<p><code>-M</code> is a powerful tool for all kinds of code injection when you don&#39;t want to actually start editing the code you&#39;re running. Even better, once you&#39;ve finished working with it, you can just delete your shell history file, and nobody will know the kind of horrible things you did with it.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/perlrun">perlrun</a></p>
+
+</li>
+<li><p><code><a href="https://metacpan.org/module/perlfunc#use">use</a></code></p>
+
+</li>
+<li><p><code><a href="https://metacpan.org/module/perlfunc#no">no</a></code></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Module::Which">Module::Which</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/cec6b9b88295ead26c65f8747a76561b?r=g&s=80&d=retro />
+This article contributed by: Ricardo Signes &lt;rjbs@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Warn Different" href="2011-12-04.html">Previous</a></li>
+
+    <li class="next"><a title="Make all the combinations" href="2011-12-06.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

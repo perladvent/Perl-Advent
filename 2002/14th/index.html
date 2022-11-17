@@ -1,0 +1,315 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Test::MockObject</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 14th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Test::MockObject</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../13th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../15th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>When you're writing tests for your new module, one of the hardest
+things is creating the environment that it needs to run in.  Often
+you'll find that your object will rely on a database connection, or
+a vast object structure that you can't easily create in the test
+suite.</p>
+<p>Other times you'll find that your class's job is to interact with
+another object which will change it's internal state in some way -
+and that it's really complex to test without understanding how the
+other object works - not fun if you haven't written it yourself.  And
+worse - if anyone ever changes the way the internals of that object
+works then your test suite will break.</p>
+<p>It's all really messy.  That's where Test::MockObject comes in.  It
+allows you to quickly declare objects that have methods.  These can
+be set up to return various results when they're called, and you can
+query the mocked object to see what methods have been called, allowing
+it to be used in both the above situations.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Test::MockObject">[Read the documentation for Test::MockObject on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Okay, it's time for another silly Buffy based example.</p>
+<p>Imagine we have a object named <b>Doyle</b>.  This object listens on a
+socket across the Internet for messages from another server call TPTB
+(short for 'The Powers That Be'.)  When it receives messages it
+creates instances of the <b>Monster</b> class and stores them.  There's
+another class called "Angel" that is responsible for clearing up these
+monsters whenever something calls it's <code>need_help</code> method by
+calling <b>Doyle</b>'s <code>get_monster</code> method and dealing with the results
+one by one.</p>
+<p>Though much toil and trouble, pretend we've managed to fully test our
+Doyle object and we're sure it's working.  And we're sure that the
+Monsters class is working fine too.  It's the Angel class we're
+worried about - we've never written tests for it and sometimes it has
+a nasty habit of going bad.</p>
+<p>First up, let's look at the code for Angel, so we know what we're
+talking about:</p>
+<pre>  package Angel;</pre>
+
+<pre>  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # the constructor
+  sub new
+  {
+    my $class = shift;
+    my $self = bless {}, $class;
+    $self-&gt;{fought} = [];
+    return $self;
+  }</pre>
+
+<pre>  # accessor method people can use to set the helper classes
+  # that we use to get our monsters
+  sub set_doyle
+  {
+    my $self       = shift;
+    $self-&gt;{doyle} = shift;
+  }</pre>
+
+<pre>  sub set_cordy
+  {
+    my $self       = shift;
+    $self-&gt;{cordy} = shift;
+  }</pre>
+
+<pre>  # main method, calls doyle/cordy and asks about monsters
+  # and then deals with them
+  sub need_help
+  {
+    my $self = shift;</pre>
+
+<pre>    # find out where the monsters are
+    my @monsters;
+    if ($self-&gt;{doyle}-&gt;alive)
+    {
+      @monsters = $self-&gt;{doyle}-&gt;get_monsters();
+    }
+    else
+    {
+      @monsters = $self-&gt;{cordy}-&gt;get_monsters();
+    }</pre>
+
+<pre>    # deal with each monster in turn
+    foreach my $monster (@monsters)
+    {
+      # record it as a monster we've fought
+      push @{$self-&gt;{fought}}, $monster;</pre>
+
+<pre>      # kill it
+      if ($monster-&gt;type eq 'vampire')
+      {
+        $monster-&gt;stake;
+      }
+      else
+      {
+        $monster-&gt;stab;
+      }
+    }
+  }</pre>
+
+<pre>  # return a list of things we fought
+  sub fought
+  {
+    my $self = shift;
+    return @{$self-&gt;{fought}}
+  }</pre>
+
+<pre>  1;</pre>
+
+<p>So we start the test script for the Angel class like so</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # we're running tests, though we don't know how many
+  # just yet change this when we know how many
+  use Test::More qw(no_plan);</pre>
+
+<pre>  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # test that the Angel class compiles
+  BEGIN { use_ok "Angel"; };</pre>
+
+<pre>  # check that if we call the constructor we get a
+  # proper object back again
+  my $angel = Angel-&gt;new();
+  isa_ok($angel,"Angel");</pre>
+
+<p>Now, we can't just create a <b>Doyle</b> object as that requires a live
+connection to the TPTB server, and we'd have to convince that to
+generate <b>Monster</b> events when we're testing and we can't determine
+when that's going to happen.  So what we do is we fake it.</p>
+<pre>  # create a fake doyle, and tell Angel where to find it
+  use Test::MockObject;
+  my $doyle = Test::MockObject-&gt;new();
+  $angel-&gt;set_doyle($doyle);</pre>
+
+<p>Now we need to create responses.  Since the system is designed to be
+able to function even if we our <b>Doyle</b> fails, our real <b>Doyle</b>
+class has an <code>alive</code> method that returns true if and only if it is
+working and has a connection to TPTB.  Since this method is called
+by our <b>Angel</b> code our fake mocked version needs to have a method
+like that too.</p>
+<pre>  # add a 'alive' method to the doyle object that
+  # always returns true.
+  $doyle-&gt;set_true('alive')</pre>
+
+<p>So now whenever we call</p>
+<pre>  $doyle-&gt;alive();</pre>
+
+<p>it'll return true, so our <b>Angel</b> code will run okay.  Of course
+later on when we want to test the fail over we'll probably do something
+like.</p>
+<pre>  $doyle-&gt;set_false('alive');</pre>
+
+<p>We can also easily mock other methods to always return whatever we
+want, for example:</p>
+<pre>  $doyle-&gt;set_always('unique_object_id', 'Allen Francis Doyle');</pre>
+
+<p>So, back to the tests.  We simply want our mock object to return some
+new monsters each time its <code>get_monsters</code> method is called by the
+<b>Angel</b> object.  To do that we can use the <code>mock</code> method that allows
+us to specify a code ref that is called every time an attempt to call
+a particular method is made.</p>
+<pre>  # every time 'get_monsters' is called return two new monsters
+  use Monster;
+  $doyle-&gt;mock('get_monsters',
+               sub { return (Monster-&gt;new(), Monster-&gt;new()) });</pre>
+
+<pre>  # call the need_help method a number of times
+  $angel-&gt;need_help;
+  $angel-&gt;need_help;
+  $angel-&gt;need_help;</pre>
+
+<pre>  # angel should have fought 3 x 2 monsters by now
+  is($angel-&gt;fought, 6, "fought right number of monsters");</pre>
+
+<h2>Checking methods have been called</h2>
+<p>So we've satisfied ourselves that the <b>Angel</b> object is indeed
+getting monsters back from the <b>Doyle</b> object.  However, we haven't
+checked if the <b>Angel</b> object is attempting to kill the monsters
+properly.</p>
+<p>This is an example of the problem I alluded to in the foreword...how
+can we actually tell if a method has been called on an object used by
+our class or not?  The answer is simple, we mock that object as well
+since <b>Test::MockObject</b> objects have the exceedingly handy feature of
+being able to keep track of how many times each of their methods have
+been called.</p>
+<pre>  # create a mock monster, which is a vampire and has stake
+  # and stab methods
+  my $monster = Test::MockObject-&gt;new();
+  $monster-&gt;set_always(type  =&gt; 'vampire');
+  $monster-&gt;set_always(stake =&gt; 'foo');
+  $monster-&gt;set_always(stab  =&gt; 'foo');</pre>
+
+<pre>  # create a second mock monster, which isn't a vampire and
+  # has stake and stab methods
+  my $monster2 = Test::MockObject-&gt;new();
+  $monster2-&gt;set_always(type  =&gt; 'demon');
+  $monster2-&gt;set_always(stake =&gt; 'foo');
+  $monster2-&gt;set_always(stab  =&gt; 'foo');</pre>
+
+<pre>  # reconfigure doyle to return $monster the first time
+  # get_monsters is called and $monster2 the second
+  $doyle-&gt;set_series('get_monsters', $monster, $monster2);</pre>
+
+<p>Now when we call <code>need_help</code> on the <b>Angel</b> object it should
+get a vampire the first time and a demon the second, and call the
+stake method for the former and the stab for the latter.</p>
+<pre>  # deal with both monsters
+  $angel-&gt;need_help;
+  $angel-&gt;need_help;</pre>
+
+<pre>  ok($monster-&gt;called('stake'),   "vampire staked");
+  ok(!$monster-&gt;called('stab'),   "vampire not stabbed");
+  ok(!$monster2-&gt;called('stake'), "demon not staked");
+  ok($monster2-&gt;called('stab'),   "demon stabbed");</pre>
+
+<h2>Further Techniques</h2>
+<p>In addition to the techniques I've described here, <b>Test::MockObject</b>
+provides many other useful methods.  It has other more flexible ways
+to set what methods return, and many more interesting ways to query
+exactly what methods have been called, all of which are documented very
+well in the perldoc for the module.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.perl.com/pub/a/2002/07/10/tmo.html">The Perl.com article on Test::MockObject</a></li>
+<li><a href="http://search.cpan.org/author/MSCHWERN/Test-Simple/lib/Test/More.pm">Test::More</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:53 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

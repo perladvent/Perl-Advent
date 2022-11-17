@@ -1,0 +1,257 @@
+Title: Paws to Plan What Todo
+Topic: Paws
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Christmas is a busy time of the year.  So much to do!  And who can
+keep track of it all?
+
+Why, I can, with the help of OmniGroup's L<OmniFocus|https://www.omnigroup.com/omnifocus/>
+app.  It's an excellent all singing-all dancing GTD machine.  Fully
+scriptable (both on macOS and iOS) and with I<Focus> views allowing you
+to filter your tasks by context, tag, or any other dimension, it really
+is a programmer's todo list app.
+
+However, the one feature that OmniFocus is missing is a way to add
+things to its inbox of new tasks via a REST interface.  Sure, you can
+I<email> things to a private email address on the OmniGroup servers so
+next time OmniFocus syncs it'll import them into its encrypted database,
+but email I<sucks> as an import mechanism.  SMTP is a fiddly little
+protocol, requiring non-core libraries, authentication, and considerable
+thought into avoiding anti-spam technologies.  A HTTP endpoint can be
+accessed from anywhere - from Perl, from curl, or even from JavaScript
+in a browser bookmarklet.
+
+What I need is some way to bridge between an HTTP request to sending
+an email into my todo list.
+
+After reading L<yesterday's Perl Advent Calendar|http://perladvent.org/2019/2019-12-15.html>
+we know we can use L<AWS::Lambda::Quick> to very quickly throw together
+a web accessible HTTP API.  Maybe we can use something like that here?
+
+=head2 Permissions
+
+In order to send email our Lambda services is going to have do more
+than just do some calculations and spit out a web page.  Amazon offer
+an extensive range of web services APIs that allow Lambda to do anything
+from simply persisting data to a database to using Hyperledger Frabric
+for Blockchain shenanigans.  Sometimes it seems like they've got an
+API for everything and the kitchen sink (actually they L<really do|https://www.amazon.com/Pull-Down-Activated-Technology-Stainless-9159TV-AR-DST/dp/B07CWY6M9R>).
+
+In order to send mail from our Lambda function we're going to need tp
+make use of L<Amazon Web Services's Simple Email Services|https://aws.amazon.com/ses/>
+(AWS SES.) But, before we can make use of that we're going to have to
+grant our Lambda function permission to actually call it!
+
+As part of the setup that AWS::Lambda::Quick does, it creates a new
+AWS IAM Role that gives it permission to do things.  This role,
+called C<perl-aws-lambda-quick>, is initially configured to
+attach the C<AWSLambdaRole> and C<CloudWatchLogsFullAccess> policies so
+the Lambda function can be executed and so logs can be written.  It's
+through modifying this role we're going to get SES access.
+
+First we write a new policy document that describes access to SES.  In
+a production environment we'd probably want to limit the addresses
+that people can send emails from or to, but for our purposes today
+a broad policy that grants C<ses:SendEmail> and C<ses:SendRawEmail>
+for anywhere is fine.
+
+    #!vim json
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Action": [
+                    "ses:SendEmail",
+                    "ses:SendRawEmail"
+                ],
+                "Resource": "*",
+                "Effect": "Allow"
+            }
+        ]
+    }
+
+Then we can use the C<aws> command line interface to create a new policy
+from that document (which we've saved in C</tmp/allow-all-ses.json>)
+
+    shell$ aws iam create-policy \
+             --policy-name allow-all-ses \
+             --policy-document file:///tmp/allow-all-ses.json
+
+That command returns a bunch of data:
+
+    #!vim json
+    {
+        "Policy": {
+            "PolicyName": "allow-all-ses",
+            "PermissionsBoundaryUsageCount": 0,
+            "CreateDate": "2019-12-15T22:56:49Z",
+            "AttachmentCount": 0,
+            "IsAttachable": true,
+            "PolicyId": "ANPA25GBIG3Z2LOSXPAAH",
+            "DefaultVersionId": "v1",
+            "Path": "/",
+            "Arn": "arn:aws:iam::749877081843:policy/allow-all-ses",
+            "UpdateDate": "2019-12-15T22:56:49Z"
+        }
+    }
+
+Most important in there is the ARN of the newly created policy.  We can
+now attach that to our existing role.
+
+    shell$ aws iam attach-role-policy \
+             --policy-arn arn:aws:iam::749877081843:policy/allow-all-ses \
+             --role-name perl-aws-lambda-quick
+
+Hooray! Our Lambda functions now has permission to send email in
+general.  However, we can't still can't send any old email just yet -
+because we haven't verified our email addresses.
+
+You have to prove to Amazon that you own any email address you're
+sending email from.  This process is as simple as using the CLI to get
+Amazon to send you an email with a link you can click on:
+
+    shell$ aws ses verify-email-identity --email-address mark@twoshortplanks.com
+
+You'll also need to move SES out of sandbox mode if you don't want to
+have to verify email addresses you send to as well.  This is a complicated
+process where you have to explain what I'm doing sending email to real humans.
+For now, I can just verify my destination address too so I'll be able to
+send to that address without further ado:
+
+    shell$ aws ses verify-email-identity --email-address sent-to-of@twoshortplanks.com
+
+=head2 Writing The Perl Code
+
+In order to call the AWS API we're going to need to make use of
+L<Paws> (the hilariously named Perl AWS interface.)  Paws is an
+interface to all of AWS's current APIs - but for today we're just
+going to be making use of the L<Paws::SES::SendEmail> workflow.
+
+In order to use Paws we need to install the modules somewhere where
+our Lambda script can make use of them.  One option is to use the
+C<extra_files> option to AWS::Lambda::Quick to bundle up all the
+files along with our source code.
+
+A simpler option is to make use of Lambda I<layers>.  These are
+common reusable zipfiles that layer their contents on top of the
+Lambda filesystem.
+
+    #!perl
+    use AWS::Lambda::Quick (
+        name => 'send-to-omnifocus',
+        extra_layers => [ $layer_arn ],
+        timeout => 10,
+    );
+
+(We've also bumped out the timeout now to ten seconds to give our
+function more time to do stuff.)
+
+One of the best things about layers is that they can be shared
+between accounts.  In fact, all AWS::Lambda::Quick I<always> uses
+the standard Perl Lambda prebuilt layer to provide the AWS::Lambda
+code that drives the handler.  Here we're just adding a second shared
+layer ontop of that (AWS Lambda currently allows you to have up to
+five layers and your per-function source code.)
+
+Since we want to use Paws we don't even have to build our own layer
+- we can use one of the standard ones.  Instead of passing in the ARN,
+we can just pass in the AWS::Lambda::Quick identifier for a layer it
+knows about and it'll use the ARN for the layer in your region.
+
+    #!perl
+    use AWS::Lambda::Quick (
+        name => 'send-to-omnifocus',
+        extra_layers => [ 'paws' ],
+        timeout => 10,
+    );
+
+Finally, we can get to writing the actual meat of the function:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    use AWS::Lambda::Quick (
+        name => 'send-to-omnifocus',
+        extra_layers => [ 'paws' ],
+        timeout => 10,
+    );
+
+    use JSON::PP qw( encode_json );
+    use Paws;
+
+    # this is my own personal address that forwards to my top secret
+    # OmniGroup maildrop address.
+    my $EMAIL_ADDRESS = 'send-to-omnifocus@twoshortplanks.com';
+
+    sub handler {
+        my $args = shift;
+        my $param = $args->{queryStringParameters};
+
+        my $text = $param->{text} or return _error(400, "Missing text");
+        my $note = $args->{note} // q{};
+
+        # get access to AWS's Simple Email Service
+        my $ses = Paws->service(
+            'SES',
+            region => 'us-east-1',
+        );
+
+        # and use it to send an email
+        $ses->SendEmail(
+            Destination => {
+                ToAddresses => [ $EMAIL_ADDRESS ],
+            },
+            Message => {
+                Subject => {
+                    Charset => 'UTF-8',
+                    Data    => $text,        # todo text goes in the subject
+                },
+                Body => {
+                    Text => {
+                        Charset => 'UTF-8',  # todo details go in the body
+                        Data    => $note,
+                    },
+                },
+            },
+            Source => 'mark@twoshortplanks.com',
+        );
+
+        return {
+            statusCode => 200,
+            headers => {
+                'Content-Type' => 'application/json',
+            },
+            body => '{"ok":true}',
+        };
+    }
+
+    sub _error {
+        my $status  = shift;
+        my $message = shift;
+        return {
+            statusCode => $status,
+            headers => {
+                'Content-Type' => 'application/json',
+            },
+            body => encode_json({
+                ok => JSON::PP::false,
+                error => $message,
+            }),
+        }
+    }
+
+    1;
+
+And now we can execute it
+
+    shell$ perl send-to-omnifocus.pl
+    https://52p3rf890b.execute-api.us-east-1.amazonaws.com/quick/send-to-omnifocus
+
+And start adding todo entires:
+
+    shell$ curl 'https://52p3rf890b.execute-api.us-east-1.amazonaws.com/quick/send-to-omnifocus?text=Write+More+Perl+Advent+Articles'
+
+Now...I just have to I<do> those things.

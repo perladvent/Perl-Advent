@@ -1,0 +1,245 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Mac::Glue</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 17th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Mac::Glue</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../16th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../18th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>The AppleScript programming language can be used to send send apple
+events to applications running under Mac OS X.  These events can be
+used to programmatically control the applications, enabling you to do
+the GUI equivalent of chaining applications together like you would do
+for non-GUI applications with the shell.</p>
+<p>AppleScript was only ever designed to be <i>one</i> language that can be
+used to send apple events - one with a particularly baroque syntax.
+<b>Mac::Glue</b> allows you to send the same events from Perl, with a
+similar (but less...well, confusing) syntax.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Mac::Glue">[Read the documentation for Mac::Glue on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>We're going to create a little Perl application that we can link from
+a Finder window that when executed will open a Terminal in the same
+location.</p>
+<p>Before you can do anything with <b>Mac::Glue</b> you need to create a
+binding for the application that you want to control.  This enables
+Perl to translate the commands you pass to the correct binary signals
+to send.  This can be done with the <code>gluemac</code> command that's installed
+when you install <b>Mac::Glue</b></p>
+<pre>  bash$ sudo gluemac /Applications/Utilities/Terminal.app 
+  What is the glue name? [Terminal]: 
+ 
+This creates a file containing the binding:</pre>
+
+<pre>  /Library/Perl/5.8.1/Mac/Glue/glues/Terminal</pre>
+
+<p>It also creates a bunch of documentation in the same directory:</p>
+<pre>  /Library/Perl/5.8.1/Mac/Glue/glues/Terminal.pod</pre>
+
+<p>This is the same documentation that's available from the <code>Open
+Dictionary</code> command in the <code>Script Editor</code> application, except
+(obviously) how to send the events from Perl rather from AppleScript.
+You can read either, whichever makes the most sense to you.  Translating
+between to the two is relatively straight forward.</p>
+<p>Once the binding is created we can create a new object:</p>
+<pre>  # create a new object to access the terminal application
+  my $terminal = Mac::Glue-&gt;new("Terminal");</pre>
+
+<p>We can then call commands on it:</p>
+<pre>  # tell it to open a new window and run a shell command
+  my $terminal-&gt;do_script("ls");</pre>
+
+<pre>  # tell it to come to the front above all the other
+  # applications
+  $terminal-&gt;activate;</pre>
+
+<h2>Objects and Properties</h2>
+<p>In addition to issuing commands to the applications we can request the
+objects it's managing and properties these have.  Let's look some code
+to work out where the finder is pointing at:</p>
+<pre>  # create a finder object
+  my $finder = Mac::Glue-&gt;new("Finder");</pre>
+
+<pre>  # create a command to get the url
+  my $url = $finder-&gt;obj(window =&gt; 1)
+                   -&gt;prop('target')
+                   -&gt;prop('url');</pre>
+
+<pre>  # get the result
+  my $path = $url-&gt;get;</pre>
+
+<p>This is roughly the same as the following AppleScript:</p>
+<pre>  tell application "Finder"
+    activate
+    set path to URL of target of front window
+  end tell</pre>
+
+<p>Let's look at the Perl code line by line.  First we need to create a
+finder object that we can call methods on.</p>
+<pre>   my $finder = Mac::Glue-&gt;new("Finder");</pre>
+
+<p>We now want to construct a command that we'll send across the wire
+later to request what we want to know.  We grab the first window from
+the finder (which will be the top one, so the one that's showing) and
+then get the object that represents the directory that's showing in the
+window, and then get the path of that directory.</p>
+<pre>  my $url_command = $finder-&gt;obj(window =&gt; 1)
+                           -&gt;prop('target')
+                           -&gt;prop('url');</pre>
+
+<p>We then send the command and get the result:</p>
+<pre>  my $path = $url_command-&gt;get;</pre>
+
+<h2>Putting it Together</h2>
+<p>Let's build it all together into one script:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load all the modules
+  use String::ShellQuote;
+  use Mac::Glue;
+  use URI::Escape;
+  use Data::Dumper;</pre>
+
+<pre>  # then open the terminal in the current dir
+  terminal_in_dir(url_to_path(get_finder_url()));</pre>
+
+<p>We've got three functions wrapped together that is the basics of the
+script.  The first function is the code from above that gets the
+current location of the top finder window:</p>
+<pre>  sub get_finder_url
+  {
+    my $finder = Mac::Glue-&gt;new("Finder");
+    my $url_command = $finder-&gt;obj(window =&gt; 1)
+                             -&gt;prop('target')
+                             -&gt;prop('url');
+    return $url_command-&gt;get;
+  }</pre>
+
+<p>The next function turns this url into a Unix style path:</p>
+<pre>  sub url_to_path
+  {
+    my $string = shift;</pre>
+
+<pre>    die "Not a filename"
+      unless $string =~ m{^file://localhost};</pre>
+
+<pre>    # remove leading scheme and host
+    $string =~ s{^file://localhost}{};</pre>
+
+<pre>    # decode from a uri
+    $string = uri_unescape($string);</pre>
+
+<pre>    return $string
+  }</pre>
+
+<p>Finally we need to use the glue to talk to the Terminal application
+and tell it to open a terminal in the right directory:</p>
+<pre>  sub terminal_in_dir
+  {
+    # work out what the path is
+    my $path = shift;
+    $path = shell_quote $path;</pre>
+
+<pre>    # open it in the terminal
+    my $terminal = Mac::Glue-&gt;new("Terminal");
+    $terminal-&gt;do_script("cd $path; clear");
+    $terminal-&gt;activate;
+  }</pre>
+
+<h2>Making Scripts Into Applications</h2>
+<p>Converting a script into an application that we can simply double
+click in the Finder is actually quite complicated and requires quite a
+lot of files to be created.</p>
+<p>Luckily, many Mac OS X applications - like Platypus - that can create
+.app Applications from a script.  They pop up dialogs that ask you
+a few questions - the name of the script, what icon you want - and then
+create all the files needed from templates.  Almost no thought needed.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.perl.com/pub/a/2004/01/23/macglue.html">Introducing Mac::Glue article on perl.com</a></li>
+<li><a href="http://hacks.oreilly.com/pub/h/1636">Updating iChat Status with Mac::Glue</a></li>
+<li><a href="http://sveinbjorn.vefsyn.is/platypus">Platypus - turning a script into an .app</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:59 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

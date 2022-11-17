@@ -1,0 +1,179 @@
+<html>
+<head>
+<title>A Perl Module Advent Calendar</title></head>
+<body bgcolor="#281093" text="white" link="yellow" vlink="yellow">
+
+
+
+
+
+<p><img src="../../images/2000/16th.jpg" alt="16th" border="0" width="100" height="75">
+<hr>
+
+
+
+
+<A NAME="__index__"></A>
+<!-- INDEX BEGIN -->
+
+<UL>
+
+	<LI><A HREF="#name">NAME</A></LI>
+	<LI><A HREF="#synopsis">SYNOPSIS</A></LI>
+	<LI><A HREF="#description">DESCRIPTION</A></LI>
+	<LI><A HREF="#caveat">CAVEAT</A></LI>
+</UL>
+<!-- INDEX END -->
+
+<HR>
+<P>
+<H1><A NAME="name">NAME</A></H1>
+<P>find - traverse a file tree</P>
+<P>finddepth - traverse a directory structure depth-first</P>
+<P>
+<HR>
+<H1><A NAME="synopsis">SYNOPSIS</A></H1>
+<PRE>
+    use File::Find;
+    find(\&amp;wanted, '/foo', '/bar');
+    sub wanted { ... }</PRE>
+<PRE>
+    use File::Find;
+    finddepth(\&amp;wanted, '/foo', '/bar');
+    sub wanted { ... }</PRE>
+<PRE>
+    use File::Find;
+    find({ wanted =&gt; \&amp;process, follow =&gt; 1 }, '.');</PRE>
+<P>
+<HR>
+<H1><A NAME="description">DESCRIPTION</A></H1>
+<P>The first argument to <CODE>find()</CODE> is either a hash reference describing the
+operations to be performed for each file, or a code reference.</P>
+<P>Here are the possible keys for the hash:</P>
+<DL>
+<DT><STRONG><A NAME="item_wanted"><CODE>wanted</CODE></A></STRONG><BR>
+<DD>
+The value should be a code reference.  This code reference is called
+<EM>the wanted() function</EM> below.
+<P></P>
+<DT><STRONG><A NAME="item_bydepth"><CODE>bydepth</CODE></A></STRONG><BR>
+<DD>
+Reports the name of a directory only AFTER all its entries
+have been reported.  Entry point <CODE>finddepth()</CODE> is a shortcut for
+specifying <CODE>{ bydepth =</CODE> 1 }&gt; in the first argument of find().
+<P></P>
+<DT><STRONG><A NAME="item_follow"><CODE>follow</CODE></A></STRONG><BR>
+<DD>
+Causes symbolic links to be followed. Since directory trees with symbolic
+links (followed) may contain files more than once and may even have
+cycles, a hash has to be built up with an entry for each file.
+This might be expensive both in space and time for a large
+directory tree. See <EM>follow_fast</EM> and <EM>follow_skip</EM> below.
+If either <EM>follow</EM> or <EM>follow_fast</EM> is in effect:
+<UL>
+<LI>
+It is guarantueed that an <EM>lstat</EM> has been called before the user's
+<EM>wanted()</EM> function is called. This enables fast file checks involving &nbsp;_.
+<P></P>
+<LI>
+There is a variable <CODE>$File::Find::fullname</CODE> which holds the absolute
+pathname of the file with all symbolic links resolved
+<P></P></UL>
+<DT><STRONG><A NAME="item_follow_fast"><CODE>follow_fast</CODE></A></STRONG><BR>
+<DD>
+This is similar to <EM>follow</EM> except that it may report some files
+more than once. It does detect cycles however.
+Since only symbolic links have to be hashed, this is
+much cheaper both in space and time.
+If processing a file more than once (by the user's <EM>wanted()</EM> function)
+is worse than just taking time, the option <EM>follow</EM> should be used.
+<P></P>
+<DT><STRONG><A NAME="item_follow_skip"><CODE>follow_skip</CODE></A></STRONG><BR>
+<DD>
+<CODE>follow_skip==1</CODE>, which is the default, causes all files which are
+neither directories nor symbolic links to be ignored if they are about
+to be processed a second time. If a directory or a symbolic link 
+are about to be processed a second time, File::Find dies.
+<CODE>follow_skip==0</CODE> causes File::Find to die if any file is about to be
+processed a second time.
+<CODE>follow_skip==2</CODE> causes File::Find to ignore any duplicate files and
+dirctories but to proceed normally otherwise.
+<P></P>
+<DT><STRONG><A NAME="item_no_chdir"><CODE>no_chdir</CODE></A></STRONG><BR>
+<DD>
+Does not <CODE>chdir()</CODE> to each directory as it recurses. The <A HREF="#item_wanted"><CODE>wanted()</CODE></A>
+function will need to be aware of this, of course. In this case,
+<CODE>$_</CODE> will be the same as <CODE>$File::Find::name</CODE>.
+<P></P>
+<DT><STRONG><A NAME="item_untaint"><CODE>untaint</CODE></A></STRONG><BR>
+<DD>
+If find is used in taint-mode (-T command line switch or if EUID != UID
+or if EGID != GID) then internally directory names have to be untainted
+before they can be cd'ed to. Therefore they are checked against a regular
+expression <EM>untaint_pattern</EM>. Note, that all names passed to the
+user's <EM>wanted()</EM> function are still tainted.
+<P></P>
+<DT><STRONG><A NAME="item_untaint_pattern"><CODE>untaint_pattern</CODE></A></STRONG><BR>
+<DD>
+See above. This should be set using the <CODE>qr</CODE> quoting operator.
+The default is set to  <CODE>qr|^([-+@\w./]+)$|</CODE>. 
+Note that the paranthesis which are vital.
+<P></P>
+<DT><STRONG><A NAME="item_untaint_skip"><CODE>untaint_skip</CODE></A></STRONG><BR>
+<DD>
+If set, directories (subtrees) which fail the <EM>untaint_pattern</EM>
+are skipped. The default is to 'die' in such a case.
+<P></P></DL>
+<P>The <A HREF="#item_wanted"><CODE>wanted()</CODE></A> function does whatever verifications you want.
+<CODE>$File::Find::dir</CODE> contains the current directory name, and <CODE>$_</CODE> the
+current filename within that directory.  <CODE>$File::Find::name</CODE> contains
+the complete pathname to the file. You are chdir()'d to <CODE>$File::Find::dir</CODE> when
+the function is called, unless <A HREF="#item_no_chdir"><CODE>no_chdir</CODE></A> was specified.
+When &lt;follow&gt; or &lt;follow_fast&gt; are in effect there is also a
+<CODE>$File::Find::fullname</CODE>.
+The function may set <CODE>$File::Find::prune</CODE> to prune the tree
+unless <A HREF="#item_bydepth"><CODE>bydepth</CODE></A> was specified.
+Unless <A HREF="#item_follow"><CODE>follow</CODE></A> or <A HREF="#item_follow_fast"><CODE>follow_fast</CODE></A> is specified, for compatibility
+reasons (find.pl, find2perl) there are in addition the following globals
+available: <CODE>$File::Find::topdir</CODE>, <CODE>$File::Find::topdev</CODE>, <CODE>$File::Find::topino</CODE>,
+<CODE>$File::Find::topmode</CODE> and <CODE>$File::Find::topnlink</CODE>.</P>
+<P>This library is useful for the <CODE>find2perl</CODE> tool, which when fed,</P>
+<PRE>
+    find2perl / -name .nfs\* -mtime +7 \
+        -exec rm -f {} \; -o -fstype nfs -prune</PRE>
+<P>produces something like:</P>
+<PRE>
+    sub wanted {
+        /^\.nfs.*\z/s &amp;&amp;
+        (($dev, $ino, $mode, $nlink, $uid, $gid) = lstat($_)) &amp;&amp;
+        int(-M _) &gt; 7 &amp;&amp;
+        unlink($_)
+        ||
+        ($nlink || (($dev, $ino, $mode, $nlink, $uid, $gid) = lstat($_))) &amp;&amp;
+        $dev &lt; 0 &amp;&amp;
+        ($File::Find::prune = 1);
+    }</PRE>
+<P>Set the variable <CODE>$File::Find::dont_use_nlink</CODE> if you're using AFS,
+since AFS cheats.</P>
+<P>Here's another interesting wanted function.  It will find all symlinks
+that don't resolve:</P>
+<PRE>
+    sub wanted {
+         -l &amp;&amp; !-e &amp;&amp; print &quot;bogus link: $File::Find::name\n&quot;;
+    }</PRE>
+<P>See also the script <CODE>pfind</CODE> on CPAN for a nice application of this
+module.</P>
+<P>
+<HR>
+<H1><A NAME="caveat">CAVEAT</A></H1>
+<P>Be aware that the option to follow symblic links can be dangerous.
+Depending on the structure of the directory tree (including symbolic
+links to directories) you might traverse a given (physical) directory
+more than once (only if <A HREF="#item_follow_fast"><CODE>follow_fast</CODE></A> is in effect). 
+Furthermore, deleting or changing files in a symbolically linked directory
+might cause very unpleasant surprises, since you delete or change files
+in an unknown directory.</P>
+
+
+</body>
+</html>

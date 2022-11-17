@@ -1,0 +1,218 @@
+Title: Custom Relationships with DBIx::Class
+Topic: Custom Relationships with DBIx::Class
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Today we pick up our L<story from yesterday|http://perladvent.org/2017/2017-12-21.html> where Chestnut
+Emberflakes was working at break-neck speed to produce a tool that could be used
+to track the missed deliveries - which needed to be done before Santa completed
+his current orbit of the planet so he could immeditately head out with a list of
+what he needed to redo!
+
+The next requirement to be dropped in Emberflakes' lap was that the system
+needed a classification system to I<tag> each missed delivery with one or more
+reasons why the delivery was missed.  This way when re-delivery was attempted
+Santa would know what to expect and how to overcome the issues.
+
+No problem, thought Chestnut, as he added a little more SQL:
+
+    CREATE TABLE reason (
+        child_id UUID NOT NULL,
+        tag TEXT NOT NULL,
+        notes TEXT
+    );
+
+    ALTER TABLE ONLY reason
+        ADD CONSTRAINT reason_pkey
+        PRIMARY KEY (child_id, tag);
+
+    ALTER TABLE ONLY reason
+        ADD CONSTRAINT child_idfkey
+        FOREIGN KEY (child_id)
+        REFERENCES  child(child_id)
+        DEFERRABLE;
+
+Now each child would have tags (with notes).  Chestnut regenerated the
+DBIx::Class schema:
+
+    bash$ dbicdump -o dump_directory=./lib \
+        Prototype::Schema 'dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432'
+
+Which created a C<Prototype::Schema::Result::Reason> class, and added the
+extra relationship to the C<Prototype::Schema::Result::Child> class:
+
+    #!perl
+    =head2 reasons
+
+    Type: has_many
+
+    Related object: L<Prototype::Schema::Result::Reason>
+
+    =cut
+
+    __PACKAGE__->has_many(
+      "reasons",
+      "Prototype::Schema::Result::Reason",
+      { "foreign.child_id" => "self.child_id" },
+      { cascade_copy => 0, cascade_delete => 0 },
+    );
+
+
+=head2 Accessing the Tags, Inefficently
+
+One problem that Santa had to overcome was the rogue family dog.  Some dogs are
+protective of the household and wants to take a bite out of the stranger in the
+red suit.  Other dogs are so happy Santa's there that they need to bark to let
+the whole family know how exciting it all is.
+
+While dogs are always a problem, the elite team of elf problem solvers had
+recently come up with a sure fire solution for Santa's next orbit:
+
+    #!perl
+    if ($child->delivery_problem_with_dog )) {
+        break_out_the_bacon();
+    }
+
+Now all Chestnut had to do was implement C<delivery_problem_with_dog>. Chestnut
+quickly produced a basic solution by adding an extra method to
+C<Prototype::Schema::Result::Reason> (below the section that said C<DO NOT
+MODIFY THIS OR ANYTHING ABOVE> so his code wouldn't be overwritten by future
+updates.)
+
+    #!perl
+    sub delivery_problem_with_dog {
+        my $self = shift;
+        my $rs = $self->search_related('Reason', { tag => 'dog' });
+        return $rs->first;  # will be undef if there's no matching row
+    }
+
+Looks good, right?  Well...not entirely.
+
+=head2 Performance Woes
+
+Apparently Christmas Eve is a very bad time to put extra stress on the elves'
+database server, which according to the sysadmin elves was "overloaded enough
+thank you very much without you doing a whole bunch of extra selects."
+Chagrined Chestnut decided to try and investigate exactly what SQL DBIx::Class
+was sending to the database.
+
+First, he needed another test fixture.  Chestnut gave his Kevin fixture a dog
+problem:
+
+    fixtures/Reason.json:
+    [
+        {
+            "child_id": "f69eaf6c-bf77-4b29-9eca-78cda6fd2db7",
+            "tag": "dog"
+        }
+    ]
+
+Once he'd repopulated his database from the new JSON fixtures using the script
+we showed you yesterday, Chestnut was ready examine what database calls
+DBIx::Class was making when he tried simple operations with it.  The easiest way
+to do this is to set the C<DBIC_TRACE> environment variable which will cause
+DBIx::Class to print out all the SQL it's executing. This can be be combined
+with C<reply> to give us a blow-by-blow view of what's going on in the database:
+
+    bash$ DBIC_TRACE=1 reply -Ilib -MPrototype::Schema
+    0> my $schema = Prototype::Schema->connect('dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432'); 1;
+    $res[0] = 1
+
+    1> my $child = $schema->resultset('Child')->find("f69eaf6c-bf77-4b29-9eca-78cda6fd2db7"); 1
+    SELECT me.child_id, me.stocking_address_id, me.name FROM child me
+    WHERE ( me.child_id = ? ):
+    'f69eaf6c-bf77-4b29-9eca-78cda6fd2db7'
+    $res[1] = 1
+
+    2> $child->delivery_problem_with_dog && "yes"
+    SELECT me.child_id, me.tag, me.notes FROM reason me
+    WHERE ( ( me.child_id = ? AND tag = ? ) ):
+    'f69eaf6c-bf77-4b29-9eca-78cda6fd2db7', 'dog'
+    $res[2] = 'yes'
+
+Oh no! The C<delivery_problem_with_dog> is making another SQL call.  While one
+extra call doesn't seem too bad it would mean in production instead of making
+one call to select all the children his call would be making an extra SQL call
+per child!  Is there any way Chestnut could optimize that?
+
+=head2 Teaching DBIx::Class about delivery_problem_with_dog
+
+The problem here is that DBIx::Class isn't able to bring to bear any of its
+smarts on the C<delivery_problem_with_dog> method because Emberflakes had
+implemented it just as a plain old Perl method.  What he should have done
+instead is define a new DBIx::Class relationship that did the same thing.
+
+Creating basic relationships in DBIx::Class using the basic syntax is straight
+forward, but DBIx::Class is actually capable of being configured to build
+any join that you can create L<SQL::Abstract> syntax for.
+
+For example, joining against the C<reason> table with a condition that the
+C<tag> is C<dog>.
+
+    #!perl
+    __PACKAGE__->might_have(
+      "delviery_problem_with_dog",
+      "Prototype::Schema::Result::Reason",
+      sub {
+        my $args = shift;
+
+        return {
+          "$args->{foreign_alias}.child_id"
+            => { -ident => "$args->{self_alias}.child_id" },
+          "$args->{foreign_alias}.tag" => { '=', 'dog' },
+        }
+      },
+    );
+
+The final argument to C<might_have> can be a subroutine that should return
+parameters for SQL::Abstract - which it can build using the prefixes passed to
+it in its first argument.
+
+Running this as-is doesn't change any of our performance characteristics at all:
+
+    bash$ DBIC_TRACE=1 reply -Ilib -MPrototype::Schema
+    0> my $schema = Prototype::Schema->connect('dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432'); 1;
+    $res[0] = 1
+
+    1> my $child = $schema->resultset('Child')->find("f69eaf6c-bf77-4b29-9eca-78cda6fd2db7"); 1
+    SELECT me.child_id, me.stocking_address_id, me.name FROM child me
+    WHERE ( me.child_id = ? ):
+    'f69eaf6c-bf77-4b29-9eca-78cda6fd2db7'
+    $res[1] = 1
+
+    2> $child->delivery_problem_with_dog && "yes"
+    SELECT me.child_id, me.tag, me.notes FROM reason me
+    WHERE ( ( me.child_id = ? AND tag = ? ) ):
+    'f69eaf6c-bf77-4b29-9eca-78cda6fd2db7', 'dog'
+    $res[2] = 'yes'
+
+But now DBIx::Class understands the new relationship we can ask it to do much
+more for us - like prefetching the value of C<delivery_problem_with_dog> when it
+fetches the Child in the first place!
+
+    bash$ DBIC_TRACE=1 reply -Ilib -MPrototype::Schema
+    0> my $schema = Prototype::Schema->connect('dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432'); 1;
+    $res[0] = 1
+
+    1> my $child = $schema->resultset('Child')->find("f69eaf6c-bf77-4b29-9eca-78cda6fd2db7",
+       { prefetch => "delivery_problem_with_dog" }); 1
+    SELECT me.child_id, me.stocking_address_id, me.name,
+           delivery_problem_with_dog.child_id, delivery_problem_with_dog.tag,
+           delivery_problem_with_dog.notes FROM child me
+    LEFT JOIN reason delivery_problem_with_dog ON (
+      delivery_problem_with_dog.child_id = me.child_id
+      AND delivery_problem_with_dog.tag = ?
+    )
+    WHERE ( me.child_id = ? ):
+         'dog', 'f69eaf6c-bf77-4b29-9eca-78cda6fd2db7'
+    $res[1] = 1
+
+    2> $child->delivery_problem_with_dog && "yes"
+    $res[2] = 'yes'
+
+Note that the third line (labeled with C<< 2> >>) doesn't cause a second SQL
+query to be executed anymore.
+
+=head2 All Done
+
+With those changes pushed to deployment (and the sysadmin elves no longer out
+for his blood) Chestnut Emberflakes could finally relax.

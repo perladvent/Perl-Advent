@@ -1,0 +1,259 @@
+Title: Taking the Sleigh to a CloudFront
+Topic: AWS::Lambda::PSGI
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+The Wise Old Elf was very impressed how Sugarplum Snoozysnaps had
+L<saved Christmas|http://perladvent.org/2019/2019-12-15.html|> this year by moving some code to AWS Lambda at the last
+moment.  So impressed that he wanted her to investigate how it could
+be used to do more.
+
+Right now the elves were running dedicated servers for a few internal
+Mojolicious apps.  Would it be possible to port these to run entirely
+on AWS Lambda?
+
+=head2 Bundling Mojolicious
+
+First, let's download Mojolicious to a local directory with L<cpanm>
+
+    $shell cpanm -L extra Mojolicious
+    --> Working on Mojolicious
+    Fetching http://www.cpan.org/authors/id/S/SR/SRI/Mojolicious-8.27.tar.gz ... OK
+    Configuring Mojolicious-8.27 ... OK
+    Building and testing Mojolicious-8.27 ... OK
+    Successfully installed Mojolicious-8.27
+    1 distribution installed
+
+This creates a local copy of Mojolicious in our file system like so:
+
+    shell$ find extra/lib/perl5
+    extra/lib/perl5
+    extra/lib/perl5/Mojo.pm
+    extra/lib/perl5/Test
+    extra/lib/perl5/Test/Mojo.pm
+    extra/lib/perl5/ojo.pm
+    extra/lib/perl5/Mojolicious.pm
+
+Sugarplum  can now ask AWS::Lambda::Quick to upload this for her with the
+rest of her code by specifying C<extra> as an argument to C<extra_files>.
+
+    #!perl
+    #!/usr/bin/perl5
+    use strict;
+    use warnings;
+
+    use AWS::Lambda::Quick (
+        name        => 'mojo',
+        extra_files => [ 'extra' ],
+        timeout     => 10,
+    );
+
+Once that's done she can modify her script to load modules from the
+lib dir within the extra dir.  Note the use of the C<LAMBDA_TASK_ROOT>
+environment variable to help us locate those files:
+
+    #!perl
+    # Where we put the local Mojo
+    use lib "$ENV{'LAMBDA_TASK_ROOT'}/extra/lib/perl5";
+
+Since Mojolicious is a pure Perl distribution just uploading the
+installed files works regardless of different system architecture or
+perl versions between Sugarplum's local machine and the virtual machine
+AWS Lambda is running under.
+
+=head2 Connecting Lambda to Mojolicious
+
+Sugarplum needs to plumb the various bits together now, to get
+Mojolicious to somehow understand the hashref passed into the handler
+function and get it to spit out the hashref that the handler is expected
+to return.
+
+The first stage is to get AWS::Lambda to talk to any standard
+web server that can communicate via the PSGI function 
+
+    #!perl
+    use AWS::Lambda::PSGI;
+
+    my $psgi_app = sub {
+        return [
+            200,
+            [ 'Content-Type' => 'text/plain' ],
+            [ '<html><body>Hello, World @ '.time.'</body></html>' ],
+        ];
+    }
+
+    sub handler { 
+        return AWS::Lambda::PSGI->wrap( $psgi_app )->( @_ );
+    }
+
+We already know how to get Mojolicious to produce a PSGI application.
+Sugarplum can use that instead of the hard coded application above:
+
+    #!perl
+    use Mojolicious::Lite;
+
+    my $psgi_app = app->start('psgi');
+
+    sub handler { 
+        return AWS::Lambda::PSGI->wrap( $psgi_app )->( @_ );
+    }
+
+    get '/' => 'index';
+
+    1;
+
+    __DATA__
+
+    @@ index.html.ep
+
+    <html>
+    <body>
+    Hello, World @ <%= scalar time %>
+    </body>
+    </html>
+
+And works!  Well, at least Mojolicious executes and produces output
+of some sort...
+
+=for :html
+  <center><img src="mojoerr.jpg" width="457" height=315 alt="mojo error"></center>
+
+Uh, but what happened to her page?  Why isn't it producing her
+hello world application?
+
+Well, we remember we declared a route on C</> but look at that
+debug output that's not what the on the server is: It's running on
+C</mojo> for the base of C</quick>.
+
+We'll fix that, but before we do, let's consider how Sugarplum is going
+to host this as a top level domain.
+
+=head2 Configuring Cloudfront
+
+Cloudfront is AWS's CDN solution that can sit infront of origin
+servers, S3 buckets, and - most usefully to Ms Snoozysnaps - the API
+Gateway running her Lambda function.
+
+For today's exercise Sugarplum is just going to use one of Amazon's own
+subdomains.  When Sugarplum releases the live version she's going to
+setup a CNAME for domain name she owns - but for development testing
+she doesn't want to go to the trouble of verifying all that with
+Amazon.
+
+Sugarplum needs to load up the L<web interface|https://console.aws.amazon.com/cloudfront/home#create-distribution>
+to setup a new Cloudfront distribution and click on "Web" to see
+
+=for :html
+  <center><img src="cloudfront.jpg" width="530" height=494 alt="cloudfront web ui"></center>
+
+=for :html
+    <ul>
+        <li>Origin Domain Name should be set to the Lambda gateway domain name (in this case '52p3rf890b.execute-api.us-east-1.amazonaws.com')</li>
+        <li>Origin Path should be set to <code>/quick/mojo</code></li>
+        <li>Origin Protocol Policy (which will show after you set Origin Domain Name) should be set to <code>HTTPS Only</code> (as our API gateway doesn't support HTTP)</li>
+        <li>Object Caching should be set to <code>Customize</code>, and all the TTLs should be set to <code>0</code> to disable caching.  Sugarplum Snoozysnaps will want to eventually to have her Mojo app produce custom caching headers to avoid each and every request running through Lambda, but this is good for development.</li>
+    </ul>
+
+Finally we Sugarplum can click on the C<Create Distribution> at
+the very bottom of the page.  She's probably got time to go get a
+cup of fresh eggnog while AWS churns away getting all that set up
+and allowing domain names to propagate.
+
+When the interface finally tells us it's ready, we can load it
+up...and still see errors.  At least this time we can tell
+I<exactly> what is broken.
+
+=head2 Making the Paths Work
+
+Sugarplum now knows what she needs to do to modify the paths.
+
+=for :html
+    <ul>
+        <li>The base URL needs to have /quick stripped off of it</li>
+        <li>The url itelf needs to have /mojo stripped off</li>
+    </ul>
+
+It's important to do both of these so that URLs that Mojolicious
+creates linking to named routes (i.e. with the C<url_for> or
+C<link_to> helpers) end up linking to the right place.
+
+Modification of the URLs can be managed by adding a hook that does
+the modifications before dispatch
+
+    #!perl
+    app->hook(before_dispatch => sub {
+        my $c = shift;
+
+        # see https://mojolicious.org/perldoc/Mojolicious/Guides/Cookbook#Rewriting
+        # for details on what exactly we're doing here
+
+        # remove the '/quick' from the base url
+        shift @{$c->req->url->base->path->trailing_slash(1)};
+
+        # remove the '/mojo' from the main url
+        shift @{$c->req->url->path->leading_slash(0)};
+    });
+
+=head2 A live test
+
+Just to make sure this is working let's add a few routes that
+will (a) link to each other via route names (b) change content
+randomly each page load
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    use AWS::Lambda::Quick (
+        name        => 'mojo',
+        extra_files => [ 'extra' ],
+        timeout     => 10,
+    );
+
+    use lib "$ENV{'LAMBDA_TASK_ROOT'}/extra/lib/perl5";
+
+    use AWS::Lambda::PSGI;
+    use Mojolicious::Lite;
+
+    my $psgi_app = app->start('psgi');
+    sub handler { return AWS::Lambda::PSGI->wrap( $psgi_app )->( @_ ); }
+
+    app->hook(before_dispatch => sub {
+        my $c = shift;
+        shift @{$c->req->url->base->path->trailing_slash(1)};
+        shift @{$c->req->url->path->leading_slash(0)};
+    });
+
+    #   path         template    route name
+    get '/'       => 'index'  => 'main-page';
+    get '/random' => 'random' => 'merry-christmas-page';
+
+    1;
+
+    __DATA__
+
+    @@ index.html.ep
+
+    <html>
+    <body>
+    <p>Hello, World</p>
+    <p><%= link_to 'Say Merry Christmas' => 'merry-christmas-page' %></p>
+    </body>
+    </html>
+
+    @@ random.html.ep
+
+    <html>
+    <body>
+    % my @options = (
+    %     "Merry Christmas",
+    %     "Happy Holidays",
+    %     "Bon Noel",
+    %     "Feliz Navidad",
+    % );
+    %= $options[ rand @options ];   # render a random @option
+    </body>
+    </html>
+
+Once we've uploaded that we can L<finally test it in the browser|https://duvw0nvf3um1j.cloudfront.net/>

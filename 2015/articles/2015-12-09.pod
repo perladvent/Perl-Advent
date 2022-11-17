@@ -1,0 +1,215 @@
+Title: Scrape the Halls
+Topic: Web::Query
+Author: A Team Effort
+
+=pod
+
+Here's a shocker: the Santa Factories doesn't manufacture all of the children's
+toys for Christmas. For particular toys and special requests, the elves will buy
+the toys, and just take care of the wrapping and delivery. But don't you think
+they are going around with this outsourcing in an indiscriminate manner; the Big
+Man in Red made it very clear that toys should not be bought from big
+mega-corporations, but only from Mom'n'Pop shops, where they are built out of
+love and honest desire to make children happy.
+
+Noble sentiments. But one that throws some wrenches in the finely-tuned North
+Pole's toy managing software. Mega-corporations might be soulless, but they
+usually have systems backed by solid REST APIs.  Mom and Pop shops? A basic
+website is usually all you get.  It's not pretty, but for those cases
+devI<elf>opers have to revert to crude but effective web scraping.
+
+One of their tools is L<Web::Query>, which is heavily inspired by the ubiquitous
+jQuery. With it, they can use CSS selectors, or even XPath expressions, to
+access and munge their target websites.
+
+=head2 A Working Example
+
+Let's look at the wonderful Vermont Teddy Bear website.  Santa approves of this
+company because they always make sure that they ship their teddy bears in
+packaging with air holes (so the bears can breathe) and each bear gets free
+complimentary health care (where by the company will fix the bear if it's sick
+and shipped back to the Teddy Bear Hospital.)
+
+Here's L<the current page|http://www.vermontteddybear.com/Category/Hobbies.aspx?View=All>
+for all their hobby bears:
+
+=for html
+  <center><img src="vtb.jpg" width="709" height="649"></center>
+
+If our elves are going to work out the price of the products they need to take a
+look at the source code of the page with their browser's Web Inspector.  It
+turns out the part of the page's HTML markup they're going to be interested in
+looks like this:
+
+    #!vim html
+    <ul id="products">
+         <li>
+            <div class="ProductImageDashed">
+                ...
+            </div>
+            <div class="ProductImageDescr">
+                <a id="ctl00_MainContent_UcC2CategorySellGroups1_dlSellGroups_ctl00_lnkSellGroupText"
+                   href="../SellGroup/15-yoga-bear.aspx">
+                      <span id="ctl00_MainContent_UcC2CategorySellGroups1_dlSellGroups_ctl00_LabelProductName">15" Yoga Bear</span>
+                </a>
+                <br>
+                <a id="ctl00_MainContent_UcC2CategorySellGroups1_dlSellGroups_ctl00_LabelPricing"
+                   class="productsprice" href="../SellGroup/15-yoga-bear.aspx">$79.99</a>
+            </div>
+         </li>
+         <li>
+            <div class="ProductImageDashed">
+                ...
+            </div>
+            <div class="ProductImageDescr">
+                <a id="ctl00_MainContent_UcC2CategorySellGroups1_dlSellGroups_ctl01_lnkSellGroupText"
+                   href="../SellGroup/Ballerina-Bear.aspx">
+                       <span id="ctl00_MainContent_UcC2CategorySellGroups1_dlSellGroups_ctl01_LabelProductName">15" Ballerina Bear</span></a>
+                <br>
+                <a id="ctl00_MainContent_UcC2CategorySellGroups1_dlSellGroups_ctl01_LabelPricing"
+                   class="productsprice" href="../SellGroup/Ballerina-Bear.aspx">$69.99</a>
+            </div>
+         </li>
+         ...
+    </ul>
+
+=head2 A Small Script
+
+Using L<Web::Query>, the elves are able to retrieve all the information on that
+page rather easily with a tiny tiny script:
+
+    #!perl
+    use 5.20.0;
+    use experimental 'postderef';
+
+    use Data::Printer;
+    use Web::Query;
+
+    my %toys = wq( 'http://www.vermontteddybear.com/Category/Hobbies.aspx?View=All' )
+        ->find('#products li .ProductImageDescr')
+        ->map(sub {
+            my $name  = $_->find('a:first-child')->text;
+            my $price = $_->find('.productsprice')->text;
+
+            return ($name => $price);
+        })->@*;
+
+    p %toys
+
+Let's break this down a little to see what those elves are up to:
+
+    #!perl
+    wq( 'http://www.vermontteddybear.com/Category/Hobbies.aspx?View=All' )
+
+This goes to the web and downloads a page, and creates a Web::Query object
+containing the top node of that page.
+
+    #!perl
+    ->find('#products li .ProductImageDescr')
+
+This returns a new Web::Query object (based on the old Web::Query object) that
+contains all the nodes that match the CSS selector we passed in (and nothing
+else.)  In this case it's all the ProductImageDescr divs in C<< <li> >> elements
+inside the element with the C<products> id assigned to it.
+
+   #!perl
+   ->map(sub {
+      ...
+   })
+
+This calls the passed subroutine multiple times, once per previously matched
+node, with a new Web::Query object that contains just the one node that we're
+currently processing passed via the context variable C<$_>.
+
+   #!perl
+   my $name  = $_->find('a:first-child')->text;
+   my $price = $_->find('.productsprice')->text;
+
+This finally does further lookups I<from the point of view each node the map
+receives>.  So, for example, the C<.productsprice> selector just matches the
+price under this particular C<.ProductImageDescr> node, not every
+C<.productsprice> in the entire document.
+
+=head2 Filtering
+
+After all that, running that script kinda produces some of the right data:
+
+    # perl get_bears.pl
+    {
+        '15" Artist Bear'                       "$69.99",
+        '15" Aviator Bear '                     "$79.99",
+        '15" Ballerina Bear'                    "$69.99",
+        '15" Basketball Bear'                   "$69.99",
+        '15" Cooking Bear'                      "$79.99",
+        '15" Everything Grows with Love Bear'   "$69.99",
+        '15" Golfer Bear'                       "$79.99",
+        '15'' Gone Fishin' Bear'                "$79.99",
+        '15" Handy Bear'                        "$79.99",
+        '15" Lady Golfer'                       "$79.99",
+        '15" Martial Arts Bear'                 "$79.99",
+        '15'' Racecar Driver Bear'              "$69.99",
+        '15" Runner Bear'                       "$69.99",
+        '15" Sewing Bear'                       "$79.99",
+        '15" Skier Bear'                        "$79.99",
+        '15" Soccer Bear'                       "$69.99",
+        '15" Surf's Up Bear'                    "$69.99",
+        '15" Tennis Bear'                       "$79.99",
+        '15" Train Engineer'                    "$69.99",
+        '15" Yoga Bear'                         "$79.99",
+        'Arts & Crafts Bears'                   "",
+        'Bears for Dance Lovers'                "",
+        'Bears For Peace'                       "",
+        Music                                   "",
+        'Religious Bears'                       ""
+    }
+
+However, Santa don't really want the data for the categories at the bottom
+of the page that doesn't include pricing.  Using the C<filter> method we're
+able to discard any result which the passed subroutine doesn't return true for:
+
+    #!perl
+    use 5.20.0;
+    use experimental 'postderef';
+
+    use Data::Printer;
+    use Web::Query;
+
+    my %toys = wq( 'http://www.vermontteddybear.com/Category/Hobbies.aspx?View=All' )
+        ->find('#products li .ProductImageDescr')
+        ->filter(sub {
+            return length $_->find('.productsprice')->text > 0;
+        })
+        ->map(sub {
+            my $name  = $_->find('a:first-child')->text;
+            my $price = $_->find('.productsprice')->text;
+
+            return ($name => $price);
+        })->@*;
+
+    p %toys
+
+Success!
+
+=head2 Setting the User Agent
+
+A few days later the elves were in a bit of a pickle.  Their script had stopped
+working!  It turned out that the Vermont Teddy Bear company had been having some
+problems with people who weren't on the nice list, and they'd blocked the
+standard Perl user agent string, and the elves' code was collateral damage.
+
+Because elves are conscientious, they decided to change the UserAgent to make
+sure that the shops can see that it's their web scrapers that visited their
+sites with a minor code change at the top of all their Web::Scraper scripts:
+
+    #!perl
+    $web::Query::UserAgent = LWP::UserAgent->new( 
+        agent => 'SnowReindeer/4.0.0.0', # pronounced "four-HO-HO-HO!"
+    );
+
+=head1 SEE ALSO
+
+=for :list
+* L<Web::Query>
+* L<Mojo::UserAgent> and L<Mojo::DOM> can also do similar things
+* L<Vermont Teddy Bear|http://www.vermontteddybear.com/>
+

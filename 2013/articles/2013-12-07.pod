@@ -1,0 +1,174 @@
+Title: Web done better!
+Topic: PSGI/Plack
+Author: Sawyer X <xsawyerx@cpan.org>
+
+=head1 Remembering the horror
+
+If you've done any web programming in Perl for more than a few years, you
+probably know how difficult and annoying server-side web programming can be.
+If you're new, just hold on to your hat for a few minutes.
+
+=head1 So you want to write a server-side web application?
+
+Welcome! How would you like to write your web application? Do you want to use
+L<CGI.pm|CGI>, B<mod_perl>, L<FCGI>, L<Catalyst>, L<Jifty>? Maybe you want to
+write it yourself manually? Each form means a different output. Each
+server (Apache, Lighttpd, Nginx, etc.) supports some technologies but not
+others, and requires data in a different format.
+
+You're probably beginning to see the problem. In web programming you're
+basically marrying yourself to a specific server environment. Beyond
+that, each framework usually settles on a specific server environment protocol,
+whether it is CGI or mod_perl. Then, if the web server doesn't work, or if
+you want to move to a different protocol, your web application needs rewriting.
+Yay! Oh wait, no. That sucks.
+
+=head1 Great artists are inspired
+
+Picasso said that I<good artists copy, great artists steal>, but a better
+paraphrase might be that great artists I<are inspired>. As such, Perl superhero
+Tatsuhiko Miyagawa was inspired by specifications available in other languages
+(Ruby's L<Rack|http://rack.github.com/>, Python's
+L<WSGI|http://wsgi.readthedocs.org/en/latest/>) that provide an interface layer
+between different server environment protocols.  He created Perl's L<PSGI>.
+
+PSGI finally provides a clear specification for interfacing with different
+layers. This effectively separates between the web application, the interface
+(L<HTTP::Engine>, CGI, FCGI), and the web server (Apache, Nginx,
+L<HTTP::Server::Simple>), which up until now were mashed together like a
+an awful software train wreck.
+
+Do you want to write your application in L<Catalyst>? Maybe in L<Web::Simple>?
+As long as they support the PSGI protocol, you can do that. Now you can deploy
+them on any web server, use any technology (whether it's CGI, FastCGI, or
+anything else), and even run them on Perl-based web servers as a backend
+to a reverse-proxy server (Nginx, Apache + mod_proxy, and so on).
+
+PSGI comes with a reference implementation called L<Plack>, which includes a
+range of utilities, and implementations for servers (under the Plack::Server
+namespace).
+
+=head1 Welcome to a Modern Perl web
+
+All modern Perl web frameworks now support the PSGI protocol (L<Catalyst>,
+L<Dancer>, L<Web::Simple>, L<Mojolicious>, L<Mason>, L<OX>, L<Tatsumaki>, and
+more), and you can deploy on any web server, including Perl web servers
+(L<Starman>, L<Starlet>, L<Twiggy>, L<Corona>).
+
+PSGI also specifies different layers of action called I<middleware>, allowing
+you to add blocks on top of your web application providing a range of services,
+such as caching, privacy and authorization control, REPL, debugging screens,
+session management and more.
+
+=head1 Words are Cheap
+
+To anyone with an appetite for understanding, this is probably not enough.
+Seeing is believing, isn't it? What does a PSGI app really look like?
+
+In essence, a PSGI application is just a code reference:
+
+    #!perl
+    my $app = sub {
+        # your application
+    };
+
+That reference is then sent to the server. For every new HTTP request, the
+server will call the code reference and send it the environment variables of
+the request in a hash structure, conventionally called C<$env>.
+
+    #!perl
+    $env = {
+       HTTP_ACCEPT            => "*/*",
+       HTTP_HOST              => "localhost:5000",
+       HTTP_USER_AGENT        => "curl/7.27.0",
+       PATH_INFO              => "/",
+       psgi.errors            => *main::STDERR,
+       psgi.input             => *HTTP::Server::PSGI::input,
+       psgi.multiprocess      => "",
+       psgi.multithread       => "",
+       psgi.nonblocking       => "",
+       psgi.run_once          => "",
+       psgi.streaming         => 1,
+       psgi.url_scheme        => "http",
+       psgi.version           => [ 1, 1 ],
+       psgix.harakiri         => 1,
+       psgix.input.buffered   => 1,
+       psgix.io               => *Symbol::GEN1,
+       QUERY_STRING           => "",
+       REMOTE_ADDR            => "127.0.0.1",
+       REMOTE_PORT            => 37063,
+       REQUEST_METHOD         => "GET",
+       REQUEST_URI            => "/",
+       SCRIPT_NAME            => "",
+       SERVER_NAME            => 0,
+       SERVER_PORT            => 5000,
+       SERVER_PROTOCOL        => "HTTP/1.1"
+    };
+
+You can use this environment hash to understand the request. Alternatively
+you could use one of the available PSGI-supported web frameworks. They
+abstract the code that handled these environment variables and allows you to
+define code paths for your web application.
+
+Next comes the reply. With CGI, you would return two chunks of output to
+STDOUT: one of headers to the browser, and the other of the actual content.
+
+PSGI needs the same information from you, but in a structured form:
+
+    #!perl
+    my $app = sub {
+        my $env = shift;
+        ...
+
+        return [
+            '200', # HTTP code
+            [
+                'Content-Type' => 'application/json',
+                %additional_header_pairs,
+            ],
+            [ @content_hunks ],
+        ];
+    };
+
+Once the server calls the code reference with the environment, it awaits this
+reply. It will then use this reply to return the proper data to the user.
+
+=head1 And the middlewares?
+
+Oh right! The middlewares! Since it is all code references, we can wrap them
+in another code reference. We use L<Plack::Builder> for that:
+
+    #!perl
+    use Plack::Builder;
+    use Plack::Middleware::BufferedStreaming;
+
+    my $webapp = sub { ... };
+    my $app    = builder {
+        enable 'BufferedStreaming',
+        $webapp,
+    };
+
+The C<builder> function (from L<Plack::Builder>) creates a code references
+that receives any number of code references and sends the request it receives
+to each one in turn. This allows us to aggregate more and more
+I<PSGI applications>. Our web application is a PSGI app, but so is a
+middleware. when we call C<enable>, it will receive the middleware code
+reference and register it.
+
+Thus we created a code reference that aggregates multiple code references,
+providing our software with a layer on top that will add buffering. We
+can stack more and more middlewares to provide even more features before it
+even reaches our actual web application code.
+
+=head1 The future seems bright
+
+Now that we have PSGI and Plack, we can finally program in any web framework we
+want without worrying about painting ourselves into a corner, limiting
+ourselves with regards to the web server, the technology, and the platform. No
+more!  The future is open, and web programming is so much better.
+
+=head1 See Also
+
+=for :list
+* L<PSGI>
+* L<Plack>

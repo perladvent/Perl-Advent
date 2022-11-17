@@ -1,0 +1,119 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2013 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2013.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2013 - 
+More Moose, More Discipline
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2013</a></h1>
+        </div>
+
+        <p id="tagline">2013 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>More Moose, More Discipline</h1>
+<div class='subtitle'>MooseX::StrictConstructor - 2013-12-19</div>
+
+<div class='pod'><p>One of the things that makes Moose so convenient is that it makes it easy to validate data without much effort. Perl code tends to be <i>extremely</i> permissive. That is: it&#39;s quite common not to find much type checking code, so if bad data is passed in, it&#39;s not caught until it&#39;s used, at which point the error message can be pretty weird. I know <i>I</i> have seen &quot;<code>not an ARRAY reference</code>&quot; from weird places more times than I&#39;d like to remember.</p>
+
+<p>The reason, at least in part, is simple: type checking is a pain.</p>
+
+<p>Moose makes it easy by associating type data with attributes. When your class includes:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Thing</span><span class="structure">;</span><br /><span class="comment"># ⋮<br /></span><span class="word">has</span> <span class="word">weight</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">is</span>  <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">PositiveInt</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">required</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>...then you can feel confident at any point in your program that an object&#39;s <code>weight</code> is a positive integer. Either the constructor will have thrown a clear exception when the object was constructed or it got the right kind of data.</p>
+
+<p>Types can even be re-used outside the context of attribute definition to keep making data validation really pervasive.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">eat_pies</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$how_many</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="word">PositiveInt</span><span class="operator">-&gt;</span><span class="word">assert_valid</span><span class="structure">(</span><span class="symbol">$how_many</span><span class="structure">);</span><br /><span class="comment">  # ⋮<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<h3 id="Except">Except...</h3>
+
+<p>Unfortunately, Moose has a gaping hole into which bad data can fall: the constructor.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Gift</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">use</span> <span class="word">Moose</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="keyword">use</span> <span class="word">Moose::Util::TypeConstraints</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;<span class="word">has</span> <span class="word">wrapping_paper</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>  <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">enum</span><span class="structure">([</span> <span class="words">qw( festive sombre amazon.com )</span> <span class="structure">])</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">default</span> <span class="operator">=&gt;</span> <span class="single">'amazon.com'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">);</span><br /><br /><span class="comment">  # ⋮<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>So, we&#39;ve got code representing the gift we&#39;re carefully picking out and painstakingly wrapping, but we stupidly do this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$gift</span> <span class="operator">=</span> <span class="word">Gift</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="operator">...,</span> <span class="word">wrappingpaper</span> <span class="operator">=&gt;</span> <span class="single">'sombre'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Not only do we get no error, but our friend gets a package wrapped in thoughtless-seeming Amazon wrapping paper. Argh!</p>
+
+<p>Only one change is needed:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Gift</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">use</span> <span class="word">Moose</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="keyword">use</span> <span class="word">Moose::Util::TypeConstraints</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="keyword">use</span> <span class="word">MooseX::StrictConstructor</span><span class="structure">;</span> <span class="comment"># ← just add this!</span><br /><br />&nbsp;&nbsp;<span class="word">has</span> <span class="word">wrapping_paper</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>  <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">enum</span><span class="structure">([</span> <span class="words">qw( festive sombre amazon.com )</span> <span class="structure">])</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">default</span> <span class="operator">=&gt;</span> <span class="single">'amazon.com'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">);</span><br /><br /><span class="comment">  # ⋮<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p><a href="https://metacpan.org/module/MooseX::StrictConstructor">MooseX::StrictConstructor</a> causes the constructor to throw an exception on unknown input. For example, our bogus <code>wrappingpaper</code> argument, above, would get us the exception:</p>
+
+<pre><code>  Found unknown attribute(s) init_arg passed to the constructor: wrappingpaper</code></pre>
+
+<h3 id="Except1">Except...</h3>
+
+<p>Sometimes, it&#39;s useful to accept an unknown set of extra arguments to your constructor. Maybe you do something like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Gift</span> <span class="structure">{</span><br /><span class="comment">  # ⋮<br /></span><br />&nbsp;&nbsp;<span class="word">has</span> <span class="word">shipping_cost</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span>  <span class="operator">=&gt;</span> <span class="single">'rw'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Money</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">default</span>  <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="operator">...</span><span class="word">something</span> <span class="word">with</span> <span class="word">size</span> <span class="operator">and</span> <span class="word">weight</span><span class="operator">...</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">init_arg</span> <span class="operator">=&gt;</span> <span class="core">undef</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">);</span><br /><br />&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">BUILD</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$arg</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">carrier</span><span class="structure">(</span><span class="single">'UPS'</span><span class="structure">)</span><span class="operator">,</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">shipping_cost</span><span class="structure">(</span><span class="number">0</span><span class="structure">)</span> <span class="word">if</span> <span class="symbol">$arg</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">free_shipping</span><span class="structure">};</span><br />&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Now you can pass <code>free_shipping =&gt; 1</code> to your constructor to clear out the otherwise-computed shipping cost&hellip; but it won&#39;t work with MooseX::StrictConstructor, because <code>free_shipping</code> isn&#39;t the <code>init_arg</code> of any attribute. Fortunately, there&#39;s a trivial fix. If you want to accept an argument for use in <code>BUILD</code> just delete it so that it&#39;s not there anymore when <code>BUILD</code> is done:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">BUILD</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$arg</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">carrier</span><span class="structure">(</span><span class="single">'UPS'</span><span class="structure">)</span><span class="operator">,</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">shipping_cost</span><span class="structure">(</span><span class="number">0</span><span class="structure">)</span> <span class="word">if</span> <span class="word">delete</span> <span class="symbol">$arg</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">free_shipping</span><span class="structure">};</span><br /><span class="comment">                                                  #   ^- no more exception!<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/MooseX::StrictConstructor">MooseX::StrictConstructor</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Moose">Moose</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/fields">fields</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/cec6b9b88295ead26c65f8747a76561b?r=g&s=80&d=retro />
+This article contributed by: Ricardo Signes &lt;rjbs@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="The little module that keeps on giving" href="2013-12-18.html">Previous</a></li>
+
+    <li class="next"><a title="Pretty Pretty Pod" href="2013-12-20.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

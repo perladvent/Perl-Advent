@@ -1,0 +1,80 @@
+=for advent_year 2010
+
+=for advent_day 13
+
+=for advent_title Tkx Tkx Tkx&hellip; is Christmas every going to get here?
+
+=for advent_author Adam Russell   
+
+Sure, there are perl APIs that bind QT, Win32, Gtk, and other GUI APIs but Tk
+is the classic and in many minds the default option for writing GUI code in
+Perl. Unfortunately, if you must implement a GUI for one of your applications
+the prospect of using <tt>Tcl::Tk</tt> is about as exciting as receiving a
+lump of coal in your stocking. The problem is that Perl/Tk was designed to
+circumvent Tk's natural Tcl interface, and <tt>Tcl::Tk</tt> took over the
+maintenance of this design. At its core is a modified version of Tk which few
+to none of the elfves at Santa's toy factory want to maintain&mdash;the poor
+little guys run in terror at the prospect! So, while Tk has continued to evolve
+Perl is still bound to a fairly rusty version of Tk. ActiveState's solution to
+this is to implement a Perl-Tcl wrapper to Tk called M<Tkx>. The goal of M<Tkx>
+is to provide a clean and maintainable interface to the Tk widget set that can
+be used for many Christmases to comeN<note0>. M<Tkx> is really little more than
+a wrapper that translates perl to Tcl and then invokes a Tcl interpreter. This
+however, allows us to take full advantage of every modern feature of Tcl/Tk.
+Huzzah! Our Tk interface no longer look as if it was written in 1995!
+
+Since we are wrapping Tcl code syntax may seem a bit odd at first. Since M<Tkx>
+is such a massive API we'll proceed immediately to an example that tries to
+pack in as many routines as possible.
+
+Of particular interest are calls like A<#mod13.pl.30|new_ttk_checkbutton>.
+This is the M<Tkx> analog of Tcl's C<ttk::checkbutton>; constructors always
+begin with I<new_>. In general this style of naming is used for Tcl commands
+in Perl, with underscores representing spaces and colons.
+
+In addition, I<g_> methods like C<g_grid> invoke the corresponding Tk command
+with the widget path as an argument, which we use to A<#mod13.pl.42|assign
+the button to its place> in the grid layout. Besides object paths we can use
+unique widget IDs&mdash;returned by their creators&mdash;or "tags"N<note1>
+to easily identify and modify behavior of objects drawn on the canvas. For
+example, in the C<blink_switch()> sub on A<#mod13.pl.94|lines 94-112> we pass
+in an array of IDs representing the lights. It is these that are used by the
+canvas's C<itemconfigure> function to toggle the lights when blinking is enabled.
+
+On A<#mod13.pl.90|lines 90&ndash;91> we engage in a little trick to get a simple
+"blink" animation. The C<blink_lights()> sub calls a hand made repeat function
+which mimics the Tk APIs <tt>Tk::Repeat</tt>; which is itself just a
+convenience wrapper around <tt>Tk::After</tt>. Essentially we are creating a
+thread that runs in the background and if our C<$do_blink> variable is set by
+C<$checkbox_blink> then we blink the lights.
+
+<img src="screenshot.png" height="442" width="360" alt="Screenshot" style="margin: auto; display: block" />
+
+For more advanced usages you need to look at the 
+A<http://docs.activestate.com/activetcl/8.5/at.pkg_index.html|Tcl/Tk docs>
+directly and then craft the appropriate M<Tkx> call.
+A<http://docs.activestate.com/activeperl/5.8/lib/Tkx/Tutorial.html|Activestate'stutorials>
+shows some of examples of this. A<http://www.tkdocs.com/tutorial/|Tkdocs> also
+has a ton of great info on Tk functions.
+
+=begin eds
+
+If Perl segfaults when you try to C<use Tcl> try the following before rebuilding it: A<http://www.nntp.perl.org/group/perl.tcltk/2009/08/msg283.html|perl Makefile.PL --nousestubs>
+
+=end eds
+
+=sourcedcode mod13.pl
+
+=begin footnote note0
+
+Info about M<Tkx> A<http://code.activestate.com/lists/activeperl/19918/| straight from the horse's mouth>.
+
+=end footnote
+
+=begin footnote note1
+
+A<http://www.tkdocs.com/tutorial/canvas.html#tags|Think classes in CSS>
+
+=end footnote
+
+=cut

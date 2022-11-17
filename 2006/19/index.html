@@ -1,0 +1,179 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>2006 Perl Advent Calendar: Feast on this</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body>
+<h1><a href="../">Perl Advent Calendar 2006-12</a>-19</h1>
+<h2 align="center">Feast on this</h2>
+<h3 align="center">by Shlomi Fish</h3>
+
+<p><a href="http://search.cpan.org/search?module=XML::Feed">XML::Feed</a>
+provides a unified, object oriented API to manipulate feeds from both the
+newer <a href="http://en.wikipedia.org/wiki/Atom_(standard)">Atom</a> format
+and <a href="http://en.wikipedia.org/wiki/RSS_(file_format)">RSS</a> variants.
+Besides the ability to convert between Atom and the various RSS versions,
+this module can also: fetch feeds directly, merge multiple feeds into a single
+document, and add or remove individual entries. We will take advantage of many
+of these features inn this article, to build a simple command line feed
+aggregator that will combine several remote feeds into one with some
+rudimentary filtering capabilities.</p>
+
+
+
+<p>One can instantiate an <tt>XML::Feed</tt> object in one of two ways. Either
+by creating an empty document of the specified format:
+<pre><span class="w">XML::Feed</span>-<span class="i">&gt;</span><span class="i">new</span><span class="s">(</span><span class="q">&quot;RSS&quot;</span><span class="s">)</span></pre>
+or giving the URI of a document to fetch and parse:
+<pre><span class="w">XML::Feed</span>-<span class="i">&gt;</span><span class="i">parse</span><span class="s">(</span><span class="w">URI</span>-<span class="i">&gt;</span><span class="i">new</span><span class="s">(</span><span class="i">$uri</span><span class="s">)</span><span class="s">)</span></pre>
+And while <tt>XML::Feed</tt> also supports combining feeds using its
+<tt>splice()</tt> method, be aware that it will not automagically splice Atom
+feeds with RSS ones. To get around this we use the <tt>myconvert()</tt>
+subroutine on <a href="#myconvert">line 76</a> of the example; it converts
+input feeds to the same format as the output.</p>
+
+<p>A list of a feed's entries can be retrieved using the
+<tt>$feed-&gt;entries()</tt> method. Each one of these entries is an object
+with a consistent API, regardless of format, for setting and getting their
+properties. Among the acccessors that the entry object supports are:</p>
+
+<ul>
+<li><tt>title()</tt> - which retrieves the title of the entry.</li>
+<li><tt>issued()</tt> - a <tt>DateTime</tt> object that represents the date and time
+in which the entry was issued.</li>
+<li><tt>content()</tt> - the actual entry body, as represented by a specialised
+XML::Feed::Content object.</li>
+<li><tt>link()</tt> - the permaLink of the entry.</li>
+</ul>
+
+<p>Each of these accessors can be used to retrieve the value of the property,
+or to set it by passing a value. An entry can be added to a feed using a feed
+<tt>add_entry()</tt> method. This can be used to create feeds that cull entries
+from other documents. The feed object itself supports some accessors for the
+global properties of any feed format: <tt>link()</tt>, <tt>author()</tt>,
+<tt>language()</tt>, or <tt>copyright()</tt>.</p>
+
+
+<h2>The Desired Feature Set</h2>
+
+<p>The first thing we want is the ability to actually specify several URLs for
+feeds to retrieve and combine. We'll use the <tt>--u[rl]</tt> argument for
+this. Next we want to be able to specify an output file. For this we'll use
+the <tt>-o</tt> flag. If no output file is specified, the program will output
+to <tt>STDOUT</tt>.</p>
+
+<p>Next we'd like to specify the output format for the file&mdash;a choice
+between Atom and RSS&mdash;with the <tt>--output-format</tt>; the default is
+RSS. We'll also want to be able to limit the number of entries to a certain
+limit with a reasonable default (<tt>--num-entries</tt>). For the sake of
+demonstration we'll provide some filtering capabilities:
+<tt>--subject-filter</tt> specifies an optional positive regex to match the
+subjects of the entries, and <tt>--subject-filter-out</tt> specifies an
+optional negative regex that will match against them.</p>
+
+<p>Finally, there will be a way to specify the link for the entire feed in
+order to customize it a bit.</p>
+
+<h1><a href="mod19.pl">mod19.pl</a></h1>
+<pre>
+   1 #!/usr/bin/perl
+   2 
+   3 <span class="k">use</span> <span class="w">strict</span><span class="sc">;</span>
+   4 <span class="k">use</span> <span class="w">warnings</span><span class="sc">;</span>
+   5 
+   6 <span class="k">use</span> <span class="w">Getopt::Long</span><span class="sc">;</span>
+   7 <span class="k">use</span> <span class="w">List::Util</span> <span class="q">qw(min)</span><span class="sc">;</span>
+   8 <span class="k">use</span> <span class="w">XML::Feed</span><span class="sc">;</span>
+   9 
+  10 <span class="k">my</span> <span class="i">@feed_urls</span><span class="sc">;</span>
+  11 <span class="k">my</span> <span class="i">$num_entries</span> = <span class="n">40</span><span class="sc">;</span>
+  12 <span class="k">my</span><span class="s">(</span><span class="i">$output_format</span><span class="cm">,</span> <span class="i">$output_file</span><span class="s">)</span> = <span class="q">&quot;RSS&quot;</span><span class="sc">;</span>
+  13 <span class="k">my</span><span class="s">(</span><span class="i">$subj_filter</span><span class="cm">,</span> <span class="i">$subj_filter_out</span><span class="cm">,</span> <span class="i">$feed_link</span><span class="s">)</span><span class="sc">;</span>
+  14 
+  15 <span class="i">GetOptions</span><span class="s">(</span>
+  16            <span class="q">'url|u=s@'</span> <span class="cm">=&gt;</span> \<span class="i">@feed_urls</span><span class="cm">,</span>                   <span class="c"># Sources</span>
+  17            <span class="q">'o=s'</span> <span class="cm">=&gt;</span> \<span class="i">$output_file</span><span class="cm">,</span>                      <span class="c"># Output file</span>
+  18            <span class="q">'output-format=s'</span> <span class="cm">=&gt;</span> \<span class="i">$output_format</span><span class="cm">,</span>        <span class="c"># Output type</span>
+  19            <span class="q">'num-entries=i'</span> <span class="cm">=&gt;</span> \<span class="i">$num_entries</span><span class="cm">,</span>            <span class="c"># Entry limit</span>
+  20            <span class="q">'subject-filter=s'</span> <span class="cm">=&gt;</span> \<span class="i">$subj_filter</span><span class="cm">,</span>         <span class="c"># Positive filter</span>
+  21            <span class="q">'subject-filter-out=s'</span> <span class="cm">=&gt;</span> \<span class="i">$subj_filter_out</span><span class="cm">,</span> <span class="c"># Negative filter</span>
+  22            <span class="q">'feed-link=s'</span> <span class="cm">=&gt;</span> \<span class="i">$feed_link</span><span class="cm">,</span>                <span class="c"># Link location</span>
+  23           <span class="s">)</span><span class="sc">;</span>
+  24 
+  25 
+  26 <span class="k">my</span> <span class="i">$feed</span>                   = <span class="w">XML::Feed</span><span class="w">-&gt;new</span><span class="s">(</span><span class="i">$output_format</span><span class="s">)</span> <span class="k">or</span>
+  27   <span class="k">die</span> <span class="w">XML::Feed</span><span class="w">-&gt;errstr</span><span class="sc">;</span>
+  28 <span class="k">my</span> <span class="i">$feed_with_less_entries</span> = <span class="w">XML::Feed</span><span class="w">-&gt;new</span><span class="s">(</span><span class="i">$output_format</span><span class="s">)</span> <span class="k">or</span>
+  29   <span class="k">die</span> <span class="w">XML::Feed</span><span class="w">-&gt;errstr</span><span class="sc">;</span>
+  30 <span class="k">if</span> <span class="s">(</span>!<span class="k">defined</span><span class="s">(</span><span class="i">$feed_link</span><span class="s">)</span><span class="s">)</span> <span class="s">{</span>
+  31   <span class="k">die</span> <span class="q">&quot;The feed's link was not specified!&quot;</span><span class="sc">;</span>
+  32 <span class="s">}</span>
+  33 <span class="k">else</span> <span class="s">{</span>
+  34   <span class="i">$feed_with_less_entries</span><span class="i">-&gt;link</span><span class="s">(</span><span class="i">$feed_link</span><span class="s">)</span><span class="sc">;</span>
+  35 <span class="s">}</span>
+  36 
+  37 
+  38 <span class="c"># With qr// you can have multiple filters like: foo|bar</span>
+  39 <span class="k">foreach</span> <span class="k">my</span> <span class="i">$f</span> <span class="s">(</span><span class="i">$subj_filter</span><span class="cm">,</span> <span class="i">$subj_filter_out</span><span class="s">)</span> <span class="s">{</span>
+  40   <span class="k">if</span> <span class="s">(</span><span class="k">defined</span><span class="s">(</span><span class="i">$f</span><span class="s">)</span><span class="s">)</span> <span class="s">{</span>
+  41     <span class="i">$f</span> = <span class="q">qr/$f/</span><span class="sc">;</span>
+  42   <span class="s">}</span>
+  43 <span class="s">}</span>
+  44 
+  45 <span class="k">foreach</span> <span class="k">my</span> <span class="i">$url</span> <span class="s">(</span><span class="i">@feed_urls</span><span class="s">)</span> <span class="s">{</span>
+  46   <span class="k">my</span> <span class="i">$url_feed</span> = <span class="w">XML::Feed</span><span class="w">-&gt;parse</span><span class="s">(</span><span class="w">URI</span><span class="w">-&gt;new</span><span class="s">(</span><span class="i">$url</span><span class="s">)</span><span class="s">)</span>
+  47     <span class="k">or</span> <span class="k">die</span> <span class="w">XML::Feed</span><span class="w">-&gt;errstr</span><span class="sc">;</span>
+  48   <span class="i">$feed</span><span class="i">-&gt;splice</span><span class="s">(</span><span class="i">myconvert</span><span class="s">(</span><span class="i">$url_feed</span><span class="s">)</span><span class="s">)</span><span class="sc">;</span>
+  49 <span class="s">}</span>
+  50 
+  51 <span class="k">my</span> <span class="i">@entries</span> = <span class="k">grep</span>
+  52   <span class="s">{</span>
+  53     <span class="s">(</span><span class="k">defined</span><span class="s">(</span><span class="i">$subj_filter</span><span class="s">)</span>     ? <span class="s">(</span><span class="i">$_</span><span class="i">-&gt;title</span><span class="s">(</span><span class="s">)</span> =~ <span class="q">/$subj_filter/</span><span class="s">)</span>     <span class="co">:</span> <span class="n">1</span><span class="s">)</span> &amp;&amp;
+  54     <span class="s">(</span><span class="k">defined</span><span class="s">(</span><span class="i">$subj_filter_out</span><span class="s">)</span> ? <span class="s">(</span><span class="i">$_</span><span class="i">-&gt;title</span><span class="s">(</span><span class="s">)</span> !~ <span class="q">/$subj_filter_out/</span><span class="s">)</span> <span class="co">:</span> <span class="n">1</span><span class="s">)</span>
+  55   <span class="s">}</span>
+  56   <span class="i">$feed</span><span class="i">-&gt;entries</span><span class="s">(</span><span class="s">)</span><span class="sc">;</span>
+  57 <span class="i">@entries</span> = <span class="k">reverse</span><span class="s">(</span><span class="k">sort</span> <span class="s">{</span> <span class="i">$a</span><span class="i">-&gt;issued</span><span class="s">(</span><span class="s">)</span> &lt;=&gt; <span class="i">$b</span><span class="i">-&gt;issued</span><span class="s">(</span><span class="s">)</span> <span class="s">}</span> <span class="i">@entries</span><span class="s">)</span><span class="sc">;</span>
+  58 
+  59 <span class="k">foreach</span> <span class="k">my</span> <span class="i">$e</span> <span class="s">(</span><span class="i">@entries</span>[<span class="n">0</span> .. <span class="i">min</span><span class="s">(</span><span class="i">$num_entries</span>-<span class="n">1</span><span class="cm">,</span> <span class="i">$#entries</span><span class="s">)</span>]<span class="s">)</span> <span class="s">{</span>
+  60   <span class="i">$feed_with_less_entries</span><span class="i">-&gt;add_entry</span><span class="s">(</span><span class="i">$e</span><span class="s">)</span><span class="sc">;</span>
+  61 <span class="s">}</span>
+  62 
+  63 
+  64 <span class="k">my</span> <span class="i">$out</span><span class="sc">;</span>
+  65 <span class="k">if</span> <span class="s">(</span><span class="i">$output_file</span><span class="s">)</span> <span class="s">{</span>
+  66   <span class="k">open</span> <span class="i">$out</span><span class="cm">,</span> <span class="q">&quot;&gt;&quot;</span><span class="cm">,</span> <span class="i">$output_file</span><span class="sc">;</span>
+  67 <span class="s">}</span>
+  68 <span class="k">else</span> <span class="s">{</span>
+  69   <span class="k">open</span> <span class="i">$out</span><span class="cm">,</span> <span class="q">&quot;&gt;&amp;STDOUT&quot;</span><span class="sc">;</span>
+  70 <span class="s">}</span>
+  71 <span class="k">binmode</span> <span class="i">$out</span><span class="cm">,</span> <span class="q">&quot;:utf8&quot;</span><span class="sc">;</span>
+  72 <span class="k">print</span> <span class="s">{</span><span class="i">$out</span><span class="s">}</span> <span class="i">$feed_with_less_entries</span><span class="i">-&gt;as_xml</span><span class="s">(</span><span class="s">)</span><span class="sc">;</span>
+  73 <span class="k">close</span><span class="s">(</span><span class="i">$out</span><span class="s">)</span><span class="sc">;</span>
+  74 
+  75 
+<a name="myconvert"></a>  76 <span class="k">sub </span><span class="m">myconvert</span><span class="s">{</span>
+  77   <span class="k">my</span> <span class="i">$feed</span> = <span class="k">shift</span><span class="sc">;</span>
+  78   <span class="k">if</span> <span class="s">(</span>
+  79       <span class="s">(</span><span class="s">(</span><span class="i">$output_format</span> <span class="k">eq</span> <span class="q">&quot;RSS&quot;</span><span class="s">)</span> &amp;&amp; <span class="s">(</span><span class="i">$feed</span><span class="i">-&gt;format</span><span class="s">(</span><span class="s">)</span> <span class="k">eq</span> <span class="q">&quot;Atom&quot;</span><span class="s">)</span><span class="s">)</span> ||
+  80       <span class="s">(</span><span class="s">(</span><span class="i">$output_format</span> <span class="k">eq</span> <span class="q">&quot;Atom&quot;</span><span class="s">)</span> &amp;&amp; <span class="s">(</span><span class="i">$feed</span><span class="i">-&gt;format</span><span class="s">(</span><span class="s">)</span> <span class="k">ne</span> <span class="q">&quot;Atom&quot;</span><span class="s">)</span><span class="s">)</span>
+  81      <span class="s">)</span>
+  82   <span class="s">{</span>
+  83     <span class="k">return</span> <span class="i">$feed</span><span class="i">-&gt;convert</span><span class="s">(</span><span class="i">$output_format</span><span class="s">)</span><span class="sc">;</span>
+  84   <span class="s">}</span>
+  85   <span class="k">else</span> <span class="s">{</span>
+  86     <span class="k">return</span> <span class="i">$feed</span><span class="sc">;</span>
+  87   <span class="s">}</span>
+  88 <span class="s">}</span>
+</pre>
+
+<h2>SEE ALSO</h2>
+<p>
+<a href="http://plagger.org/trac">Plagger</a> is an RSS/Atom manipulation
+framework built on top of <tt>XML::Feed</tt> and other modules, which has
+plug-ins for many common tasks that can be combined together to accomplish
+all sorts of interesting tasks.</p>
+
+</body>
+</html>

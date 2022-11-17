@@ -1,0 +1,103 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+If if, use use if
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>If if, use use if</h1>
+<div class='subtitle'>if - 2014-12-12</div>
+
+<div class='pod'><p>There&#39;s a common newbie mistake that looks something like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$ENV</span><span class="structure">{</span><span class="word">ADVENT_DEBUG</span><span class="structure">})</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">use</span> <span class="word">Devel::ecember</span> <span class="version">12.25.14</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>(I call this a newbie mistake to remind myself that I am still, now, and forever a newbie. I still make this mistake when I&#39;m not paying attention.)</p>
+
+<p>The problem, here, is that <code>use</code> happens at compile time, but <code>if</code> only controls the flow of the program at <i>run</i> time. This means that our debugger is loaded regardless of the environment. Whoops!</p>
+
+<p>The instinct on how to fix this is often to use a <code>BEGIN</code> block, but it&#39;s not a very good instinct. In Perl, &quot;compile time&quot; and &quot;run time&quot; are relative. Once you&#39;ve got your <code>if</code> in a <code>BEGIN</code> block, your <code>use</code> is in there too, and now it&#39;s still going to run earlier than your conditional!</p>
+
+<p>So, what&#39;s a programmer to do?</p>
+
+<p>This is where <code>if</code> comes in.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">if</span> <span class="symbol">$ENV</span><span class="structure">{</span><span class="word">ADVENT_DEBUG</span><span class="structure">}</span><span class="operator">,</span> <span class="single">'Devel::ecember'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>This might look like some weird new form of Perl&#39;s postfix conditionals, but it&#39;s not weird at all. Or, at least, it&#39;s not weird syntax. It&#39;s a rarely-seen core library for solving this problem, and it works just like any other module: when you <code>use</code> it, its <code>import</code> method is called, and decides what to do next: either use the library you wanted, or not.</p>
+
+<p>You may have noticed that we left something out of our code! We wanted to specify a version number for our debugger: v12.25.14. <code>if</code> doesn&#39;t let us do that, but <a href="https://metacpan.org/module/Exporter">Exporter</a> comes to our rescue, at least somewhat, here:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">if</span> <span class="symbol">$ENV</span><span class="structure">{</span><span class="word">ADVENT_DEBUG</span><span class="structure">}</span><span class="operator">,</span> <span class="single">'Devel::ecember'</span><span class="operator">,</span> <span class="single">'12.25.13'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>It&#39;s important to realize that <code>if</code> isn&#39;t doing the equivalent of including a version number in a <code>use</code> statement. What&#39;s actually happening is that the string <code>12.25.13</code> is being passed to Devel::ecember&#39;s <code>import</code> routine. A little-known feature in Exporter notices when the first argument to <code>import</code> is version-like, and converts it to a call to the <code>VERSION</code> method.</p>
+
+<p>What happens if the library you&#39;re conditionally loading doesn&#39;t use Exporter? Who knows! Probably nothing very good.</p>
+
+<p>There&#39;s another complication, too. You can&#39;t tell <code>if</code> to load the library without calling its <code>import</code> routine. This doesn&#39;t come up often, fortunately!</p>
+
+<p>On the other hand, there&#39;s another important use case for <code>if</code>. You can use if when you want to <i>un</i>import stuff, too. The canonical, gross example of this is:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">no</span> <span class="pragma">if</span> <span class="magic">$]</span> <span class="operator">&gt;=</span> <span class="float">5.020</span><span class="operator">,</span> <span class="word">warnings</span> <span class="operator">=&gt;</span> <span class="double">&quot;experimental::signatures&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Fortunately, that&#39;s been rendered obsolete by <a href="https://metacpan.org/module/experimental">experimental</a>! Instead, consider:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># It's Christmas!  Live a little!<br /></span><span class="keyword">no</span> <span class="pragma">if</span> <span class="structure">(</span><span class="word">localtime</span><span class="structure">)[</span><span class="number">4</span><span class="structure">]</span> <span class="operator">==</span> <span class="number">12</span> <span class="operator">-</span> <span class="number">1</span> <span class="operator">&amp;&amp;</span> <span class="structure">(</span><span class="word">localtime</span><span class="structure">)[</span><span class="number">3</span><span class="structure">]</span> <span class="operator">==</span> <span class="number">25</span><span class="operator">,</span> <span class="single">'strict'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/if">if</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/cec6b9b88295ead26c65f8747a76561b?r=g&s=80&d=retro />
+This article contributed by: Ricardo Signes &lt;rjbs@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="A Tiny But Powerful Type System" href="2014-12-11.html">Previous</a></li>
+
+    <li class="next"><a title="Now I Have Better Options" href="2014-12-13.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

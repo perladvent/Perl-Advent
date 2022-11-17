@@ -1,0 +1,194 @@
+Title: Devel::Size
+Topic: Devel::Size
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=pod
+
+=for :html
+<div class="bestof">
+2020 has been time consuming - a global pandemic, giant fires, horrific floods
+and political unrest - which has left us little time for side projects.
+This year we're looking back to happier times into the 20+ year archive with the
+Best of the Perl Advent Calendar.
+</div>
+
+Have you ever wondered exactly how much memory your data structure are
+taking up?  Normally this isn't the kind of thing that you need to
+worry about in Perl (Perl is optimised to use more memory so that it
+can use less CPU time where possible) and Perl handles all the
+nastiness of allocating and using memory but occasionally, just
+occasionally, you find yourself in a situation where you need to know
+this kind of thing.
+
+The thing about memory is that when you run out, well, you run out.
+As soon as you start having to swap to disk with virtual memory,
+everything gets extremely slow.  Even before you get to this point,
+it's worth noting the less memory your code has to deal with that for
+many subtle reasons the faster your code will run.
+
+One situation that's really critical to keep track of memory usage is
+when you're using mod_perl.  mod_perl, the system of embedding perl
+directly into a webserver, speeds things up a lot by amongst other
+things keeping a copy of global variables between requests for pages.
+This means that your scripts don't have to start from scratch each
+time at the cost of more memory usage.  One of the major drawbacks is
+that if you're not careful then this memory usage can be multiplied
+over each separate Apache process - typically thirty-fold or so.
+B<Devel::Size> can help identify situations where this might be a
+problem, and where you should take steps to ensure this data is placed
+in memory shared between the processes.
+
+=head2 Introducing Devel::Size
+
+Okay, as an example, let's have a look at some data structures and see
+how much space they take up.  Bear in mind that these figures are
+valid for my machine only (Debian Linux i386 unstable, with Debian's
+5.8.0 threaded perl built with gcc 2.95.4) and the results will vary
+with your hardware and architecture.
+
+Okay, let's get a list of all the files in the current directory and
+store it in a data structure:
+
+  #!perl
+  #!/usr/bin/perl
+  
+  # turn on perl's safety features
+  use strict;
+  use warnings;
+  
+  # use Devel::Size, and import the total_size function
+  use Devel::Size qw(total_size);
+  
+  # use the cwd function to get the current working directory
+  use Cwd;
+  
+  # open the current directory list
+  opendir DIR, cwd
+     or die "Couldn't open the current directory";
+  
+  # get all the files
+  my @files;
+  push @files, $_ while (readdir DIR);
+  closedir DIR;
+  
+  print "There are ".@files." files in your current dir\n";
+  print "Storing this array took up ".
+           total_size(\@files)." bytes\n";
+
+If I run this script from within my C</etc> dir I get the following
+printed out on screen.
+
+  There are 240 files in your current dir
+  Storing this array took up 9055 bytes
+
+Let's try storing some information on the data.  Let's pretend I 
+want to know the modification time, the size and the filemode of 
+each of these files.
+
+One approach, the first that comes to mind, is to create a big hash
+that contains for each file in the directory a smaller hash that has
+the keys "mtime", "size" and "mode" which have the values for the
+modification time, size and filemode of the file stored in the values
+respectively.
+
+  #!perl
+  # load File::stat so that 'stat()' will now return a "File::stat"
+  # object that methods like '$st->mode' can be called on
+  use File::stat;
+  
+  # build a big hash that is keyed by the name of the file and in
+  # which each entry points to another hash that has the size, mtime
+  # and mode stored in it
+  
+  my %stats;
+  foreach my $file (@files)
+  {
+    # stat the file working out when it was last modified, etc
+    my $stat = stat($file);
+
+    # store the mode, modification time and size of the file
+    # in a hash so we can access it later
+    $stats{ $file }{size}  = $stat->size;
+    $stats{ $file }{mtime} = $stat->mtime;
+    $stats{ $file }{mode}  = $stat->mtime;
+  }
+
+  print "Storing the the hash takes ".
+             total_size(\%stats)." bytes\n";
+
+Which then prints
+
+  Storing the the hash takes 66679 bytes
+
+Wow! That's 65KB.  Now that doesn't actually sound like a lot, but if
+I do that kind of thing in each of my mod_perl children after they've
+forked, and I'm running twenty servers, then that memory usage is
+potentially multiplied twenty-fold.  that's over a megabyte of memory
+right there.  Let's have a look at storing it in another format...How
+about if I use a small array for each file instead of each of the
+small hashes?
+
+  #!perl
+  # define constants that refer to the index the elements
+  # are in the array
+  use constant FILE_SIZE  => 0;
+  use constant FILE_MTIME => 1;
+  use constant FILE_MODE  => 2;
+
+  my %stats2;
+  foreach my $file (@files)
+  {
+    # stat the file working out when it was last modified, etc
+    my $stat = stat($file);
+
+    # store the mode, modification time and size of the file
+    # in an array so we can access it later
+    $stats2{ $file }[FILE_SIZE]  = $stat->size;
+    $stats2{ $file }[FILE_MTIME] = $stat->mtime;
+    $stats2{ $file }[FILE_MODE]  = $stat->mtime;
+  }
+
+  print "Storing the the hash takes ".
+             total_size(\%stats2)." bytes\n";
+
+Which on my system now prints out:
+
+  Storing the the hash takes 41239 bytes
+
+Which is a lot better.  How about if instead of a hash of lists
+I use a list of hashes?
+
+  #!perl
+  my @stats3;
+  foreach my $file (@files)
+  {
+    # stat the file working out when it was last modified, etc
+    my $stat = stat($file);
+
+    # store the mode, modification time and size of the file
+    # in an array so we can access it later
+    $stats3[FILE_SIZE]{ $file }  = $stat->size;
+    $stats3[FILE_MTIME]{ $file } = $stat->mtime;
+    $stats3[FILE_MODE]{ $file }  = $stat->mtime;
+  }
+
+  print "Storing the the array takes ".
+             total_size(\@stats3)." bytes\n";
+
+Which now prints:
+
+  Storing the the array takes 38393 bytes
+
+What's interesting here is essentially as we're saving more and more
+memory we're making our code less and less readable (and hence, less
+and less maintainable,) or to put it another way B<The more we try to
+save memory the less maintainable our code becomes> in this example.
+
+So we see we can play games with Perl data structures which reduces
+our overall memory usage, but to do so we have to sacrifice something
+else - programmer time - by producing less maintainable code.  Which
+is more important in any particular example is a hard choice to make,
+but one you can make from a much more informed position with
+B<Devel::Size> to help you.
+
+=cut

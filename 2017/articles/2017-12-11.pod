@@ -1,0 +1,160 @@
+Title: Tiny Path Handling
+Topic: Path::Tiny
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=encoding utf8
+
+Path::Tiny is a tiny abstraction around file paths that makes it very easy to
+manipulate them and perform common operations on them.
+
+Recently I've started using Path::Tiny in preference to both the internal Perl
+operators for file manipulation and the other abstractions like File::Spec and
+Path::Class because it makes it really easy to handle common operations easily
+without making the kind of common mistakes that those other approaches often
+result in when you're coding quickly.
+
+Enough explaining, let's see how to use Path::Tiny in practice...
+
+=head2 Building New Path::Tiny instances
+
+Construction of paths is simple: The C<path> function just takes an absolute
+or relative path.
+
+    #!perl
+    use Path::Tiny qw( path );
+
+    # the password file
+    my $passwords = path('/etc/passwd');
+
+    # my home directory
+    my $homedir   = path($ENV{HOME});
+
+As you can see Path::Tiny makes no distinction between directories or files - it
+relies entirely on you doing the right operations on them.
+
+These objects stringify directly into the string form of the path so on my macOS
+machine this:
+
+    #!perl
+    say $homedir;
+
+Prints
+
+    /Users/Mark
+
+Paths can be extended with the C<child> method:
+
+    #!perl
+    # this is '/Users/Mark/shopping_lists/xmas.txt'
+    my $xmas_list = $homedir->child('shopping_lists')->child('xmas.txt');
+
+This could have been written as:
+
+    #!perl
+    my $xmas_list = $homedir->child('shopping_lists', 'xmas.txt');
+
+Or like so:
+
+    #!perl
+    my $xmas_list = $homedir->child('shopping_lists/xmas.txt');
+
+Or so:
+
+    #!perl
+    my $relative_path = path('shopping_lists/xmas.txt');
+    my $xmas_list = $homedir->child( $relative_path );
+
+Or even with the C<path> constructor function like any of these:
+
+    #!perl
+    my $xmas_list = path($homedir, 'shopping_list', 'xmas.txt');
+    my $xmas_list = path($homedir, 'shopping_list/xmas.txt');
+    my $xmas_list = path($homedir, path('shopping_list/xmas.txt'));
+
+As you can see, using Path::Tiny makes combining paths really simple and helps
+me avoid one of the biggest problems I always end up with - if the directory
+path has a trailing slash or not
+
+    #!perl
+    my $dir                 = '/Users/Mark/shopping_list';
+    my $with_trailing_slash = "$dir/";
+    my $file                = 'mia_birthday.txt';
+
+    # WRONG: prints "/Users/Mark/shopping_listmia_birthday.txt"
+    say "$dir$file";
+
+    # WRONG: prints "/Users/Mark/shopping_list//mia_birthday.txt"
+    say "$with_trailing_slash/$file";
+
+    # RIGHT: both prints "/Users/Mark/shopping_list/mia_birthday.txt"
+    say path($dir, $file);
+    say path($with_trailing_slash, $file);
+
+A Path::Tiny object can also be broken down into the parent directory or the
+filename without the directory part (the I<basename>):
+
+    #!perl
+    # This prints '/Users/Mark/shopping_list'
+    say $xmas_list->parent;
+
+    # This prints 'xmas.txt'
+    say $xmas_list->basename;
+
+This sure beats having to use a regular expression on the path string - that
+too can get very complicated with trailing slashes..
+
+=head2 Reading and Writing Files
+
+While easy path manipulation is awesome, where Path::Tiny really shines is how
+it makes common file operations simple and only one line long:
+
+    #!perl
+    # add to the end of the file
+    $xmas_list->append("A partridge for the pair tree\n");
+
+    # read in the entire file as single string, then write it out again
+    my $contents = $xmas_list->slurp;
+    $contents =~ s/pair/pear/g;
+    $xmas_list->spew( $contents );
+
+Of course, in this day and age we should really be using UTF-8 encoding.
+Path::Tiny makes this trivial by providing the C<_utf8> suffix for all the file
+reading / writing methods which Does The Right Thing:
+
+    #!perl
+    $xmas_list->append_utf8("A \N{BIRD} for the \N{PEAR}\N{DECIDUOUS TREE}");
+
+Not shown is Path::Tiny Doing The Right Thing when appending to a file when it
+comes to multiple processes writing to the file at the same time.  In
+traditional Perl code you should open the filehandle you're about to write to
+and then flock it for the duration you have the file open so that any other code
+that also takes these two steps will wait for the other process to complete
+writing and you to release the flock before taking its turn.  In reality, most
+coders skip this step and just hope that they remain lucky that such a
+conflict doesn't occur ending up with two processes writing to the file at
+exactly the same time.  Path::Tiny handles all of that for you so you don't have
+to.
+
+Path::Tiny has a slew of handy methods for common reading and writing operations
+on a file.  For example, it can also read a file in as an array of lines:
+
+    #!perl
+    # sort our Christmas list
+    $xmas_list->spew_utf8( sort $xmas_list->lines_utf8 );
+
+Or alter each line in the file and atomically write the file contents back:
+
+    #!perl
+    my $counter = 1;
+    $xmas_list->edit_lines_utf8(sub {
+        $_ = "$counter. $_";
+        $counter++;
+    });
+
+Rather than list every single handy-dandy operation that Path::Tiny provides in
+this article - including reading directory contents (or iterating over them via
+an iterator function or via callback), opening temp files, absolute and relative
+path conversion, file testing, copying, removing directory trees and much more -
+I encourage you to peruse the extensive documentation.
+
+

@@ -1,0 +1,100 @@
+
+=for advent_year 2009
+
+=for advent_day 04
+
+=for advent_title Let it go, let it go, let it go
+
+=for advent_author Bill 'N1VUX' Ricker
+
+
+Maybe you have got an annual data load that, like Santa's annual child census update, that takes quite a while to process a slew of files from various sources, and the cpu and disk lights are not in your cube so you can't see progress. And should it fail, you'd like to restart close to where it failed.  
+
+While you could use M<Term::ProgressBar> or some explicit state variables N<state>, if we build it with M<Every> module's iterator 
+C<every(6)> that returns C<( (undef)x5 , 1)...>, we have total control and can use the 
+C<< every(seconds=>999) >> function to also handle having regular-in-time snap backups to create recovery points for the long load sequence.  M<Every> is totally different from P<2007-12-25|Time::Out>, which does multiple alarms, as M<Every> goes in an event loop.
+
+It can be used as 
+
+=begin code
+ 
+$dbh->commit if every(100);
+CopyToRecoverySite() if every(seconds=>3600);
+
+=end code
+
+Installation only has one dependency issueN<install>.
+
+In a test
+
+=begin codeNNN
+
+use 5.010;
+use Every;
+
+sub sing { say @_; }
+while (1) {
+    state $_iter;
+    print ++$_iter, "\t";
+    given (1) {
+
+        when ( every(5) | every(6) ) { sing("Merry Christmas!!") }
+        when ( every(8) )            { sing("On Dasher!") }
+        default                      { sing("Ho, Ho, Ho!") };
+    }
+    sleep 1;
+}
+
+=end codeNNN
+
+we find that F<On Dasher!> is scarcer than expected, as it does not count passes where the line is skipped when printing  F<Merry Christmas!!>. N<or> 
+
+
+So for Santa loading census updates, we'd like to see progress like
+
+=begin pre
+
+....v....x....v....x....v....x....v....x....v....x....v....x....v....x....v....x
+....v....x....v....x....v....x....v....x....v....x....v....x....v....x....v....x
+....v....x....v....x....v....x....v....x....v....x.
+backup @ Thu Dec  3 22:22:06 2009
+...v....x....v....x....v....x
+
+=end pre
+
+with one dot every 100 files, roman v and x for 5th and 10th dots.N<roman>
+
+=sourcedcode mod4.pl
+
+=begin eds
+
+Thank you to David Westbrook for input today.
+
+=end eds
+
+=begin footnote state 
+
+With the 'new' P<2007-12-19|Perl 5.10 Xmas 2007> State variables C< use feature 'state'; state
+$_n;> you no longer need closures or global variables to do this
+yourself.
+
+=end footnote
+
+=begin footnote install
+
+Note that prerequisite M<Devel::Callsite> 0.04 fails automated install. It has test problems. We had to do a  F<force notest install>.
+
+=end footnote
+
+=begin footnote or
+
+And hence C<every(2)||every(3)> is not what you think, since the lazy eval of C<||> will call C<every(3)> half as often as expected; coercion of undef to 0 makes C<every(2)|every(3)> as one expects.
+
+=end footnote
+
+
+=begin footnote roman
+ 
+could use F<ccccDccccM> for true roman counting :-) but that ties the print chars to the divisors.
+
+=end footnote

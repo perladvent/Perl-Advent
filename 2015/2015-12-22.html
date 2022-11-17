@@ -1,0 +1,135 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2015 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2015.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2015 - 
+Automate Christmas with Ansible and Perl
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2015</a></h1>
+        </div>
+
+        <p id="tagline">2015 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Automate Christmas with Ansible and Perl</h1>
+<div class='subtitle'>AnsibleModule - 2015-12-22</div>
+
+<div class='pod'><p>Ansible is a pretty great way to version control your infrastructure. It has powerful orchestration features that let you execute plays across any number of servers, and it works through SSH, so in most cases no setup is needed on the client. It comes with a wide range of modules that lets you handle most cases out of the box, like template generation for files, comprehensive rsync support, and even more advanced modules like the most common load balancers and network devices.</p>
+
+<p>Sometimes there&#39;s a piece in your infrastructure that you just can&#39;t handle with the built in modules like shell or get_url. Luckily it&#39;s easy to write your own modules, and bundle them with your playbooks. As Ansible is written in Python, it&#39;s a common choice, but you can write them in basically anything that can generate a JSON response.</p>
+
+<p>I&#39;ve written a helper module called <a href="https://metacpan.org/module/AnsibleModule">AnsibleModule</a> that brings the same convenience to Perl that Ansible provides to Python for writing modules, including input validation, automatic response handling, and fatpacking our module.</p>
+
+<p>Santa Claus inc are heavy users of the Cisco ACE load balancers, which are not supported out of the box in Ansible. During operations they often need to temporarily take one node out of the load balancer to do upgrades, so that every child gets their packages. Let&#39;s look at how we can write a module to help us with that.</p>
+
+<p>First, let&#39;s install AnsibleModule from CPAN:</p>
+
+<pre><code>  $ cpanm AnsibleModule</code></pre>
+
+<p>Next, let&#39;s start the source code of our project. I tend to keep them in the library/ folder of my playbooks repo. Ansible will automatically look there when you&#39;re running jobs. Let&#39;s make a ace_rserver.pl script now, with the basic code needed:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/env perl<br /></span><span class="keyword">use</span> <span class="word">AnsibleModule</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$module</span> <span class="operator">=</span> <span class="word">AnsibleModule</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">argument_spec</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">rserver</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">required</span> <span class="operator">=&gt;</span> <span class="number">1</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">enabled</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">default</span>  <span class="operator">=&gt;</span> <span class="single">'yes'</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">);</span><br /><span class="symbol">$module</span><span class="operator">-&gt;</span><span class="word">exit_json</span><span class="structure">(</span> <span class="structure">{</span> <span class="word">msg</span> <span class="operator">=&gt;</span> <span class="single">'wheeee'</span> <span class="structure">}</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Make sure it&#39;s executable, and we can test it with the ansible-perl script shipped with AnsibleModule:</p>
+
+<pre><code>  $ ansible-perl -m library/ace_rserver.pl
+  Output from library/ace_rserver.pl: {
+    &quot;failed&quot; =&gt; 1,
+    &quot;msg&quot; =&gt; &quot;missing required arguments: rserver&quot;
+  }
+  Response code: 1</code></pre>
+
+<p>Seems that argument validation is working, now let&#39;s try again with that argument included</p>
+
+<pre><code>  $ ansible-perl -m library/ace_rserver -a &#39;{&quot;rserver&quot;:&quot;test&quot;}&#39;
+  Output from library/ace_rserver.pl: {
+    &quot;changed&quot; =&gt; 0,
+    &quot;msg&quot; =&gt; &quot;wheeee&quot;
+  }
+  Response code: 0</code></pre>
+
+<p>Pretty good, but ideally you would like to use this with Ansible as well. Of course modules are uploaded and run remotely on each host, so you need to have any perl module you use available on the remote host. Luckily there&#39;s a module called &#39;App::Fatpacker&#39; that can package up your dependencies into one file. ansible-perl can use this to package up your script for you like this:</p>
+
+<pre><code>  $ ansible-perl -m library/ace_rserver -p
+  Wrote library/ace_rserver.packed</code></pre>
+
+<p>And now you can easily run it on a any host with a recent Perl. Lets test it with the ad hoc ansible command:</p>
+
+<pre><code>  $ ansible -i&#39;localhost local_connection,&#39; -m ace_rserver.packed -a &#39;rserver=foo&#39; localhost
+  localhost | success &gt;&gt; {
+      &quot;changed&quot;: 0,
+      &quot;msg&quot;: &quot;wheeee&quot;
+  }</code></pre>
+
+<p>Pretty spiffy! Btw, note that you also need to pack it because it includes the WANT_JSON magic keyword in your module. If you want to use it unpacked, you have to include this yourself.</p>
+
+<p>But our Ansible module isn&#39;t doing very much useful yet. I already created a quick script to test the https interface of the ACE:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/env perl<br /></span><br /><span class="keyword">use</span> <span class="word">Mojo::UserAgent</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">IO::Prompter</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$passwd</span> <span class="operator">=</span> <span class="word">prompt</span> <span class="single">'Enter your password: '</span><span class="operator">,</span> <span class="word">-echo</span> <span class="operator">=&gt;</span> <span class="single">''</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$ua</span>       <span class="operator">=</span> <span class="word">Mojo::UserAgent</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">@commands</span> <span class="operator">=</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'conf t'</span><span class="operator">,</span> <span class="single">'rserver host test3'</span><span class="operator">,</span> <span class="single">'ip address 10.10.11.11'</span><span class="operator">,</span> <span class="single">'end'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'show run'</span><br /><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$command</span> <span class="operator">=</span> <span class="single">'&lt;request_raw&gt;'</span> <span class="operator">.</span> <span class="word">join</span><span class="structure">(</span> <span class="double">&quot;\n&quot;</span><span class="operator">,</span> <span class="symbol">@commands</span> <span class="structure">)</span> <span class="operator">.</span> <span class="single">'&lt;/request_raw&gt;'</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$tx</span> <span class="operator">=</span> <span class="symbol">$ua</span><span class="operator">-&gt;</span><span class="word">post</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;https://$ENV{USER}:$passwd\@mrom-ip/bin/xml_agent&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">form</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">xml_cmd</span> <span class="operator">=&gt;</span> <span class="symbol">$command</span> <span class="structure">}</span><br /><span class="structure">);</span><br /><span class="keyword">if</span> <span class="structure">(</span> <span class="symbol">$res</span> <span class="operator">=</span> <span class="symbol">$tx</span><span class="operator">-&gt;</span><span class="word">success</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">warn</span> <span class="single">'Got '</span> <span class="operator">.</span> <span class="symbol">$res</span><span class="operator">-&gt;</span><span class="word">body</span><span class="structure">;</span><br /><span class="structure">}</span><br /><span class="keyword">else</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$err</span> <span class="operator">=</span> <span class="symbol">$tx</span><span class="operator">-&gt;</span><span class="word">error</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">die</span> <span class="double">&quot;$err-&gt;{code} response: $err-&gt;{message}&quot;</span> <span class="word">if</span> <span class="symbol">$err</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">code</span><span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">die</span> <span class="double">&quot;Connection error: $err-&gt;{message}&quot;</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Integrating that into our Ansible module shouldn&#39;t be too hard. We need a little different arguments. Also let&#39;s turn on support for check mode (if it&#39;s not enabled, Docker will just skip this module in check mode.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$module</span> <span class="operator">=</span> <span class="word">AnsibleModule</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">argument_spec</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">rserver</span>  <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">required</span> <span class="operator">=&gt;</span> <span class="number">1</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">enabled</span>  <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">type</span>     <span class="operator">=&gt;</span> <span class="single">'bool'</span><span class="operator">,</span> <span class="word">default</span> <span class="operator">=&gt;</span> <span class="single">'yes'</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">ace_host</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">required</span> <span class="operator">=&gt;</span> <span class="number">0</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">ace_user</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">required</span> <span class="operator">=&gt;</span> <span class="number">1</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">ace_pass</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">required</span> <span class="operator">=&gt;</span> <span class="number">1</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">supports_check_mode</span> <span class="operator">=&gt;</span> <span class="number">1</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>First, let&#39;s do a quick sub to run a sequence of raw command and return the output:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">_ace_command</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">@commands</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$tx</span>       <span class="operator">=</span> <span class="symbol">$ua</span><span class="operator">-&gt;</span><span class="word">post</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;https://$ENV{ACE_USER}:$ENV{ACE_PASS}\@ENV{ACE_HOST}/bin/xml_agent&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">form</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">xml_cmd</span> <span class="operator">=&gt;</span> <span class="single">'&lt;request_raw&gt;'</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">.</span> <span class="word">join</span><span class="structure">(</span> <span class="double">&quot;\n&quot;</span><span class="operator">,</span> <span class="symbol">@commands</span> <span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">.</span> <span class="single">'&lt;/request_raw&gt;'</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$res</span> <span class="operator">=</span> <span class="symbol">$tx</span><span class="operator">-&gt;</span><span class="word">success</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$res</span><span class="operator">-&gt;</span><span class="word">dom</span><span class="operator">-&gt;</span><span class="word">at</span><span class="structure">(</span><span class="single">'xml_show_result'</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">text</span><span class="operator">,</span> <span class="core">undef</span> <span class="word">if</span> <span class="symbol">$res</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="core">undef</span><span class="operator">,</span> <span class="symbol">$tx</span><span class="operator">-&gt;</span><span class="word">err</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Sorry about the golang-style error-handling scheme. :) Now we can easily use this to check that our rserver exists:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="structure">(</span> <span class="symbol">$res</span><span class="operator">,</span> <span class="symbol">$err</span> <span class="structure">)</span> <span class="operator">=</span> <span class="word">_ace_command</span><span class="structure">(</span><span class="double">&quot;show run rserver $rserver&quot;</span><span class="structure">);</span><br /><span class="symbol">$module</span><span class="operator">-&gt;</span><span class="word">fail_json</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">msg</span> <span class="operator">=&gt;</span> <span class="double">&quot;Could not talk to ACE: $err-&gt;{message} ($err-&gt;{code})&quot;</span> <span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">if</span> <span class="symbol">$err</span><span class="structure">;</span><br /><span class="symbol">$module</span><span class="operator">-&gt;</span><span class="word">fail_json</span><span class="structure">(</span> <span class="word">msg</span> <span class="operator">=&gt;</span> <span class="double">&quot;rserver $rserver not found&quot;</span> <span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">unless</span> <span class="symbol">$res</span> <span class="operator">=~</span> <span class="match">/rserver host $rserver/</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>And then continue to execute the changes specified in the arguments:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">if</span> <span class="structure">(</span> <span class="symbol">$module</span><span class="operator">-&gt;</span><span class="word">params</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">enabled</span><span class="structure">}</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$module</span><span class="operator">-&gt;</span><span class="word">exit_json</span><span class="structure">(</span> <span class="word">changed</span> <span class="operator">=&gt;</span> <span class="number">0</span> <span class="structure">)</span> <span class="word">if</span> <span class="symbol">$res</span> <span class="operator">=~</span> <span class="match">/\binservice\b/</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span> <span class="symbol">$res</span><span class="operator">,</span> <span class="symbol">$err</span> <span class="structure">)</span> <span class="operator">=</span> <span class="word">_ace_command</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'conf t'</span><span class="operator">,</span> <span class="double">&quot;rserver host $rserver&quot;</span><span class="operator">,</span> <span class="single">'no inservice'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">' end'</span><span class="operator">,</span>   <span class="double">&quot;show run rserver $rserver&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$module</span><span class="operator">-&gt;</span><span class="word">fail_json</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">msg</span> <span class="operator">=&gt;</span> <span class="double">&quot;Could not talk to ACE: $err-&gt;{message} ($err-&gt;{code})&quot;</span> <span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">if</span> <span class="symbol">$err</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$module</span><span class="operator">-&gt;</span><span class="word">fail_json</span><span class="structure">(</span> <span class="word">msg</span> <span class="operator">=&gt;</span> <span class="double">&quot;Could not take $rserver out of service&quot;</span> <span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">if</span> <span class="symbol">$res</span> <span class="operator">=~</span> <span class="match">/\binservice\b/</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$module</span><span class="operator">-&gt;</span><span class="word">exit_json</span><span class="structure">(</span> <span class="word">changed</span> <span class="operator">=&gt;</span> <span class="number">1</span> <span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Note that AnsibleModule automatically handles trueish/falseish values for your bools in the same fashion as the official Ansible modules. You can just treat them as normal Perlish values. fail_json will automatically stop processing, and return the relevant json struct to Ansible. note the changed value for exit_json; Of course, the else condition is just the reverse of this, I&#39;ll leave that as an exercise for you to figure out. We forgot something though. Earlier, we turned on support for check mode in the constructor. To support this, just wrap the ace_command line and error handling in a conditional.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">unless</span> <span class="structure">(</span> <span class="symbol">$module</span><span class="operator">-&gt;</span><span class="word">check_mode</span> <span class="structure">)</span> <span class="structure">{</span><span class="operator">...</span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>And everything should work as expected. And that should be everything we need. Have fun writing your own Ansible modules, and if you have any trouble or ideas for improvements issues, and especially pull-requests are appreciated at the <a href="https://github.com/marcusramberg/AnsibleModule)">github repo</a></p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/25484352cbd4cd37598a3b5d96b87d91?r=g&s=80&d=retro />
+This article contributed by: Marcus Ramberg &lt;marcus@nordaaker.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="The Perl of Christmas Future " href="2015-12-21.html">Previous</a></li>
+
+    <li class="next"><a title="Escaping the Basement For Christmas" href="2015-12-23.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

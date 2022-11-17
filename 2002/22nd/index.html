@@ -1,0 +1,312 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: XML::LibXML</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 22nd day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">XML::LibXML</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../21st/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../23rd/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><b>XML::LibXML</b> is an interface to the Gnome libxml XML parsing
+library, which is very very fast indeed.  It provides a large number
+of features and it provides them well.  It's fully buzzword compliant
+mentioning words like SAX, DOM, and XPath.  Best of all, it allows
+you to mix these technologies freely, meaning that you can very 
+quickly get at the right tool for the job.</p>
+<p>Oh, and if that wasn't enough it's really really fast.  What more could
+you ask for from an XML parser?</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?XML::LibXML">[Read the documentation for XML::LibXML on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>I've already written about using XML::LibXML to parse HTML in the
+<li><a href="http://www.perladvent.org/2002/16th/">entry on WWW::Mechanize</a></li>.  That
+was an example of using the XPath notation to find parts of the HTML.</p>
+<p>XPath is commonly called "to XML what regular expressions are to
+strings."  What this rather befussling statement is referring to is that
+XPath statements, like regular expressions, are not really the instructions
+of how to find the data we're after, but just really a statement of the goal
+- the specification of the thing we're trying to find.  For example:</p>
+<pre>   # create a new parser
+   use XML::LibXML;
+   my $parser = XML::LibXML-&gt;new();</pre>
+
+<pre>   # parse the document
+   my $doc = $parser-&gt;parse_file("myxml.xml");</pre>
+
+<pre>   # get the &lt;img&gt; tags
+   my @img = $doc-&gt;findnodes("//img");</pre>
+
+<p>See that the statement doesn't really say how one should go about
+finding the nodes in the document.  The "//" simply means 'matching
+anywhere in the document' and "img" is the name of the tag - it's just
+a spec.  XPath allows you to specify quite complicated specifications
+that pretty much allow you to select exactly the node you want from a
+document.  There's quite a good <li><a href="http://www.zvon.org/xxl/XPathTutorial/General/examples.html">example lead tutorial</a></li>
+on XPath on zvon.org.</p>
+<p>As well as returning tag nodes, XPath can be used to return the value
+of things.  For example, all the text inside the link to perl.com
+could be found like so:</p>
+<pre>  my @text = 
+    $doc-&gt;findvalue('//a[@href="http://www.perl.com/"]/text()");</pre>
+
+<p>The truly most useful thing about XPath is that you can execute
+<code>findnodes</code> and <code>findvalues</code> on xml nodes you have been returned
+before and it'll start a new search <i>relative to the node</i> you called
+the search on.</p>
+<pre>  # get all the paragraphs
+  foreach my $p_node ($doc-&gt;findnodes("//p"))
+  {
+    # print the text contained in the node
+    print $p_node-&gt;findvalue("./text()");</pre>
+
+<pre>    # underneath it print the images' urls
+    foreach my $attr ($p_node-&gt;findnodes('./img/@src'))
+    {
+      # get the value of that attribute
+      print "[IMG: " . $attr-&gt;findvalue(".") . "]\n";
+    }</pre>
+
+<pre>    # and some spacing
+    print "\n\n";
+  }</pre>
+
+<p>This XPath shenanigans is all great and wonderful, but it can get
+tiresome very quickly if all you want to do is a simple operation.
+XPath is good at the really complex stuff, but seems overly
+complicated if all you want to do is get a tag's parent tag.  This is
+why XML::LibXML has a DOM like interface that can be applied at any
+stage to any node.</p>
+<pre>  # for every image in a paragraph
+  foreach my $img_node ($doc-&gt;findnodes("//p/img"))
+  {
+     # print the image url
+     print $img_node-&gt;getAttribute("src") . ":\n";</pre>
+
+<pre>     # print the text of the paragraph it's in
+     print $img_node-&gt;parentNode
+                    -&gt;textContent;
+  }</pre>
+
+<p>This is one of the great features of <b>XML::LibXML</b> - you can
+mix and match the different XML techniques using whichever suits the
+task at hand best.  You can even get it to produce a stream of SAX
+events for you from the current document if you want.</p>
+<h2>The Breadcrumb Example</h2>
+<p>A common form of navigation on websites is what is known as "Breadcrumb"
+navigation.  This is where you have a section at the top of your page
+that looks somewhat like this:</p>
+<pre>  Home &gt; Computers &gt; Languages &gt; Perl &gt; Advent Calendar</pre>
+
+<p>where each element represents a subsection that can be clicked upon to
+move up a level to a more general area.  We can use <b>XML::LibXML</b> to
+add this navigation to each of our webpages.</p>
+<p>Firstly we need to edit each of our HTML files so that they contain
+the new tag <code>&lt;breadcrumb name="Advent Calendar" /&gt;</code>.  We then
+can write a script that can run though all the webpages it can find and
+replace these tags with the actual breadcrumb navigation.</p>
+<pre>  #!/usr/bin/perl
+  
+  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  use File::Find::Rule;
+  use Tie::File;</pre>
+
+<pre>  # for every file we can find in the directory that was passed
+  # in on the command line
+  foreach my $file (File::Find::Rule-&gt;file
+                                    -&gt;name("*.html")
+                                    -&gt;in($ARGV[0]))
+  {
+    # tie that file to lines so that we can edit it
+    tie my @lines, "Tie::File", $file;</pre>
+
+<pre>    # search each line in turn.  If we knew our files were 
+    # real xml we could have used XML::LibXML to do this, 
+    # but for now let's just use a regular expression.
+    foreach my $line (@lines)
+    {
+       # replace the tag with the results of the 
+       # breadcrumb function (use 'e' on regex to
+       # run perl code for replacement text) </pre>
+
+<pre>       $line =~ s{ &lt;           # start of the tag
+                   \s*         # optional whitespace
+                   breadcrumb  # the word breadcrumb
+                   \s*         # optional whitespace
+                   name        # name
+                   \s*         # optional whitespace
+	           =           # equals
+                   \s*         # optional whitespace
+                   "(.*?)"     # the contents of the attribute
+                   \s*         # optional whitespace
+                   /?&gt;         # the end of the tag ('/' optional)
+                 }{ 
+                    # replace it with the results of the 
+                    # breadcrumb function
+                    breadcrumb($1)
+                  }giex  
+    }</pre>
+
+<pre>    untie @lines;
+  }</pre>
+
+<p>So, that's the script that finds the tags in the file.  Now we need some
+kind of mapping between page names and page urls.  This is provided by
+the simple XML file below.  Each page as a url and a name, and may
+conceptually 'contain' other pages.</p>
+<pre>  &lt;?xml version="1.0"&gt;</pre>
+
+<pre>  &lt;page name="Home" url="/"&gt;
+   &lt;page name="Computers" url="/comp"&gt;
+    &lt;page name="Languages" url="/comp/lang"&gt;
+     &lt;page name="Jako"   url="/jako"  /&gt;
+     &lt;page name="Scheme" url="/sheme" /&gt;
+     &lt;page name="Perl"   url="/perl"  /&gt;
+      &lt;page name="Advent Calendar" url="/perl/advent" /&gt;
+      &lt;page name="Modules List"    url="/perl/mods" /&gt;
+     &lt;/page&gt;
+    &lt;/page&gt;
+   &lt;/page&gt;</pre>
+
+<p>(Note that this example would normally contain many more pages, I'm
+just being brief)</p>
+<p>And now we just need to write the <code>breadcrumb</code> function that reads in
+the file and spits out the correct html for navigation.  Once it's
+parsed the xml file all it really needs to do is look up the correct
+node with an XPath expression, and then move up the tree of nodes
+creating the html for a navigation link (a 'crumb') as we go until we
+reach the root node.</p>
+<pre>  my $doc;</pre>
+
+<pre>  sub breadcrumb
+  {
+    my $nodename = shift;</pre>
+
+<pre>    # parse the map if we haven't done this already
+    unless ($doc)
+    {
+      use XML::LibXML;
+      my $parser = XML::LibXML-&gt;new();
+      $doc = $parser-&gt;parse_file("map.xml");
+    }</pre>
+
+<pre>    # find the node that we're interested in (the 'page' node
+    # with the same name attribute)
+    my ($node) = $doc-&gt;findnodes('//page[@name="'.$nodename.'"]')
+     or die "Can't find page for name '$nodename'";
+  
+    # find the top node
+    my ($root) = $doc-&gt;findnodes("/*");</pre>
+
+<pre>    # the output string we're building up
+    my $string = $nodename;
+    
+    # keep getting the parent node and making it a crumb 
+    # while $node isn't the root node
+    while (!$node-&gt;isSameNode($root))
+    {
+      # move up a node
+      $node = $node-&gt;parentNode();</pre>
+
+<pre>      # create the crumb and add it to the start of the string 
+      use HTML::Entities;
+      $string = '&lt;a href="' . 
+                encode_entities($node-&gt;getAttribute('url')) .
+                '"&gt;' .
+                encode_entities($node-&gt;getAttribute('name')) .
+                '&lt;/a&gt; $gt; ' .
+                $string;
+    }</pre>
+
+<pre>    # return the string
+    return "&lt;p&gt;$string&lt;/p&gt;";
+  }</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.xml.com/pub/a/2001/11/14/xml-libxml.html">XML::LibXML - An XML::Parser Alternative article on perl.com</a></li>
+<li><a href="http://www.zvon.org/xxl/XPathTutorial/General/examples.html">Tutorial on XPath</a></li>
+<li><a href="http://search.cpan.org/author/MARKF/Template-Plugin-XML-LibXML/lib/Template/Plugin/XML/LibXML.pm">Template::Plugin::XML::LibXML (template toolkit plugin for XML::LibXML)</a></li>
+<li><a href="http://search.cpan.org/search?query=XML%3A%3AXPath+(XML%3A%3AParser+based+XPath+module)&mode=module">XML::XPath (XML::Parser based XPath module)</a></li>
+<li><a href="http://www.oreilly.com/catalog/perlxml/">O'Reilly's Perl &amp; XML book</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:54 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

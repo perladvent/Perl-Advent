@@ -1,0 +1,70 @@
+=pod
+
+=for advent_year 2010
+
+=for advent_day 14
+
+=for advent_title All I want for Christmas is something newer than 5.5.3
+
+=for advent_author Jerrad Pierce
+
+If your shop is anything like Santa's, you probably have a number of legacy
+systems kicking about concerns of a special breed of feature creep: the
+incorporation of nifty but non-nessential modern syntax in new code
+precluding its use with older versions of perl. Fortunately a certain clever
+Aussie&mdash;no not him, the other one&mdash;has seen fit to provide a tool
+to check for just such issues, M<Perl::MinimumVersion>. Since it's built on
+<tt>PPI</tt>, it theoretically has the ability to recognize whether potentially
+offending code is protected by an C<eval>, like the else block below:
+
+=begin code
+
+#MAGIC minifig0
+  $self->{_file} = _canonical($self->{-d}, $self->{-f}, qr/\.[ft]lf/,
+                              $^O =~ /MSWin32|DOS/i);
+  $self->{_file} = (glob($self->{_file}.'.?lf'))[0] unless -e $self->{_file};
+
+  $self->{_fh} = gensym;            #5.005 support
+  eval "use IO::Uncompress::Unzip";
+  unless( $@ ){
+      $self->{_fh} = eval{ IO::Uncompress::Unzip->new($self->{_file}) } ||
+          confess("No such file or directory: $self->{_file}");
+  }
+  else{
+      open($self->{_fh}, '<'.$self->{_file}) || confess("$!: $self->{_file}");
+      #$^W isn't mutable at runtime in 5.005, so we have to conditional eval
+      #to avoid "Useless use of constant in void context"
+      eval "binmode(\$fh, ':encoding(utf8)')" unless $] < 5.006;
+  }
+#MAGIC minifig1
+
+=end code
+
+Alas, the reason M<App::MinimumVersion|perlver> currently thinks the above
+code&mdash;from <tt>Text::FIGlet</tt>, which purposefully maintains backwards
+compatability&mdash;is Perl 5.0053 compataible because it's not aware of IO
+layers, not because it sees the modern syntax is safely inside a string C<eval>.
+
+=begin pre
+
+% perlver lib/Text/FIGlet/Font.pm 
+
+
+   ------------------------------------------------------  
+ | file                    | explicit | syntax | external |
+ | ------------------------------------------------------ |
+ | lib/Text/FIGlet/Font.pm | ~        | v5.5.3 | n/a      |
+ | ------------------------------------------------------ |
+ | Minimum explicit version : ~                             |
+ | Minimum syntax version   : v5.5.3                        |
+ | Minimum version of perl  : v5.5.3                        |
+   ------------------------------------------------------  
+
+=end pre
+
+However it will pick up on a number of issues like 3-arg open or INIT blocks,
+and could be easily updated by some kindly elves to cover more cases. Even
+its current state though, M<App::MinimumVersion> would be a nice addition
+to pre-check-in automated tests of code kwalitee.
+
+=cut

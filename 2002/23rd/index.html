@@ -1,0 +1,377 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Class::DBI</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 23rd day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Class::DBI</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../22nd/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../24th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Whenever a programmer is going to use a database seriously - beyond a
+few simple stores and queries - they must spend considerable time
+producing a thunking layer: A layer that sits between the database
+and the computing language so that queries from the database can be
+made sense of and so that every bit of the program doesn't have to know
+how to deal with the database itself.</p>
+<p>To be honest, this is a boring and monotonous task that a programmer
+can easily make a lot of mistakes doing if they're not extremely
+careful.</p>
+<p>What would be nice is if someone else was to do ninety percent of this
+work for us.  Apart from the odd case, this is mostly just writing the
+same old code over and over again.  Most of the time the code ends up
+being some kind of object that represents a line in the database which
+has the ability to alter itself and retrieve associated other lines as
+objects from the database in turn.</p>
+<p><b>Class::DBI</b>, a module that is a base class for these
+lines-as-objects, makes use of the fact that most thunking layers are
+pretty much identical and only requires you to enter but a few details
+on each table before a usable subclass can be created. </p>
+<p>Using it can greatly speed up your development time, and has the added
+bonus that you're much less likely to make mistakes than coding this
+kind of thing by hand.  Full of hooks and customisable options it's
+powerful enough that you should be able to thunk to sensible objects
+that you can use to represent the most convoluted and complicated
+databases, while being simple enough that it can be used with minimum
+fuss in the situations that don't require it.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Class::DBI">[Read the documentation for Class::DBI on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>So, Christmas is coming and the proverbial goose is getting fat, so
+it's time to start planning the Christmas meal.  And what better way
+than creating a database of items that we need for the meal?</p>
+<p>This year I'm going to let my database have two tables, one that
+represents the various items in the meal (the turkey, the roast
+potatoes, the Christmas pudding, etc) and another table that represents
+the ingredients in each of these items (the bird itself, the stuffing,
+the potatoes, the lard, etc...)</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # connect to the database
+  use DBI;
+  my $dbh = DBI-&gt;connect("dbi:SQLite:dbname=meal.db","","");</pre>
+
+<pre>  # run the SQL to create the items table 
+  $dbh-&gt;do(q{
+   CREATE TABLE item (
+        itemid         INTEGER PRIMARY KEY,
+        description    STRING,
+        qty            INTEGER
+   )});</pre>
+
+<pre>  # run the sql to create the ingredients table 
+  $dbh-&gt;do(q{
+   CREATE TABLE ingredient (  
+        ingredientsid  INTEGER PRIMARY KEY,
+        item           INTEGER,
+        name           STRING,
+        qty            INTEGER
+   )});</pre>
+
+<p>So what we want to do is create a class for each database table so
+that each instance of that class we create represents one line in the
+table.  While this sounds quite tricky, <b>Class::DBI</b> will do most of
+the work for us - all we really have to do is write a thin layer of
+mapping code.</p>
+<p>Before we can actually write these classes we first create an abstract
+base class that inherits from <b>Class::DBI</b> (or <code>Class::DBI::SQLite</code>
+in this case when we're using an SQLite database) and knows how to
+connect to the database.  By having each of our classes inherit from
+this once class they can share a connection to the database (which
+will put less stress on the database than by each class or each instance
+opening a new connection each time.)  This also has the advantage that
+all of our password data is one file - so if this ever changes we only
+ever need to edit this one base class.</p>
+<pre>  package XmasMeal::DBI;</pre>
+
+<pre>  # inherit from Class::DBI::SQLite not Class::DBI
+  # directly when using DBD::SQLite
+  use base qw(Class::DBI::SQLite);</pre>
+
+<pre>  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # tell it how to connect
+  Xmas::DBI-&gt;set_db('Main',                # always 'Main'
+                    'dbi:SQLite:meal.db',  # database handle info
+                    '',                    # username
+                    '');                   # password</pre>
+
+<pre>  # return true to keep perl happy
+  1;</pre>
+
+<p>Thankfully, that's the hardest bit out the way.  In comparison the
+mapping code is simple; Here's the example for the items table:</p>
+<pre>  package XmasMeal::Item;
+  use base qw(XmasMeal::DBI);</pre>
+
+<pre>  # turn on the safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # set it to use the correct table
+  XmasMeal::Item-&gt;table('item');</pre>
+
+<pre>  # and the columns we have
+  XmasMeal::Item-&gt;columns(All =&gt; qw(itemid
+                                    description
+                                    qty));</pre>
+
+<pre>  # return true to keep perl happy
+  1;</pre>
+
+<p>And that's all the mapping code we need.  We simply needed to tell the
+class what table it was dealing with and what columns are in that
+table. The first column we handed it is always assumed to be the
+primary key.</p>
+<p>We can now perform a whole plethora of operations really simply.  For
+example we can create new rows in the table like so:</p>
+<pre>  use XmasMeal::Item;
+  my $item = XmasMeal::Item-&gt;create({ description =&gt; "Turkey",
+                                      qty         =&gt; 1         });</pre>
+
+<p>Note that we don't have to specify the primary key (the <code>itemid</code>) as
+the database is treating that field as auto-updating it'll be
+automatically filled in for us.  The primary key (if you happen to
+know it) can be used to retrieve the created rows again:</p>
+<pre>  # get the item
+  my $item = Xmas::Item-&gt;retrieve(1);</pre>
+
+<p>When we have an object we can access any of the object's fields by
+simply calling the accessor method that's the same name as the column
+in the database.</p>
+<pre>  # say how much of this item we need
+  print "We need to prepare ". $item-&gt;qty .
+        " " . $item-&gt;description . "\n";</pre>
+
+<p>And if we want to change the values then we can simply call
+the same accessors with the new value, and then commit the changes
+to 'save' them back to the database.</p>
+<pre>  # I prefer chicken to turkey
+  $item-&gt;description("Chicken")</pre>
+
+<pre>  # they're small though.  Twice as much?
+  $item-&gt;qty( $item-&gt;qty * 2 );</pre>
+
+<pre>  # save those changes
+  $item-&gt;commit()</pre>
+
+<p>Until you commit the changes are stored 'in memory' only.  This is
+useful as it enables you to rollback easily (undo the changes you made
+easily) and is much more efficient than writing to the database after
+each and every call.  However, if you want the auto-committing behaviour
+it can be turned on on a per class or per object basis with the
+<code>autocommit</code> command.</p>
+<pre>  # turn on auto-commiting
+  XmasMeal::Item-&gt;autocommit(1);</pre>
+
+<p>Now, all of this wouldn't be that useful if all we could possibly do
+was look up objects by their primary key and store and retrieve them.
+What we want to be able to do is search the relational database and
+have the results returned to us as a list of objects.</p>
+<pre>  # lookup the item 
+  my ($turkey)
+    = XmasMeal::Item-&gt;search( description =&gt; "Turkey" );</pre>
+
+<pre>  # look up all items whose description contains the
+  # word 'Roast'
+  my @gonna_take_up_oven_space
+    = XmasMeal::Item-&gt;search_like( description =&gt; "%Roast%" );</pre>
+
+<p>Sometimes one of these searches will return too many results
+(especially if a certain someone attempts to cook every known
+vegetable to man with the Christmas meal.)  If you call the search
+method in scalar context (i.e. you assign it to a scalar not to an
+array or list or scalars) then you'll get an 'iterator' back.  An
+iterator is simple an object that you can continually ask for the
+next result from.</p>
+<pre>  # do the search, store the iterator in '$roasting'
+  my $roasting
+    = XmasMeal::Item-&gt;search_like( description =&gt; "%Roast%" );</pre>
+
+<pre>  # process each item in turn.  'next' will return undef when
+  # there are no more items, and then the loop will end.
+  while (my $item = $roasting-&gt;next)
+  {
+     print $item-&gt;description . "\n";
+  }</pre>
+
+<h2>Creating Relationships</h2>
+<p><b>Class::DBI</b> can create relationships between tables.  In our example
+we have ingredients that are parts of the items that make up our
+Christmas dinner.  Each of the ingredients 'has a' item that they're
+part of, and each item 'has many' ingredients.  For example the raisins
+and brandy are part of the Christmas pudding so they each 'has a'
+Christmas pudding and the pudding 'has many' of them.  Let's write the
+Ingredients class to demonstrate how that works.</p>
+<pre>  package XmasMeal::Ingredient;
+  use base qw(XmasMeal::DBI);</pre>
+
+<pre>  # turn on the safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # set it to use the correct table
+  XmasMeal::Ingredient-&gt;table('ingredient');</pre>
+
+<pre>  # and the columns we have
+  XmasMeal::Ingredient-&gt;columns(All =&gt; qw(ingredientid
+                                          item
+                                          name
+                                          qty
+                                          units));</pre>
+
+<pre>  # now tell that rather than returning the item's primary
+  # key stored in item it should retrieve the Item for that
+  # primary key and return that instead
+  XmasMeal::Ingredient-&gt;has_a(item =&gt; "XmasMeal::Item" );</pre>
+
+<pre>  # return true to keep perl happy
+  1;</pre>
+
+<p>And now we can populate the database just as you might expect.
+Instead of assigning the primary key of the pudding row to the <code>item</code>
+field, we simply assign the object and let <b>Class::DBI</b> sort it out
+for us.</p>
+<pre>  # create the pudding
+  my $pudding = XmasMeal::Item-&gt;create({
+   description =&gt; "Christmas Pudding",
+   qty         =&gt; 1
+  });</pre>
+
+<pre>  # create the raisins
+  XmasMeal::Ingredient-&gt;create({
+   name  =&gt; "Raisins",
+   qty   =&gt; 0.150,
+   units =&gt; "kilogrammes",
+   item  =&gt; $pudding,
+  });</pre>
+
+<pre>  # create the brandy
+  XmasMeal::Ingredient-&gt;create({
+   name  =&gt; "Brandy",
+   qty   =&gt; 0.025,
+   units =&gt; "litres",
+   item  =&gt; $pudding,
+  });</pre>
+
+<p>So now we can find out the description of the item that an 
+ingredient is by getting it's associated item like so:</p>
+<pre>  use XmasMeal::Ingredient;</pre>
+
+<pre>  # get the brandy
+  my ($brandy) = XmasMeal::Ingredient-&gt;search( name =&gt; "Brandy" );</pre>
+
+<pre>  # get the item it's part of 
+  $item = $brandy-&gt;item;</pre>
+
+<pre>  # print the description
+  print $item-&gt;description;</pre>
+
+<p>We would also love to go the other way round so we can find out what
+ingredients are in an item.  To do this we need to declare the following
+'has_many' relationship in <b>XmasMeal::Item</b></p>
+<pre>  # the ingredients accessor should return a list of all ingredients
+  # that have our primary key in their 'item' field.
+  XmasMeal::Item-&gt;has_many('ingredients',
+                 	   'XmasMeal::Ingredient' =&gt; 'item');</pre>
+
+<p>Which enables to find out for example, what's in our pudding like so:</p>
+<pre>  print join ", ", map { $_-&gt;name } $pudding-&gt;ingredients;
+  print "\n";</pre>
+
+<p><b>Class::DBI</b> also offers a shortcut for creating new objects and
+associating them with existing classes.  </p>
+<pre>  $pudding-&gt;add_to_ingredients({
+    name  =&gt; "Cherries",
+    units =&gt; "kilogrammes",
+    qty   =&gt; "0.02"
+  });</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/author/TIMB/DBI/DBI.pm">DBI</a></li>
+<li><a href="http://search.cpan.org/author/TMTM/Class-DBI-FromCGI/lib/Class/DBI/FromCGI.pm">Class::DBI::FromCGI</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:54 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Set-based DBIx::Class
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Set-based DBIx::Class</h1>
+<div class='subtitle'>DBIx::Class - 2012-12-21</div>
+
+<div class='pod'><p>I&#39;ve been using <a href="https://metacpan.org/module/DBIx::Class">DBIx::Class</a> for a few years, and I&#39;ve been part of the development team for just a little bit less. Three years ago I wrote a <a href="http://www.catalystframework.org/calendar/2009/20">Catalyst Advent article</a> about the five <a href="https://metacpan.org/module/DBIx::Class::Helpers">DBIx::Class::Helpers</a>, which have since ballooned to twenty-four. I&#39;ll be mentioning a few helpers in this post, but the main thing I want to describe is a way of using DBIx::Class that results in efficient applications as well as reduced code duplication.</p>
+
+<p>(Don&#39;t know anything about DBIx::Class? Want a refresher before diving in more deeply? Maybe watch <a href="https://www.youtube.com/watch?v=Vm_NlfHNVvg">my presentation</a> on it, or, if you don&#39;t like my face, try <a href="http://www.youtube.com/watch?v=N-tbMPyNlM8">this one</a>.)</p>
+
+<p>The thesis of this article is that <b>when you write code to act on things at the set level, you can often leverage the database&#39;s own optimizations</b> and thus produce faster code at a lower level.</p>
+
+<h2 id="Set-Based-DBIx::Class">Set Based DBIx::Class</h2>
+
+<p>The most important feature of DBIx::Class is not the fact that it saves you time by allowing you to sidestep database incompatibilities. It&#39;s not that you never have to learn the exact way to paginate correctly with SQL Server. It isn&#39;t even that you won&#39;t have to write DDL for some of the most popular databases. Of course DBIx::Class <b>does</b> do these things. Any ORM worth it&#39;s weight in salt should.</p>
+
+<h3 id="Chaining">Chaining</h3>
+
+<p>The most important feature of DBIx::Class is the <a href="https://metacpan.org/module/DBIx::Class::ResultSet">ResultSet</a>. I&#39;m not an expert on ORMs, but I&#39;ve yet to hear of another ORM which has an immutable[&dagger;] query representation framework. The first thing you <b>must</b> understand to achieve DBIx::Class mastery is ResultSet chaining. This is basic but critical.</p>
+
+<p>The basic pattern of chaining is that you can do the following and not hit the database:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$resultset</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">({</span><br />&nbsp;&nbsp;&nbsp;<span class="word">name</span> <span class="operator">=&gt;</span> <span class="single">'frew'</span><span class="operator">,</span><br /><span class="structure">})</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">({</span><br />&nbsp;&nbsp;&nbsp;<span class="word">job</span> <span class="operator">=&gt;</span> <span class="single">'software engineer'</span><span class="operator">,</span><br /><span class="structure">})</span></code><br />&nbsp;</td></table>
+
+<p>What the above implies is that you can add methods to your resultsets like the following:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">search_by_name</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$name</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">({</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">current_source_alias</span> <span class="operator">.</span> <span class="double">&quot;.name&quot;</span> <span class="operator">=&gt;</span> <span class="symbol">$name</span> <span class="structure">})</span><br /><span class="structure">}</span><br /><br /><span class="keyword">sub</span> <span class="word">is_software_engineer</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$self</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">({</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">current_source_alias</span> <span class="operator">.</span> <span class="double">&quot;.job&quot;</span> <span class="operator">=&gt;</span> <span class="single">'software engineer'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">})</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>And then the query would become merely</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$resultset</span><span class="operator">-&gt;</span><span class="word">search_by_name</span><span class="structure">(</span><span class="single">'frew'</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">is_software_engineer</span></code><br />&nbsp;</td></table>
+
+<p>(microtip: use <a href="https://metacpan.org/module/DBIx::Class::Helper::ResultSet::Me">DBIx::Class::Helper::ResultSet::Me</a> to make defining searches as above less painful.)</p>
+
+<h3 id="Relationship-Traversal">Relationship Traversal</h3>
+
+<p>The next thing you need to know is relationship traversal. This can happen two different ways, and to get the most code reuse out of DBIx::Class you&#39;ll need to be able to reach for both when the time arrises.</p>
+
+<p>The first is the more obvious one:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$person_rs</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">({</span><br />&nbsp;&nbsp;&nbsp;<span class="single">'job.name'</span> <span class="operator">=&gt;</span> <span class="single">'goblin king'</span><span class="operator">,</span><br /><span class="structure">}</span><span class="operator">,</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="word">join</span> <span class="operator">=&gt;</span> <span class="single">'job'</span><span class="operator">,</span><br /><span class="structure">})</span></code><br />&nbsp;</td></table>
+
+<p>The above finds person rows that have the job &quot;<a href="https://www.google.com/search?tbm=isch&amp;q=david+bowie+jareth">goblin king</a>.&quot;</p>
+
+<p>The alternative to use <a href="https://metacpan.org/module/DBIx::Class::ResultSet#related_resultset">&quot;related_resultset&quot; in DBIx::Class::ResultSet</a>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$job_rs</span><span class="operator">-&gt;</span><span class="word">search_by_name</span><span class="structure">(</span><span class="single">'goblin_king'</span><span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">-&gt;</span><span class="word">related_resultset</span><span class="structure">(</span><span class="single">'person'</span><span class="structure">)</span></code><br />&nbsp;</td></table>
+
+<p>The above generates the same query, but allows you to use methods that are defined on the job resultset.</p>
+
+<h3 id="Subqueries">Subqueries</h3>
+
+<p>Subqueries are less important for code reuse and more important in avoiding incredibly inefficient database patterns. Basically, they allow the database to do more on its own. Without them, you&#39;ll end up asking the database for data, then you&#39;ll send that data right back to the database as part of your next query. It&#39;s not only pointless network overhead but also two queries.</p>
+
+<p>Here&#39;s an example of what not to do in <code>DBIx::Class</code>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@failed_tests</span> <span class="operator">=</span> <span class="symbol">$tests</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">({</span><br />&nbsp;&nbsp;&nbsp;<span class="word">pass</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br /><span class="structure">})</span><span class="operator">-&gt;</span><span class="word">all</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">@not_failed_tests</span> <span class="operator">=</span> <span class="symbol">$tests</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">({</span><br />&nbsp;&nbsp;<span class="word">id</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">-not_in</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="word">map</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">id</span><span class="operator">,</span> <span class="symbol">@failed_tests</span><span class="structure">]</span> <span class="structure">}</span><span class="operator">,</span> <span class="comment"># XXX: DON'T DO THIS</span><br /><span class="structure">});</span></code><br />&nbsp;</td></table>
+
+<p>If you got enough failed tests back, this would probably just error. <b>Just Say No</b> to inefficient database queries:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$failed_tests</span> <span class="operator">=</span> <span class="symbol">$tests</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">({</span><br />&nbsp;&nbsp;&nbsp;<span class="word">pass</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br /><span class="structure">})</span><span class="operator">-&gt;</span><span class="word">get_column</span><span class="structure">(</span><span class="single">'id'</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">as_query</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">@not_failed_tests</span> <span class="operator">=</span> <span class="symbol">$tests</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">({</span><br />&nbsp;&nbsp;<span class="word">id</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">-not_in</span> <span class="operator">=&gt;</span> <span class="symbol">$failed_tests</span> <span class="structure">}</span><span class="operator">,</span><br /><span class="structure">});</span></code><br />&nbsp;</td></table>
+
+<p>This is much more efficient than before, as it&#39;s just a single query and lets the database do what it does best and gives you what you exactly want.</p>
+
+<h3 id="Christmas">Christmas!</h3>
+
+<p>Ok so now you know how to reuse searches as much as is currently possible. You understand the basics of subqueries in <code>DBIx::Class</code> and how they can save you time. My guess is that you actually already knew that. &quot;This wasn&#39;t any kind of ninja secret, fREW! You lied to me!&quot; I&#39;m sorry, but now we&#39;re getting to the real meat.</p>
+
+<h3 id="Correlated-Subqueries">Correlated Subqueries</h3>
+
+<p>One of the common, albeit expensive, usage patterns I&#39;ve seen in <code>DBIx::Class</code> is using <code>N + 1</code> queries to get related counts. The idea is that you do something like the following:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@data</span> <span class="operator">=</span> <span class="word">map</span> <span class="operator">+</span><span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="cast">%</span><span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">as_hash</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">friend_count</span> <span class="operator">=&gt;</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">friends</span><span class="operator">-&gt;</span><span class="word">count</span><span class="operator">,</span> <span class="comment"># XXX: BAD CODE, DON'T COPY PASTE</span><br /><span class="structure">}</span><span class="operator">,</span> <span class="symbol">$person_rs</span><span class="operator">-&gt;</span><span class="word">all</span></code><br />&nbsp;</td></table>
+
+<p>Note that the <code>$_-&gt;friends-&gt;count</code> is a query to get the count of friends. The alternative is to use correlated subqueries. Correlated subqueries are hard to understand and even harder to explain. The gist is that, just like <a href="#Subqueries">before</a>, we are just using a subquery to avoid passing data to the database for no good reason. This time we are just going to do it for each row in the database. Here is how one would do the above query, except as promised, with only a single hit to the database:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@data</span> <span class="operator">=</span> <span class="word">map</span> <span class="operator">+</span><span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="cast">%</span><span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">as_hash</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">friend_count</span> <span class="operator">=&gt;</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">get_column</span><span class="structure">(</span><span class="single">'friend_count'</span><span class="structure">)</span><span class="operator">,</span><br /><span class="structure">}</span><span class="operator">,</span> <span class="symbol">$person_rs</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">(</span><span class="core">undef</span><span class="operator">,</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="single">'+columns'</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">friend_count</span> <span class="operator">=&gt;</span> <span class="symbol">$friend_rs</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">({</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'friend.person_id'</span> <span class="operator">=&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="word">-ident</span> <span class="operator">=&gt;</span> <span class="symbol">$person_rs</span><span class="operator">-&gt;</span><span class="word">current_source_alias</span> <span class="operator">.</span> <span class="double">&quot;.id&quot;</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">alias</span> <span class="operator">=&gt;</span> <span class="single">'friend'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">})</span><span class="operator">-&gt;</span><span class="word">count_rs</span><span class="operator">-&gt;</span><span class="word">as_query</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">})</span><span class="operator">-&gt;</span><span class="word">all</span></code><br />&nbsp;</td></table>
+
+<p>There are only two new things above. The first is <code>-ident</code>. All <code>-ident</code> does is tell <code>DBIx::Class</code> &quot;this is the name of a thing in the database, quote it appropriately.&quot; In the past people would have written <code>-ident</code> using queries like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="single">'friend.person_id'</span> <span class="operator">=&gt;</span> <span class="cast">\</span><span class="single">' = foo.id'</span> <span class="comment"># don't do this, it's silly</span></code><br />&nbsp;</td></table>
+
+<p>So if you see something like that in your code base, change it to <code>-ident</code> as above.</p>
+
+<p>The next new thing is the <code>alias =&gt; &#39;friend&#39;</code> directive. This merely ensures that the inner rs has it&#39;s own alias, so that you have something to correlate against. If that doesn&#39;t make sense, just trust me and cargo cult for now.</p>
+
+<p>This adds a virtual column, which is itself a subquery. The column is, basically, <code>$friend_rs-&gt;search({ &#39;friend.person_id&#39; =&gt; $_-&gt;id })-&gt;count</code>, except it&#39;s all done in the database. The above is <b>horrible</b> to recreate every time, so I made a helper: <a href="https://metacpan.org/module/DBIx::Class::Helper::ResultSet::CorrelateRelationship">DBIx::Class::Helper::ResultSet::CorrelateRelationship</a>. With the helper the above becomes:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@data</span> <span class="operator">=</span> <span class="word">map</span> <span class="operator">+</span><span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="cast">%</span><span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">as_hash</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">friend_count</span> <span class="operator">=&gt;</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">get_column</span><span class="structure">(</span><span class="single">'friend_count'</span><span class="structure">)</span><span class="operator">,</span><br /><span class="structure">}</span><span class="operator">,</span> <span class="symbol">$person_rs</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">(</span><span class="core">undef</span><span class="operator">,</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="single">'+columns'</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">friend_count</span> <span class="operator">=&gt;</span> <span class="symbol">$person_rs</span><span class="operator">-&gt;</span><span class="word">correlate</span><span class="structure">(</span><span class="single">'friend'</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">count_rs</span><span class="operator">-&gt;</span><span class="word">as_query</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">})</span><span class="operator">-&gt;</span><span class="word">all</span></code><br />&nbsp;</td></table>
+
+<h3 id="ProxyResultSetMethod"><a href="https://metacpan.org/module/DBIx::Class::Helper::Row::ProxyResultSetMethod">::ProxyResultSetMethod</a></h3>
+
+<p>Correlated Subqueries are nice, especially given that there is a helper to make creating them easier, but it&#39;s still not as nice as we would like it. I made another helper which is the icing on the cake. It encourages more forward-thinking DBIx::Class usage with respect to resultset methods.</p>
+
+<p>Let&#39;s assume you need friend count very often. You should make the following resultset method in that case:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">with_friend_count</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$self</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;<span class="symbol">$person_rs</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">(</span><span class="core">undef</span><span class="operator">,</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'+columns'</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">friend_count</span> <span class="operator">=&gt;</span> <span class="symbol">$person_rs</span><span class="operator">-&gt;</span><span class="word">correlate</span><span class="structure">(</span><span class="single">'friend'</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">count_rs</span><span class="operator">-&gt;</span><span class="word">as_query</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Now you can just do the following to get a resultset with a friend count included:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$person_rs</span><span class="operator">-&gt;</span><span class="word">with_friend_count</span></code><br />&nbsp;</td></table>
+
+<p>But to access said friend count from a result you&#39;ll still have to use <code>-&gt;get_column(&#39;friend&#39;)</code>, which is a drag since using <code>get_column</code> on a <code>DBIx::Class</code> result is nearly using a private method. That&#39;s where my helper comes in. With <a href="https://metacpan.org/module/DBIx::Class::Helper::Row::ProxyResultSetMethod">DBIx::Class::Helper::Row::ProxyResultSetMethod</a>, you can use the <code>-&gt;with_friend_count</code> method <b>from</b> your row methods, and better yet, if you used it when you originally pulled data with the resultset, the result will use the data that it already has! The gist is that you add this to your result class:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">__PACKAGE__</span><span class="operator">-&gt;</span><span class="word">load_components</span><span class="structure">(</span><span class="words">qw( Helper::Row::ProxyResultSetMethod )</span><span class="structure">);</span><br /><span class="word">__PACKAGE__</span><span class="operator">-&gt;</span><span class="word">proxy_resultset_method</span><span class="structure">(</span><span class="single">'friend_count'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>and that adds a <code>friend_count</code> method on your row objects that will correctly proxy to the resultset or use what it pulled or cache if called more than once!</p>
+
+<h3 id="ProxyResultSetUpdate"><a href="DBIx:Class::Helper::Row::ProxyResultSetUpdate">::ProxyResultSetUpdate</a></h3>
+
+<p>I have one more, small gift for you. Sometimes you want to do something when either your row or resultset is updated. I posit that the best way to do this is to write the method in your resultset and then proxy to the resultset from the row. If you force your API to update through the result you are doing <code>N</code> updates (one per row), which is inefficient. My helper simply needs to be loaded:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">__PACKAGE__</span><span class="operator">-&gt;</span><span class="word">load_components</span><span class="structure">(</span><span class="words">qw( Helper::Row::ProxyResultSetUpdate )</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>and your results will use the update defined in your resultset.</p>
+
+<h3 id="Dont-Stop">Don&#39;t Stop!</h3>
+
+<p>This isn&#39;t all! DBIx::Class can be very efficient <b>and also</b> reduce code duplication. Whenever you have something that&#39;s slow or bound to result objects, think about what you could do to leverage your amazing storage layer&#39;s speed (the RDBMS) and whether you can push the code down a layer to be reused more.</p>
+
+<p>[&dagger;] if it weren&#39;t for the fact that there is an implicit iterator akin to <code>each %foo</code> it would be 100% immutable. It&#39;s pretty close though!</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/DBIx::Class">DBIx::Class</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/DBIx::Class::Helper::ResultSet::Me">DBIx::Class::Helper::ResultSet::Me</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/DBIx::Class::Helper::ResultSet::CorrelateRelationship">DBIx::Class::Helper::ResultSet::CorrelateRelationship</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/DBIx::Class::Helper::Row::ProxyResultSetMethod">DBIx::Class::Helper::Row::ProxyResultSetMethod</a></p>
+
+</li>
+<li><p><a href="DBIx:Class::Helper::Row::ProxyResultSetUpdate">DBIx:Class::Helper::Row::ProxyResultSetUpdate</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/99d7d0aba169ea255ffa5c8c63f652ae?r=g&s=80&d=retro />
+This article contributed by: Arthur Axel &quot;fREW&quot; Schmidt &lt;frew@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Better Testing" href="2012-12-20.html">Previous</a></li>
+
+    <li class="next"><a title="Generate static web sites using your favorite Perl framework" href="2012-12-22.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

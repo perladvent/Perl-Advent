@@ -1,0 +1,228 @@
+=pod
+
+=for advent_year 2009
+
+=for advent_day 16
+
+=for advent_title Stocking Stuffers
+
+=for advent_author Jerrad Pierce
+
+
+=begin eds
+
+I received some feedback on the operand of P<2009-08>'s entry,
+which led me to revisit the ensuing discussion when I unveiled
+A<http://perlmonks.org/?node=whichpm|whichpm>, as mod8.pl was originally dubbed.
+
+=end eds
+
+
+Old Saint Nick's a mighty fine perl hack, but with a couple hundred years
+worth of naughty or nice cloggin' his noggin there's not much room for the
+ins and outs of half of CPAN. That's why Santa uses M<pmtools>N<install>.
+M<pmtools>, for when you can't remember all the details about a module.
+
+
+=begin pre
+
+nick@north# pmdesc `pminst Sock` 
+Socket6 (0.20) - IPv6 related part of the C socket.h defines and structure manipulators
+IO::Socket::INET6 (2.54) - Object interface for AF_INET|AF_INET6 domain sockets
+IO::Socket::SSL (1.27) - Nearly transparent SSL encapsulation for IO::Socket::INET.
+
+=end pre
+
+C<pminst> lists the names of installed modules matching the string provided.
+C<pmdesc> gives the one-line description from the NAME section of the
+specified module. Combined, we have a perl module apropos.
+
+
+=begin pre
+
+nick@north# pmpath Socket6
+/usr/lib/perl5/Socket6.pm
+
+=end pre
+
+C<pmpath> is M<pmtool>'s version of C<whichpm>, and it also uses C<require>
+to locate modules. Many M<pmtools> call C<pmpath> which means your screen
+can become littered with extraneous errors because the command propogates
+messages from modules which fail to compile.
+
+
+=begin pre
+
+nick@north# pmeth Socket6
+AUTOLOAD
+bootstrap
+carp
+confess
+constant
+croak
+gai_strerror
+getaddrinfo
+gethostbyname2
+getipnodebyaddr
+getipnodebyname
+getnameinfo
+in6addr_any
+in6addr_loopback
+inet_ntop
+inet_pton
+pack_sockaddr_in6
+pack_sockaddr_in6_all
+sockaddr_in6
+unpack_sockaddr_in6
+unpack_sockaddr_in6_all
+as_heavy via Exporter
+export via Exporter
+export_fail via Exporter
+export_ok_tags via Exporter
+export_tags via Exporter
+export_to_level via Exporter
+import via Exporter
+require_version via Exporter
+[overridden] AUTOLOAD via DynaLoader
+boot_DynaLoader via DynaLoader
+[overridden] bootstrap via DynaLoader
+bootstrap_inherit via DynaLoader
+[overridden] croak via DynaLoader
+dl_error via DynaLoader
+dl_find_symbol via DynaLoader
+dl_install_xsub via DynaLoader
+dl_load_file via DynaLoader
+dl_load_flags via DynaLoader
+dl_undef_symbols via DynaLoader
+dl_unload_file via DynaLoader
+DOES via UNIVERSAL
+VERSION via UNIVERSAL
+can via UNIVERSAL
+[overridden] import via UNIVERSAL
+isa via UNIVERSAL
+
+=end pre
+
+C<pmeth> lists all of the "methods" supplied by a module, including those
+it inherits. Overriden subroutines are flagged, and with a
+A<https://rt.cpan.org/Ticket/Display.html?id=52850|simple patch> so are
+<tt>constant</tt>s. Unfortunately, imported routines are not&hellip;
+
+
+=begin code
+
+#nick@north# pmfunc Socket6::AUTOLOAD
+sub AUTOLOAD {
+    my($constname);
+    ($constname = $AUTOLOAD) =~ s/.*:://o;
+    my $val = constant($constname, @_ ? $_[0] : 0);
+    if ($! != 0) {
+        my ($pack, $file, $line) = caller;
+        croak "Your vendor has not defined Socket macro $constname, used";
+    }
+    eval "sub $AUTOLOAD { $val }";
+    goto &$AUTOLOAD;
+}
+
+=end code
+
+Emits the code for the specified routine.
+
+
+=begin pre
+
+nick@north# pmload WubFur
+/usr/lib/perl/site_perl/5.10/Fur.pm
+
+=end pre
+
+Lists all of the other modules this module loads at compile time. C<plxload>
+does the same for perl scripts, and M<Devel::Loaded> can be used to also
+detect modules that are brought-in at run-time e.g; via C<eval>. This
+information can be useful for ensuring all dependencies are documented.
+
+
+And a few more:
+
+=over
+
+=item C<pman>
+
+This wrapper around <tt>Pod::Text</tt> displays pod faster than perldoc,
+less some fancy output formatting, but not much faster than C<man> can
+show C<pod2man>'d output. Nor does it handle modules that separate POD
+from code properly.
+
+=item C<pfgrep>
+
+Like C<perldoc -f>, but defaults to unpaged output which might be handy if
+you've never added B<-F> to I<$ENV{LESS}>, etc.
+
+=item C<podtoc>
+
+One of several tools that doesn't call C<pmpath> itself so you'll want to do:
+
+=begin pre
+
+nick@north# podtoc `pmpath Socket6`
+/usr/lib/perl5/Socket6.pm
+ NAME
+ SYNOPSIS
+ DESCRIPTION
+     *  inet_pton FAMILY, TEXT_ADDRESS
+     *  inet_ntop FAMILY, BINARY_ADDRESS
+     *  pack_sockaddr_in6 PORT, ADDR
+     *  pack_sockaddr_in6_all PORT, FLOWINFO, ADDR, SCOPEID
+     *  unpack_sockaddr_in6 NAME
+     *  unpack_sockaddr_in6_all NAME
+     *  gethostbyname2 HOSTNAME, FAMILY
+     *  getaddrinfo NODENAME, SERVICENAME, [FAMILY, SOCKTYPE, PROTOCOL, FLAGS]
+     *  getnameinfo NAME, [FLAGS]
+     *  getipnodebyname HOST, [FAMILY, FLAGS]
+     *  getipnodebyaddr FAMILY, ADDRESS
+     *  gai_strerror ERROR_NUMBER
+     *  in6addr_any
+     *  in6add_loopback
+
+=end pre
+
+NOTE: The home-made POD parser used for speed doesn't handle formatting codes.
+
+=item C<podgrep>
+
+Another tool that doesn't call C<pmpath> to expand a supplied module name.
+
+=begin pre
+
+nick@north# podgrep -f -p unpack `pmpath Socket6`
+/usr/lib/perl5/Socket6.pm chunk 26
+    <span style="background-color:pink">unpack</span>_sockaddr_in6 NAME
+
+/usr/lib/perl5/Socket6.pm chunk 28
+    <span style="background-color:pink">unpack</span>_sockaddr_in6_all NAME
+
+POD ERRORS
+    Hey! The above document had some coding errors, which are explained
+    below:
+
+    Around line 3:
+        '=item' outside of any '=over'
+
+    Around line 5:
+        You forgot a '=back' before '=head1'
+
+    Around line 7:
+        '=item' outside of any '=over'
+
+=end pre
+
+=back
+
+=begin footnote install
+
+To install M<pmtools> via CPAN you may need to refer to the included
+M<Devel::Loaded> instead.
+
+=end footnote
+
+=cut

@@ -1,0 +1,147 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2019 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2019.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2019 - 
+The Weather Outside Is Frightful
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2019</a></h1>
+        </div>
+
+        <p id="tagline">2019 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>The Weather Outside Is Frightful</h1>
+<div class='subtitle'>DarkSky::API - 2019-12-06</div>
+
+<div class='pod'><h3 id="Bad-Weather">Bad Weather</h3>
+
+<p>Being at the North Pole snow is something that you have to get used to. There&#39;s no snow days, you don&#39;t get to call in if the weather is bad, and there&#39;s no putting off Christmas no matter how much of the white stuff falls.</p>
+
+<p>Instead, you have to be prepared.</p>
+
+<p>It&#39;s really important that the elves know when there&#39;s a snowstorm coming, and they employ a whole team</p>
+
+<p>But what about us mere mortals? Shouldn&#39;t we be prepared too in case, say, it snows so much at 6am on Christmas morning a car containing radioactive isotopes flips in a snowstorm, crashes into the telegraph pole outside your house, rips down all the electrical cabling that provides power to your house and then bursts into flames (don&#39;t worry, that&#39;s only ever happened to me <a href="https://www.berkshireeagle.com/stories/richmond-crash-delays-delivery-of-cancer-treatment-materials,527955">once</a>).</p>
+
+<p>Well, we can&#39;t afford to have a team of elves working night and day to alert us of bad weather. But we can have Perl do it for us.</p>
+
+<h3 id="Dark-Sky">Dark Sky</h3>
+
+<p><a href="https://darksky.net/">DarkSky</a> is a very handy website for gathering weather predictions offering doppler radar maps, predictive forecasting for up to a week in advance, per minute rainfall for the next hour in easy to read graphical form, and a compelling time-machine feature for seeing both historical and predicted future weather.</p>
+
+<p>More importantly for our purposes, it offers a <a href="https://darksky.net/dev">comprehensive API</a> with a generous free tier that we can use to poll for weather updates throughout the day.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="float">5.024</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">DarkSky::API</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$forecast</span> <span class="operator">=</span> <span class="word">DarkSky::API</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">key</span>       <span class="operator">=&gt;</span> <span class="single">'8e983a4b1eca4ebf9385f413f8ffa668'</span><span class="operator">,</span><br /><br /><span class="comment">    # this is New York City, NY, USA<br /></span>    <span class="word">longitude</span> <span class="operator">=&gt;</span> <span class="float">-74.0060</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">latitude</span>  <span class="operator">=&gt;</span> <span class="float">40.7128</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">$weather</span> <span class="operator">=</span> <span class="symbol">$forecast</span><span class="operator">-&gt;</span><span class="word">currently</span><span class="structure">;</span><br /><span class="word">say</span> <span class="double">&quot;$weather-&gt;{icon}: $weather-&gt;{summary}&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<h3 id="Where-are-we">Where are we?</h3>
+
+<p>So far we&#39;ve been passing fixed coordinates to the Dark Sky API. What we&#39;d rather do is actually give weather reports from where we&#39;re actually located!</p>
+
+<p>The first step is to find out what our external IP is. This isn&#39;t the local IP address that&#39;s been assigned to the computer we&#39;re using (which is more than likely something from the private IP address space assigned by your router) but the real, globally addressable, IP address that our ISP assigned to our router.</p>
+
+<p>The easiest way to do this is to contact an external web site and ask it what IP address it received the request from. There&#39;s several JSON API services that will happily do this for us.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">JSON::PP</span> <span class="words">qw( decode_json )</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">HTTP::Tiny</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$ip_response</span> <span class="operator">=</span> <span class="word">HTTP::Tiny</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">(</span><span class="single">'https://api.myip.com'</span><span class="structure">);</span><br /><span class="word">die</span> <span class="double">&quot;Problem fetching IP&quot;</span> <span class="word">unless</span> <span class="symbol">$ip_response</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">success</span><span class="structure">};</span><br /><br /><span class="comment"># the response contains JSON of the form<br />#   { &quot;ip&quot; : &quot;50.116.23.211&quot; ... }<br /></span><span class="keyword">my</span> <span class="symbol">$ip_data</span> <span class="operator">=</span> <span class="word">decode_json</span><span class="structure">(</span> <span class="symbol">$ip_response</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">content</span> <span class="structure">});</span><br /><span class="keyword">my</span> <span class="symbol">$ip</span> <span class="operator">=</span> <span class="symbol">$ip_data</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">ip</span><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>Now we have the IP address we need to translate that into latitude and longitude. MaxMind offer a free downloadable database of IP addresses to approximate locations that we can use to do this (they also offer more accurate databases for a fee which we can switch to if we want more accurate weather reports.)</p>
+
+<p>MaxMind publish some handy Perl modules on the CPAN that you can use to access these databases without much work:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">GeoIP2::Database::Reader</span><span class="structure">;</span><br /><br /><span class="comment"># follow the instructions at<br /># https://dev.maxmind.com/geoip/geoip2/geolite2/<br /># to be able to download the database<br /></span><span class="keyword">my</span> <span class="symbol">$reader</span> <span class="operator">=</span> <span class="word">GeoIP2::Database::Reader</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">file</span>    <span class="operator">=&gt;</span> <span class="single">'GeoLite2-City.mmdb'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">locales</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="single">'en'</span> <span class="structure">]</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">$city</span> <span class="operator">=</span> <span class="symbol">$reader</span><span class="operator">-&gt;</span><span class="word">city</span><span class="structure">(</span> <span class="word">ip</span> <span class="operator">=&gt;</span> <span class="symbol">$ip</span> <span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$location</span> <span class="operator">=</span> <span class="symbol">$city</span><span class="operator">-&gt;</span><span class="word">location</span><span class="structure">;</span><br /><br /><span class="comment"># these are only approximate, but good enough<br /># for our weather prediction<br /></span><span class="word">say</span> <span class="single">'Latitude:  '</span><span class="operator">,</span> <span class="symbol">$location</span><span class="operator">-&gt;</span><span class="word">latitude</span><span class="structure">;</span><br /><span class="word">say</span> <span class="single">'Longitude: '</span><span class="operator">,</span> <span class="symbol">$location</span><span class="operator">-&gt;</span><span class="word">longitude</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>We can now feed those coordinates into the DarkSky API to get the weather where we are:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$forecast</span> <span class="operator">=</span> <span class="word">DarkSky::API</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">key</span>       <span class="operator">=&gt;</span> <span class="single">'8e983a4b1eca4ebf9385f413f8ffa668'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">longitude</span> <span class="operator">=&gt;</span> <span class="symbol">$location</span><span class="operator">-&gt;</span><span class="word">longitude</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">latitude</span>  <span class="operator">=&gt;</span> <span class="symbol">$location</span><span class="operator">-&gt;</span><span class="word">latitude</span><span class="operator">,</span><br /><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$weather</span> <span class="operator">=</span> <span class="symbol">$forecast</span><span class="operator">-&gt;</span><span class="word">currently</span><span class="structure">;</span><br /><span class="word">say</span> <span class="double">&quot;$weather-&gt;{icon}: $weather-&gt;{summary}&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<h3 id="Look-to-the-Future-Now">Look to the Future Now</h3>
+
+<p>If we&#39;re going to be forewarned about weather we need to examine the response from DarkSky a little more closely.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Data::Dumper</span><span class="structure">;</span><br /><span class="word">print</span> <span class="word">Dumper</span> <span class="symbol">$forecast</span><span class="operator">-&gt;</span><span class="word">hourly</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>This gives us quite a lot of data:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;<br />46:&nbsp;<br />47:&nbsp;<br />48:&nbsp;<br />49:&nbsp;<br />50:&nbsp;<br />51:&nbsp;<br />52:&nbsp;<br />53:&nbsp;<br />54:&nbsp;<br />55:&nbsp;<br />56:&nbsp;<br />57:&nbsp;<br />58:&nbsp;<br />59:&nbsp;<br />60:&nbsp;<br />61:&nbsp;<br />62:&nbsp;<br />63:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$VAR1</span> <span class="operator">=</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'data'</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'ozone'</span> <span class="operator">=&gt;</span> <span class="single">'327.9'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'visibility'</span> <span class="operator">=&gt;</span> <span class="single">'4.759'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'summary'</span> <span class="operator">=&gt;</span> <span class="single">'Overcast'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'humidity'</span> <span class="operator">=&gt;</span> <span class="single">'0.91'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'uvIndex'</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'icon'</span> <span class="operator">=&gt;</span> <span class="single">'cloudy'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'windGust'</span> <span class="operator">=&gt;</span> <span class="single">'1.46'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'dewPoint'</span> <span class="operator">=&gt;</span> <span class="single">'31.52'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'time'</span> <span class="operator">=&gt;</span> <span class="number">1574139600</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'apparentTemperature'</span> <span class="operator">=&gt;</span> <span class="single">'33.92'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'cloudCover'</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'precipProbability'</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'windSpeed'</span> <span class="operator">=&gt;</span> <span class="single">'1.46'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'temperature'</span> <span class="operator">=&gt;</span> <span class="single">'33.92'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'windBearing'</span> <span class="operator">=&gt;</span> <span class="number">234</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'pressure'</span> <span class="operator">=&gt;</span> <span class="single">'1004.9'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'precipIntensity'</span> <span class="operator">=&gt;</span> <span class="number">0</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'time'</span> <span class="operator">=&gt;</span> <span class="number">1574143200</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'humidity'</span> <span class="operator">=&gt;</span> <span class="single">'0.91'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'uvIndex'</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'icon'</span> <span class="operator">=&gt;</span> <span class="single">'cloudy'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'windGust'</span> <span class="operator">=&gt;</span> <span class="single">'4.77'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'dewPoint'</span> <span class="operator">=&gt;</span> <span class="single">'31.27'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'summary'</span> <span class="operator">=&gt;</span> <span class="single">'Overcast'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'ozone'</span> <span class="operator">=&gt;</span> <span class="single">'328.3'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'visibility'</span> <span class="operator">=&gt;</span> <span class="single">'3.397'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'temperature'</span> <span class="operator">=&gt;</span> <span class="single">'33.66'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'windBearing'</span> <span class="operator">=&gt;</span> <span class="number">275</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'pressure'</span> <span class="operator">=&gt;</span> <span class="single">'1005.3'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'precipIntensity'</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'windSpeed'</span> <span class="operator">=&gt;</span> <span class="single">'4.77'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'precipProbability'</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'apparentTemperature'</span> <span class="operator">=&gt;</span> <span class="single">'29.23'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'cloudCover'</span> <span class="operator">=&gt;</span> <span class="number">1</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'ozone'</span> <span class="operator">=&gt;</span> <span class="single">'336.1'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'visibility'</span> <span class="operator">=&gt;</span> <span class="single">'2.837'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'summary'</span> <span class="operator">=&gt;</span> <span class="single">'Light Snow'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'uvIndex'</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'windGust'</span> <span class="operator">=&gt;</span> <span class="single">'0.16'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'icon'</span> <span class="operator">=&gt;</span> <span class="single">'snow'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'dewPoint'</span> <span class="operator">=&gt;</span> <span class="single">'30.49'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'humidity'</span> <span class="operator">=&gt;</span> <span class="single">'0.89'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'time'</span> <span class="operator">=&gt;</span> <span class="number">1574164800</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'precipAccumulation'</span> <span class="operator">=&gt;</span> <span class="single">'0.4816'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'apparentTemperature'</span> <span class="operator">=&gt;</span> <span class="single">'33.36'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'cloudCover'</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'precipProbability'</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'precipType'</span> <span class="operator">=&gt;</span> <span class="single">'snow'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'windSpeed'</span> <span class="operator">=&gt;</span> <span class="single">'0.16'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'windBearing'</span> <span class="operator">=&gt;</span> <span class="number">257</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'temperature'</span> <span class="operator">=&gt;</span> <span class="single">'33.36'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'precipIntensity'</span> <span class="operator">=&gt;</span> <span class="single">'0.0507'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'pressure'</span> <span class="operator">=&gt;</span> <span class="single">'1006.1'</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="operator">...</span>    </code><br />&nbsp;</td></table>
+
+<p>As you can see we&#39;ve got lots of options for deciding if DarkSky thinks it&#39;s going to snow: The <code>precipAccumulation</code> (how much build up there&#39;s going to be), the <code>precipProbability</code> (how likely we&#39;re going to get water falling from the sky) and <code>precipType</code> (snow? sleet? rain?) But that&#39;s probably overthinking the entire problem; If DarkSky thinks it&#39;s going to snow that hour, it&#39;ll pick the snow <code>icon</code>.</p>
+
+<p>Generating a summary is therefore straight forward</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@hourly</span> <span class="operator">=</span> <span class="symbol">$forecast</span><span class="operator">-&gt;</span><span class="word">hourly</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">data</span><span class="structure">}</span><span class="operator">-&gt;</span><span class="cast">@*</span><span class="structure">;</span><br /><span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$hour</span> <span class="structure">(</span><span class="symbol">@hourly</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="word">scalar</span><span class="structure">(</span> <span class="word">localtime</span><span class="structure">(</span><span class="symbol">$hour</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">time</span><span class="structure">})</span> <span class="structure">)</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="literal">q{ }</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$hour</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">icon</span><span class="structure">};</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Which today gives us the dire warning that there&#39;s snow coming soon...</p>
+
+<pre><code>    Tue Nov 19 11:00:00 2019 cloudy
+    Tue Nov 19 12:00:00 2019 rain
+    Tue Nov 19 13:00:00 2019 rain
+    Tue Nov 19 14:00:00 2019 rain
+    Tue Nov 19 15:00:00 2019 rain
+    Tue Nov 19 16:00:00 2019 sleet
+    Tue Nov 19 17:00:00 2019 snow
+    Tue Nov 19 18:00:00 2019 snow
+    Tue Nov 19 19:00:00 2019 snow
+    Tue Nov 19 20:00:00 2019 cloudy
+    Tue Nov 19 21:00:00 2019 cloudy
+    Tue Nov 19 22:00:00 2019 cloudy
+    ...</code></pre>
+
+<p>I&#39;ll install this on a cron job on the Raspberry Pi that I have sitting hidden in the mass of cables by my desk. I&#39;ll have to get it to give me a warning if the snow is coming somehow:</p>
+
+<pre><code>    my @hourly = $forecast-&gt;hourly-&gt;{data}-&gt;@*;
+    splice @hourly, 12;  # reduce @hourly to first 12 hours
+
+    use List::AllUtils qw( any );
+    if (any { $_-&gt;{icon} eq &#39;snow&#39; } @hours) {
+        # turn my lights blue!
+        # see http://perladvent.org/2019/2019-12-05        
+        use LightFactory;
+        $_-&gt;set_color(&#39;blue&#39;) for LightFactory-&gt;new-&gt;items;
+    }</code></pre>
+
+<p>Anyway...I&#39;d better go and make sure there&#39;s gas for the snowblower.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Christmas Lights" href="2019-12-05.html">Previous</a></li>
+
+    <li class="next"><a title="Show Me Mo&#39;" href="2019-12-07.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

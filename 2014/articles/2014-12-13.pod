@@ -1,0 +1,397 @@
+Title: Now I Have Better Options
+Topic: MooX::Options
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Today we're looking at MooX::Options, a better way to parse command line options
+when you're using a Moo class for the basis of a script.  Through
+MooX::Options we're able to leverage the power of building reusable parts of our
+scripts with roles and have those roles handle parsing and documenting their own
+command line arguments.
+
+=head2 Ye Olde Getopt::Long
+
+For a long time I considered command line argument parsing a solved problem
+within Perl.  Perl shipped with Getopt::Long module with the very first
+version of Perl 5, and I've admired it's simplicity and power ever since...
+in fact I recommended it back in the first Perl Advent Calendar fourteen
+years ago.
+
+GetOpt::Long uses a simple function interface into which you pass
+command line option specifications and references to variables you want to
+populate:
+
+    #!perl
+    use Getopt::Long;
+
+    my $filename;
+    my $verbose;
+
+    GetOptions(
+      "filename=s" => \$filename,
+      "verbose"    => \$verbose,
+    ) or die("Error in command line argument");
+
+=head2 Modern Perl Scripts
+
+However, somewhere in the last fourteen years the way I write scripts has
+changed significantly.  Where I used to write all my code in one file, I
+gradually moved more and more code into separate modules until I reached the
+natural conclusion:  The whole code of the script is actually in a module and
+the script is nothing more than a shim to load the module, instantiate an
+object, and call the C<run> method on it.
+
+   #!perl
+   #!/usr/bin/perl
+   
+   use strict;
+   use warnings;
+ 
+   # include the "lib" directory in the same directory as the
+   # script in our module path
+   use FindBin qw($FindBin::Bin);
+   use File::Spec::Functions qw(catdir);
+   use lib catdir($FindBin::Bin, "lib");
+
+   use MyScriptModule;
+   print MyScriptModule->new->run;
+
+This has several advantages from code reuse (several scripts can use the same
+module but instantiate it with different options) through to ease of testing (we
+can instantiate our object directly in our test scripts and test that rather
+than having to execute a new Perl process to run the script.)
+
+The pertinent question seems to be: How do we handle command line options in
+this situation?
+
+One really basic tactic is to parse the options as before with Getopt::Long
+and then pass the options through to the object in the constructor:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    # include the "lib" directory in the same directory as the
+    # script in our module path
+    use FindBin qw($FindBin::Bin);
+    use File::Spec::Functions qw(catdir);
+    use lib catdir($FindBin::Bin, "lib");
+
+    use Getopt::Long;
+
+    my $filename;
+    my $verbose;
+
+    GetOptions(
+      "filename=s" => \$filename,
+      "verbose"    => \$verbose,
+    ) or die("Error in command line argument");
+
+    use MyScriptModule;
+    print MyScriptModule->new(
+        verbose => $verbose,
+        filename => $filename,
+    )->run;
+
+The problem you can see here is this supposed shim script is getting very long
+and has a lot of logic in it.  Logic that can't be now reused between scripts.
+Logic that has no easy way to be tested.
+
+A slightly better tactic might be to move the parsing code inside a special
+constructor in the MyScriptModule class:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    # include the "lib" directory in the same directory as the
+    # script in our module path
+    use FindBin qw($FindBin::Bin);
+    use File::Spec::Functions qw(catdir);
+    use lib catdir($FindBin::Bin, "lib");
+
+    use MyScriptModule;
+    print MyScriptModule->new_with_options->run;
+
+Now it's a simple matter of programming to write the C<new_with_options>
+method...or is it?  A naive implementation might look something like this:
+
+    #!perl
+    sub new_with_options {
+        my $class = shift;
+
+        my $filename;
+        my $verbose;
+
+        GetOptions(
+          "filename=s" => \$filename,
+          "verbose"    => \$verbose,
+        ) or die("Error in command line argument");
+
+        return $class->new(
+            verbose => $verbose,
+            filename => $filename,
+        );
+    }
+
+That's great until you want to do something like subclassing MyModuleScript to
+add a new option.  How do you do that without having to copy and paste the
+existing logic that's in C<new_with_options>?  So in actuality the whole logic
+is much harder to write, you need some sort of overridable method that gathers
+parameters to pass to C<GetOptions>, then you need some logic to pass that to
+the existing constructor.
+
+This all sounds like a lot of work to do to when writing a simple script. What
+we need is a module like MooX::Options to help us out.
+
+=head2 Introducing MooX::Options
+
+Let's take a step back for a minute and re-evaluate what we're actually
+trying to do.  Chances are if we've got a Moo object then our C<verbose>
+attribute looks something like this:
+
+  #!perl
+  use Types::Standard -all;
+
+  has verbose => (
+     is => 'ro',
+     isa => Bool,
+  );
+
+What we really need is some way to have that attribute gather its own
+command line arguments.   Let's let MooX::Options do that for us:
+
+   #!perl
+   use Types::Standard -all;
+   use MooX::Options;
+
+   option verbose => (
+     is => 'ro',
+     isa => Bool,
+     doc => 'Flag to enable verbose output',
+   );
+
+We've replaced the C<has> keyword with C<option>.  This is essentially
+identical to the normal attribute except when we construct our Moo class
+in our script via the C<new_with_options> constructor (which is now provided
+for us by MooX::Options):
+
+    #!perl
+    use MyScriptModule;
+    print MyScriptModule->new_with_options->run;
+
+We can now set that I<option> attribute from the command line:
+
+   bash$ myscript --verbose
+
+We can control the type of argument we accept with C<format>.
+
+    #!perl
+    option filename => (
+        is => 'ro',
+        isa => Str,
+        format => 's',
+        doc => 'The input filename'
+    );
+
+This is the same format string used by Getopt::Long.  The C<--filename>
+option now can have a string value set at the command line:
+
+    bash$ myscript --verbose --filename=/path/to/my/file
+
+It may seem redundant to have to specify both a type of C<Str> and a format of
+C<s>, but it's worth thinking that the latter is just a way of telling the
+command line parser what to do and is unrelated to what the type of the variable
+actually is.  Expecting Moo to work out the command line option type from a type
+(given subclassing, coercion and other complexity of Type::Tiny types) would
+just be too clever a feature and probably result in gotchas and unexpected
+behavior in certain situations.  It's best to just be explicit.
+
+Along with the command line options you specify MooX::Options also provides
+options for outputting documentation (which you've been providing via the
+C<doc> parameter to C<option>) for each command line option.
+
+    bash$ myscript --help
+    USAGE: myscript [-h] [long options...]
+
+        --filename: String
+            The input filename
+
+        --verbose:
+            Flag to enable verbose output
+
+        --usage:
+            show a short help message
+
+        -h --help:
+            show a help message
+
+        --man:
+            show the manual
+
+Why it's important to have this documentation programmatically compiled like
+this rather than specified in any one module's pod will become clear shortly.
+
+=head2 The Role Advantage
+
+The reason I really love MooX::Options is not that it just makes mapping
+command line options to attributes easy, it's that it lets me do that
+no matter where the attributes are defined.  One of the key places that
+these attributes are often defined are inside of roles.
+
+To give you an idea of the power of this I present my I<verbose> role that I
+consume in pretty much every script module:
+
+    #!perl
+    package MyScriptClass::Role::Verbose;
+
+    use Moo::Role;
+    use MooX::Options;
+    use Types::Standard -all;
+    use autodie;
+
+    our $VERSION = 1;
+
+    option verbose => (
+        is => 'ro',
+        isa => Bool,
+        doc => 'If we should be verbose or not (default false)',
+    );
+
+    has logging_fh => (
+        is => 'ro',
+        isa => FileHandle,
+        default => sub { return \*STDERR }
+    );
+
+    sub note {
+        my $self = shift;
+        return unless $self->verbose;
+        print { $self->logging_fh } @_;
+        return;
+    }
+
+    1;
+
+This role gives my class a C<verbose> attribute (which can be set from the
+command line), and a C<note> method that logs out output if and only if verbose
+has been set.
+
+   #!perl
+   package MyScriptClass::SplineReticulator;
+
+   use Moo;
+   with('MyScriptModule::Role::Verbose');
+
+   sub run {
+      my $self = shift;
+      $self->note("reticulating splines");
+      ...
+   }
+
+Everything about the C<verbose> command line option acts exactly the same as if
+it had been declared in the consuming class itself - the command line parsing is
+identical, and it's even included in the auto-generated documentation the same.
+
+=head2 Making Things Testable
+
+One of the handy things about tightly binding the command line options to
+attributes in this way is that it makes testing a breeze.
+
+Here's another one of my handy standard roles:
+
+  #!perl
+  package MyScriptClass::Role::Filename;
+
+  use Moo::Role;
+  use MooX::Options;
+  use Types::Standard -all;
+  use autodie;
+
+  our $VERSION = 1;
+ 
+  option filename => (
+      is => 'ro',
+      isa => Str,
+      format => 's',
+      doc => 'The input filename'
+  );
+
+  has fh => (
+      is => 'lazy',
+      isa => FileHandle,
+  );
+
+  sub _build_fh {
+      my $self = shift;
+      if (defined $self->filename) {
+          open my $fh, "<", $self->filename;
+          return $fh;
+      }
+      return \*STDIN;
+  }
+
+The point in this role is to provide a C<fh> attribute which contains an open
+filehandle to read input from.  MooX::Options allows the class to take a
+filename to process in the C<--filename> option which will then be automatically
+opened in the lazy builder for C<fh>.
+
+Using this role is pretty straight forward - you just assume you've got a
+C<fh> attribute now:
+
+  #!perl
+  package MyScriptClass::ReverseLine;
+
+  use Moo;
+  with('MyScriptModule::Role::Filename');
+
+  sub run {
+    my $self = shift;
+    my $fh = $self->fh;
+    my $output = "";
+    while (<$fh>) {
+       chomp;
+       $output .= reverse;
+       $output .= "\n";
+    }
+    return $output;
+  }
+
+Because we can set the C<--filename> option from the constructor rather than
+from the actual command line we can test this with a test script easily:
+
+   #!perl
+   is MyScriptClass::ReverseLine->new(
+       filename => "test.txt"
+   )->run, <<'ENDOFEXAMPLEOUTPUT';
+   elpmaxe hcae fo liated yreve ni detseretni taht er'uoy fi ,yeH   
+   ?radnelac s'raey txen rof elcitra na gnitirw gniredisnoc tuoba woh   
+   .pleh nac uoy woh rof 52-21-4102 rof yrtne eht eeS
+   ENDOFEXAMPLEOUTPUT
+
+(Of course, the smart thing to do would be to bypass the need for an external
+file entirely)
+
+  #!perl
+  is MyScriptClass::ReverseLine->new( fh => \*DATA )->run, <<'ENDOFEXAMPLEOUTPUT';
+  too many secrets
+  ENDOFEXAMPLEOUTPUT
+  __DATA__
+  sterces ynam oot
+
+=head2 Conclusion
+
+Where Getopt::Long used to be my go-to module for command line parsing. The
+abilities of MooX::Options to distribute parsing options between the attributes
+specified in the roles that make up my class has now means that, sadly for
+one of my favorite modules of fourteen years, Getopt::Long has been supplanted
+by MooX::Options on all my new projects.
+
+=head1 See Also
+
+=for :list
+* L<MooX::Options>
+* L<Getopt::Long>

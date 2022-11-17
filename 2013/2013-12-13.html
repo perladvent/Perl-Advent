@@ -1,0 +1,167 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2013 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2013.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2013 - 
+Bisecting Perl to find when something broke (or was fixed!)
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2013</a></h1>
+        </div>
+
+        <p id="tagline">2013 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Bisecting Perl to find when something broke (or was fixed!)</h1>
+<div class='subtitle'>bisect.pl - 2013-12-13</div>
+
+<div class='pod'><p>So, it&#39;s Christmas Eve and you&#39;ve decided now&#39;s the time to update production to the latest and greatest version of Perl. But since you don&#39;t want to spend your holidays fixing production, you decide to build Perl on your dev machine and run your ample test suite against it first.</p>
+
+<p>One of your tests looks like this: (Why it has your production code in it I have no idea):</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># t/a_test.t<br /></span><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Test::More</span><span class="structure">;</span><br /><span class="word">plan</span> <span class="word">tests</span> <span class="operator">=&gt;</span> <span class="number">4</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">terrible</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$gift</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;<span class="keyword">return</span> <span class="number">1</span> <span class="word">if</span> <span class="symbol">$gift</span> <span class="operator">=~</span> <span class="match">/(charcoal|sweater)/</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$gift</span> <span class="words">qw(charcoal sweater)</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="word">ok</span><span class="structure">(</span><span class="word">terrible</span><span class="structure">(</span><span class="symbol">$gift</span><span class="structure">)</span><span class="operator">,</span> <span class="double">&quot;Gift $gift is terrible!&quot;</span><span class="structure">);</span><br /><span class="structure">}</span><br /><br /><span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$gift</span> <span class="words">qw(car motorcycle)</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="word">ok</span><span class="structure">(</span><span class="operator">!</span><span class="word">terrible</span><span class="structure">(</span><span class="symbol">$gift</span><span class="structure">)</span><span class="operator">,</span> <span class="double">&quot;Gift $gift is awesome!&quot;</span><span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>After upgrading Perl from 5.8.8 to 5.18.1, you find this test breaks:</p>
+
+<pre><code>  $ perl-5.18.1 ~/t/a_test.t
+  &quot;my&quot; variable $gift masks earlier declaration in same statement at ~/t/a_test.t line 18.
+  &quot;my&quot; variable $gift masks earlier declaration in same statement at ~/t/a_test.t line 19.
+  syntax error at ~/t/a_test.t line 14, near &quot;$gift qw(charcoal sweater)&quot;
+  Global symbol &quot;$gift&quot; requires explicit package name at ~/t/a_test.t line 15.
+  Execution of ~/t/a_test.t aborted due to compilation errors.</code></pre>
+
+<p>But why?! That&#39;s perfectly valid Perl!</p>
+
+<h2 id="Bisecting-to-the-rescue">Bisecting to the rescue!</h2>
+
+<p>Thankfully, with a clone of the Perl git repository, we can answer this question. So first we grab a copy:</p>
+
+<pre><code>  $ git clone git://perl5.git.perl.org/perl.git perl</code></pre>
+
+<p>In <i>Porting/</i> you&#39;ll find a tool called <i>bisect.pl</i>. This is a nice wrapper around <a href="http://man.he.net/man1/git-bisect">git-bisect(1)</a> that will build Perl for each revision being tested and run your tests, telling you when your test first broke.</p>
+
+<p>However, this script cannot be run from the Perl repository it is testing, so first we must make a copy of a clean checkout of blead:</p>
+
+<pre><code>  $ git clone perl perl-2</code></pre>
+
+<p>And now we can bisect Perl from 5.8.8 (when everything worked) to 5.18.1 (when our world collapsed) and wait a very long time to get our results:</p>
+
+<pre><code>  $ cd perl-2
+  $ ../perl/Porting/bisect.pl --start=perl-5.8.8 --end=v5.18.1 \
+    -- ./perl -Ilib ~/t/a_test.t</code></pre>
+
+<p>Grab an eggnog, wrap some presents, write your memoirs, this will take awhile.</p>
+
+<p>Optionally, we can make this go a <i>little</i> faster, because we have an awesome computer that we got last Christmas, and it can do many things in parallel. We just add a <code>-j</code> option which gets passed to <a href="http://man.he.net/man1/make">make(1)</a>:</p>
+
+<pre><code>  $ ../perl/Porting/bisect.pl --start=perl-5.8.8 --end=v5.18.1 \
+    -j 8 -- ./perl -Ilib ~/t/a_test.t</code></pre>
+
+<p>Note that while above <code>--start</code> and <code>--end</code> are git tags, instead they could even be commit IDs.</p>
+
+<p>Anyways, after waiting a long while the bisect finally finishes and tells us this:</p>
+
+<pre><code>  [...]
+  Use of qw(...) as parentheses is deprecated at ~/t/a_test.t line 14.
+  Use of qw(...) as parentheses is deprecated at ~/t/a_test.t line 18.
+  1..4
+  ok 1 - Gift charcoal is terrible!
+  ok 2 - Gift sweater is terrible!
+  ok 3 - Git car is awesome!
+  ok 4 - Git motorcycle is awesome!
+  HEAD is now at eb3d0a5 Block signals during fork (fixes RT#82580)
+  good - zero exit from ./perl -Ilib ~/t/a_test.t
+
+  417a992d4dc78be79e44d19e029d9742d0334128 is the first bad commit
+  commit 417a992d4dc78be79e44d19e029d9742d0334128
+  Author: Zefram &lt;zefram@fysh.org&gt;
+  Date:   Fri May 25 22:25:21 2012 +0100
+
+      remove deprecated qw-as-parens behaviour
+  &#x22EE;
+  bisect run success
+  That took 2019 seconds</code></pre>
+
+<p>Voila! And knowing that, we can fix our test by changing:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$gift</span> <span class="words">qw(charcoal sweater)</span> <span class="structure">{</span></code><br />&nbsp;</td></table>
+
+<p>To</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$gift</span> <span class="structure">(</span><span class="words">qw(charcoal sweater)</span><span class="structure">)</span> <span class="structure">{</span></code><br />&nbsp;</td></table>
+
+<p>And</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$gift</span> <span class="words">qw(car motorcycle)</span> <span class="structure">{</span></code><br />&nbsp;</td></table>
+
+<p>To</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$gift</span> <span class="structure">(</span><span class="words">qw(car motorcycle)</span><span class="structure">)</span> <span class="structure">{</span></code><br />&nbsp;</td></table>
+
+<p>And upgrade our servers and go home and enjoy the holidays!</p>
+
+<h2 id="A-few-more-tricks">A few more tricks&hellip;</h2>
+
+<p>There are a few more neat things that <i>bisect.pl</i> can also do for us, and its documentation includes examples of many of them.</p>
+
+<p>For instance, you don&#39;t need to provide a start and end, that just speeds things up:</p>
+
+<pre><code>  # When did this become an error?
+  ../perl/Porting/bisect.pl -e &#39;my $a := 2;&#39;</code></pre>
+
+<p>Or you can search for the reverse:</p>
+
+<pre><code>  # When did this start working?
+  ../perl/Porting/bisect.pl --expect-fail -e &#39;1 // 2&#39;</code></pre>
+
+<p>Check out <code>perldoc Porting/pod/bisect-runner.pl</code> for more information.</p>
+
+<h2 id="In-closing">In closing</h2>
+
+<p><i>bisect.pl</i> is an incredibly useful tool. Here, we used it to find why some external Perl program failed, but it&#39;s most often used to figure out when something broke in Perl itself.</p>
+
+<p>If you hack on the Perl language, keep this in your toolbelt. It will save you time and frustration.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/ccd0005cf6435d68b01e37caceb6b187?r=g&s=80&d=retro />
+This article contributed by: Matthew Horsfall (alh) &lt;WolfSage@gmail.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Present Confusion" href="2013-12-12.html">Previous</a></li>
+
+    <li class="next"><a title="Shake those gifts and figure out what&#39;s inside!" href="2013-12-14.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

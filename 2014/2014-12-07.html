@@ -1,0 +1,114 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+Out of Time
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Out of Time</h1>
+<div class='subtitle'>Time::Limit - 2014-12-07</div>
+
+<div class='pod'><h2 id="NAME">NAME</h2>
+
+<p>Time::Limit</p>
+
+<h2 id="SYNOPSIS">SYNOPSIS</h2>
+
+<p>Computer programs can go wrong in unexpected ways out of their control; Time::Limit can be used to limit how long a Perl script can run for and force it to exit in a predictable way cleaning up as much as possible after itself as it does so.</p>
+
+<h3 id="Bobs-Tale">Bob&#39;s Tale</h3>
+
+<p>Poor Bob. Stuck working on Christmas Eve because his pointy-haired-boss Ebinezer wouldn&#39;t let him go home until the server creating the TPS reports was done. At this rate he&#39;d never leave in time to get to the post office and his little boy Tim wouldn&#39;t be getting his Christmas present after all.</p>
+
+<p>The problem was that the TPS reports couldn&#39;t be left to run on their own. The custom binary that had been provided by TPS Solutions INC would randomly hang - not quit, not die - just sit there doing nothing. An infinite loop or something, Bob imagined, but it wasn&#39;t like he had the source code to debug it. A normal run would take about an hour, but if it was still going after that then standard operating procedure was to restart the script that executed it with a Ctrl-C and hope it worked next time (it usually did.) So Bob was stuck sitting there babysitting the computer while the minutes ticked away until the post office closed.</p>
+
+<p>It wasn&#39;t as if it was a complicated script:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">autodie</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">TPS::Util</span> <span class="words">qw(tps_mangle tps_email)</span><span class="structure">;</span><br /><br /><span class="comment"># run the custom tps binary<br /></span><span class="word">system</span> <span class="double">&quot;tps-generate&quot;</span><span class="structure">;</span><br /><br /><span class="comment"># mangle and email the reports<br /></span><span class="word">tps_mangle</span><span class="structure">();</span><br /><span class="word">tps_email</span><span class="structure">(</span><span class="single">'escrooge@example.com'</span><span class="structure">);</span><br /><br /><span class="comment"># exit cleanly<br /></span><span class="word">exit</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>If only there was a sensible way to kill the script automatically if it went wrong and restart it, then Bob would be able to leave it running and go home.</p>
+
+<p>Simplistic solutions wouldn&#39;t work properly; Bob would need to be careful not only to kill the main script, but also kill the tps-generate binary as well if it was still running. Goodness only knows what would happen if two of those were running at once!</p>
+
+<p>Also, Bob was worried about killing the script too harshly...if the mangling code was running then there were certain files to clean up on disk. It&#39;d be nice to kill the script in such a way the signal handler attached to the process would get a chance to run. But Bob also worried about not killing the script hard enough...what if the signal handlers themselves also got into an infinite loop?</p>
+
+<h3 id="Introducting-Time::Limit">Introducting Time::Limit</h3>
+
+<p>What Bob needs is Time::Limit.</p>
+
+<p>All Bob needs to do is install the module from the CPAN and then stick just one line of code at the top of the script:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># kill everything, including child processes, after 63 minutes<br /></span><span class="keyword">use</span> <span class="word">Time::Limit</span> <span class="word">-group</span><span class="operator">,</span> <span class="structure">(</span><span class="number">60</span> <span class="operator">+</span> <span class="number">3</span><span class="structure">)</span> <span class="operator">*</span> <span class="number">60</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>After that Bob can just run the program repeatedly until it&#39;s done.</p>
+
+<pre><code>    bash$ until perl tps.pl; do echo &quot;Trying again&quot;; done</code></pre>
+
+<p>Time::Limit handles the rest. Not only would it exit after 63 minutes if it ended up running that long, but the exit code it returned would let bash know to run it again.</p>
+
+<p>In addition to this Time::Limit would kill the child processes, attempt to run cleanup code with a clean exit, or if after a time it still hadn&#39;t killed itself, send an untrappable signal to cause instant death. Pretty much handle everything how you&#39;d hope it would.</p>
+
+<p>As long as the server stays up, Bob&#39;s report is going to eventually run now. Get home to Tim, Bob! Who knows, your boss might be pleased enough to send someone round with a big turkey in the morning.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Time::Limit">Time::Limit</a></p>
+
+</li>
+<li><p><a href="http://www.gutenberg.org/ebooks/46">http://www.gutenberg.org/ebooks/46</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Testing The Naughty Or Nice Database" href="2014-12-06.html">Previous</a></li>
+
+    <li class="next"><a title="The Complexity of Perl" href="2014-12-08.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

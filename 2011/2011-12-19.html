@@ -1,0 +1,135 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2011 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2011.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2011 - 
+Process ALL the FILES!
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2011</a></h1>
+        </div>
+
+        <p id="tagline">2011 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Process ALL the FILES!</h1>
+<div class='subtitle'>Path::Class::Rule - 2011-12-19</div>
+
+<div class='pod'><h2 id="Theres-More-Than-One-Way-to-Find-Files">There&#39;s More Than One Way to Find Files</h2>
+
+<h3 id="File::Find">File::Find</h3>
+
+<p>The very first release of perl 5 included <a href="https://metacpan.org/module/File::Find">File::Find</a>. It provided a mechanism for searching a file hierarchy for files and, presumably, doing stuff with them. You use it like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">File::Find</span><span class="structure">;</span><br /><br /><span class="word">find</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">follow</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span> <span class="comment"># follow symlinks</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">wanted</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span><span class="operator">-d</span> <span class="operator">and</span> <span class="symbol">$File::Find::dir</span> <span class="operator">=~</span> <span class="match">m{(?:^|/)tmp$}</span><span class="structure">)</span> <span class="structure">{</span><br /><span class="comment">        # skip tmp dirs everywhere, do not descend into them<br /></span>        <span class="symbol">$File::Find::prune</span> <span class="operator">=</span> <span class="number">1</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="word">unless</span> <span class="operator">-s</span>   <span class="operator">&gt;</span> <span class="number">1_000_000</span><span class="structure">;</span> <span class="comment"># ignore small files</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="word">unless</span> <span class="operator">-M</span> <span class="magic">_</span> <span class="operator">&lt;</span> <span class="number">86_400</span><span class="structure">;</span>    <span class="comment"># files not touched today</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">process_big_file</span><span class="structure">(</span> <span class="magic">$_</span> <span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="single">'.'</span><span class="operator">,</span> <span class="comment"># start processing in cwd</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Simple, right?</p>
+
+<p>Like many libraries that have their origins in the early days of Perl 5, its interface can seem a bit weird today. The usual complaint is that the <code>wanted</code> argument is not actually a test as to whether we want the file. It&#39;s a combination of testing for whether we want a file, whether we want to descend into a directory, and doing whatever we want to do.</p>
+
+<p>Oh, and the whole thing works with package variables and used to have a bunch of problems with reentrancy.</p>
+
+<h3 id="File::Find::Rule">File::Find::Rule</h3>
+
+<p>Quite a while ago, we got a much simpler API for doing this sort of thing in <a href="https://metacpan.org/module/File::Find::Rule">File::Find::Rule</a>. It let you build up a query that would find the files you wanted, and then you could iterate over them doing stuff. It got a nice separation of &quot;find&quot; and &quot;do,&quot; and as a bonus, threw in a lot of nice methods for writing your query quickly.</p>
+
+<p>We&#39;d write the above something like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">File::Find::Rule</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$rule</span> <span class="operator">=</span> <span class="word">File::Find::Rule</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="symbol">$rule</span><span class="operator">-&gt;</span><span class="word">or</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="symbol">$rule</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">-&gt;</span><span class="word">directory</span><span class="operator">-&gt;</span><span class="word">name</span><span class="structure">(</span> <span class="regexp">qr{(?:^|/)tmp$}</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="word">prune</span><span class="operator">-&gt;</span><span class="word">discard</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="symbol">$rule</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">-&gt;</span><span class="word">size</span><span class="structure">(</span><span class="single">'&gt;1000000'</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">exec</span><span class="structure">(</span><span class="keyword">sub</span> <span class="structure">{</span> <span class="operator">-M</span> <span class="operator">&lt;</span> <span class="number">86_400</span> <span class="structure">})</span><br /><span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">$iter</span> <span class="operator">=</span> <span class="symbol">$rule</span><span class="operator">-&gt;</span><span class="word">start</span><span class="structure">(</span><span class="single">'.'</span><span class="structure">);</span><br /><br /><span class="keyword">while</span> <span class="structure">(</span><span class="keyword">my</span> <span class="symbol">$file</span> <span class="operator">=</span> <span class="symbol">$iter</span><span class="operator">-&gt;</span><span class="structure">())</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="word">process_big_file</span><span class="structure">(</span> <span class="magic">$_</span> <span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>This looks a lot simpler &ndash; at least to me. There are a whole heap of extra simple rules, too, and you can add your own. I&#39;ve used File::Find::Rule happily for years, except for the one case where it becomes <i>completely intolerable</i>. Allow me to demonstrate:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>$ time perl -MFile::Find -e &#39;find({ wanted =&gt; sub { die $_ if -f $_ } }, &quot;/&quot;)&#39;<br />0.03s user 0.01s system 70% cpu 0.045 total</code><br />&nbsp;</td></table>
+
+<p>This program takes nearly no time at all to run. It starts looking for files in <i>/</i>, finds something, and the <code>wanted</code> coderef exits immediately.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>$ time perl -MFile::Find::Rule -e &#39;my $iter = File::Find::Rule-&gt;start(&quot;/&quot;); die $iter-&gt;()&#39;<br />...<br />...<br />...<br />(okay, I finally killed it)</code><br />&nbsp;</td></table>
+
+<p>File::Find::Rule actually compiles your rules down to use File::Find, but it loses one of File::Find&#39;s key properties: it is not lazy. Even if you ask for an iterator, it slurps up all the files, then iterates over that list. If you want to look through millions of files, this is just not going to cut it.</p>
+
+<p>That doesn&#39;t mean you need to go back to File::Find, though.</p>
+
+<h3 id="Path::Class::Rule">Path::Class::Rule</h3>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>$ time perl -MPath::Class::Rule -e &#39;my $iter = Path::Class::Rule-&gt;new-&gt;file-&gt;iter(&quot;/&quot;); die $iter-&gt;()&#39;<br />0.09s user 0.01s system 86% cpu 0.117 total</code><br />&nbsp;</td></table>
+
+<p>Okay, so it&#39;s fast. What is it?</p>
+
+<p><a href="https://metacpan.org/module/Path::Class::Rule">Path::Class::Rule</a> is yet another file finder, with an interface very much like that of File::Find::Rule, with two key differences: it provides <a href="https://metacpan.org/module/Path::Class">Path::Class</a> objects instead of filename strings, and its iterator is actually lazy.</p>
+
+<p>We could write our search as:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Path::Class::Rule</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$rule</span> <span class="operator">=</span> <span class="word">Path::Class::Rule</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="symbol">$rule</span><span class="operator">-&gt;</span><span class="word">skip</span><span class="structure">(</span> <span class="symbol">$rule</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">-&gt;</span><span class="word">directory</span><span class="operator">-&gt;</span><span class="word">name</span><span class="structure">(</span> <span class="regexp">qr{(?:^|/)tmp$}</span> <span class="structure">)</span> <span class="structure">);</span><br /><span class="symbol">$rule</span><span class="operator">-&gt;</span><span class="word">size</span><span class="structure">(</span><span class="double">&quot;&gt;1000000&quot;</span><span class="structure">);</span><br /><span class="symbol">$rule</span><span class="operator">-&gt;</span><span class="word">and</span><span class="structure">(</span><span class="keyword">sub</span> <span class="structure">{</span> <span class="operator">-M</span> <span class="operator">&lt;</span> <span class="number">86_400</span> <span class="structure">});</span><br /><br /><span class="keyword">my</span> <span class="symbol">$iter</span> <span class="operator">=</span> <span class="symbol">$rule</span><span class="operator">-&gt;</span><span class="word">iter</span><span class="structure">(</span><span class="single">'.'</span><span class="structure">);</span><br /><br /><span class="keyword">while</span> <span class="structure">(</span><span class="keyword">my</span> <span class="symbol">$file</span> <span class="operator">=</span> <span class="symbol">$iter</span><span class="operator">-&gt;</span><span class="structure">())</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="word">process_big_file</span><span class="structure">(</span> <span class="double">&quot;$_&quot;</span> <span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>There are a bunch of little differences between File::Find::Rule and Path::Class::Rule, but it&#39;s worth getting over them so that when you need to take your program and run it against that huge set of files you accidentally let accumulate under <i>/var</i> because you thought that the other guy was taking care of it (I mean, it&#39;s pretty much his responsibility, right?)... well, you just want the program to work without having to read the whole filesystem into memory first, right?</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Path::Class::Rule">Path::Class::Rule</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Path::Class">Path::Class</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/File::Find">File::Find</a></p>
+
+</li>
+<li><p><a href="http://www.perladvent.org/2000/16/">File::Find on the Perl Advent Calendar</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/File::Find::Rule">File::Find::Rule</a></p>
+
+</li>
+<li><p><a href="http://www.perladvent.org/2002/11th/">File::Find::Rule on the Perl Advent Calendar</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/File::Next">File::Next</a> - another file finder that is quite nice</p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/cec6b9b88295ead26c65f8747a76561b?r=g&s=80&d=retro />
+This article contributed by: Ricardo Signes &lt;rjbs@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Munge All the Filenames!" href="2011-12-18.html">Previous</a></li>
+
+    <li class="next"><a title="Revisiting Test::Routine" href="2011-12-20.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

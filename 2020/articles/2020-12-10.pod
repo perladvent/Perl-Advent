@@ -1,0 +1,155 @@
+Title: Regexp::Common
+Topic: Regexp::Common
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=for :html
+<div class="bestof">
+2020 has been time consuming - a global pandemic, giant fires, horrific floods
+and political unrest - which has left us little time for side projects.
+This year we're looking back to happier times into the 20+ year archive with the
+Best of the Perl Advent Calendar.
+</div>
+
+Are you fed up writing the same regexes over and over again?  Even
+though someone's bound to have written (and debugged) them a hundred
+times already.
+
+Someone should put a module of a collection of them up on the CPAN.
+Oh, wait, someone did.
+
+Suppose you want to make sure a scalar has something that looks like
+a number in it.  It's a fairly simple regex to write, right?
+
+    #!perl
+    $scalar =~ /^\d+$/;
+
+That's
+
+    #!perl
+    $scalar =~ /^    # start of line 
+                \d   # digit
+                +    # one or more times
+                $    # till the end of line
+               /x;   # allow me to split the line up like this</pre>
+
+Of course, that falls over as soon as someone puts in a floating
+point number.
+
+    #!perl
+    3.14159265   # the dot doesn't match \d
+
+So we need to expand that to cover situations where there might
+optionally be extra bits on the end
+
+    #!perl
+    $scalar =~ /^    # start of line 
+                \d   # digit
+                +    # one or more times
+                (    # group for floating point part
+                 \.  # literal dot
+                 \d  # digit
+                 +   # one or more times
+                )    # end group for floating point type
+                ?    # group may or may not exist (is optional)
+                $    # till the end of line
+               /x;   # allow me to split the line up like this</pre>
+
+Which works fine until someone does this:
+
+    #!perl
+    -2.71828183</pre>
+
+So we have to modify it to have an optional plus or minus sign at
+the start:
+
+    #!perl
+    $scalar =~ /^    # start of line 
+                [+-] # plus or minus
+                ?    # which is optional
+                \d   # digit
+                +    # one or more times
+                (    # group for floating point part
+                 \.  # literal dot
+                 \d  # digit
+                 +   # one or more times
+                )    # end group for floating point type
+                ?    # group may or may not exist (is optional)
+                $    # till the end of line
+               /x;   # allow me to split the line up like this</pre>
+
+And guess what...then someone writes this:
+
+   #!perl
+   6.626068e10-34
+
+And we get really annoyed.  At this point I'm writing so much code
+that I have the distinct urge to write some tests.  But more than
+this I get to thinking...wouldn't it be I<nice> if someone had written
+this already.  It's a fairly common occurrence - it's not like we're
+the first people ever to want to match a number.
+
+And then we look in Regexp::Common.  Lo and behold!  There's one there to
+do it!  Remind me again why I'm writing my own code?
+
+Using B<Regexp::Common> exports a hash C<%RE> into our namespace.  This
+hash contains many compiled regexes which we an use in our regular
+expressions.  For example:
+
+    #!perl
+    $scalar =~ /$RE{num}{real}/;
+
+B<Regexp::Common> also provides a subroutine method to get at the
+regexes, if you prefer to use it like that:
+
+    #!perl
+    use Regexp::Common 'RE_ALL';
+    my $regex = RE_num_real();
+    if ($scalar =~ $regex)
+      { print "It matched!" }
+
+In either case the regexes are blessed, meaning you can call methods
+on them and treat them just like they're objects.
+
+    #!perl
+    my $num_regex = $RE{num}{real};
+    if ($num_regex-&gt;match($scalar))
+      { print "It matched!" }
+
+One thing you can say about B<Regexp::Common>, it provides a lot of
+syntactic sugar.
+
+=head2 What Regexp::Common can match
+
+I'm not going to provide examples of everything that B<Regexp::Common>
+can match - that would take forever and a day.  I'm just going to touch
+on some of the things that I've found most useful.
+
+Aside from number matching, the one regular expression set I've found
+the most useful is the profanity matching.  This is impossible to do
+properly without really annoying the residents of Middlesex and
+Scunthorpe by blocking out the inappropriate words in their place names,
+and you can only provide basic checking that's 'good enough'.
+B<Regexp::Common> provides a collection that's 'good enough' from the
+outset, and means I no longer have to worry about constructing such
+things.
+
+There's one or two regexes in the collection that I could easily 
+write but are really tiresome to do each time and - as always
+when you write code rather than reusing existing known good code - 
+you run the risk of making a mistake or typo;  The ones that spring
+particularly to mind are the code for removing whitespace from the
+start or end of strings, and the code for removing comments from
+text.
+
+Straying onto more advanced territory there's even code for matching
+balanced brackets, something that strictly in a mathematical sense
+a regular expression shouldn't be able to do (but Perl can because
+it's regular expressions aren't that regular.)
+
+Then there's some clever stuff in there to match lists, where you
+can have things like "rod, jane, and freddy" and get the results
+back carefully dumping things like "and".
+
+I could go on all day like this...have a look around in the
+list of modules yourself: http://search.cpan.org/dist/Regexp-Common/
+

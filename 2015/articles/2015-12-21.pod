@@ -1,0 +1,401 @@
+Title: The Perl of Christmas Future 
+Topic: feature
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=pod
+
+Rather being like the fabled Ebenezer Scrooge, staring into his own grave of
+Christmas Future, Perl 5 is an evolving language giving back to its loved ones
+every yearly release.  Perl 5's Christmas Future is more like the reformed
+Ebenezer visiting the Cratchit household, giving out the gifts of new core
+language features to all and sundry.
+
+The majority of these new features aren't available in Perl by default (to
+preserve backwards compatibility), but can be easily enabled for any section of
+code by using the C<feature> keyword.  Latest releases of perl even ship with
+many experimental features that give us a glance of Perl-yet-to-come!
+
+=head2 Beyond Modern Perl
+
+Here's some old-school code written to work on any Perl:
+
+   #!perl
+   my $sled;
+   sub pack_naughty_coal {
+      my $self = shift;
+      my $packer = shift;
+      my $driver = shift || $SANTA;
+
+      $sled ||= Sled->new();
+
+      foreach my $person (@{ $self->naughty_list }) {
+         # never load coal for the driver even if they're on the list!
+         next if $person->name =~ /\A\Q$driver\E\z/i;
+
+         print STDERR 'Loading coal for ' . $person->name . "\n";
+         $packer->pack_coal_for($person, $sled);
+      }
+
+      return;
+   }
+
+By enabling the right features in Perl we can turn the above code into the
+much more readable futuristic Perl:
+
+   #!perl
+   sub pack_naughty_coal($self, $packer, $driver = $SANTA) {
+      state $sled = Sled->new();
+
+      foreach my $person ($self->naughty_list->@*) {
+         # never load coal for the driver even if they're on the list!
+         next if fc $person->name eq fc $driver;
+
+         say STDERR 'Loading coal for ' . $person->name;
+         $packer->pack_coal_for($person,$sled);
+      }
+      return;
+   }
+
+This uses five of the thirteen optional features available in Perl 5.22
+
+=for :list
+* The C<state> feature
+* The C<fc> feature
+* The C<say> feature
+* The C<signatures> feature (still I<experimental> in 5.22)
+* The C<postderef> feature (still I<experimental> in 5.22)
+
+=head2 Enabling Features
+
+New features in Perl can be enabled in your code one of three ways:
+
+=over
+
+=item By explicitly turning them on
+
+You can explicitly turn on the features you want for lexical scope with the
+C<feature> pragma.
+
+  #!perl
+  use feature 'say';
+  say 'Merry Christmas';
+
+If you use an experimental feature you'll probably want to disable the warnings
+for that also:
+
+  #!perl
+  use feature 'signatures';
+  no warnings 'experimental::signatures';
+  sub ask_santa_for($wish) {
+     ...
+  }
+
+Or, preferably, just use the C<experimental> pragma:
+
+  #!perl
+  use experimental 'signatures';
+  sub ask_santa_for($wish) {
+     ...
+  }
+
+However, you should be aware that experimental features are just that - they
+can change without notice, and if they do...you've got no-one to blame but
+yourself!  The future isn't here yet, after all.
+
+=item By requiring a version of Perl
+
+Instead of explicitly stating the feature that you want to use, you can enable
+for the current lexical scope all the non experimental features supported by a
+particular version of Perl by requiring a particular version of Perl:
+
+   #!perl
+   use 5.022;
+   say 'Merry Christmas';
+
+(For 5.12 and later, this will also turn on C<strict>!)
+
+=item By using C<-E>
+
+Using C<-E> at the command line will turn on all the non-experimental features
+for the version of Perl that's executing the script:
+
+   perl -E 'say "Merry Christmas";' 
+
+=back
+
+=head2 Looking At The Experimental Features Used In The Example
+
+These descriptions are accurate as of 5.22, but by the very nature of
+experimental features the functionality might have changed if you're reading
+this article in the distant future (Enjoy your flying cars and melted ice caps.)
+
+=head3 The 'signature' feature
+
+My favorite feature so far, subroutine signatures, is a
+feature that allow us to avoid having to write explicit code to extract
+arguments from C<@_>.  Instead, as is common in many other languages, you can
+simply write an argument list next to the subroutine declaration!  This means
+this:
+
+  #!perl
+  sub give {
+     my $person = shift;
+     my $gift   = shift;
+     ...
+  }
+
+Can be more compactly written as:
+
+  #!perl
+  sub give($person,$gift) {
+    ...
+  }
+
+Under the hood Perl builds the necessary instructions as if we'd written the
+code to do the argument manipulation and checking ourselves manually.  If we
+deparse the compiled source code we can actually see the equivalent code:
+
+   shell$ perl -Mfeature=signatures -MO=Deparse -e 'sub give($person,$gift) { return 1 }'
+   The signatures feature is experimental at -e line 1.
+   sub give {
+       use feature 'signatures';
+       die sprintf("Too many arguments for subroutine at %s line %d.\n", (caller)[1, 2]) unless @_ <= 2;
+       die sprintf("Too few arguments for subroutine at %s line %d.\n", (caller)[1, 2]) unless @_ >= 2;
+       my $person = $_[0];
+       my $gift = $_[1];
+       ();
+       return 1;
+   }
+
+Perl signatures have a bunch of really clever tricks, including being able to
+use I<slurpy> operators to put a variable number of arguments into an array:
+
+   #!perl
+   sub prep_sleigh($sled, @reindeer) {
+     ...
+   }
+
+   prep_sleigh(
+     "BigRed2000",
+     "Dasher",
+     "Dancer",
+     "Prancer",
+     "Vixen",
+     "Comet",
+     "Cupid",
+     "Dunder",
+     "Blixem",
+   );
+
+They also allow you to specify hashes in the argument list (which will error if
+a non even number of things are passed in):
+
+   #!perl
+   sub bake_cookies(%args) {
+     ...
+   }
+
+   bake_cookies(
+      number => 100,
+      type => "chocolate",
+      icing => 1,
+   );
+
+Subroutine signatures allow you to use placeholder unnamed arguments that you
+want to allow to be passed in without error but don't actually want to do
+anything with (I find this very handy when writing methods / callbacks being
+called from code you didn't write that may be updated to have extra arguments
+later)
+
+   #!perl
+   my $delivery_callback = sub($address, $status, @) {
+      if ($status) {
+         say $log "Presents delivered to $address\n";
+         return;
+      }
+      say $log "WARNING: Presents could not be delivered to $address";
+   };
+
+One of the most advanced features currently supported is default values;  If
+the argument isn't passed then the default is used:
+
+   #!perl
+   sub leave_food_for_santa($where, $what = $MINCE_PIES) {
+      ...
+   }
+
+You can even put arbitrary code in there to do whatever you want, for example
+picking a default at random:
+
+  #!perl
+  sub leave_food_for_santa($where, $what = rand() > 0.5 ? $MINCE_PIES : $XMAS_PUDDING) {
+     ...
+  }
+
+=head3 Postfix Dereferencing, the C<postderef> feature
+
+The standard C<@{ ... }> array dereferencing syntax I<surrounds> the array
+reference that it dereferences. This works pretty well for small values:
+
+  #!perl
+  my $arrayref = [];
+  my @array = @{ $arrayref };
+
+Or even for slightly more complex things:
+
+  #!perl
+  foreach my $thingy (@{ $self->thingy_that_returns_an_arrayref }) {
+    ...
+  }
+
+But it can get pretty darn hairy where the thing you're surrounding gets very
+long.
+
+  #!perl
+  my @shows = @{
+    TV::Schedule
+      ->new
+      ->filter( subscribed => 1 )
+      ->search( show => "My Little Pony: Friendship is Magic")
+      ->type("Christmas Special")
+  };
+
+By the time you get down to reading the closing C<}> you've forgotten what it
+was for!  This can be written a lot clearer with the C<@*> array dereferencing
+syntax.
+
+  #!perl
+  my @shows = TV::Schedule
+                ->new
+                ->filter( subscribed => 1 )
+                ->search( show => "My Little Pony: Friendship is Magic")
+                ->type("Christmas Special")
+                ->@*;
+
+You can also do something similar with hashrefs!  Instead of writing:
+
+  #!perl
+  sub drive_deer($self) {
+    say "On $_!" for sort keys %{
+       $self->sled
+            ->deer_team
+            ->details_hashrefs
+    };
+  }
+
+You can simply write:
+
+  #!perl
+  sub drive_deer($self) {
+    say "On $_!" for sort keys 
+         $self->sled
+              ->deer_team
+              ->details_hashrefs
+              ->%*;
+  }
+
+If you want to use postfix dereferencing in a double-quoted string, you should
+also use the C<postderef_qq> feature:
+
+  #!perl
+  say "All my present: $gifts_for{me}->@*";
+
+Both of these get turned on by C<use experimental 'postderef'>, and they'll be
+out of experimental status in the upcoming v5.24.0 release!
+
+=head2 Standard Features Used In The Example
+
+I also took advantage of a bunch of non-experimental features in Perl.  If
+you're writing Perl code for a known version of Perl, you pretty much should be
+using these as default now.
+
+=head3 The C<say> Feature
+
+Available since Perl 5.10, the C<say> keyword is equivalent to the C<print>
+keyword with a newline automatically appended.  Thus instead of writing:
+
+   #!perl
+   print STDERR 'Loading coal for ' . $kid->name . "\n";
+
+We can just write:
+
+   #!perl
+   say STDERR 'Loading coal for ' . $kid->name;
+
+=head3 The C<state> Feature
+
+The state feature introduces a new keyword to declare, C<state>, that works just
+like a C<my> except the code on the right hand side of the expression is only
+evaluated the first time the line is executed and the variable maintains state
+every time you re-enter that lexical scope.
+
+The upshot of this is that things like locally-scoped long-lived variables like
+counters just got a lot easier to write:
+
+   #!perl
+   {
+      my $counter = 0;
+      sub id {
+        $counter++;
+        return $counter;
+      }
+   }
+
+Can be simply rewritten without those annoying extra curly braces:
+
+   #!perl
+   sub id {
+     state $counter = 0;
+     $counter++;
+     return $counter;
+   }
+
+=head3 The C<fc> Feature
+
+Doing proper case insensitive comparison of strings is...hard.  Sure, it's easy
+when you're only worrying about ASCII characters, but for more advanced
+character sets where round tripping doesn't work, you can't just always C<uc> or
+C<lc> the strings.
+
+  #!perl
+  # for the kelvin / K characters only lc works
+  lc("\x{212A}") eq lc("K");  # true!
+  uc("\x{212A}") eq uc("K");  # false!
+
+  # for sigma / sigma characters only uc works
+  lc("\x{03C2}") eq lc("\x{03C3}");  # false!
+  uc("\x{03C2}") eq uc("\x{03C3}");  # true!
+
+Rather than a I<lower case> or I<upper case> operator we need a I<folding case>
+operator that gives us something we can use to compare to see if the strings
+really are the same case-insensitively.  And that operator?  It's C<fc>:
+
+  #!perl
+  fc("\x{212A}") eq fc("K");         # true!
+  fc("\x{03C2}") eq fc("\x{03C3}");  # true!
+
+=head2 In Conclusion
+
+Perl is an evolving language.  With the C<feature> keyword we're able to bring
+new standards to scripts while at the same time not requiring that old code be
+changed to work with the changes if we don't want it to.  With experimental
+features we're all able to experiment with cool features in our code today
+before we make them part of the standard, to become familiar with all the
+benefits and work out (and hopefully address) the problems before it's set in
+stone.
+
+Speaking from personal experience as someone who recklessly uses all the
+features I've described today while developing production code (including the
+experimental ones) I've found that these little changes add up to make a very
+big difference in the feel of your code, and greatly improve the development
+experience.  It truly is the Perl of the future.
+
+=head1 SEE ALSO
+
+=for :list
+* L<feature>
+* L<rjbs YAPC::NA Video on YouTube on Postfix Dereferencing|https://youtu.be/D1LHFKGHceY&t=360>
+* L<rjbs YAPC::NA Video on YouTube on Subroutine Signatures|https://youtu.be/D1LHFKGHceY?t=2341>
+* L<http://www.effectiveperlprogramming.com/2015/04/use-v5-20-subroutine-signatures/>
+* L<http://www.effectiveperlprogramming.com/2014/09/use-postfix-dereferencing/>
+* L<http://www.effectiveperlprogramming.com/2012/02/fold-cases-properly/>

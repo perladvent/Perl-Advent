@@ -1,0 +1,235 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2018 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2018.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2018 - 
+Test/Compare Your Excel
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2018</a></h1>
+        </div>
+
+        <p id="tagline">2018 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Test/Compare Your Excel</h1>
+<div class='subtitle'>Test::Excel - 2018-12-18</div>
+
+<div class='pod'><p>Santa&#39;s elves have to deal with a wide range of suppliers throughout the year in order to get all the parts for the toys they assemble at the North Pole. Each one of these seems to have their own particular workflow.</p>
+
+<p>Spruce Glowchaser was dealing with a supplier that needed an Excel spreadsheet filled out and emailed to them. Over the last few weeks he&#39;d painstakingly written the automation code to generate the spreadsheet using <a href="https://metacpan.org/module/Spreadsheet::WriteExcel">Spreadsheet::WriteExcel</a>. He <i>thought</i> he&#39;d managed to faithfully reproduce the example sheet from the supplier - that was until the QA department had kicked back his output with numerous bugs.</p>
+
+<p>&quot;What you need to do&quot;, the Wise Old Elf had chagrined him, &quot;is write some tests&quot;</p>
+
+<h2 id="Introducing-Test::Excel">Introducing Test::Excel</h2>
+
+<p><a href="https://metacpan.org/module/Test::Excel">Test::Excel</a> was first published to CPAN on 13th Aug 2010, a module for visual comparison of Excel files. Test::Excel was my first contribution ever and is very close to my heart.</p>
+
+<p>When understanding how Test::Excel works it is important to understand the term &quot;visually&quot;. The comparisons it offers compare the data structure in each of the Excel files and ignore components such as embedded fonts, images, forms and annotations.</p>
+
+<p>The package Test::Excel exports the following functions:</p>
+
+<dl>
+
+<dt>cmp_excel_ok($got, $exp, \%$rule, $message)</dt>
+<dd>
+
+<p>The params <code>$got</code> and <code>$exp</code> can either be a path to the two Excel files being compared or they can each be an object of type <a href="https://metacpan.org/module/Spreadsheet::Read">Spreadsheet::Read</a>. The param <code>\%rule</code> is optional. The final param <code>$message</code> is the test message that will be associated with the test when its run (which is optional as well). The function is ideal for use in unit test as below:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span> <span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Test::More</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Test::Excel</span><span class="structure">;</span><br /><br /><span class="comment"># do the two files foo.xls and bar.xls contain the same data?<br /></span><span class="word">cmp_excel_ok</span><span class="structure">(</span><span class="single">'foo.xls'</span><span class="operator">,</span> <span class="single">'bar.xls'</span><span class="structure">);</span><br /><br /><span class="word">done_testing</span><span class="structure">();</span></code><br />&nbsp;</td></table>
+
+<p>Test::Excel also exports a <code>cmp_excel()</code> function that acts identially to <code>cmp_excel_ok()</code>.</p>
+
+</dd>
+<dt>cmp_execel_not_ok($got, $exp, \%$rule, $message)</dt>
+<dd>
+
+<p>This function is just the reverse of <code>cmp_excel_ok()</code> - it passes if the data structures in the two excel files don&#39;t match each other. It is ideal for use in unit test as below:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span> <span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Test::More</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Test::Excel</span><span class="structure">;</span><br /><br /><span class="comment"># do the two files foo.xls and bar.xls contain different data?<br /></span><span class="word">cmp_excel_not_ok</span><span class="structure">(</span><span class="single">'foo.xls'</span><span class="operator">,</span> <span class="single">'bar.xls'</span><span class="structure">);</span><br /><br /><span class="word">done_testing</span><span class="structure">();</span></code><br />&nbsp;</td></table>
+
+</dd>
+<dt>compare_excel($got, $exp, \%$rule)</dt>
+<dd>
+
+<p>This is the core function that does all the underlying comparisons that <code>cmp_excel_ok</code> and <code>cmp_excel_not_ok</code> rely upon. It can be used as standalone function outside of test environment and doesn&#39;t create the <code>ok 1</code> type test output that the previous functions do.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span> <span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Test::Excel</span><span class="structure">;</span><br /><br /><span class="word">print</span> <span class="double">&quot;Excel files are identical.\n&quot;</span> <span class="word">if</span> <span class="word">compare_excel</span><span class="structure">(</span><span class="double">&quot;foo.xls&quot;</span><span class="operator">,</span> <span class="double">&quot;bar.xls&quot;</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+</dd>
+</dl>
+
+<h3 id="Spruces-Dilemma">Spruce&#39;s Dilemma</h3>
+
+<p>&quot;I did try to use that module&quot;, Spruce explained to the Wise Old Elf, &quot;but it didn&#39;t work for me.&quot;</p>
+
+<p>&quot;Oh?&quot;</p>
+
+<p>&quot;The spreadsheet I&#39;m producing isn&#39;t exactly the same as the test example. It only has to be identical in these particular cells on this particular page - everything else can change.&quot;</p>
+
+<p>&quot;Did you look at the optional <code>%rule</code> argument?&quot;, the Wise Old Elf questioned.</p>
+
+<h3 id="Rules-Specification">Rules Specification</h3>
+
+<p>If you noticed above, all the methods accept an optional parameter <code>\%rule</code>. So what is this all about? You can finetune the comparison rule used by the comparison functions to control exactly what must match, and how it must match.</p>
+
+<dl>
+
+<dt>spec</dt>
+<dd>
+
+<p>Path to specification file that can control which parts of the sheet match. With this you can define which ranges will match.</p>
+
+</dd>
+<dt>sheet</dt>
+<dd>
+
+<p>The name of the sheet that the module should compare. Multiple sheets can be specified in a single string by using a <code>|</code> delimiter.</p>
+
+</dd>
+<dt>tolerance</dt>
+<dd>
+
+<p>Tolerance amount acceptable. Applicable to all except on &#39;sheet&#39; or &#39;spec&#39;</p>
+
+</dd>
+<dt>sheet_tolerance</dt>
+<dd>
+
+<p>Tolerance amount acceptable. Applicable only to &#39;sheet&#39; or &#39;range&#39; in the spec file.</p>
+
+</dd>
+<dt>swap_check</dt>
+<dd>
+
+<p>Boolean 0 or 1, whether row swapping check is on or off.</p>
+
+</dd>
+<dt>error_limit</dt>
+<dd>
+
+<p>Limit the number of errors acceptable. Default is 0.</p>
+
+</dd>
+</dl>
+
+<h2 id="The-Specification-File">The Specification File</h2>
+
+<p>The spcification file contains space separated key value pair per line. It can have the following keys:</p>
+
+<dl>
+
+<dt>sheet</dt>
+<dd>
+
+<p>Sheet name in the Excel file.</p>
+
+</dd>
+<dt>range</dt>
+<dd>
+
+<p>Cell range.</p>
+
+</dd>
+<dt>ignorerange</dt>
+<dd>
+
+<p>Cell range to ignore when comparing.</p>
+
+</dd>
+</dl>
+
+<p>For example:</p>
+
+<pre><code>    Sheet Parts
+    Range B3:B5
+    Sheet Spares
+    Range B5:B6</code></pre>
+
+<h3 id="It-all-went-wrong">It all went wrong?</h3>
+
+<p>&quot;This test is just failing&quot;, Spruce complained, &quot;and I just can&#39;t work out why!&quot;</p>
+
+<p>&quot;Did you read the part of the manual about debugging?&quot; the Wise Old Elf asked. &quot;You can set the <code>DEBUG</code> environment variable and you&#39;ll get copious output out about what&#39;s actually going on under the hood.&quot;</p>
+
+<h3 id="DEBUG-output">DEBUG output</h3>
+
+<p>Indeed, setting the DEBUG flag from the command line can be <i>very</i> useful in figuring out what&#39;s going on.</p>
+
+<pre><code>    bash$ DEBUG=1 perl t/01xls.t
+    1..6
+    INFO: Excel comparison [t/got-4.xls] [t/exp-4.xls]
+    INFO: [MySheet1]:[0][0]:[6][2]
+    INFO: [MySheet1]:[0][0]:[6][2]
+    INFO: [STRING]:[MySheet1]:[STD][1][1]:[Name][Name] ... [PASS]
+    INFO: [STRING]:[MySheet1]:[STD][1][2]:[Value][Value] ... [PASS]
+    INFO: [STRING]:[MySheet1]:[STD][3][1]:[GBP][GBP] ... [PASS]
+    INFO: [NUMBER]:[MySheet1]:[SPC][3][2]:[1.2345][1.2345] ... [PASS]
+    INFO: [STRING]:[MySheet1]:[STD][4][1]:[USD][USD] ... [PASS]
+    INFO: [NUMBER]:[MySheet1]:[SPC][4][2]:[0.8922][0.9122] ... [PASS]
+    INFO: [STRING]:[MySheet1]:[STD][5][1]:[INR][INR] ... [PASS]
+    INFO: [NUMBER]:[MySheet1]:[SPC][5][2]:[1.45][1.567] ... [PASS]
+    INFO: [STRING]:[MySheet1]:[STD][6][1]:[EUR][EUR] ... [PASS]
+    INFO: [NUMBER]:[MySheet1]:[STD][6][2]:[2.5][2.5] ... [PASS]
+    INFO: [MySheet1]: ..... [OK].
+    INFO: [MySheet2]:[0][0]:[6][2]
+    INFO: [MySheet2]:[0][0]:[6][2]
+    INFO: [STRING]:[MySheet2]:[STD][1][1]:[Name][Name] ... [PASS]
+    INFO: [STRING]:[MySheet2]:[STD][1][2]:[Value][Value] ... [PASS]
+    INFO: [STRING]:[MySheet2]:[STD][3][1]:[XYZ][XYZ] ... [PASS]
+    INFO: [NUMBER]:[MySheet2]:[STD][3][2]:[0.12334][0.12334] ... [PASS]
+    INFO: [STRING]:[MySheet2]:[STD][4][1]:[ABC][ABC] ... [PASS]
+    INFO: [NUMBER]:[MySheet2]:[STD][4][2]:[1.864][1.864] ... [PASS]
+    INFO: [STRING]:[MySheet2]:[STD][5][1]:[PQR][PQR] ... [PASS]
+    INFO: [NUMBER]:[MySheet2]:[SPC][5][2]:[1.99][2.014] ... [PASS]
+    ...</code></pre>
+
+<h2 id="Futher-Examples-and-Contributing">Futher Examples and Contributing</h2>
+
+<p>You can find loads of example in the <a href="https://metacpan.org/pod/Test::Excel">distribution</a>.</p>
+
+<p>If you any suggestions for improvement or if you fing bugs in the code then please raise them at <a href="https://github.com/manwar/Test-Excel">GitHub</a>.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/4fb4fc280d9afbfeeec8142f813c4ecf?r=g&s=80&d=retro />
+This article contributed by: Mohammad S Anwar &lt;mohammad.anwar@yahoo.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Christmas Tunes!" href="2018-12-17.html">Previous</a></li>
+
+    <li class="next"><a title="Cute Christmas Animals" href="2018-12-19.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

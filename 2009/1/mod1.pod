@@ -1,0 +1,151 @@
+=pod
+
+=for advent_year 2009
+
+=for advent_day 01
+
+=for advent_title Not a creature was stirring&hellip;
+
+=for advent_author Jerrad Pierce
+
+=begin eds
+
+Minor corrections prompted by the Mo[ou]se team,
+who really want you to use the larger beast. &mdash; Jerrad 2009-12-02
+
+=end eds
+
+Not even a large and gangly M<Moose>. As you are probably aware, M<Moose>
+is a relatively nifty OO framework. However, it is somewhat hefty:
+6,361 lines of code plus 14 dependencies (5,199 LOC).N<stats>
+
+Most of its fans will tell you not to worry about that, and of course premature
+optimization is the root of all coal-stuffed stockings, but what if you want
+some shiny new toys that are a bit more svelte? Enter M<Mouse>. M<Mouse> is
+"Moose without the antlers" i.e; lacking the thorny dependencies and added
+heft giving you a pain in the neck.
+
+M<Mouse> clocks in at 5.7 kLOCs with no run-time dependencies.
+It <del>runs</del> <ins>starts-up</ins> 4+ times faster than M<Moose> according to its authors,
+at the expense of implementing only <del>96%</del> <ins>a subset</ins> of its larger cousin's
+<ins>more superficial and sexier</ins> features.
+
+<ins>It can be a nicer, gentler introduction to the world of Moose.
+Like the cervine form, the rodent provides a simple means of providing
+accessors which are more explicit than a generalized AUTOLOAD mechanism,
+while still eliminating redundant code. Plenty of other fancy OO features
+come along for the ride, but no "metaprotocol stuff," which some
+would argue is the I<raison d'&ecirc;tre> of M<Moose>.
+</ins>
+
+You may be willing to make such a trade-off, but what if you're not writing
+the code, and instead run into some other module that foists M<Moose> upon you?
+That author may or may not need all of M<Moose>, but chances are good they
+don't. Well, if they were kind enough to use M<Any::Moose>
+<!-- formerly Squirrel --> instead, then the code will run with whichever is
+available, unless you force it by setting the currently undocumented
+C<$ENV{ANY_MOOSE}> to the implementation of your choice.
+
+What if they weren't aware of C<Any::Moose>? You could edit their code (ick),
+make a local copy of M<Mouse> and run
+C<find -type f | xargs perl -pi~ -e 's/Mouse/Moose/g'> (very naughty), or get
+a little clever. With an A<Alias.pm|updated version of Package::Alias> that
+has not yet been accepted/released,N<patch> it is possible to dress up your
+M<Mouse> as a M<Moose>.
+
+=begin pre
+
+Olive does not fly, and goes 'woof.'
+Comet flies, and goes '.'
+
+#%INC-luded files, nary a Moose in sight
+$VAR1 = {
+          'B.pm' => '/usr/lib/perl/5.10/B.pm',                                  
+          'Carp.pm' => '/usr/share/perl/5.10/Carp.pm',
+          'Config.pm' => '/usr/lib/perl/5.10/Config.pm',
+          'Data/Dumper.pm' => '/usr/lib/perl/5.10/Data/Dumper.pm'
+          'Exporter.pm' => '/usr/share/perl/5.10/Exporter.pm',                  
+          'List/Util.pm' => '/usr/lib/perl/5.10/List/Util.pm',                  
+
+          #Package::Alias keeping Moose from being loaded
+          'Moose.pm' => '/usr/local/share/perl/5.10.0/Mouse.pm',
+          'Mouse.pm' => '/usr/local/share/perl/5.10.0/Mouse.pm',
+          'Mouse/Exporter.pm' => '/usr/local/share/perl/5.10.0/Mouse/Exporter.pm',
+          'Mouse/Meta/Attribute.pm' => '/usr/local/share/perl/5.10.0/Mouse/Meta/Attribute.pm',                                                                  
+          'Mouse/Meta/Class.pm' => '/usr/local/share/perl/5.10.0/Mouse/Meta/Class.pm',                                                                          
+          'Mouse/Meta/Method/Accessor.pm' => '/usr/local/share/perl/5.10.0/Mouse/Meta/Method/Accessor.pm',                                                      
+          'Mouse/Meta/Method/Constructor.pm' => '/usr/local/share/perl/5.10.0/Mouse/Meta/Method/Constructor.pm',                                                
+          'Mouse/Meta/Method/Destructor.pm' => '/usr/local/share/perl/5.10.0/Mouse/Meta/Method/Destructor.pm',
+          'Mouse/Meta/Module.pm' => '/usr/local/share/perl/5.10.0/Mouse/Meta/Module.pm',
+          'Mouse/Meta/Role.pm' => '/usr/local/share/perl/5.10.0/Mouse/Meta/Role.pm',
+          'Mouse/Meta/TypeConstraint.pm' => '/usr/local/share/perl/5.10.0/Mouse/Meta/TypeConstraint.pm',
+          'Mouse/Object.pm' => '/usr/local/share/perl/5.10.0/Mouse/Object.pm',  
+          'Mouse/Util.pm' => '/usr/local/share/perl/5.10.0/Mouse/Util.pm',
+          'Mouse/Util/TypeConstraints.pm' => '/usr/local/share/perl/5.10.0/Mouse/Util/TypeConstraints.pm',                                                      
+          'Package/Alias.pm' => '/usr/local/share/perl/5.10.0/Package/Alias.pm',
+          'Scalar/Util.pm' => '/usr/lib/perl/5.10/Scalar/Util.pm',              
+          'XSLoader.pm' => '/usr/lib/perl/5.10/XSLoader.pm',
+          'bytes.pm' => '/usr/share/perl/5.10/bytes.pm',
+          'constant.pm' => '/usr/share/perl/5.10/constant.pm',
+          'mro.pm' => '/usr/share/perl/5.10/mro.pm',                            
+          'overload.pm' => '/usr/share/perl/5.10/overload.pm',
+          'strict.pm' => '/usr/share/perl/5.10/strict.pm',
+          'vars.pm' => '/usr/share/perl/5.10/vars.pm',
+          'warnings.pm' => '/usr/share/perl/5.10/warnings.pm',                  
+          'warnings/register.pm' => '/usr/share/perl/5.10/warnings/register.pm',
+        };
+
+=end pre
+
+Unfortunately, because of the way M<Mouse> is implemented, this magic comes
+at the cost of a little extra work, "C<Any::Moose::Forcefully>". Lines 6
+through 20 could easily be inlined in our code, but are placed into a separate
+module to make it clear that you only need the BEGIN block once in your code,
+as early as possible, and it will supercede any later calls to C<use Moose>.
+The use of an explicit C<BEGIN> for the class substitution clauses is key
+to enforce the proper order of module loading. All of these lines,
+except for number 7, are simply copied from M<Mouse> itself,
+and amount to hardcoding a particular feature set.
+
+
+Note that even if other code will compile correctly with M<Mouse>,
+it's possible the code could be doing some deep introspection
+and you may end up with <acronym title="A reindeer who is a few marbles shy of a set">Chet</acronym> rather than <acronym title="A more savvy beast">Comet</acronym>. it is therefore
+recommended that you run the code's test suite against M<Mouse>
+whether you force it through C<Package::Alias> or substituting C<Any::Moose>.
+
+=sourcedcode mod1.pl
+
+=sourcedcode Forcefully.pm
+
+=begin footnote stats
+
+As determined by  A<http://cloc.sourceforge.net/|cloc> and
+A<http://deps.cpantesters.org/|CPAN Tester dependencies>.
+
+=end footnote
+
+=begin footnote patch
+
+I've submitted a A<https://rt.cpan.org/Ticket/Display.html?id=52314|patch> to A<Alias.pm|Package::Alias>, which is also generally useful for robustly aliasing packages and classes of any sort to another name.
+<p>
+My suggestion that M<Any::Moose> A<https://rt.cpan.org/Ticket/Display.html?id=52336|be patched> to use C<Package::Alias> magic to make it a more general solution has not been embraced, but someone is welcome to produce a proper C<Any::Moose::Forcefully>/C<MooseX::Hijack::WithMouse>.
+<p>
+<ins>As an alternative to adopting the currently unofficial implementation of C<Alias>, and admittedly ugly C<Any::Moose::Forcefully> or something similar, you could use the following snippet suggested by one of M<Moose>'s contributors:</ins>
+
+=begin code
+
+sub Moose::import { goto &Mouse::import }
+$INC{"Moose.pm"} = 1;
+
+=end code
+
+=end footnote
+
+=begin eds
+
+See also M<Any::Moose::Convert>, created 2009-12-04
+
+=end eds
+
+=cut

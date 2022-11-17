@@ -1,0 +1,340 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Class::Data::Inheritable</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 20th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Class::Data::Inheritable</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../19th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../21st/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Perl programmers are fully familiar with the idea of method
+inheritance.  When I create a method in a class I know that any class
+that subclasses that class will also get that method.  So if my
+hypothetical <b>Car</b> class has a <code>drive</code> method then I know my
+subclasses <b>Car::Saloon</b> and <b>Car::Hatchback</b> will get this method
+too.  I also know if it's not suitable any more - for example in the
+subclass <code>Car::Aquacar</code> I can override it and define a new one
+without effecting any of the other <b>Car</b> classes that don't inherit
+from that class itself.</p>
+<p>Compare this to class data in Perl.  In Perl class data (data that is
+available to all objects of a class) is commonly stored simply in
+package variables.  These values aren't automatically inherited by the
+subclasses (you need to remember which class they're defined in) and
+if you change these values you find it's not possible to change them
+just for some subclasses - you have to change them for all classes
+everywhere.</p>
+<p>In his book, Object Oriented Perl, Damian Conway developed a set of
+techniques that allow you to create proper class variables that are
+inherited and can be overridden on a per subclass bases.  This module
+represents the packaged version of these techniques and abstracts
+away the technical details.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Class::Data::Inheritable">[Read the documentation for Class::Data::Inheritable on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>In order to demonstrate this I'm going to create a class that creates
+people to use in a TV show.  I want to have default values for all the
+people's attributes which all new instances of the people are
+initialised from.  It's important that I be able to change these
+defaults at run time to alter the way all new people are created.  In
+short, I need these default values to be stored in class variables.</p>
+<pre>  package Person;
+  use base qw(Class::Data::Inheritable);</pre>
+
+<pre>  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # by default people are male and blond
+  Person-&gt;mk_classdata('default_gender', "male");
+  Person-&gt;mk_classdata('default_hair'  , "blonde");</pre>
+
+<pre>  # declare a class variable, but give it no value
+  Person-&gt;mk_classdata("default_type");</pre>
+
+<p>In order to use <b>Class::Data::Inheritable</b> in a class you must make
+it a base class of that class.  Once you've done that you can call the
+<code>mk_classdata</code> method to creates a new class variable in that class.
+Accessor methods for that class variable are automatically created so
+now we can, from anywhere in any program, access the variable.</p>
+<pre>   # get it
+   print Person-&gt;default_age;</pre>
+
+<pre>   # change it to a new value
+   print Person-&gt;default_age(42);</pre>
+
+<p>Now we need to create the rest of the class.  First up a constructor
+that defines the object based on what the class variables were set to
+at the time the constructor was called.</p>
+<pre>  # the constructor
+  sub new
+  {
+    my $class = shift;
+    my $self  = bless {}, $class;</pre>
+
+<pre>    # set the default values
+    $self-&gt;gender($class-&gt;default_gender);
+    $self-&gt;hair($class-&gt;default_hair);
+    $self-&gt;type($class-&gt;default_type);</pre>
+
+<pre>    return $self
+  }</pre>
+
+<p>Now we just need to create a set of accessors that access the values
+stored in the current object, so we don't have to access the hash
+directly.</p>
+<pre>  # Standard get/set accessors.  Calling any one of these
+  # with no parameters will just return the current value.
+  # Calling with an argument will set the value.</pre>
+
+<pre>  sub gender
+  {
+     my $this = shift;
+     $this-&gt;{gender} = shift if @_;
+     return $this-&gt;{gender};
+  }</pre>
+
+<pre>  sub hair
+  {
+     my $this = shift;
+     $this-&gt;{hair} = shift if @_;
+     return $this-&gt;{hair};
+  }</pre>
+
+<pre>  sub type
+  {
+     my $this = shift;
+     $this-&gt;{type} = shift if @_;
+     return $this-&gt;{type};
+  }</pre>
+
+<p>Okay, so let's look what we can do with this object.  To do this we'll use
+a simple test script to check that things are what we expect them to be.
+Writing tests for your code is a good habit to get into as it enables you
+to quickly check everything is as it's meant to be.</p>
+<p>Right, first up, let's check whenever we create a <b>Person</b> that we
+get a object of the <b>Person</b> class back again</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  use Test::More tests =&gt; 8;</pre>
+
+<pre>  use Person;
+  my $person = Person-&gt;new();
+  isa_ok($person, "Person");</pre>
+
+<pre>  is($person-&gt;gender, "male",   "default gender");
+  is($person-&gt;hair,   "blonde", "default hair");
+  is($person-&gt;type,   undef,    "default type");</pre>
+
+<p>And we should also check that we can change values:</p>
+<pre>  # So we can set particular things for people
+  $person-&gt;hair("red");
+  is($person-&gt;hair, "red", "person is a redhead");</pre>
+
+<p>And if we create a new person, then that person is initialised from
+the default values, not from what we just set:</p>
+<pre>  # but that doesn't affect anyone else, the defaults still hold
+  my $person2 = Person-&gt;new();
+  is($person2-&gt;hair, "blonde", "person is blonde");</pre>
+
+<p>Ah, now the cunning bit.  Say we decide we want all people created
+from now on to be evil by default (say we're creating the bad guys.)
+This can be done by setting the class variable.</p>
+<pre>  # set all people to be evil by default from now on
+  Person-&gt;default_type("evil");</pre>
+
+<pre>  # check that worked
+  my $baddie = Person-&gt;new();
+  is($baddie-&gt;age, "evil", "new default type");</pre>
+
+<h2>The Clever Bit</h2>
+<p>The clever bit is when we come round to declaring a subclass of
+<b>Person</b>, which of course will be the <b>Slayer</b> subclass (oooh, look
+another Buffy example - how unoriginal.)  We create the subclass of
+<b>Person</b> and change a few of the default values and add another class
+variable.</p>
+<pre>  package Slayer;
+  use base qw(Person);</pre>
+
+<pre>  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # change some of the defaults existing defaults
+  Slayer-&gt;default_gender("female");  # all slayers are female
+  Slayer-&gt;default_type("good");      # and start out good anyway</pre>
+
+<pre>  # and add a new one
+  Slayer-&gt;mk_classdata("default_skills",["bantering"]);</pre>
+
+<p>Note how we say <code>Slayer-&gt;default_gender("female")</code> not 
+<code>Person-&gt;default_gender("female")</code>. This is because we want to change
+the defaults <i>only</i> for <b>Slayer</b>s not for <b>Person</b>s.</p>
+<pre>  is(Slayer-&gt;default_gender, "female", "slayer's default's female");
+  is(Person-&gt;default_gender, "male",   "person's default's still male");</pre>
+
+<p>What about the other variables?  Well, they're <i>inherited</i>.  This
+means if we were to check it we'd find that calling <code>Slayer-&gt;default_hair</code> would return <code>blonde</code> as we haven't
+overridden that value by setting a value by calling <b>Slayer</b>, so we get
+the value directly from <b>Person</b> instead.</p>
+<p>Now all that's left to do is create the constructor and the accessor
+method for the new attribute, which will launch us off on a quick
+diversion.</p>
+<pre>  use Storable qw(dclone);</pre>
+
+<pre>  # new constructor
+  sub new
+  {
+    my $class = shift;</pre>
+
+<pre>    # call our parent's new method
+    my $this = $class-&gt;SUPER::new(@_);</pre>
+
+<pre>    # then add in our skills
+    $this-&gt;skills(dclone $class-&gt;default_skills);</pre>
+
+<pre>    # return the object
+    return $this;
+  }</pre>
+
+<p>There's a couple of things worth noting here as an aside that you
+might potentially not be familiar with.  First we're <i>chaining</i> our
+constructor.  By this I mean we're using the <code>$class-&gt;SUPER::new(@_)</code> call to create our object.  This call will call our superclass's,
+that is to say <b>Person</b>'s, new method, but as we're calling it on
+<code>$class</code> the returning object will be blessed into <b>Slayer</b> not
+<b>Person</b>. We get the object modify it slightly before returning it just
+as if we'd created it ourselves from scratch.</p>
+<p>The other thing that's worth noting is that we use <b>Storable</b>'s <code>dclone</code>
+method to copy the default skill.  <code>dclone</code> can be used to copy an entire
+data structure where <code>=</code> won't do.  To see why this is necessary consider
+the following data structure.</p>
+<pre>  # create a data structure
+  my %original = ( 
+                   foo =&gt; [ "bar", "baz" ]
+                 );</pre>
+
+<pre>  # 'copy' it
+  my %copy = %original;</pre>
+
+<pre>  # add something to the inner list in the original data structure
+  $original{foo}[2] = "buzz";</pre>
+
+<pre>  use Data::Dumper;
+  print Dumper \%copy;</pre>
+
+<p>This prints out</p>
+<pre>  $VAR1 = {
+            'foo' =&gt; [
+                       'bar',
+                       'baz',
+                       'buzz'
+                     ]
+          };</pre>
+
+<p>As even though the <code>=</code> copied the top level hash, it only copied the
+reference to the array - in both cases both <code>$copy</code> and
+<code>$original</code>'s <code>foo</code> key points to the same array in memory.  In
+order to copy the array properly so that the contents of the array are
+duplicated we need to use <code>dclone</code>.</p>
+<p>Okay, back to the discussion of the module de jour.  I think all
+that's needed is a quick summary to conclude.  We've seen how we can
+have data inheritance that works the same as method inheritance.
+Whenever we want to create a set of data that can be accessed by all
+objects of a class we create a class variable with <code>mk_classdata</code>.
+From this point on, all objects can access this data by calling the
+method that's named the same as the variable on the object.  For
+example, both <b>Slayer</b> and <b>Person</b> objects can read hair colour.</p>
+<p>When we set a class variable it's set for all that class and all
+classes that subclass from it unless something has explicitly set that
+value to something different in one of the subclasses.  So when
+we change the default hair colour in <code>Person</code>, it'll be set for <b>Slayer</b>
+too.  However, if there is an explicit override in <b>Slayer</b> (like there
+is for the default type) changing the default type in <b>Person</b> will have
+no affect on new <b>Slayer</b> objects created.  Setting the default type
+to evil for people does not effect the newly created slayers.</p>
+<p>It all works pretty much as you expect, once you've got your head
+around it, which is to say the same as method inheritance.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.manning.com/Conway/index.html">Object Oriented Perl</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:53 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

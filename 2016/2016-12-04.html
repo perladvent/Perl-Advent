@@ -1,0 +1,139 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2016 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2016.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2016 - 
+Yuletide Logging
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2016</a></h1>
+        </div>
+
+        <p id="tagline">2016 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Yuletide Logging</h1>
+<div class='subtitle'>Log::Any - 2016-12-04</div>
+
+<div class='pod'><blockquote><i>
+'Twas a night before Christmas and on the ops floor<br>
+All the servers were humming behind the closed door<br>
+The app was deployed to the servers with care<br>
+In hopes that the customers soon would be there<br>
+When from out of the phone there arose such a clatter<br>
+I sprang out of my chair to see what was the matter<br>
+"The website is down!" said the boss with a shout<br>
+"We need to make money, so figure it out!"<br>
+I logged in to the server and looked all around<br>
+But the app had no logging; no reason was found<br>
+With no other choice, I called the developer<br>
+Who said "just restart it, I'm sure that'll fix 'er"<br>
+I ran the right service, up the app came<br>
+Only to come down again and again<br>
+If there but was a way to know what was wrong<br>
+I could fix it for sure, but no logging was found
+</i></blockquote>
+
+<p>Good logging is crucial for applications in production. In an emergency, you will want it to be as easy as possible to track down problems when they happen. With good logs you can ensure that minor bugs don&#39;t cause major downtime and data loss problems. Good logs can help track down security issues and can provide an auditable trail of changes to track down who did what and when.</p>
+
+<p><a href="https://metacpan.org/module/Log::Any">Log::Any</a> is a lightweight, generic API built for interoperable logging for <a href="http://cpan.org">CPAN</a> modules. Much like <a href="http://dbi.perl.org">DBI</a> allows interoperable database interfaces, <a href="http://metacpan.org/pod/CHI">CHI</a> allows interoperable caching interfaces, and <a href="http://plackperl.org">PSGI</a> allows interoperable web applications, Log::Any allows a CPAN module to produce logs that fit into your environment whether you just want to see logs on your terminal, you&#39;re using <a href="http://mschilli.github.io/log4perl/">Log4perl</a> to directly send e-mail alerts to your operations team, or you&#39;re using a local <a href="http://www.rsyslog.com">rsyslog</a> daemon to transmit logs to an <a href="https://www.elastic.co/products/elasticsearch">ElasticSearch</a> instance via <a href="https://www.elastic.co/products/logstash">Logstash</a>.</p>
+
+<p>To achieve this interoperability, Log::Any is split up into two parts: Producers produce logs using a Log::Any object, and consumers consume those logs using a Log::Any::Adapter object. First we&#39;ll cover how to produce logs, then we&#39;ll cover how to consume them to display logs on your terminal.</p>
+
+<h3 id="Setting-our-Application-up-to-Log:-Using-a-Producer">Setting our Application up to Log: Using a Producer</h3>
+
+<p>To get started using Log::Any to produce logs, we just need to use and create a Log::Any object. The simplest way is by creating a single log object for your program when importing Log::Any:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Log::Any</span> <span class="single">'$LOG'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>If you&#39;ve got an object-oriented module, you can load your log object lazily using the `get_logger` method and store it in your object:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Moo</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Log::Any</span><span class="structure">;</span><br /><span class="word">has</span> <span class="word">log</span> <span class="operator">=&gt;</span> <span class="structure">(</span> <span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'lazy'</span><span class="operator">,</span> <span class="word">default</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="word">Log::Any</span><span class="operator">-&gt;</span><span class="word">get_logger</span> <span class="structure">}</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Now that we have a log object, we can start producing logs. By default, they won&#39;t go anywhere, and we&#39;ll set up a consumer later. For now, let&#39;s just write some logs to tell our operations staff what&#39;s going on in our application.</p>
+
+<p>Log::Any has methods to produce logs at various named severity levels, including the standard <a href="https://en.wikipedia.org/wiki/Log4j#Log4j_Log_Levels">Log4j-ish levels</a> of <code>fatal</code>, <code>error</code>, <code>warning</code>, <code>info</code>, <code>debug</code>, and <code>trace</code>, and the <a href="https://en.wikipedia.org/wiki/Syslog#Severity_level">Syslog severity levels</a> (which include &quot;critical&quot;, &quot;alert&quot;, and &quot;emergency&quot;). To emit a log message, simply call one of these methods with the message as an argument:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">DBI</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Log::Any</span> <span class="single">'$LOG'</span><span class="structure">;</span><br /><br /><span class="symbol">$LOG</span><span class="operator">-&gt;</span><span class="word">info</span><span class="structure">(</span> <span class="double">&quot;Connecting to database&quot;</span> <span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$dbh</span> <span class="operator">=</span> <span class="word">DBI</span><span class="operator">-&gt;</span><span class="word">connect</span><span class="structure">(</span> <span class="single">'dbi:SQLite:data.db'</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Log::Any also has a set of formatter methods similar to <a href="http://perldoc.perl.org/functions/sprintf.html">sprintf</a> to make formatting log messages easier. These methods are the same name as the severity level, but with an &quot;f&quot; at the end (like <code>errorf()</code>, <code>warningf()</code>, <code>infof()</code>, etc...). These methods take a format string as the first argument, and format the remaining arguments using the format string (exactly like <a href="http://perldoc.perl.org/functions/sprintf.html">sprintf</a>). Any objects given to these methods will be printed with <a href="http://perldoc.perl.org/Data/Dumper.html">Data::Dumper</a> for quick debugging.</p>
+
+<p>The log message is returned by the log method and can be used further, for example, to throw an exception with <a href="http://perldoc.perl.org/functions/die.html">die</a> after writing a log message with <code>errorf()</code>, or to use <a href="http://perldoc.perl.org/functions/warn.html">warn</a> to ensure the log message is seen on STDERR even if you&#39;re logging to a file.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">DBI</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Log::Any</span> <span class="single">'$LOG'</span><span class="structure">;</span><br /><br /><span class="symbol">$LOG</span><span class="operator">-&gt;</span><span class="word">info</span><span class="structure">(</span> <span class="double">&quot;Connecting to database&quot;</span> <span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$dbh</span> <span class="operator">=</span> <span class="word">DBI</span><span class="operator">-&gt;</span><span class="word">connect</span><span class="structure">(</span> <span class="single">'dbi:SQLite:data.db'</span> <span class="structure">);</span><br /><span class="keyword">if</span> <span class="structure">(</span> <span class="operator">!</span><span class="symbol">$dbh</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">die</span> <span class="symbol">$LOG</span><span class="operator">-&gt;</span><span class="word">errorf</span><span class="structure">(</span> <span class="single">'Could not connect to database: %s'</span><span class="operator">,</span> <span class="symbol">$DBI::errstr</span> <span class="structure">);</span><br /><span class="structure">}</span><br /><span class="symbol">$LOG</span><span class="operator">-&gt;</span><span class="word">info</span><span class="structure">(</span> <span class="double">&quot;Database connected&quot;</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h3 id="Storing-the-Logs-Somewhere:-Wiring-up-a-Consumer">Storing the Logs Somewhere: Wiring up a Consumer</h3>
+
+<blockquote>The major difference between a thing that might go wrong and a thing that
+cannot possibly go wrong is that when a thing that cannot possibly go wrong
+goes wrong it usually turns out to be impossible to get at or repair.
+<cite>Douglas Adams</cite></blockquote>
+
+<p>Now that we have some log lines being written, we need to give them somewhere to go. Log::Any has a set of &quot;adapters&quot; (in the <a href="https://metacpan.org/module/Log::Any::Adapter">Log::Any::Adapter</a> namespace) that allow logs written using Log::Any to be written to various places.</p>
+
+<p>For example, if you want to throw logs to <code>STDERR</code> on your terminal, you can set up the &quot;Stderr&quot; adapter:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Log::Any::Adapter</span> <span class="single">'Stderr'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Now when any log line is written, it will go to <code>STDERR</code>.</p>
+
+<p>There are adapters to make Log::Any log to syslog, files, and even other logging systems like <a href="https://metacpan.org/module/Log::Dispatch">Log::Dispatch</a> and <a href="https://metacpan.org/module/Log::Log4perl">Log::Log4perl</a>. These adapters make Log::Any a perfect choice for logging in CPAN modules: If the user wants to see logs, they get to see them in the same way as all other logs in their application, otherwise, the logging is there when they need it.</p>
+
+<p>The adapter is also where we decide what level of logs we want to see. Some adapters handle this with their own configuration, like Log::Dispatch and Log::Log4perl. For our simple example, we need to handle it ourselves. Let&#39;s allow our operations staff to set the <code>LOG_LEVEL</code> environment variable, and have it default to <code>warn</code>.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Log::Any::Adapter</span> <span class="single">'Stderr'</span><span class="operator">,</span> <span class="word">log_level</span> <span class="operator">=&gt;</span> <span class="symbol">$ENV</span><span class="structure">{</span><span class="word">LOG_LEVEL</span><span class="structure">}</span> <span class="operator">||</span> <span class="double">&quot;warn&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>That&#39;s all there is to getting started using Log::Any. For those concerned about bloating their dependency tree, Log::Any has no non-core dependencies. For those who value backwards-compatibility, Log::Any is supported back to very early versions of Perl 5.8 (and if it is broken for versions before that, <a href="http://github.com/preaction/Log-Any">patches are welcome</a>).</p>
+
+<blockquote><i>
+Now that the logging is hung in our program with care<br>
+I searched for the log file I knew would be there<br>
+Inside I would find all the things I could know<br>
+About problems and issues and something to go<br>
+Now that I know what the problem's about<br>
+I can fix it for sure so the app just stays up
+</i></blockquote>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/8ad6c24b533a36f3fc3257498118cb31?r=g&s=80&d=retro />
+This article contributed by: Doug Bell &lt;doug@preaction.me&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Benchmarking with Bencher" href="2016-12-03.html">Previous</a></li>
+
+    <li class="next"><a title="Gathering all the Presents" href="2016-12-05.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

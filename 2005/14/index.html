@@ -1,0 +1,139 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+	<META HTTP-EQUIV="Content-Type" CONTENT="text/html;CHARSET=iso-8859-1">
+	<META NAME="Author" Content="Bill Ricker, n1vux">
+	<TITLE>YA Perl Advent Calendar 2005: Keeping it clean</TITLE>
+	<LINK REL="stylesheet" TYPE="text/css" HREF="../style.css">
+</HEAD>
+<BODY>
+<H1><A HREF="../">YA Perl Advent Calendar</A> 2005-12-14</H1>
+
+<blockquote style="padding: 1em; border: 2px ridge black; background-color:#eee">
+Boston.PerlMongers tech meeting last night, today's column is by
+William 'N1VUX' Ricker.
+</blockquote>
+<P>Standards are a good thing. Daily updates are a good thing. But how do you keep a website that's hacked together
+daily like an Advent calendar &quot;standards compliant&quot;? You can generate everything from templates (as that
+<A HREF="http://catalyst.perl.org/calendar/"><em>other</em> unofficial Perl Advent Calendar</A> does), or you can test,
+as we here at YAPAC do. There are public W3C HTML validators, but TIMTOWTDI and of course there is a Perl solution,
+<A HREF="http://search.cpan.org/search?module=HTML::Lint">HTML::Lint</A>, which comes with a script wrapper <A
+HREF="http://search.cpan.org/src/PETDANCE/HTML-Lint-2.02/bin/weblint">weblint</A>.</P>
+
+<PRE>$ weblint http://use.perl.org 
+<SPAN CLASS="c">http://use.perl.org (1386:6) &lt;IMG&gt; tag has no HEIGHT and WIDTH attributes.
+</SPAN>$ weblint http://web.mit.edu/belg4mit/www/5/
+<SPAN CLASS="c">http://web.mit.edu/belg4mit/www/5/ (56:71) &lt;/p&gt; with no opening &lt;p&gt;
+http://web.mit.edu/belg4mit/www/5/ (270:1) &lt;pre&gt; at (143:1) is never closed
+</SPAN>$ weblint http://web.mit.edu/belg4mit/www/8/
+<SPAN CLASS="c">http://web.mit.edu/belg4mit/www/8/ (7:62) &lt;/head&gt; with no opening &lt;head&gt;
+http://web.mit.edu/belg4mit/www/8/ (121:1) &lt;head&gt; tag is required
+</SPAN>$ weblint http://web.mit.edu/belg4mit/www/12/
+<SPAN CLASS="c">http://web.mit.edu/belg4mit/www/12/ (237:1) &lt;a&gt; at (232:1) is never closed
+http://web.mit.edu/belg4mit/www/12/ (237:1) &lt;a&gt; at (232:64) is never closed
+</SPAN>$</PRE>
+<P></P>
+
+<P>Oops, I guess we don't test quite as often as perhaps we might. </P>
+
+<blockquote style="padding: 1em; border: 2px ridge black; background-color:#eee">
+Editor&gt; That output isn't too self-documenting though.
+<p/>
+N1VUX&gt; They say the teat is the only intuitive user interface
+<p/>
+Editor&gt; Okay... for instance I was reading the lines about 12/ and looking
+at line 237 to correct them but there was nothing there. Similarly colons to
+seperate coordinates (in y,x even) strikes me as odd. Is it a vi thing?
+<p/>
+N1VUX&gt; IDEs expect it this way for compile errors that you can click on to
+jump to. It's an EMACS thing that was adopted by VIM, IIRC. I don't think
+old-original vi cared. Most editors display line:col or line,col not
+x,y. Colons are standard in compiler errors etc as "$ARGV:$.: $_" and
+filename:lineno:column:message . Since column number is optional, it's
+the last prefix field. Also, hierarchically, /root/dir/file.ext:line:col is
+the hierarchical order of granularity, most folks think of their source files
+in terms of lines of columns, not columns of characters.
+<p/>
+line:col isn't really even (y,x), it's more like
+<pre>
+   my ($line, $col)=(-$y, $x);
+</pre>
+since it's in 4th Quadrant -- the origin is at the upper left.  (Much of
+computer graphics is pschizoid between 1st and 4th quadrants. And ASCII
+art has the -y,x transform always.)
+<p/>
+Editor&gt; Okay, so the last set of numbers on a line is the line, column
+of the offending bit. The first occurence is where HTML::Lint stopped looking
+for a matching tag.
+</blockquote>
+<!--
+<P>Installation was as easy as</P>
+<PRE>$ sudo apt-get install libwww-perl
+$ sudo apt-get install weblint-perl</PRE>
+<P>(where of course you can use <A HREF="http://search.cpan.org/search?module=CPAN">CPAN</A> <A HREF="http://search.cpan.org/search?module=CPANPLUS">CPANPLUS</A>
+if you don't have <A HREF="http://www.debian.org/doc/manuals/apt-howto/index.en.html">apt-get</A>).</P>
+-->
+<P>Andy Lester's <A HREF="http://search.cpan.org/search?module=HTML::Lint">HTML::Lint</A> module has plenty more
+features than we can demonstrate here.
+
+<OL>
+	<LI>It can parse files by name.
+	<LI>It can parse HTML you give it piecemeal.
+	<LI>It can be used in an Apache module to give warnings on pages you're serving -- on your test server I hope!
+</OL>
+
+<P>Now for a recursive demo script, which will read this page and check it before I upload it. (This script is
+a lame imitation of weblint, so don't use it for anything real. Enjoy!
+<H1><A HREF="mod14.pl">mod14.pl</A></H1>
+<P>
+<HR ALIGN="CENTER" />
+</P>
+<PRE>   1 #! /usr/bin/env perl  -l
+   2 <SPAN CLASS="k">use</SPAN> <SPAN CLASS="w">strict</SPAN><SPAN CLASS="sc">;</SPAN>
+   3 <SPAN CLASS="k">use</SPAN> <SPAN CLASS="w">warnings</SPAN><SPAN CLASS="sc">;</SPAN>
+   4 <SPAN CLASS="k">use</SPAN> <SPAN CLASS="w">Carp</SPAN><SPAN CLASS="sc">;</SPAN>
+   5 <SPAN CLASS="k">use</SPAN> <SPAN CLASS="w">HTML::Lint</SPAN><SPAN CLASS="sc">;</SPAN>
+   6 
+   7 <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$file_name</SPAN><SPAN CLASS="sc">;</SPAN>
+   8 <SPAN CLASS="k">my</SPAN> <SPAN CLASS="s">(</SPAN><SPAN CLASS="i">$total_count</SPAN><SPAN CLASS="cm">,</SPAN> <SPAN
+CLASS="i">$n_files</SPAN><SPAN CLASS="s">)</SPAN>=<SPAN CLASS="s">(</SPAN><SPAN CLASS="n">0</SPAN><SPAN CLASS="cm">,</SPAN><SPAN
+CLASS="n">0</SPAN><SPAN CLASS="s">)</SPAN><SPAN CLASS="sc">;</SPAN>
+   9 
+  10 <SPAN CLASS="k">while</SPAN> <SPAN CLASS="s">(</SPAN><SPAN CLASS="i">$file_name</SPAN> = <SPAN CLASS="k">shift</SPAN> <SPAN
+CLASS="i">@ARGV</SPAN><SPAN CLASS="s">)</SPAN> <SPAN CLASS="s">{</SPAN>
+  11 
+  12 	<SPAN CLASS="k">open</SPAN> <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$input</SPAN><SPAN CLASS="cm">,</SPAN> <SPAN
+CLASS="q">'&lt;'</SPAN><SPAN CLASS="cm">,</SPAN> <SPAN CLASS="i">$file_name</SPAN> 
+  13 		<SPAN CLASS="k">or</SPAN> <SPAN CLASS="w">croak</SPAN> <SPAN CLASS="q">&quot;Can not open script for read&quot;</SPAN><SPAN
+CLASS="sc">;</SPAN>
+  14 	<SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$data</SPAN> = <SPAN CLASS="k">do</SPAN> <SPAN CLASS="s">{</SPAN> <SPAN
+CLASS="k">local</SPAN> <SPAN CLASS="i">$/</SPAN><SPAN CLASS="sc">;</SPAN> <SPAN CLASS="q">&lt;$input&gt;</SPAN> <SPAN
+CLASS="s">}</SPAN><SPAN CLASS="sc">;</SPAN>  		 <SPAN CLASS="c"># slurp!</SPAN>
+  15 	<SPAN CLASS="k">close</SPAN> <SPAN CLASS="i">$input</SPAN><SPAN CLASS="sc">;</SPAN> 
+  16 	<SPAN CLASS="i">$n_files</SPAN>++<SPAN CLASS="sc">;</SPAN>
+  17 
+  18 	<SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$lint</SPAN> = <SPAN CLASS="w">HTML::Lint-&gt;new</SPAN><SPAN CLASS="sc">;</SPAN>
+  19 	    <SPAN CLASS="c"># $lint-&gt;only_types( HTML::Lint::STRUCTURE );</SPAN>
+  20 
+  21 	    <SPAN CLASS="i">$lint-&gt;parse</SPAN><SPAN CLASS="s">(</SPAN> <SPAN CLASS="i">$data</SPAN> <SPAN CLASS="s">)</SPAN><SPAN
+CLASS="sc">;</SPAN>
+  22 	    <SPAN CLASS="c"># $lint-&gt;parse_file( $filename );</SPAN>
+  23 
+  24 	    <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$error_count</SPAN> = <SPAN CLASS="i">$lint-&gt;errors</SPAN><SPAN
+CLASS="sc">;</SPAN>
+  25 	    <SPAN CLASS="w">carp</SPAN> <SPAN CLASS="q">&quot;Uh oh, $error_count errors found in $file_name.&quot;</SPAN>
+  26 		<SPAN CLASS="k">if</SPAN> <SPAN CLASS="i">$error_count</SPAN><SPAN CLASS="sc">;</SPAN> 
+  27 
+  28 	    <SPAN CLASS="k">foreach</SPAN> <SPAN CLASS="k">my</SPAN> <SPAN CLASS="i">$error</SPAN> <SPAN CLASS="s">(</SPAN> <SPAN
+CLASS="i">$lint-&gt;errors</SPAN> <SPAN CLASS="s">)</SPAN> <SPAN CLASS="s">{</SPAN>
+  29 		<SPAN CLASS="k">print</SPAN> <SPAN CLASS="i">$error-&gt;as_string</SPAN><SPAN CLASS="sc">;</SPAN>
+  30 	    <SPAN CLASS="s">}</SPAN>
+  31 <SPAN CLASS="s">}</SPAN>
+  32 
+  33 <SPAN CLASS="k">print</SPAN> <SPAN CLASS="q">&quot;$total_count errors found in $n_files processed&quot;</SPAN><SPAN
+CLASS="sc">;</SPAN>
+  34 </PRE>
+
+0 errors found in 1 processed
+</BODY>
+</HTML>

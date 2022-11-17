@@ -1,0 +1,277 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+How Santa&#39;s Elves Keep their Workshop Tidy
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>How Santa&#39;s Elves Keep their Workshop Tidy</h1>
+<div class='subtitle'>Code::TidyAll - 2014-12-16</div>
+
+<div class='pod'><p><a href="https://metacpan.org/module/Code::TidyAll">Code::TidyAll</a> bills itself as <code>Your all-in-one code tidier and validator</code>. Many people do not know this, but <code>tidyall</code> has become an indispensable part of the toolkit in Santa&#39;s workshop. It makes it trivial for the elves to keep their code formatting consistent and clean.</p>
+
+<h3 id="Perl::Tidy">Perl::Tidy</h3>
+
+<p>Many of us are familiar with <a href="https://metacpan.org/module/Perl::Tidy">Perl::Tidy</a> (the Perl module for reformatting your source code in a consistent manner according to a set of rules,) so we&#39;ll start with it as an example. Since the elves work as a team, it&#39;s easiest for them to add their common <code>.perltidyrc</code> to their Git repository. Next they create an rc file for the <code>tidyall</code> command line utility. They add this to the top level of their repository and call it <code>.tidyallrc</code>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synSpecial">[PerlTidy]</span><br /><span class="synType">select</span> =<span class="synConstant"> {bin,lib,t}/**/*.{pl,pm,t,psgi}</span><br /><span class="synType">select</span> =<span class="synConstant"> santas-workshop.psgi</span><br /><span class="synType">ignore</span> =<span class="synConstant"> lib/Acme/Claus/Roles/JellyBelly.pm</span><br /><span class="synType">argv</span> =<span class="synConstant"> --profile=$ROOT/.perltidyrc</span></code><br />&nbsp;</td></table>
+
+<p>Each section of a <code>.tidyallrc</code> file begins by specifying the tidier/formatter which is being configured. In this case it&#39;s the <a href="https://metacpan.org/module/Code::TidyAll::Plugin::PerlTidy">Code::TidyAll::Plugin::PerlTidy</a> plugin which plugs <a href="https://metacpan.org/module/Perl::Tidy">Perl::Tidy</a> into <code>tidyall</code>. The <code>select</code> args accept <a href="https://metacpan.org/module/File::Zglob">File::Zglob</a> patterns (i.e. shell glob pattern). This allows the elves to configure which files the plugin should be applied to. Similarly, they can also add <code>ignore</code> patterns to exclude arbitrary files and patterns.</p>
+
+<p>The <code>argv</code> param lets the elves specify a set of arguments to pass to <a href="https://metacpan.org/module/Perl::Tidy">Perl::Tidy</a>. In this case the elves use the <code>profile</code> arg, which tells <code>perltidy</code> where to find a valid <code>.perltidyrc file</code>. <code>$ROOT</code> is a special variable provided by <code>tidyall</code> which means the top level of the repository it has been added to.</p>
+
+<p>Now, they&#39;re all set. <code>tidyall -a</code> will tidy everything which matches the <code>select</code> statements in the configuration. <code>tidyall -g</code> is much like <code>tidyall -a</code> but it is restricted to all files which have been changed but not yet committed to the git repository they&#39;re currently working in.</p>
+
+<p>Let&#39;s have a look at an example. This is the repository the elves are working on:</p>
+
+<pre><code>    $ tree
+    .
+    |-- Changes
+    |-- MANIFEST.SKIP
+    |-- dist.ini
+    |-- lib
+    |   `-- Acme
+    |        `-- Claus
+    |        |    `-- Roles
+    |        |    |    `-- JellyBelly.pm
+    |        |    `-- Sleigh.pm
+    |        `-- Claus.pm
+    `-- santas-workshop.psgi</code></pre>
+
+<p>Let&#39;s ask <code>tidyall</code> to check everything, using the <code>-a</code> flag.</p>
+
+<pre><code>    $ tidyall -a
+    [tidied]  lib/Acme/Claus.pm
+    [checked] lib/Acme/Claus/Sleigh.pm
+    [checked] santas-workshop.psgi</code></pre>
+
+<p>You can see from the above that tidyall only checked the files that we configured it to look at. Now, what if we only want to check the files which have uncommitted changes in Git.</p>
+
+<pre><code>    $ git status
+    On branch master
+    Changes not staged for commit:
+    (use &quot;git add &lt;file&gt;...&quot; to update what will be committed)
+    (use &quot;git checkout -- &lt;file&gt;...&quot; to discard changes in working directory)
+
+    modified:   lib/Acme/Claus.pm</code></pre>
+
+<p>We have one modified file, <code>lib/Acme/Claus.pm</code>. So, let&#39;s constrain this further and use the <code>-g</code> flag. This should mean that only one file gets checked and possibly tidied.</p>
+
+<pre><code>    tidyall -g
+    [tidied]  lib/Acme/Claus.pm</code></pre>
+
+<p>It worked! At this point the elves essentially have a wrapper around <code>perltidy</code>, which lets them restrict which files the transformations are applied to. Helpful, right? Let&#39;s take it a step further. Two of the elves on the gifting geolocation team, Holly and Max, are pretty good about tidying their files before they commit them to the workshop&#39;s main repo. However, the other half of the team, Buddy and Peppermint aren&#39;t quite so disciplined. How can Holly and Max ensure that Buddy and Peppermint work together with the rest of the team? Well, since they&#39;re using Git, there are a few things they can do. (This would be a good time to note that <code>tidyall</code> has Subversion support too.)</p>
+
+<h3 id="No-Untidy-Code-Makes-it-Past-this-Hook">No Untidy Code Makes it Past this Hook</h3>
+
+<p>The first thing Holly and Max can try is using a pre-commit hook. Setting it up is easy.</p>
+
+<pre><code>    mkdir -p git/hooks</code></pre>
+
+<p>Now create git/hooks/pre-commit with the following content:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/env perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Code::TidyAll::Git::Precommit</span><span class="structure">;</span><br /><span class="word">Code::TidyAll::Git::Precommit</span><span class="operator">-&gt;</span><span class="word">check</span><span class="structure">();</span></code><br />&nbsp;</td></table>
+
+<p>Then create git/setup.sh</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synComment">#!/bin/bash</span><br /><span class="synStatement">chmod</span> <span class="synSpecial">+x</span> git/hooks/pre-commit<br /><span class="synStatement">cd</span> .git/hooks<br />ln <span class="synSpecial">-s</span> ../../git/hooks/pre-commit</code><br />&nbsp;</td></table>
+
+<p>Now, all Holly and Max need to do is tell Buddy and Peppermint to check out the latest commits from master and run the following command:</p>
+
+<pre><code>    sh git/setup.sh</code></pre>
+
+<p>This will set up a hook which runs before any git commit in the local repo is finalized. Note that the hook will not tidy your files. It will merely warn you about untidy code and prevent the commit. (You can get the same behaviour at the command line by supplying the <code>--check-only</code> arg). At this point you can check what the problems are and then run <code>tidyall -g</code> as appropriate. Then be sure to perform your tidying before you commit. If you don&#39;t, <code>tidyall</code> will be fooled into thinking that your commits are clean, even if you haven&#39;t staged the tidied bits.</p>
+
+<p>For example, what happens if someone tries to commit untidy code?</p>
+
+<pre><code>    $ git commit
+    [checked] lib/Acme/Claus.pm
+    *** needs tidying
+    1 file did not pass tidyall check</code></pre>
+
+<p>In a traditional git setup it&#39;s also possible to install similar pre-receive hooks that run on the main repository whenever someone pushes code to it. However, since Santa&#39;s workshop runs Github Enterprise - where pre-receive hooks aren&#39;t possible without some wrangling - pre-commit hooks and a strong lecture on always installing them clientside will have to do.</p>
+
+<h3 id="Testing-to-Keep-Buddy-and-Peppermint-in-Line">Testing to Keep Buddy and Peppermint in Line</h3>
+
+<p>Now, it&#39;s entirely possible that someone will forget to enable the hook or even intentionally bypass it. (You can do this with <code>git commit --no-verify</code>). Let&#39;s put another safeguard in place to catch the naughty elves.</p>
+
+<p>Let&#39;s create a file called t/tidyall.t and add the following lines:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><span class="keyword">use</span> <span class="word">Test::Code::TidyAll</span><span class="structure">;</span><br /><span class="word">tidyall_ok</span><span class="structure">();</span></code><br />&nbsp;</td></table>
+
+<p>Now we&#39;ll have a failing test whenever something untidy makes it into the master branch. Holly and Max are now safe in the knowledge that whenever untidy code is tested via their CS (continuous santagration) that the test suite will curse loudly and the perpetrator(s) will be exposed. In fact, it should look a little bit like this:</p>
+
+<pre><code>    $ prove t/tidyall.t
+    t/tidyall.t ..
+    1..4
+    [checked] lib/Acme/Claus.pm
+    *** needs tidying
+    # *** needs tidying
+    not ok 1 - lib/Acme/Claus.pm
+
+    #   Failed test &#39;lib/Acme/Claus.pm&#39;
+    #   at t/tidyall.t line 3.
+    ok 2 - lib/Acme/Claus/Sleigh.pm
+    ok 3 - santas-workshop.psgi
+    [checked] t/tidyall.t
+    ok 4 - t/tidyall.t
+    # Looks like you failed 1 test of 4.
+    Dubious, test returned 1 (wstat 256, 0x100)
+    Failed 1/4 subtests
+
+    Test Summary Report
+    -------------------
+    t/tidyall.t (Wstat: 256 Tests: 4 Failed: 1)
+    Failed test:  1
+    Non-zero exit status: 1
+    Files=1, Tests=4,  1 wallclock secs ( 0.03 usr  0.01 sys +  0.24 cusr  0.02 csys =  0.30 CPU)
+    Result: FAIL</code></pre>
+
+<h3 id="Can-the-Elves-add-a-vim-Key-Binding">Can the Elves add a vim Key Binding?</h3>
+
+<p>Of course. They can add the following to their .vimrc file:</p>
+
+<pre><code>    &quot; Run tidyall on the current buffer. If an error occurs, show it and leave it
+    &quot; in tidyall.ERR, and undo any changes.
+
+    command! TidyAll :call TidyAll()
+    function! TidyAll()
+    let cur_pos = getpos( &#39;.&#39; )
+    let cmdline = &#39;:1,$!tidyall --mode editor --pipe %:p 2&gt; tidyall.ERR&#39;
+    execute( cmdline )
+    if v:shell_error
+    echo &quot;\nContents of tidyall.ERR:\n\n&quot; . system( &#39;cat tidyall.ERR&#39; )
+    silent undo
+    else
+    call system( &#39;rm tidyall.ERR&#39; )
+    endif
+    call setpos( &#39;.&#39;, cur_pos )
+    endfunction
+
+    &quot; Uncomment to set leader to ,
+    &quot; let mapleader = &#39;,&#39;
+
+    &quot; Bind to ,t (or leader+t)
+    map &lt;leader&gt;t :TidyAll&lt;cr&gt;</code></pre>
+
+<p>There may also be the odd elf who swears by emacs. The emacs code can be found in the repository <a href="https://github.com/autarch-code/perl-code-tidyall/blob/master/etc/editors/tidyall.el">https://github.com/autarch-code/perl-code-tidyall/blob/master/etc/editors/tidyall.el</a></p>
+
+<h3 id="What-next">What next?</h3>
+
+<p>So far we have perltidy set up, we have a Git hook to enforce it and a test to make sure the hook is being enforced. What&#39;s next?</p>
+
+<p>The great thing about this module is that it has many plugins, so it&#39;s not just about tidying Perl code. You can add any of the following plugins to your projects:</p>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::CSSUnminifier">Code::TidyAll::Plugin::CSSUnminifier</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::Go">Code::TidyAll::Plugin::Go</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::JSBeautify">Code::TidyAll::Plugin::JSBeautify</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::JSHint">Code::TidyAll::Plugin::JSHint</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::JSLint">Code::TidyAll::Plugin::JSLint</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::JSON">Code::TidyAll::Plugin::JSON</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::MasonTidy">Code::TidyAll::Plugin::MasonTidy</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::PHPCodeSniffer">Code::TidyAll::Plugin::PHPCodeSniffer</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::PerlCritic">Code::TidyAll::Plugin::PerlCritic</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::PodChecker">Code::TidyAll::Plugin::PodChecker</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::PodSpell">Code::TidyAll::Plugin::PodSpell</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::SVG">Code::TidyAll::Plugin::SVG</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::SortLines">Code::TidyAll::Plugin::SortLines</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::SortLines::Naturally">Code::TidyAll::Plugin::SortLines::Naturally</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Code::TidyAll::Plugin::UniqueLines">Code::TidyAll::Plugin::UniqueLines</a></p>
+
+</li>
+</ul>
+
+<p>With this much plugin support <code>tidyall</code> can be used for front end as well as back end development. As mentioned above, it works with Subversion as well as Git. It helps Santa&#39;s elves keep their workshop clean and tidy. Maybe it can help your workshop as well.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Code::TidyAll">Code::TidyAll</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Perl::Tidy">Perl::Tidy</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/f675a69ecc851caf62d656970d4b10a5?r=g&s=80&d=retro />
+This article contributed by: Olaf Alders &lt;olaf@wundersolutions.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Finding CPAN distributions with github repositories" href="2014-12-15.html">Previous</a></li>
+
+    <li class="next"><a title="Optional tests for optional requirements" href="2014-12-17.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

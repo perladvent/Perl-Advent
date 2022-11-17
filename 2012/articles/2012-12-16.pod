@@ -1,0 +1,355 @@
+Title: Creating Your Own Perl
+Topic: Syntax::Collector
+Author: Toby Inkster <tobyink@cpan.org>
+
+  #!perl
+  use List::Util qw( reduce );
+
+  my @numbers  = 1 .. 10;
+  my $even_sum = reduce { $a + $b } grep { $_ % 2 == 0 } @numbers;
+
+See what I did there? Unlike some functional programming languages, Perl
+doesn't have a built-in C<fold> or C<reduce> keyword, so I cleverly
+imported the C<reduce> function from L<List::Util>. (Of course, if I'd been
+really clever, I'd have noticed List::Util also has a C<sum> function
+available.)
+
+Due to some trickery with sub prototypes and manipulating its caller's
+symbol table, List::Util manages to make its C<reduce> function feel just
+like a built-in language feature. It uses the same codeblock syntax as
+C<grep> and C<map>, and the same magic C<< $a >> and C<< $b >> variables
+as C<sort>.
+
+Via tricks like these, plus ties, overloads, custom C<import> functions,
+source filters, L<Devel::Declare>, C<< %^H >>, and (in newer versions of
+Perl) the pluggable keyword API, Perl modules have the power to affect
+their caller in ways far beyond the mechanisms that other programming
+languages make available. When you use a module that does this, you're
+not just loading a library and using it at arm's length; you're changing
+the very syntax of Perl - lexically, within your module.
+
+When starting a new script, or a new module, this is what we do. We add
+a bunch of C<use> statements to the top of the file to tweak Perl's flavour
+to our liking. We make Perl a more suitable language for getting the job
+done; we turn a general purpose programming language into a domain-specific
+language suitable for our exact task. This will often begin with something
+like:
+
+  #!perl
+  use v5.14;
+  use strict;
+  use warnings;
+
+but if you're writing anything non-trivial, it's likely that a bunch of
+other C<use> statements will join them.
+
+(Of course, some modules are plain old object-oriented code that make no
+attempt to alter their caller's syntax. Different approaches are appropriate
+for different tasks.)
+
+=head2 Twelve Lords A Leaping
+
+Here are some of my favourite syntax-bending modules:
+
+=head3 List::Util / List::MoreUtils
+
+L<List::Util> is a core Perl module with a small collection of array
+munging functions; L<List::MoreUtils> is a collection of extras that
+didn't quite make the shortlist.
+
+Many of these make creative use of sub prototypes to look and act like
+Perl's built-in list manipulation functions. The C<first>, C<uniq> and
+C<reduce> functions are especially useful, and should be in every Perl
+programmer's toolkit.
+
+=head3 PerlX::Maybe
+
+L<PerlX::Maybe> provides a tiny function making it easier to work with
+optional named parameters, a la:
+
+  #!perl
+  my $santa = Person->new(
+          title     => "Saint",
+          name      => "Nicholas",
+    maybe telephone => $phone,      # $phone might be undef
+    maybe email     => $email,      # $email might be undef
+  );
+
+=head3 Syntax::Keyword::Junction
+
+L<Syntax::Keyword::Junction> implements support for something approaching
+the Perl 6 concept of junctions; that is, variables which have multiple
+values at once.
+
+  #!perl
+  my $reindeer = any(qw/
+    Dasher Dancer Prancer Vixen Comet Cupid Donder Blitzen
+  /);
+  $reindeer eq "Dasher";    # true
+  $reindeer eq "Prancer";   # true
+  $reindeer eq "Rudolf";    # false
+
+It achieves this with nothing more than careful use of overloading.
+
+=head3 aliased
+
+L<aliased> provides short aliases for long class names.
+
+  #!perl
+  use aliased "Rangifer::Tarandus" => "Reindeer";
+
+  my $rudolf = Reindeer->new;
+
+The short alias is just a constant that returns the class name as a string.
+Simple idea, but useful.
+
+=head3 Safe::Isa
+
+Ever get the I<< Can't call method "isa" on an undefined value >> blues?
+L<Safe::Isa> gives you a way to call methods like C<isa> and C<can> on
+scalars without checking that they are defined and blessed.
+
+  #!perl
+  # Might return undef if there are no cheap desserts
+  my $pudding = $menu->find_food(max_price => 5, category => DESSERT);
+
+  if ($pudding->$_isa('Plum::Pudding')) {
+    say "Yum!";
+  }
+
+It takes advantage of the fact that coderefs may be called as methods even
+on unblessed or undefined invocants.
+
+=head3 Try::Tiny
+
+While C<eval> and C<< $@ >> can be used as a try-catch mechanism in Perl,
+there are numerous gotchas. L<Try::Tiny> works around them for you, giving
+you a nice syntax for exception catching.
+
+  #!perl
+  try {
+    $gift->give($recipient);
+  }
+  catch {
+    when (/^Can't call method "give"/) { } # ignore
+    default { die $_ }
+  };
+
+There are even nicer modules like L<TryCatch> available, but Try::Tiny's
+zero-dependency approach - it uses nothing more than prototypes and guards
+(dummy objects with just a destructor) - is perfect for even small projects.
+
+=head3 NEXT
+
+L<NEXT> adds a C<SUPER>-like pseudo-class to your module, but with more
+control of method redispatch than C<SUPER> gives you. Good if you're
+programming with multiple inheritance.
+
+These days you should probably use L<mro> instead, but NEXT deserves a
+mention for its clever use of AUTOLOAD and capitalised package names to
+create the illusion of new syntax.
+
+=head3 Web::Simple
+
+This Plack-based web app framework uses a sub prototype hack for dispatching.
+
+  #!perl
+  sub (POST + /naughty_list/person+ ?name=&*) {
+    my ($self, $name, $misc_params) = @_;
+    ...;
+  }
+
+=head3 autovivification
+
+Perl's autovivification feature can sometimes be counterintuitive.
+
+  #!perl
+  my $menu = undef;
+  exists $menu->{plum}{pudding};   # false
+  exists $menu->{plum};            # true !!!
+
+The L<autovivification> module can selectively disable autovivification for
+particular scopes, or get Perl to issue a warning or fatal error when
+autovivification occurs. Very handy.
+
+Lots of deep XS magic in this module.
+
+=head3 PerlX::QuoteOperator
+
+Perl has various built-in quote-like operators. C<< qw() >> constructs
+arrays; C<< qr() >> quotes regular expressions and C<< qx() >> acts like
+backticks. L<PerlX::QuoteOperator> allows you to define your own.
+
+  #!perl
+  use PerlX::QuoteOperator qdeer => {
+    -with => sub ($) { Reindeer->new(name => $_[0]) },
+  };
+
+  my $rudolf = qdeer(Rudolf);
+
+PerlX::QuoteOperator uses L<Devel::Declare> to rewrite C<< qdeer(...) >>
+to C<< qdeer qq(...) >> while Perl is compiling your code.
+
+=head3 Function::Parameters
+
+L<Function::Parameters> provides parameter lists for Perl subs. Instead of:
+
+  #!perl
+  sub give {
+    my ($gift, $recipient) = @_;
+    ...;
+  }
+
+You can write:
+
+  #!perl
+  fun give ($gift, $recipient) {
+    ...;
+  }
+
+It supports named and positional parameters, optional parameters and methods
+with invocants. It provides an introspection API, and if you're using
+L<Moose>, then it can hook into the Moose type constraint system to validate
+parameter types. Such C<fun>!!
+
+Function::Parameters uses Perl's new(ish) pluggaable keyword API, so is only
+available for Perl 5.14 and above.
+
+=head3 MooseX::Declare
+
+Where to start? MooseX::Declare gives you C<class> and C<role> keywords
+for declaring Moose classes and Moose roles; C<extends>, C<with> and C<is>
+for inhertitance, role composition and meta traits; C<method> for declaring
+methods with signatures; C<before>, C<after>, C<around>, C<override> and
+C<augment> for method modifiers; and C<clean> for scrubbing away helper
+functions so that outside code can't call them.
+
+  #!perl
+  role Flight
+  {
+    method fly (DateTime $when, Location $where) {
+      ...;
+    }
+  }
+
+  class MagicReindeer extends Reindeer with Flight
+  {
+    before fly (DateTime $when, Location $where) {
+      TimingException->throw("not Christmas Eve")
+        unless $when->month == 12 && $when->day == 24;
+    }
+  }
+
+It uses Devel::Declare. Extensively. And a partridge in a pear tree.
+
+=head2 Bundle Up!
+
+If you're working on a large project with many modules, you may find that you
+are repeating the same set of imports at the top of almost every file. Perhaps
+something like:
+
+  #!perl
+  use v5.14;
+  use strict;
+  use warnings;
+  use Try::Tiny;
+  use Scalar::Util qw( blessed );
+  use List::Util qw( first reduce );
+  use List::MoreUtils qw( uniq );
+  use Path::Class qw( file dir );
+
+OK, so you can copy and paste, but copy-paste code is the enemy. Don't repeat
+yourself. Wouldn't it be nice to bundle up all the above functionality into
+a single module?
+
+  #!perl
+  use My::Syntax;
+
+Well, here's an example of how you could write that module:
+
+  #!perl
+  package My::Syntax;
+
+  use v5.14;
+  use strict;
+  use warnings;
+  use Try::Tiny qw();
+  use Scalar::Util qw();
+  use List::Util qw();
+  use List::MoreUtils qw();
+  use Path::Class qw();
+  use import::into;
+
+  sub import {
+    my $caller = caller;
+    feature->import::into($caller, ':5.14');
+    strict->import::into($caller);
+    warnings->import::into($caller);
+    Try::Tiny->import::into($caller);
+    Scalar::Util->import::into($caller, 'blessed');
+    List::Util->import::into($caller, 'first', 'reduce');
+    List::MoreUtils->import::into($caller, 'uniq');
+    Path::Class->import::into($caller, 'file', 'dir');
+  }
+
+  1;
+
+Alternatively, L<Syntax::Collector> makes it a little neater:
+
+  #!perl
+  package My::Syntax;
+
+  use v5.14;
+  use Syntax::Collector -collect => q/
+  use strict           1.00         ;
+  use warnings         1.00         ;
+  use feature          1.00         qw( :5.14 );
+  use Try::Tiny        0.11         ;
+  use Scalar::Util     1.23         qw( blessed );
+  use List::Util       1.23         qw( first reduce );
+  use List::MoreUtils  0.33         qw( uniq );
+  use Path::Class      0.26         qw( file dir );
+  /;
+
+  1;
+
+Yes, that's a big quoted string (C<< q/.../ >>), but no, it's not just
+C<eval>ed.
+
+Bundling up imports into a single module makes it easier to encourage
+project-wide coding standards. You can't "forget" to enable warnings
+any more (but of course you can explicitly unimport it). You no longer
+have any excuse for using C<ref> when you mean C<blessed>, or C<grep>
+when you want C<first>.
+
+Bundling up imports allows you to consider ideas like L<true.pm|true> which
+would seem ridiculous if you needed to repeat them at the top of every
+file, but become more appealing if they are included as part of an import
+collection.
+
+And bundling up imports allows you to manage your project's dependencies
+from a single place. Don't want to depend on List::MoreUtils any more?
+Then write your own replacement for C<uniq> and get My::Syntax to
+export that instead. (The Syntax::Collector documentation includes
+examples of how to write a syntax collection that also acts as an
+exporter.)
+
+So go on; create your own Perl. Make it your gift to yourself.
+
+=head1 SEE ALSO
+
+=for :list
+* L<List::Util>, L<List::MoreUtils>
+* L<PerlX::Maybe>
+* L<Syntax::Keyword::Junction>
+* L<aliased>
+* L<Safe::Isa>
+* L<Try::Tiny>
+* L<NEXT>
+* L<Web::Simple>
+* L<autovivification>
+* L<PerlX::QuoteOperator>
+* L<Function::Parameters>
+* L<MooseX::Declare>
+* L<import::into>
+* L<Syntax::Collector>

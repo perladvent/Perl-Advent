@@ -1,0 +1,141 @@
+Author: Stefan Adams <stefan@adams.fm>
+Title: Santa's Helper Embrace the Shell
+Topic: Command Line
+
+=encoding utf8
+
+=head1 Santa's Helpers Embrace the Shell
+
+Santa's workshop is very busy and everyone on staff is expected to contribute beyond just their traditional roles. Even Santa's reindeer take on additional tasks throughout the year.
+
+Santa and the elves have been busy this year making vast improvements to their processes, incorporating modern technology such as Perl into their daily workflows.
+
+To improve their real-time efficiency when it comes to irregular activity, debugging, and general proof-of-concept research, everyone has been working to improve their command line fu. Much of what they do involves working with structured data set, such as JSON files.
+
+=head2 Typical reindeer...
+
+The reindeer have been helping by extracting important data from the elves' structured notes stored in JSON format. The reindeer need to get the GPS coordinates for the next deliveries in the route.
+
+    {"children":[{"list":"naughty","name":"Tom","position":[40.7414728,-74.0055813]},{"location":[40.7565323,-73.9904037],"name":"Dick","list":"nice"},{"name":"Harry","list":"nice","location":[40.7411595,-74.0097167]}]}
+
+The reindeer use this data to determine the next deliveries on Santa's route:
+
+    $ perl -nE 'while (s/"name":"([^"]+)","list":"nice","(position|location)":\[([^,]+),([^\]]+)//) { say "$1\t$3\t$4" }' < route.json
+    Harry   40.7411595      -74.0097167
+
+The elves confirmed that Tom, who is naughty, did not get added to Santa's route, but they also noticed that Dick, who is nice, is missing from the list! The reindeers with their poor JSON parser almost caused Dick to get missed! D:
+
+The elves knew this was not a sustainable approach. They decided that they must adopt better tooling to avoid any tragedies with incorrectly skipping a delivery for a child on Christmas day.
+
+=head2 The elves find C<jp>
+
+The elves discovered a new command line tool for parsing these JSON files and it allows the use of pointers to drill down to the specific data of interest.  This new tool is called C<jp> -- for JSON Pointer.
+
+The key features for C<jp> -- made possible by L<Mojo::JSON|https://docs.mojolicious.org/Mojo/JSON> from the wonderful L<Mojolicious|https://mojolicious.org> framework -- are that the elves can use a simple JSON pointer to get at any specific data in their JSON data structure, but then also use Perl data structures to apply logic for ensuring that they extract exactly the right data and not accidentally route Santa to someone on his naughty list.
+
+The elves first want to look at all of the data in a more natural columnar CSV-type format:
+
+    $ ./jp -r '/children/\d+' /name /list /position /location < advent.json 
+    Tom     naughty [40.7414728,-74.0055813]
+    Dick    nice    [40.7565323,-73.9904037]
+    Harry   nice    [40.7411595,-74.0097167]
+
+Now they could easily pipe that to grep to remove the naughty folks, but we can do better better than that, and avoid skipping any nice children whose name contains the word naughty.
+
+With a little Perl, C<jp> transforms into a powerful command line tool that Santa and the elves can count on:
+
+    $ ./jp -p -r '/children/\d+' -E '$_->grep(sub{$_->jp("/list") eq "nice"})' /name /position/0 /location/0 /position/1 /location/1 < advent.json 
+    /children/1     Dick    40.7565323      -73.9904037
+    /children/2     Harry   40.7411595      -74.0097167
+
+=head2 Conclusion
+
+C<jp> is a very new tool and the elves are the first in history to discover its existence. They understand that there may be bugs or additional functionality that it lacks, and they are excited to make contributions to improve C<jp> and share those improvements with all the children and everyone else in the world. They have confidence in the tool and their ability to make contributions because it is pretty well documented and comes with a very easy to use test suite that already tests most of C<jp>'s functionality.
+
+=head3 Download
+
+C<jp> is available today on L<Github|https://github.com/stefanadams/jp>.
+
+=head3 Usage
+
+C<jp> has a detailed help listing, optionally including examples:
+
+    $ ./jp -hh
+    Usage: ./jp [OPTIONS] [POINTERS]
+
+        Options:
+        -A               Dereference JSON arrays into columns
+        -C               No collection
+        -E eval-string   Evaluate the Perl eval string
+                        These functions and variables, in addition to standard Perl functions and variables, are:
+            $_            A Mojo::Collection of [JP OBJECTS]
+            D             Dump an object to inspect it
+            out           Print to stdout and include it in test inspection
+            c             Create a new Mojo::Collection object
+            f             Create a new Mojo::File object
+            l             Create a new Mojo::URL object
+            r             Alias to Mojo::Util::dumper
+            traverse      Imported from Data::Traverse, if available
+        -I exact-match   Compare the results exactly against the supplied text
+        -M test-message  Specify a message in the test output
+        -R regex         Compare the results against the supplied regex
+        -S               Do not sort
+        -T eval-string   Compare the results against the supplied Perl eval string
+        -U               Remove undef
+        -d delimiter     Delimiter to use in columnar output
+        -h               Display this help, one more to include examples
+        -i               Ignore case in regex JSON pointers
+        -k tail-number   Display the bottom n results, n can be negative
+        -n head-number   Display the top n results, n can be negative
+        -p               Include the pointer in the columnar output
+        -r regex-pointer A regex JSON pointer for selecting multiple targets
+        -v               Increase verbosity
+        
+        Jp Objects:
+        An object with pointer and value attributes. The primary method to use for this object when iterating a collection
+        is the `jp` method which is used to further expand the JSON object by pointer. See the example commented
+        "Filtering" for a very practical use case of the Jp object which allows further filtering the results of the regex
+        pointer (-r) by iterating the $_ Mojo::Collection of Jp objects with the use of the `grep` method and using a
+        JSON Pointer with the `jp` method on each Jp object.
+
+        Pointers:
+        Any remaining non-flag arguments are considered JSON pointers and used to narrow the selection from the selected
+        JSON string for columnar output.
+
+        Examples:
+        (All examples read example.json from stdin, as shown by the first example)
+
+        # Use a JSON pointer to get a value from the JSON data structure
+        $ jp /artifactory/0/password < example.json
+        s3cr3t
+
+        # Use a JSON pointer to get a value from the JSON data structure, defaults to /
+        $ jp
+        {"Version":"1","artifactory":[{...},{...},{...}]}
+
+        # Use a regex in the pointer to reduce the JSON data structure and return each result, one per line
+        $ jp -n 1 -r '/artifactory/\d+'
+        {...}
+
+        # Use a regex in the pointer to reduce the JSON data structure and include the pointer for all records found
+        $ jp -n 1 -p -r '/artifactory/\d+' /user /password
+        /artifactory/0  12345 s3cr3t
+
+        # Filtering
+        $ jp -Aip -n -1 -d: -E '$_->grep(sub{$_->jp("/isdefault")})' -r '/Artifactory/\d' /user /password
+        /artifactory/1:54321:s3cr3t5
+
+        # Treat the execution as a test
+        $ jp -n 1 -E '$_->tap(sub{out $_->size})->tap(sub{out $_->size})' -r '/artifactory/\d+' /user /password \
+            -T '3\n3\n12345\ts3cr3t'
+        ok: 'Test /user /password' is '3\n3\n12345\ts3cr3t'
+
+        # A syntax error in the -E Perl eval is handled gracefully (final tap method is missing a closing ')')
+        $ jp -v -n 1 -E '$_->tap(sub{out $_->size})->tap(sub{die 123}' -r '/artifactory/\d+' /user /password 
+        syntax error in -E eval
+
+        # Don't sort by pointer, sort arbitrarily as specified in the -E Perl eval
+        $ jp -v -S -U -p -r '/markers/\d' -E '$_->sort(sub{$a->jp("/location/0", "/position/0") <=> $b->jp("/location/0", "/position/0")})' /location /position <<EOF
+        {"markers":[{"name":"Google, 8th Avenue","position":[40.7414728,-74.0055813]},{"name":"Microsoft, Times Square","location":[40.7565323,-73.9904037]},{"name":"Tesla, Washington Street","location":[40.7411595,-74.0097167]},{"name":"Amazon New York","location":[40.7532822,-74.0010696]}]}
+        EOF
+=cut

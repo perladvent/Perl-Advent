@@ -1,0 +1,142 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+Finding CPAN distributions with github repositories
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Finding CPAN distributions with github repositories</h1>
+<div class='subtitle'>MetaCPAN::Client - 2014-12-15</div>
+
+<div class='pod'><p>Blink the elf wasn&#39;t happy, because Father C wasn&#39;t happy. Blink had been told to send presents to every CPAN author who released a new distribution (aka <i>neocpanism</i>) to CPAN this year, regardless of who had done the most recent release of the distribution. But the distribution had to still be on CPAN.</p>
+
+<p>&quot;Does SHARYANTO get one for <i>every</i> dist?!&quot;, Blink had asked, but got a cuff round the ear for that.</p>
+
+<p>He thought he&#39;d done a good job, but the Senior Elf had just been to tell him that some authors had missed out.</p>
+
+<p>Father C doesn&#39;t like it when people don&#39;t get the presents they should.</p>
+
+<h3 id="What-went-wrong">What went wrong?</h3>
+
+<p>Blink had remembered that they have their own CPAN mirror at the North Pole, so he just used <a href="https://metacpan.org/module/Path::Iterator::Rule">Path::Iterator::Rule</a> to iterate over it, looking for the <code>META.yml</code> files which hold the metadata for each distribution. From those he pulled out the <a href="https://metacpan.org/pod/CPAN::Meta::Spec#name">name</a> key, which holds the distribution&#39;s name.</p>
+
+<p>He&#39;d remembered that they have a database of CPAN authors and their <a href="http://neilb.org/neocpanisms/">neocpanisms</a>, so he&#39;d used that get the other information he needed.</p>
+
+<p>But on closer inspection, he discovered that not all distribution names from metadata files matched those in the database. &quot;Sort it out, and send some pull requests!&quot;, the Senior Elf had chastised him.</p>
+
+<h3 id="Distribution-names">Distribution names</h3>
+
+<p>When you create a module <code>Foo::Bar</code>, you would normally release it to CPAN as part of a distribution called <code>Foo-Bar</code>. You can specify the distribution name yourself, but distribution builders like <a href="https://metacpan.org/module/ExtUtils::MakeMaker">ExtUtils::MakeMaker</a> will produce the dist name for you, based on the module name. The distribution name ends up in the metadata file.</p>
+
+<p>When you release a version of your distribution, the <i>tarball</i> usually has a name built up from the distribution name, the version, and whatever extension is used for the archiving method you used. So Foo::Bar 0.01 would probably be released in <b>Foo-Bar-0.01.tar.gz</b>. If Blink had released this, the location of this release on CPAN would be:</p>
+
+<pre><code> B/BL/BLINK/Foo-Bar-0.01.tar.gz</code></pre>
+
+<p>These paths turn up everywhere in the CPAN ecosystem, so there&#39;s a module <a href="https://metacpan.org/module/CPAN::DistnameInfo">CPAN::DistnameInfo</a> which takes a path and picks it apart. As a result, most parts of the ecosystem assume that the dist name inferred by <a href="https://metacpan.org/module/CPAN::DistnameInfo">CPAN::DistnameInfo</a> is the right distribution name.</p>
+
+<p>The problem can arise where the release name isn&#39;t based on the distribution name, which might be for a variety of reasons. Sometimes the filename has the right dist name, and it&#39;s the metadata that doesn&#39;t.</p>
+
+<h3 id="Finding-the-problem-distributions">Finding the problem distributions</h3>
+
+<p>&quot;Talk to Olaf&quot;, Senior Elf had told Blink. But after a frustrating ten minutes, Blink went back to SE, complaining that Olaf just sang about summer. &quot;No, not <a href="http://en.wikipedia.org/wiki/Olaf_(Disney)">Olaf the Snowman</a>, I meant <a href="https://metacpan.org/author/OALDERS">Olaf Alders</a>!&quot;.</p>
+
+<p>With Olaf&#39;s help, Blink wrote the following, to iterate over all CPAN distributions, using the MetaCPAN API:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">MetaCPAN::Client</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$client</span>     <span class="operator">=</span> <span class="word">MetaCPAN::Client</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">();</span><br /><span class="keyword">my</span> <span class="symbol">$query</span>      <span class="operator">=</span> <span class="structure">{</span> <span class="word">all</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="word">status</span>   <span class="operator">=&gt;</span> <span class="single">'latest'</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="word">maturity</span> <span class="operator">=&gt;</span> <span class="single">'released'</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]};</span><br /><span class="keyword">my</span> <span class="symbol">$params</span>     <span class="operator">=</span> <span class="structure">{</span> <span class="word">fields</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="words">qw/ metadata download_url /</span><span class="structure">]</span> <span class="structure">};</span><br /><span class="keyword">my</span> <span class="symbol">$result_set</span> <span class="operator">=</span> <span class="symbol">$client</span><span class="operator">-&gt;</span><span class="word">release</span><span class="structure">(</span><span class="symbol">$query</span><span class="operator">,</span> <span class="symbol">$params</span><span class="structure">);</span><br /><br /><span class="keyword">while</span> <span class="structure">(</span><span class="keyword">my</span> <span class="symbol">$release</span> <span class="operator">=</span> <span class="symbol">$result_set</span><span class="operator">-&gt;</span><span class="word">next</span><span class="structure">)</span> <span class="structure">{</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>The <code>maturity =&gt; &#39;released&#39;</code> says that you don&#39;t want developer releases, and <code>status =&gt; &#39;latest&#39;</code> says that you only want the latest release for each distribution.</p>
+
+<p>You can look at the release data for a distribution using the API in a browser, for example <a href="https://api.metacpan.org/release/URI-Title">https://api.metacpan.org/release/URI-Title</a>. You&#39;ll see there&#39;s a lot of information. If you&#39;re only interested in some of it, you can just request specific fields (the <code>$params</code> hashref above, passed to the <code>release</code> method. The <code>$release</code> above is a hashref, which contains slices of the data you saw from the API.</p>
+
+<p>The two bits of interest here are:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$distname</span> <span class="operator">=</span> <span class="symbol">$release</span><span class="operator">-&gt;</span><span class="word">metadata</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">name</span><span class="structure">};</span><br /><span class="comment"># &quot;URI-Title&quot;<br /></span><br /><span class="keyword">my</span> <span class="symbol">$path</span>     <span class="operator">=</span> <span class="symbol">$release</span><span class="operator">-&gt;</span><span class="word">download_url</span><span class="structure">;</span><br /><span class="comment"># &quot;http://cpan.metacpan.org/authors/id/B/BO/BOOK/URI-Title-1.89.tar.gz&quot;</span></code><br />&nbsp;</td></table>
+
+<p>Notice that <code>download_url</code> is a direct accessor. The <code>metadata</code> accessor returns a hash reference, which you can drill into to get the specific bits of metadata you&#39;re after.</p>
+
+<p>You can then give that <code>$path</code> to <a href="https://metacpan.org/module/CPAN::DistnameInfo">CPAN::DistnameInfo</a>, and the <code>dist</code> method tells you what it thinks the distribution name is. So Blink could compare that with the name from the metadata file, which handily is also available:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">CPAN::DistnameInfo</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$dinfo</span> <span class="operator">=</span> <span class="word">CPAN::DistnameInfo</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="symbol">$path</span><span class="structure">);</span><br /><span class="word">push</span><span class="structure">(</span><span class="symbol">@bad</span><span class="operator">,</span> <span class="symbol">$path</span><span class="structure">)</span> <span class="word">if</span> <span class="symbol">$dinfo</span><span class="operator">-&gt;</span><span class="word">dist</span> <span class="operator">ne</span> <span class="symbol">$distname</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Handily, MetaCPAN has already done that conversion for you, and the distribution name according to <a href="https://metacpan.org/module/CPAN::DistnameInfo">CPAN::DistnameInfo</a> is available in the <code>distribution</code> field from the API, and the accessor of the same name. So the above code becomes:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">push</span><span class="structure">(</span><span class="symbol">@bad</span><span class="operator">,</span> <span class="symbol">$path</span><span class="structure">)</span> <span class="word">if</span> <span class="symbol">$release</span><span class="operator">-&gt;</span><span class="word">distribution</span> <span class="operator">ne</span> <span class="symbol">$release</span><span class="operator">-&gt;</span><span class="word">metadata</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">name</span><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>So now Blink could build a list of problem distributions, but he&#39;d been told to send some pull requests as penance. How could he find out which of the distributions were on github?</p>
+
+<p>He found an <a href="http://perlmaven.com/how-to-add-link-to-version-control-system-of-a-cpan-distributions">article</a> which explained how the github repository can be recorded in a distribution&#39;s metadata. If you look in <a href="https://api.metacpan.org/release/URI-Title">that API output</a>, you&#39;ll find it under the <code>resources</code> key.</p>
+
+<p>You can use this fact to further constrain your MetaCPAN search, so that you only consider distributions with a github repo in their metadata:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$query</span>  <span class="operator">=</span> <span class="structure">{</span> <span class="word">all</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span>                     <span class="word">status</span> <span class="operator">=&gt;</span> <span class="single">'latest'</span>   <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span>                   <span class="word">maturity</span> <span class="operator">=&gt;</span> <span class="single">'released'</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="single">'resources.repository.url'</span> <span class="operator">=&gt;</span> <span class="single">'*github*'</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]};</span></code><br />&nbsp;</td></table>
+
+<p>Blink showed his code to Olaf, who explained that when searching on MetaCPAN you can specify which fields you&#39;re interested in from the API, and you&#39;ll only get those. This results in a lot fewer bytes coming back over the wire.</p>
+
+<p>They paired up to refactor Blink&#39;s code, and ended up with this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">MetaCPAN::Client</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$client</span>     <span class="operator">=</span> <span class="word">MetaCPAN::Client</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">();</span><br /><span class="keyword">my</span> <span class="symbol">$query</span>      <span class="operator">=</span> <span class="structure">{</span> <span class="word">all</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="word">status</span>   <span class="operator">=&gt;</span> <span class="single">'latest'</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="word">maturity</span> <span class="operator">=&gt;</span> <span class="single">'released'</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="single">'resources.repository.url'</span> <span class="operator">=&gt;</span> <span class="single">'*github*'</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]};</span><br /><span class="keyword">my</span> <span class="symbol">$params</span>     <span class="operator">=</span> <span class="structure">{</span> <span class="word">fields</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="words">qw/ metadata distribution /</span><span class="structure">]</span> <span class="structure">};</span><br /><span class="keyword">my</span> <span class="symbol">$result_set</span> <span class="operator">=</span> <span class="symbol">$client</span><span class="operator">-&gt;</span><span class="word">release</span><span class="structure">(</span><span class="symbol">$query</span><span class="operator">,</span> <span class="symbol">$params</span><span class="structure">);</span><br /><br /><span class="keyword">while</span> <span class="structure">(</span><span class="keyword">my</span> <span class="symbol">$release</span> <span class="operator">=</span> <span class="symbol">$result_set</span><span class="operator">-&gt;</span><span class="word">next</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$release</span><span class="operator">-&gt;</span><span class="word">distribution</span> <span class="operator">ne</span> <span class="symbol">$release</span><span class="operator">-&gt;</span><span class="word">metadata</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">name</span><span class="structure">})</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">printf</span> <span class="double">&quot;Distribution '%s' has name '%s' in metadata\n&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$release</span><span class="operator">-&gt;</span><span class="word">distribution</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$release</span><span class="operator">-&gt;</span><span class="word">metadata</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">name</span><span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Blink completed his task, and <a href="https://metacpan.org/author/TEODESIAN">TEODESIAN</a> and other authors got their gifts.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/MetaCPAN::Client">MetaCPAN::Client</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/CPAN::DistnameInfo">CPAN::DistnameInfo</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/b2283ad5d3aa7531e014ea9994d2fc15?r=g&s=80&d=retro />
+This article contributed by: Neil Bowers &lt;neil@bowers.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="All I want for Christmas is less boilerplate" href="2014-12-14.html">Previous</a></li>
+
+    <li class="next"><a title="How Santa&#39;s Elves Keep their Workshop Tidy" href="2014-12-16.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

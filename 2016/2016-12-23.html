@@ -1,0 +1,178 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2016 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2016.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2016 - 
+speeding up the inter-web
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2016</a></h1>
+        </div>
+
+        <p id="tagline">2016 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>speeding up the inter-web</h1>
+<div class='subtitle'>HTTP::Caching - 2016-12-23</div>
+
+<div class='pod'><p>So, after years using mainframes to get the job done and later using monolithic applications, it became time to have a more lean architecture. Service Oriented Architectures or Reactive Microservices or ...</p>
+
+<p>Tourmaline the newbie Elf got all excited with the new task and had been jumping for days and started to build some nice REST-api with Dancer2. And as good developers do, first a working proof of concept... and then make it fast.</p>
+
+<p>However, the biggest speed increase was not in writing optimised code, it was in making sure that the services wouldn&#39;t get overloaded with repeating request when nothing had changed!</p>
+
+<h3 id="Let-caches-temporarily-store-the-responses">Let caches temporarily store the responses!</h3>
+
+<p>&quot;Caching?!&quot; shouted the the old grumpy Elves, &quot;that is evil magic that get things go kaput!&quot;. But it didn&#39;t stop the keen young devoted Elf. They watched the <i>&#39;Talking Heads&#39;</i> presentation, <a href="https://www.youtube.com/watch?v=E7OO83xvWPY">REST API&#39;s don&#39;t need to be your &#39;psycho-killer&#39;</a>. Was it not just a matter of knowing what goes on inside those heads of HTTP requests and HTTP responses? But which header and how should Tourmaline the Elf do it? Was it enough to add <code>Expires: on Christmas Eve</code> to the response?</p>
+
+<h3 id="RFC-7234---HTTP-Caching">RFC 7234 - HTTP Caching</h3>
+
+<p>Tourmaline decided he should just sit down and read the official documentation in the form of RFC7234. A hefty document, it attempts to describe HTTP caching - essentially the ability to re-use a document you&#39;d previously downloaded rather than fetch it again.</p>
+
+<p>Like most RFCs it starts with introduction, specification, definition, credits, IANA concerns, copyright table of contents and a lot more blah blah. The remaining of the 41 pages is still a nightmare to go through, but basically is about three things:</p>
+
+<dl>
+
+<dt>Storing responses in a cache</dt>
+<dd>
+
+<p>When can a cache store a response, what to do with errors, and is it safe to store it in intermediate responses on public servers?</p>
+
+</dd>
+<dt>Reusing responses</dt>
+<dd>
+
+<p>If a request comes in, can it just reuse the response, or are there more checks that need to be done?</p>
+
+</dd>
+<dt>HTTP Header fields</dt>
+<dd>
+
+<p>There are only a few headers that really play a role in a response: the validation header field <code>Last-Modified</code> and <code>ETag</code>, and then two others, <code>Vary</code> and C &lt;Cache-Control&gt;.</p>
+
+</dd>
+</dl>
+
+<p>Those validation headers are needed by the cache to revalidate the stored responses and they are used with a GET request to conditionally return a new response. In other words as part of the GET request header the client passes meta information about what it&#39;s already got cached to the server and the server will decide to respond based on this metadata with either an updated copy of the file or simply a response that indicates that they cached copy is okay to reuse. This metadata is the same data the server sent to the client in the response header when it delivered the original content that is now in its cache. The server will conditionally return based on the <code>If-Modified- Since</code> header, the previously returned <code>Last-Modified</code> date or <code>If-None-Match</code> from the given <code>ETag</code>s. An ETag uniquely differentiates two different versions of a resource and the forms it can take are varied; Some servers use a MD5 hash over the values, but a incremental serial number will do too.</p>
+
+<h3 id="Dancer2::Plugin::HTTP::ConditionalRequest---no-no-no">Dancer2::Plugin::HTTP::ConditionalRequest - no no no</h3>
+
+<p>Dancer2 can make such requests conditionally by using a small plugin:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!perl<br /></span><br /><span class="keyword">use</span> <span class="word">Dancer2::Plugin::HTTP::ConditionalRequest</span><span class="structure">;</span><br /><br /><span class="operator">...</span><br /><br /><span class="word">get</span> <span class="single">'/catalog'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">http_conditional</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">last_modified</span> <span class="operator">=&gt;</span> <span class="word">Santa::Helper</span><span class="operator">-&gt;</span><span class="word">http_last_modified</span><span class="structure">(</span><span class="single">'Catalog'</span><span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Not only will it set the values for a new response, more importantly, it will check with the request header fields if to continue or not. If the pre-conditions are met then the Dancer application will continue. If not - in case of a GET request - if the resource is NOT Not-Modified-Since, or NOT None-Match - If the pre-conditions are not met, the Dancer app will stop here returning a status code <code>304</code> (<code>Not modified</code>) back to the cache or the client when it was a request with a &#39;safe&#39; method.</p>
+
+<h3 id="Dancer2::Plugin::HTTP::ContentNegotiation---your-representation-can-vary">Dancer2::Plugin::HTTP::ContentNegotiation - your representation can vary</h3>
+
+<p>Everybody at the north pole has their favourite data representation. Santa loves YAML. The new kids around the block think that the world only knows JSON. But Santa just relaxes while the JSON usage constantly changes, new specs, new ideas about data-type, new this new that (Actually, Santa looooooves XML).</p>
+
+<p>Dancer2 does already come with some add-ons that make it possible to let the client (and Santa) decide what <code>Content-Type</code> the response they would like returned to them. But, as shown during that <i>Talking Heads</i>, it is nothing REST like:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!perl<br /></span><br /><span class="keyword">use</span> <span class="word">Dancer2::Plugin::HTTP::ContentNegotiation</span><span class="structure">;</span><br /><br /><span class="operator">...</span><br /><br /><span class="word">get</span> <span class="single">'/catalog'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">my</span> <span class="symbol">@list</span> <span class="operator">=</span> <span class="word">Santa::Helper</span><span class="operator">-&gt;</span><span class="word">list</span><span class="structure">(</span> <span class="word">Catalog</span> <span class="operator">=&gt;</span> <span class="single">'all'</span> <span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">http_choose_media_type</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'application/json'</span>   <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="word">to_json</span> <span class="cast">\</span><span class="symbol">@list</span><span class="operator">,</span> <span class="structure">{</span><span class="word">canonical</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="structure">}}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'application/x-yaml'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="word">to_yaml</span> <span class="cast">\</span><span class="symbol">@list</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="word">default</span> <span class="operator">=&gt;</span> <span class="core">undef</span> <span class="structure">}</span><span class="operator">,</span> <span class="comment"># default is 406: Not Acceptable</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>By using in the request the <code>Accept</code> header field, one can choose what output one will get. Setting the default to <code>undef</code> dictates the client to specify one rather then defaulting to the first in the list.</p>
+
+<p>But take note of what also happens... remember that our dedicate Elf Tourmaline was concerned about caching! Not only does <code>http_choose_media_type</code> set the C &lt;Content-Type&gt; response header, as a bonus it sets the <code>Vary</code> header too. This <code>Vary</code> header informs the cache that there are more variants of this resource. Each of those variants must be saved separately and the cache should figure out which of the variants shall be use to hand to the client.</p>
+
+<h3 id="Dancer2::Plugin::HTTP::Caching---doesnt-do-any-caching">Dancer2::Plugin::HTTP::Caching - doesn&#39;t do any caching!</h3>
+
+<p>Elf D. wasn&#39;t yet so sure about the whole caching thing. She knows that those caches can be naughty and she just wants to be in control about what they do and do not do. She was not happy with confidential information being scattered in these caches all around the world. Private sensitive information about kids (and parents) can not be trusted to the wide open Internet! She wanted to be in control about how long the caches can keep their data and when should be checked if it&#39;s still valid.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!perl<br /></span><br /><span class="keyword">use</span> <span class="word">Dancer2::Plugin::HTTP::Caching</span><span class="structure">;</span><br /><br /><span class="operator">...</span><br /><br /><span class="word">get</span> <span class="single">'/catalog'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">http_cache_max_age</span> <span class="number">3600</span><span class="structure">;</span> <span class="comment"># one hour</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">http_cache_private</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>The only thing the plugin provides are a bunch of keywords and do some sanity checks on the parameters following them.</p>
+
+<h3 id="Ready-to-roll">Ready to roll!</h3>
+
+<p>Yes, it magically all works and the sound of jingling bells can fill the world!</p>
+
+<p><a href="https://metacpan.org/module/Dancer2::Plugin::HTTP::Bundle">Dancer2::Plugin::HTTP::Bundle</a> does it all together. And ol&#39; Dave, the wise Elf has suggested some very useful improvements.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;<br />46:&nbsp;<br />47:&nbsp;<br />48:&nbsp;<br />49:&nbsp;<br />50:&nbsp;<br />51:&nbsp;<br />52:&nbsp;<br />53:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Santa</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Dancer2</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Dancer2::Plugin::HTTP::Bundle</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Santa::Helper</span><span class="structure">;</span><br /><br /><span class="word">get</span> <span class="single">'/catalog'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">http_cache_max_age</span> <span class="number">30</span><span class="structure">;</span> <span class="comment"># half a minute</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">http_cache_private</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">http_conditional</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">last_modified</span> <span class="operator">=&gt;</span> <span class="word">Santa::Helper</span><span class="operator">-&gt;</span><span class="word">http_last_modified</span><span class="structure">(</span> <span class="word">Catalog</span> <span class="operator">=&gt;</span> <span class="core">undef</span> <span class="structure">)</span><span class="operator">,</span><br /><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">my</span> <span class="symbol">@list</span> <span class="operator">=</span> <span class="word">Santa::Helper</span><span class="operator">-&gt;</span><span class="word">list</span><span class="structure">(</span> <span class="word">Catalog</span> <span class="operator">=&gt;</span> <span class="single">'all'</span> <span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">http_choose_media_type</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'application/json'</span>      <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="word">to_json</span> <span class="cast">\</span><span class="symbol">@list</span><span class="operator">,</span> <span class="structure">{</span><span class="word">canonical</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="structure">}}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'application/x-yaml'</span>    <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="word">to_yaml</span> <span class="cast">\</span><span class="symbol">@list</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="word">default</span> <span class="operator">=&gt;</span> <span class="core">undef</span> <span class="structure">}</span><span class="operator">,</span> <span class="comment"># default is 406: Not Acceptable</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><span class="structure">};</span><br /><br /><span class="operator">...</span><br /><br /><span class="word">get</span> <span class="single">'/catalog/:uuid'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$uuid</span> <span class="operator">=</span> <span class="word">route_parameters</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">(</span><span class="single">'uuid'</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">unless</span> <span class="structure">(</span> <span class="word">Santa::Helper</span><span class="operator">-&gt;</span><span class="word">does_exists</span><span class="structure">(</span> <span class="word">Catalog</span> <span class="operator">=&gt;</span> <span class="symbol">$uuid</span> <span class="structure">)</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">status</span> <span class="single">'Not Found'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">http_cache_max_age</span> <span class="number">3600</span><span class="structure">;</span> <span class="comment"># a full hour</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">http_conditional</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">etag</span> <span class="operator">=&gt;</span> <span class="word">Santa::Helper</span><span class="operator">-&gt;</span><span class="word">http_etag</span><span class="structure">(</span> <span class="word">Catalog</span> <span class="operator">=&gt;</span> <span class="symbol">$uuid</span> <span class="structure">)</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">response_header</span> <span class="single">'Content-Type'</span> <span class="operator">=&gt;</span> <span class="single">'application/json'</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">@languages_available</span> <span class="operator">=</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Santa::Helper</span><span class="operator">-&gt;</span><span class="word">lang_available</span><span class="structure">(</span> <span class="word">Catalog</span> <span class="operator">=&gt;</span> <span class="symbol">$uuid</span> <span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">http_choose_language</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cast">\</span><span class="symbol">@languages_available</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$data</span> <span class="operator">=</span> <span class="word">Santa::Helper</span><span class="operator">-&gt;</span><span class="word">find_in_language</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Catalog</span> <span class="operator">=&gt;</span> <span class="symbol">$uuid</span><span class="operator">,</span> <span class="word">http_chosen_language</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">to_json</span><span class="structure">(</span> <span class="symbol">$data</span><span class="operator">,</span>  <span class="structure">{</span><span class="word">canonical</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="structure">}</span> <span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="word">default</span> <span class="operator">=&gt;</span> <span class="single">'en'</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">)</span><br /><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<h3 id="Kaput">Kaput!</h3>
+
+<p>The grumpy ol&#39; Elves were right. Things were not working at all! When Santa is checking the catalog, the application still makes request to the origin server and the Elves from the NorthPole Operation Center scratching their heads what went wrong with their Microservices.</p>
+
+<p>Quickly the root of the problem was found... Since <a href="https://metacpan.org/module/LWP::UserAgent">LWP::UserAgent</a> the application uses does not know about caching, it just makes request, <code>GET</code>s results, <code>POST</code>s new stuff or <code>DELETE</code>s things directly on the server. But surely, there must be a way to cache the responses!</p>
+
+<h3 id="RTFRC">RTFRC</h3>
+
+<p>And surely, some Elf wrote <code>LWP::UserAgent::Cache</code> that only stores responses and gets it when the URL is the same, fast, but dirty and wrong if one talks to a REST-api.</p>
+
+<p>Then another Elf wrote <code>LWP::UserAgent::WithCache</code>, and yeah, it knows about <code>If- Modified-Since</code></p>
+
+<p>After that yet another Elf, wrote <code>LWP::UserAgent::CHICaching</code>, and while he was doing quite well obviously did think a lot about the spec.</p>
+
+<p>And more and more and more... all written for what the Elves needed for them at that time for a specific reason...</p>
+
+<p>None of these various modules properly respects the <code>Vary</code> header and makes content negotiation impossible, <code>Cache-Control</code> directives are ignored. But worst of all, none of these caches are invalidating the stored responses after an unsafe method like <code>POST</code>, <code>PUT</code> or <code>DELETE</code>. One can not imagine what will happen when serving old REST resources that have just been update or even deleted...</p>
+
+<p>The sad Tourmaline Elf went back and thought about <i>TIMTOWTDI</i>. He thought about the warnings from the old Elves when quoting Phil Karlton about the two hard things in computer science.</p>
+
+<h3 id="Making-the-first-hard-thing-...-easy">Making the first hard thing ... easy!</h3>
+
+<p>Next morning Tourmaline woke up with a brilliant plan... for once and for all, make a UserAgent that does get it right! Simple replace LWP::UserAgent with something else!</p>
+
+<p>He read the RFC over and over, studied it, front to back and the other way around and wrote a nasty piece of software that no one ever should use... <a href="https://metacpan.org/module/HTTP::Caching">HTTP::Caching</a> <i>The RFC 7234 compliant brains to do caching right</i>. It does know (almost) all about the RFC.</p>
+
+<p>Of course, that&#39;s not the end of the story. HTTP::Cachine wasn&#39;t well written for <i>clients</i>. And it seems to be under continuous development and it might break stuff. So what we need is a something more LWP like that can make use of HTTP::Caching but use a familiar interface.....something like <a href="https://metacpan.org/module/LWP::UserAgent::Caching">LWP::UserAgent::Caching</a> instead.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!perl<br /></span><br /><span class="keyword">use</span> <span class="word">LWP::UserAgent::Caching</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">CHI</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$cache</span> <span class="operator">=</span> <span class="word">CHI</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">driver</span>          <span class="operator">=&gt;</span> <span class="single">'File'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">root_dir</span>        <span class="operator">=&gt;</span> <span class="single">'/tmp/LWP_UserAgent_Caching'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">file_extension</span>  <span class="operator">=&gt;</span> <span class="single">'.cache'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">l1_cache</span>        <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">driver</span>          <span class="operator">=&gt;</span> <span class="single">'Memory'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">global</span>          <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">max_size</span>        <span class="operator">=&gt;</span> <span class="number">1024</span><span class="operator">*</span><span class="number">1024</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">$ua</span> <span class="operator">=</span> <span class="word">LWP::UserAgent::Caching</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span> <span class="word">http_caching</span> <span class="operator">=&gt;</span> <span class="structure">{</span><span class="word">cache</span><span class="operator">=&gt;</span><span class="symbol">$cache</span><span class="structure">}</span> <span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">$rqst</span> <span class="operator">=</span> <span class="word">HTTP::Request</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span> <span class="word">GET</span> <span class="operator">=&gt;</span> <span class="single">'http://northpole.xxx/catalog'</span><span class="structure">);</span><br /><span class="symbol">$rqst</span><span class="operator">-&gt;</span><span class="word">header</span><span class="structure">(</span> <span class="word">Accept</span> <span class="operator">=&gt;</span> <span class="single">'application/x-yaml'</span> <span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">$resp</span> <span class="operator">=</span> <span class="symbol">$ua</span><span class="operator">-&gt;</span><span class="word">request</span><span class="structure">(</span> <span class="symbol">$rqst</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h3 id="Perl-to-make-easy-things-easy-and-making-hard-things-simple">Perl, to make easy things easy and making hard things simple!</h3>
+
+<p>If even that is all too complicated, then Tourmaline made it really simple for you guys...with <a href="https://metacpan.org/module/LWP::UserAgent::Caching::Simple">LWP::UserAgent::Caching::Simple</a></p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!perl<br /></span><br /><span class="keyword">use</span> <span class="word">LWP::UserAgent::Caching::Simple</span> <span class="words">qw/get_from_json/</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$data</span> <span class="operator">=</span> <span class="word">get_from_json</span> <span class="structure">(</span><span class="single">'http://northpole.xxx/catalog'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>And yes, it does respect the rules written down in the RFC 7234 - so it will be a Merry Christmas after all!</p>
+
+<p>Next time when you want to write a REST-api, please consider the <a href="https://metacpan.org/module/Dancer2::Plugin::HTTP::Bundle">Dancer2::Plugin::HTTP::Bundle</a>. And if you ever want to write an application to plan a pub-crawl near your hotel where you want to crash down after Christmas Eve... no need to build your own caches on top of your app. No more extra databases and figuring out what to keep and how long... Just keep it simple and let the slow HTTP stack handle itself with <a href="https://metacpan.org/module/LWP::UserAgent::Caching::Simple">LWP::UserAgent::Caching::Simple</a></p>
+
+<p>Finally... Merry Christmas All! Ho ho ho!</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/52633df7e293c59283d06b6729893cb4?r=g&s=80&d=retro />
+This article contributed by: Theo van Hoesel &lt;Th.J.v.Hoesel@gmail.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="All I want for Christmas...Is Statistically Calcuable" href="2016-12-22.html">Previous</a></li>
+
+    <li class="next"><a title="The Grinch&#39;s Well-Tested Second Attempt" href="2016-12-24.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

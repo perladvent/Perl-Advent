@@ -1,0 +1,125 @@
+Title: Convert CSV to Pivot Table
+Topic: Text::CSV::Pivot
+Author: Mohammad S Anwar <mohammad.anwar@yahoo.com>
+
+=encoding utf8
+
+The Wise Old Elf was working on a project to help refine the naughty-nice
+algorithm.  A child's academic performance wasn't the only thing that they
+should consider - but someone who'd been working hard at school certainly
+needed that recognized.
+
+As such, his team was working hard on taking raw data - a bunch of CSV
+files - and turning them into a pivot table he could use to help work
+out correlations.
+
+=head2 Introducing Text::CSV::Pivot
+
+If you ever wanted to convert data in CSV file to Pivot table then Text::CSV::Pivot is your friend.
+Let us work through the sample CSV file with content as below:
+
+    Student,Subject,Result,Year
+    "Smith, John",Music,7.0,"Year 1"
+    "Smith, John",Maths,4.0,"Year 1"
+    "Smith, John",History,9.0,"Year 1"
+    "Smith, John",Language,7.0,"Year 1"
+    "Smith, John",Geography,9.0,"Year 1"
+    "Gabriel, Peter",Music,2.0,"Year 1"
+    "Gabriel, Peter",Maths,10.0,"Year 1"
+    "Gabriel, Peter",History,7.0,"Year 1"
+    "Gabriel, Peter",Language,4.0,"Year 1"
+    "Gabriel, Peter",Geography,10.0,"Year 1"
+
+With above data in CSV file, this is what we would expect as result:
+
+    Student,Year,Geography,History,Language,Maths,Music
+    "Gabriel, Peter","Year 1",10.0,7.0,4.0,10.0,2.0
+    "Smith, John","Year 1",9.0,9.0,7.0,4.0,7.0
+
+You can get the desired output with the help of L<Text::CSV::Pivot>. Before we jump
+to the solution, let's understand the key parameters to the constructor.
+
+=over 2
+
+=item input_file
+
+This would have the input CSV file (full path). This is a mandatory parameter.
+
+=item col_key_idx
+
+The column index in the input CSV file that you want to be the unique in the
+result CSV file. The index always starts with 0 (zero). This is a mandatory parameter.
+
+=item col_name_idx
+
+The column index in the input CSV file that you want to become the column in the
+result CSV file. This is a mandatory parameter.
+
+=item col_value_idx
+
+The column index in the input CSV file that would provide the value for the
+corresponding column with C<col_name_idx>. This is a mandatory parameter.
+
+=item col_skip_idx
+
+The column index in the input CSV file that you do not want to show up in the
+result CSV file. This is optional. It expects the index as an array ref.
+
+=back
+
+Now let's try to get the result as mentioned above. Let's call the input CSV
+as C<input.csv> having data as mentioned above. This is what you would need to
+do get the desired result as above.
+
+    #!perl
+    use strict; use warnings;
+    use Text::CSV::Pivot;
+
+    Text::CSV::Pivot->new({ input_file    => 'input.csv',
+                            col_key_idx   => 0,
+                            col_name_idx  => 1,
+                            col_value_idx => 2 })->transform;
+
+When you execute the above code, you should get the result in C<input.pivot.csv> file.
+
+=head1 CLI
+
+The distribution comes with a tool C<csv-pivot> that can be used out of the box
+without writing a single line of code.
+
+To get the same result as above using the tool C<csv-pivot>, you would run something
+like below:
+
+    $ csv-pivot --input-file input.csv --col-key-idx 0 --col-name-idx 1 --col-value-idx 2
+
+If you want to know the details of all the command line options, then try this:
+
+    $ csv-pivot --help
+
+    Usage: csv-pivot [OPTIONS]...
+
+      OPTIONS:
+          -i, --i, -input-file,    --input-file=s     input file (required)
+          -o, --o, -output-file,   --output-file=s    output file (optional)
+          -k, --k, -col-key-idx,   --col-key-idx=i    key column index (required)
+          -n, --n, -col-name-idx,  --col-name-idx=i   name column index (required)
+          -v, --v, -col-value-idx, --col-value-idx=i  value column index (required)
+          -s, --s, -col-skip-idx,  --col-skip-idx=s   comma separated skip column index (optional)
+          -h, --help                                  print this message
+
+Let's try one more example, this time we don't want the column "Year" in the result
+CSV file. We can easily do that with the tool C<csv-pivot> as below:
+
+    $ csv-pivot --input-file input.csv --col-key-idx 0 --col-name-idx 1 --col-value-idx 2 --col-skip-idx 3
+
+You should now have result CSV file C<input.pivot.csv> as below:
+
+    Student,Geography,History,Language,Maths,Music
+    "Gabriel, Peter",10.0,7.0,4.0,10.0,2.0
+    "Smith, John",9.0,9.0,7.0,4.0,7.0
+
+=head1 CONTRIBUTIONS
+
+If you have any suggestions to improve or found bugs in the code then please raise it on L<GitHub|https://github.com/manwar/Text-CSV-Pivot>.
+
+=cut

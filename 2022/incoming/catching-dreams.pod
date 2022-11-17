@@ -1,0 +1,118 @@
+Author: Thibault DUPONCHELLE <thibault.duponchelle@gmail.com>
+Title: Catching dreams
+Topic: Mango
+
+=encoding utf8
+
+=head1 Catching dreams
+
+=head2 Listening to dreams
+
+During the year, some kids are writing "letters to Santa" or just sharing loudly what they want to "order" for Christmas, but it's not always the case...
+Sometimes kids are only I<dreaming> what they want.
+
+Normally, dreaming is not the most effective way to "order" a present for Christmas, but Santa has thought of everything. There is a special room in North Pole complex for this purpose. It's an all white, circular room with chairs arranged in the middle. Elves arrive at the room when it is nighttime in their assigned timezone.
+
+They bring a pen and a notebook, and they listen to children's dreams and take notes.
+
+=head2 Gathering notebooks
+
+Elves capture notes on children's dreams all year long and, hence, approaching Christmas there are plenty of notebooks to put together and add to other wishes.
+
+One of the elves had the idea to use L<MongoDB|https://www.mongodb.com/> to store data.
+
+Santa complained MongoDB was not Perl friendly (e.g. struggles with drivers...) and has a license that can be considered by some as "controversial"... But the elves are not disciplined and decided to go with it anyway.
+
+1. First they installed MongoDB:
+
+	$ sudo apt-get install mongodb
+
+2. Then they started a shell:
+
+	$ mongo
+	MongoDB shell version v3.6.8
+	connecting to: mongodb://127.0.0.1:27017
+	MongoDB server version: 5.0.9
+	>
+
+3. The elves created a new database:
+
+	> use christmas2022
+	switched to db christmas2022
+
+=head3 Import dreams
+
+Despite being undisciplined, the elves followed a convention in their notes and all of their notebooks are all well-formatted as CSV. 
+
+At the end of the night, a notebook looks like this:
+
+	what,who,where
+	bicycle,Tom,Atlanta
+	Barbie,Lisa,Berlin
+	Transformer,Billy,Houston
+	ball,Ismail,Atlanta
+
+It's easy to import these notes into MongoDB:
+
+	$ mongoimport -d christmas2022 -c gifts --type csv --file gifts.csv --headerline
+	2022-08-04T09:57:42.400+0200	connected to: mongodb://localhost/
+	2022-08-04T09:57:42.408+0200	4 document(s) imported successfully. 0 document(s) failed to import.
+
+And you can quickly verify that it is imported:
+
+	> db.gifts.find()
+	{ "_id" : ObjectId("62eb96777d9a1bc25a68b25c"), "what" : "Transformer", "who" : "Billy", "where" : "Houston" }
+	{ "_id" : ObjectId("62eb96777d9a1bc25a68b25d"), "what" : "bicycle", "who" : "Tom", "where" : "Atlanta" }
+	{ "_id" : ObjectId("62eb96777d9a1bc25a68b25e"), "what" : "ball", "who" : "Ismail", "where" : "Atlanta" }
+	{ "_id" : ObjectId("62eb96777d9a1bc25a68b25f"), "what" : "Barbie", "who" : "Lisa", "where" : "Berlin" }
+
+=head2 Using Perl to access dreams
+
+To integrate this database in the North Pole code, the elves need to interact with it in Perl.
+
+Let's install L<Mango>:
+
+	$ sudo cpanm Mango
+
+Then they can access records with Perl methods:
+
+=begin perl
+	
+	use Mango ();
+	use feature qw( state );
+ 
+	sub mango { state $m = Mango->new('mongodb://localhost:27017') }
+	
+	my $docs = mango->db('christmas2022')->collection('gifts')->find();
+	
+	while (my $doc = $docs->next) {
+		print "$doc->{what} for $doc->{who} in $doc->{where}\n";
+	}
+
+=end perl
+
+And it produces this kind of output:
+
+	Transformer for Billy in Houston
+	bicycle for Tom in Atlanta
+	ball for Ismail in Atlanta
+	Barbie for Lisa in Berlin
+
+
+=head2 Give me dreams from Atlanta
+
+When it comes time for making deliveries, Santa is interested in having records from the same area to optimize the logistics of his delivery schedule. 
+
+With L<Mango>, it's just a matter of adding a "clause" in the `find()` function:
+
+=begin perl
+
+	my $docs = mango->db('christmas2022')->collection('gifts')->find({where => 'Atlanta'});
+
+=end perl
+
+=head2 Conclusion
+
+With the elves' copious year-round notetaking of children's dreams, Santa can count on the elves not to miss any of the children's wishes for Christmas. 
+
+Aided by L<Mango>, Santa and the elves can handle the list easily and at end of December deliver something you only ever dreamed of!

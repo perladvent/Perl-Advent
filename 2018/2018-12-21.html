@@ -1,0 +1,143 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2018 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2018.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2018 - 
+Debug Hard
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2018</a></h1>
+        </div>
+
+        <p id="tagline">2018 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Debug Hard</h1>
+<div class='subtitle'>Devel::hdb - 2018-12-21</div>
+
+<div class='pod'><p>&quot;Maybe I should just give up and go work in the TOY FACTORY!&quot;, Snowdrop Cookiefoot shouted as he picked up his laptop. He was just about to throw it through the window when he noticed The Wise Old Elf watching from his office door.</p>
+
+<p>&quot;Problems with your code, Mr Cookiefoot?&quot; he gently enquired.</p>
+
+<p>&quot;Yeah. Sorry Wise Old Elf. It&#39;s this code. It&#39;s just, you know <i>getting to me</i>. I just can&#39;t work out why it&#39;s doing what it&#39;s doing.&quot;</p>
+
+<p>&quot;Ah, you need a good debugger.&quot;</p>
+
+<h3 id="Debugging-via-the-Browser">Debugging via the Browser</h3>
+
+<p>There are many different choices for debuggers on Perl, each with their own strengths and weaknesses. The Wise Old Elf had used them all, but given Snowdrop&#39;s, um, <i>perilous state of mind</i> he decided he&#39;d better show him one with a super friendly user interface with minimal learning curve.</p>
+
+<p><a href="https://metacpan.org/module/Devel::hdb">Devel::hdb</a> is a Perl debugger which uses a web browser for its front end. When it activates it starts up a web server which you can connect to and immediately see what&#39;s going on.</p>
+
+<p>To use it first you need to invoke your program with the <code>-d</code> flag, using the colon syntax to pass <code>hdb</code> to tell it to load <code>Devel::hdb</code>.</p>
+
+<pre><code>    perl -d:hdb deliver-presents.pl
+    Debugger pid 86416 listening on http://127.0.0.1:8080/debugger-gui</code></pre>
+
+<p>You can see that it&#39;s printed out a URL for you to visit in the browser. One of the key advantages in Devel::hdb is that since it uses simple HTTP it&#39;s really easy to access the web page based debugger UI on a remote machine, and since proxying or tunneling the HTTP protocol is commonplace and widely understood you can even do this behind firewalls.</p>
+
+<p>The interface it loads in the browser is straightforward compared to esoteric command line interfaces offered by the inbuilt debugger and many of the other console debuggers available for Perl.</p>
+
+<p><center><img src="hdb.jpg" width="470" height="450"></center>
+
+</p>
+
+
+
+<p><ul> <li>On the left hand side of the screen we have a stack trace. Right now we can see that our main code called run, which called initialize_minicpan, which called the read_config method we're currently displaying. Hovering over these shows us line numbers and clicking the links will show the calling line in the middle panel.</li> <li>In the middle panels is the code we're currently executing (with the blue highlight indicating the current line). We can manually set breakpoints on a per-line basis for any line that has a statement on it by clicking on any uncrossed line number, turning it red like 754 is in the screenshot. We can hover over any variable on screen to see what the current value is. We can use the tab bar to switch between and open new source files to set breakpoints in other files.</li> <li>On the right hand side we can set watch expressions. We can enter the name of any variable that we want to watch and break as soon as the value changes.</li> <li>At the top of the screen are a set of buttons. We can click "Step Over" to move to the next statement on screen, "Step In" to debug further inside a statement by following the subroutines it calls, "Step Out" to run till the current subroutine ends, and "Run" to execute until the next breakpoint or watched expression change occurs.</li> </ul>
+
+</p>
+
+
+
+<h3 id="A-Ongoing-Diliemma">A Ongoing Diliemma</h3>
+
+<p>It was a week later when the Wise Old Elf heard the distinctive sound of a laptop soaring through the air and shattering on the ice shelf. Slowly, shaking his head, he walked into Cookiefoot&#39;s office.</p>
+
+<p>&quot;I take it the debugger didn&#39;t work out?&quot;</p>
+
+<p>&quot;Not really Wise Old Elf&quot;, Snowdrop agreed, &quot;At first it was great but soon the whole thing became tedious. I&#39;d need to do the same things over and over again. Or I&#39;d have something really complex and the web page just wasn&#39;t up to the job&quot;</p>
+
+<p>&quot;Well, when you get yourself a new laptop, you might want to take a look at the API documentation&quot;</p>
+
+<h3 id="Scripting-Devel::hdb">Scripting Devel::hdb</h3>
+
+<p>The web page interface for hdb is just a JavaScript front end to a bunch of JSON REST endpoints. There&#39;s nothing stopping you making those exact same REST calls from a Perl script.</p>
+
+<p>For example, let&#39;s print out the current stack information:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Mojo::UserAgent</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Mojo::Util</span> <span class="words">qw(dumper)</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$ua</span> <span class="operator">=</span> <span class="word">Mojo::UserAgent</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">();</span><br /><span class="keyword">my</span> <span class="symbol">$response</span> <span class="operator">=</span> <span class="symbol">$ua</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">(</span><span class="single">'http://localhost:8080/stack'</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">res</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$stack</span> <span class="operator">=</span> <span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">json</span><span class="structure">;</span><br /><span class="word">print</span> <span class="word">dumper</span> <span class="symbol">$stack</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Which generates:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;<br />46:&nbsp;<br />47:&nbsp;<br />48:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="structure">[</span><br /><span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;args&quot;</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;CPAN::Mini::App&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;autoload&quot;</span> <span class="operator">=&gt;</span> <span class="core">undef</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;bitmask&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;UUUUUUUUUUUUUUUUUU&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;callsite&quot;</span> <span class="operator">=&gt;</span> <span class="single">'140550668291808'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;evalfile&quot;</span> <span class="operator">=&gt;</span> <span class="core">undef</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;evalline&quot;</span> <span class="operator">=&gt;</span> <span class="core">undef</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;evaltext&quot;</span> <span class="operator">=&gt;</span> <span class="core">undef</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;filename&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;/opt/adventperl/lib/site_perl/5.28.1/CPAN/Mini/App.pm&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;hasargs&quot;</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;hints&quot;</span> <span class="operator">=&gt;</span> <span class="number">1762</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;href&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;/stack/0&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;is_require&quot;</span> <span class="operator">=&gt;</span> <span class="core">undef</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;level&quot;</span> <span class="operator">=&gt;</span> <span class="number">7</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;line&quot;</span> <span class="operator">=&gt;</span> <span class="number">59</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;package&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;CPAN::Mini::App&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;serial&quot;</span> <span class="operator">=&gt;</span> <span class="number">2089</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;subname&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;initialize_minicpan&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;subroutine&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;CPAN::Mini::App::initialize_minicpan&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;wantarray&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;&quot;</span><br /><span class="structure">}</span><span class="operator">,</span><br /><span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;args&quot;</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;CPAN::Mini::App&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;autoload&quot;</span> <span class="operator">=&gt;</span> <span class="core">undef</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;bitmask&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;UUUUUUUUUUUUUUUUUU&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;callsite&quot;</span> <span class="operator">=&gt;</span> <span class="single">'140550668347840'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;evalfile&quot;</span> <span class="operator">=&gt;</span> <span class="core">undef</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;evalline&quot;</span> <span class="operator">=&gt;</span> <span class="core">undef</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;evaltext&quot;</span> <span class="operator">=&gt;</span> <span class="core">undef</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;filename&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;/opt/adventperl/lib/site_perl/5.28.1/CPAN/Mini/App.pm&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;hasargs&quot;</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;hints&quot;</span> <span class="operator">=&gt;</span> <span class="number">2018</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;href&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;/stack/1&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;is_require&quot;</span> <span class="operator">=&gt;</span> <span class="core">undef</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;level&quot;</span> <span class="operator">=&gt;</span> <span class="number">8</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;line&quot;</span> <span class="operator">=&gt;</span> <span class="number">47</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;package&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;CPAN::Mini::App&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;serial&quot;</span> <span class="operator">=&gt;</span> <span class="number">2088</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;subname&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;run&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;subroutine&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;CPAN::Mini::App::run&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;wantarray&quot;</span> <span class="operator">=&gt;</span> <span class="core">undef</span><br /><span class="structure">}</span><span class="operator">,</span><br /><span class="operator">...</span></code><br />&nbsp;</td></table>
+
+<p>Or, we could write the same thing with a one liner with <a href="https://metacpan.org/module/ojo">ojo</a>.</p>
+
+<pre><code>    perl -Mojo -E &#39;print r g(&quot;http://localhost:8080/stack&quot;)-&gt;json&#39;</code></pre>
+
+<p>We&#39;re not limited to just reading state, we can make a JSON post request to set a breakpoint:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">ojo</span><span class="structure">;</span><br /><span class="word">p</span><span class="structure">(</span><span class="single">'http://localhost:8080/breakpoints'</span><span class="operator">,</span> <span class="word">json</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;code&quot;</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;filename&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;/opt/adventperl/lib/site_perl/5.28.1/CPAN/Mini/App.pm&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;inactive&quot;</span> <span class="operator">=&gt;</span> <span class="core">undef</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;line&quot;</span> <span class="operator">=&gt;</span> <span class="number">64</span><br /><span class="structure">});</span></code><br />&nbsp;</td></table>
+
+<p>Step in or Step over, Run, etc.</p>
+
+<pre><code>    perl -Mojo -E &#39;p(&quot;http://localhost:8080/stepin&quot;)&#39;
+    perl -Mojo -E &#39;p(&quot;http://localhost:8080/stepover&quot;)&#39;
+    perl -Mojo -E &#39;p(&quot;http://localhost:8080/continue&quot;)&#39;</code></pre>
+
+<p>Or even evaluate code in the context of the program we&#39;re debugging by POSTing JSON and then parsing the response JSON.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">ojo</span><span class="structure">;</span><br /><span class="word">print</span> <span class="word">r</span> <span class="word">p</span><span class="structure">(</span><span class="single">'http://localhost:8080/eval'</span><span class="operator">,</span> <span class="word">json</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;wantarray&quot;</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;code&quot;</span> <span class="operator">=&gt;</span> <span class="heredoc">&lt;&lt;'PERL'</span><span class="operator">,</span><br /><span class="heredoc_content">        {<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;random_number =&gt; rand(),<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;date =&gt; scalar(gmtime)<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br /></span><span class="heredoc_terminator">PERL<br /></span><span class="structure">})</span><span class="operator">-&gt;</span><span class="word">json</span><span class="structure">(</span><span class="single">'/__value'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Which prints out:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;date&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;Thu Dec 21 02:17:03 2018&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;random_number&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;0.494246470413&quot;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>The API is - obviously - able to do anything the web front end is. It can get the current value of variables, it can set watchpoints or actions to be triggered when a line number and expression match. It can get metainfo about packages and the source code installed on the machine the debugger is running on.</p>
+
+<p>In short, if Snowdrop Cookiefoot hasn&#39;t thrown his laptop out of the window he could have easily scripted the debugger to do whatever he wanted.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Christmas-iSH" href="2018-12-20.html">Previous</a></li>
+
+    <li class="next"><a title="Validation" href="2018-12-22.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

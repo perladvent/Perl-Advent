@@ -1,0 +1,137 @@
+Title: Configuration Station
+Topic: Config::Station
+Author: Arthur Axel "fREW" Schmidt <frew@cpan.org>
+
+The B<best> option for configuration.
+
+I wrote Config::Station after implementing a pattern I wrote about L<a while
+ago|https://blog.afoolishmanifesto.com/posts/configuration-station/> another
+time or two.
+
+The overall gist of L<Config::Station> is that you define a simple configuration
+class that knows nothing about the file the config is loaded from:
+
+ #!perl
+ package MyApp::Config;
+
+ use Moo;
+ use Types::Standard 'Int';
+
+ has port => (
+   is => 'ro',
+   default => 0,
+   isa => Int,
+ );
+
+ has root_dir => (
+   is => 'ro',
+   default => '/var/myapp',
+ );
+
+And then you I<inflate> it with Config::Station:
+
+ #!perl
+ my $station = Config::Station->new(
+   config_class => 'MyApp::Config',
+   env_key      => 'MYAPP',
+   location     => '.config.json',
+ );
+
+ my $config = $station->load;
+
+So already we have a few nice details over most other config options out there:
+
+=over
+
+=item * We know exactly what config values are supported
+
+I often get frustrated at trying to discover exactly what all config keys are
+used.  Sometimes this isn't even possible when it's a mere hash.
+
+=item * We have defaults defined in a central location
+
+=item * We have all of the validation that we've become used to
+
+=back
+
+C<Config::Station>, like any good gift, gets progressively better as you learn
+more about it.  Simply blessing a JSON file into an object is not the most
+impressive idea ever (though it is still pretty convenient, if I may say so
+myself.)  One of the most important features of C<Config::Station> is that it
+overlays the loaded config with environment variables.  So if you wanted to
+start two separate web servers running your application running on two servers
+it should be as easy as:
+
+ $ MYAPP_SERVER=Gazelle MYAPP_PORT=8080 myapp_server.pl &
+ $ MYAPP_SERVER=Starman MYAPP_PORT=8081 myapp_server.pl &
+
+That's really great, and really works well for my personal development flow, but
+it's still just a taste of what you can do with it.
+
+See, the real beauty of C<Config::Station> is the delegation of the hard work to
+the configuration class.  Here's another example of cool things you can do,
+again using L<Moo> as the object system backing the configuration class:
+
+ #!perl
+ package MyApp::Config;
+
+ use Moo;
+ use JSONY;
+
+ has dsn => (
+   is => 'ro',
+   required => 1,
+   coerce => sub {
+     ref $_[0] ? $_[0] : JSONY->new->load($_[0])
+   },
+ )
+
+We're adding smarts here:  If the value passed to us isn't exactly in the format
+we want, we're coercing it into the right format.
+
+You may not have heard of L<JSONY>; it's a weird thing but it's great in cases
+like this.  Here is how you could use it:
+
+ $ MYAPP_DSN='dbi:ODBC:server=10.6.6.17 frew Password1!' myapp_server.pl
+
+In this example, the attribute's coercion uses C<JSONY> to parse our string into
+an arrayref with three values, suitable for passing to L<DBI> or L<DBIx::Class>.
+
+Of course, nothing requires you to use C<Moo> or C<Moose>.  The only requirement
+is that your class take a flat hashref as it's sole argument.  So if you wanted
+to do something really crazy you could go with raw OO:
+
+ #!perl
+ package MyApp::Config;
+
+ use strict;
+ use warnings;
+
+ sub new {
+   my ($class, $hash) = @_;
+
+   bless [
+     $hash->{dsn},
+     $hash->{username},
+     $hash->{password},
+   ], $class;
+
+ }
+
+ sub dsn { $_[0][0] }
+
+ sub username { $_[0][1] }
+
+ sub password { $_[0][2] }
+
+Honestly I struggle to come up with an example that would warrant non-C<Moo>
+OO, but it is explicitly supported nonetheless.  Maybe if you wanted to do some
+crazy OO like L<IO::All> does where you do
+C<< bless Symbol::gensym(), $class >>?
+
+=head1 SEE ALSO
+
+=for :list
+* L<Config::Station>
+* L<JSONY>
+

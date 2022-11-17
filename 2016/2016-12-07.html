@@ -1,0 +1,282 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2016 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2016.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2016 - 
+Writing git hooks with Git::Hooks
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2016</a></h1>
+        </div>
+
+        <p id="tagline">2016 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Writing git hooks with Git::Hooks</h1>
+<div class='subtitle'>Git::Hooks - 2016-12-07</div>
+
+<div class='pod'><h2 id="Lets-start-with-the-hooks">Let&#39;s start with the hooks.</h2>
+
+<p>As a developer, you are probably using git for source control. And if you are using git, you are probably using git hooks too, even if you don&#39;t realize it! <i>hooks</i> are simply programs that git runs automatically whenever you do certain things in a git repo - for example, when you commit, or push, or merge code.</p>
+
+<p>If you use some remote repository like GitHub or GitLab it is very likely you might actually be using git hooks installed by those services to rebuild web pages, trigger deployments or myriad other stuff. Both GitHub and GitLab allow us to configure them quite easily via the various web services&#39; web interfaces.</p>
+
+<p>However, the point of this article is to show you how to write them yourself, in your own local repos. With git hooks - and the power of Perl - we can do all kinds of automations making your life as a developer easier.</p>
+
+<p>So let&#39;s first find out what kind of events can trigger a hook. The whole list is <a href="https://git-scm.com/docs/githooks">on the Git reference page</a> and, in the last git version, includes 18 different events:</p>
+
+<p><ul> <li>applypatch-msg <li>pre-applypatch <li>post-applypatch <li>pre-commit <li>prepare-commit-msg <li>commit-msg <li>post-commit <li>pre-rebase <li>post-checkout <li>post-merge <li>pre-push <li>pre-receive <li>update <li>post-receive <li>post-update <li>push-to-checkout <li>pre-auto-gc <li>post-rewrite </ul>
+
+</p>
+
+
+
+<p>We can divide them in different ways; for instance, according to <i>when</i> they actually happen. You&#39;ll notice that a lot of these have names starting with <code>pre</code> and <code>post</code>. <code>pre</code> and <code>post</code> hooks are run <i>before</i> and <i>after</i> a particular git command does its normal operation respectively.</p>
+
+<p><code>pre</code> hooks can return a value that will effect the outcome of the git command, possibly indicating that the particular action has failed, and can be used to implement policies at the client level (for example, if a commit message contains typos or fails company policy in some other way a pre commit can stop the commit being actually committed.)</p>
+
+<p><code>post</code> hooks are the opposite: They do not affect the command itself, just the way the repository is arranged after the command is run. A <code>post-receive</code> hook, for instance, can send an email to the user or administrator when a push has been processed on a remote repository, or send a message to a continuous integration server to start a test run, or trigger a rebuild of the web site.</p>
+
+<p>Hooks can also be divided according to the git command that triggers them. Four of them, are related to <code>commit</code>, others to <code>am</code>, and yet others to <code>push</code> and to <code>receive-pack</code>, a <i>plumbing</i> command run when a push is received in a repository.</p>
+
+<h3 id="Now-that-we-mention-plumbing">Now that we mention plumbing</h3>
+
+<p>Writing hooks involves diving into the depths of git, going, so to say, into the plumbing. In fact, git commands are divided, using a washroom metaphor, into two classes: <i>porcelain</i> and <i>plumbing</i>. It is <a href="http://stackoverflow.com/questions/39847781/which-are-the-plumbing-and-porcelain-commands/39848056">not too clear which is which</a>, the division being &quot;what can be seen from outside&quot; (porcelain) and &quot;what is used from there&quot; (plumbing). According to that, most of the stuff we use day to day from the command line, clone, add, commit and so on, are &quot;porcelain&quot;. And most of the stuff you do not <i>usually</i> run is plumbing: <code>git-unpack-file</code> or <code>git-read-tree</code> is not the kind of thing you usually run from the command line. However, these are precisely the kinds of commands we are going to run from our hooks.</p>
+
+<h3 id="And-plumbing-works-on-the-pipes">And plumbing works on the pipes.</h3>
+
+<p>Or, actually, the trees. Let&#39;s again <a href="https://metacpan.org/module/https:#git--scm.com-book-ch1-3.html-The-Three-States">get back to basics</a> and study the three states of a project in git: the working directory (also called the <i>working tree</i>), the staging area (also called the <i>index</i>), and the <code>.git</code> directory that contains everything we normally consider to be <i>in the repository</i>. In a nutshell, the git command <code>add</code> adds files to the staging area, the git command <code>commit</code> passes files from the staging area through to the <code>.git</code> directory, and the git command <code>checkout</code> takes files back from the <code>.git</code> directory to the working directory.</p>
+
+<p>If we poke around inside the <code>.git</code> directory we see this plumbing area is full of trees. <a href="https://git-scm.com/book/es/v2/Git-Internals-Git-Objects#Tree-Objects">Trees</a> are used to store directories with the files and other directories, also stored as trees, in them. This is an efficient, packed way of storing content; git is actually a content-addressable file system. Which is great. But takes us away from the simple concept of a-source-control-management-system-storing-changes-and-that&#39;s-it.</p>
+
+<p>The good news about this is that git allows us to work easily, through plumbing commands, with the internal structure so we don&#39;t have to manipulate these trees directly. The bad news is that we pretty much need to know how to program our own git in order to write a good hook.</p>
+
+<h2 id="Writing-our-First-Hook">Writing our First Hook</h2>
+
+<p>As said above, hooks are simply scripts. They can be as simple as a shell script or as complicated as a REST client consuming an API. In general, a hook will work this way</p>
+
+<dl>
+
+<dt>1. Examine stuff</dt>
+<dd>
+
+<p>Look at what&#39;s going on. Examine its inputs and use them to dig a bit deeper using plumbing commands, set the stage.</p>
+
+</dd>
+<dt>2. Do Work</dt>
+<dd>
+
+<p>Do the real work. Change log messages, rearrange files or create new ones, do lots of different things.</p>
+
+</dd>
+<dt>3. Return</dt>
+<dd>
+
+<p>Return, possibly with a message, including a failure or success message if it is a <code>pre</code>-class hook.</p>
+
+</dd>
+</dl>
+
+<p>Let us see how it works in practice. Here is an example of a simple three line script that can serve as a <code>prepare-commit-msg</code> hook to add some text to our commit message:</p>
+
+<pre><code>    lines_changed=$(git diff-index HEAD --cached -p | grep &quot;^\+\w&quot; | wc -l)
+    message=&quot;\nYou have changed $lines_changed lines&quot;
+    grep -qs &quot;^$message&quot; &quot;$1&quot; || echo &quot;$message&quot; &gt;&gt; &quot;$1&quot;</code></pre>
+
+<p>No Perl yet, but just wait there and you will see! To install this three line script as a hook the three lines should be saved as a file called <code>prepare-commit-msg</code>, that file needs to be <code>chmod +x</code>&#39;ed to become executable, and finally that file must be placed into the <code>.git/hooks</code> directory.</p>
+
+<p>By the way, you can find lots of other <a href="https://www.google.es/search?client=ubuntu&amp;channel=fs&amp;q=prepare-commit-message&amp;ie=utf-8&amp;oe=utf-8&amp;gfe_rd=cr&amp;ei=EdcdWM-aGc6s8wfdqozoDw#safe=off&amp;channel=fs&amp;q=%22prepare-commit-msg%22">examples as gists</a> of hooks to modify your commit message with Google.</p>
+
+<p>Anyway, the first two lines of our example script compute first the number of lines changed. They use a plumbing command, <code>git-diff-index</code>. Following the <a href="https://git-scm.com/docs/git-diff-index">online documentation</a> this command</p>
+
+<pre><code>    Compare[s] a tree to the working tree or index</code></pre>
+
+<p>Which one are we doing here? Since we are using <code>--cached</code> we</p>
+
+<pre><code>    compares the tree-ish and the index.</code></pre>
+
+<p>In this case, <code>HEAD</code> (i.e. the last commit already previously committed) is the <i>tree-ish</i> thing we&#39;re comparing with the <i>index</i> (i.e. whatever files we have already added to this commit in the staging area). The <code>-p</code> option is putting everything in a <i>patch</i> format, something like:</p>
+
+<pre><code>    diff --git a/2016/submission/git-hooks.pod b/2016/submission/git-hooks.pod
+    index 1fb44ed..1c8fc79 100644
+    --- a/2016/submission/git-hooks.pod
+    +++ b/2016/submission/git-hooks.pod
+    @@ -95,7 +95,7 @@ general, a hook will work this way
+
+     =item Check out stuff
+
+    - Look at what&#39;s going on. Check out its inputs and use them to
+    +Look at what&#39;s going on. Check out its inputs and use them to
+      dig a bit deeper using plumbing commands, set the stage.</code></pre>
+
+<p>You will see a <code>+</code> sign, which indicates the lines that have been added. The <code>grep</code> pipe in our first line filters out everything but those lines and <code>wc -l</code> counts them. The next line will create a message to be added to the commit message, and the last line effectively does that, after checking that it is not already there (since we would not want multiple messages like that, ever). <code>$1</code> will contain the name of the file that contains the commit message, generally <code>COMMIT_MSG</code>.</p>
+
+<p>That&#39;s our script in its entirety. No big deal here...except that we need to know some stuff about Linux commands, its not going to be easy to debug, and as soon as we want something a bit more complex we are getting into <code>sed</code> and <code>AWK</code> terrain. And nobody wants that!</p>
+
+<h3 id="So-lets-do-it-in-Perl">So let&#39;s do it in Perl</h3>
+
+<p>There are many ways of doing this in Perl (You didn&#39;t expect that, did you?)</p>
+
+<p>First version would just move whatever is a bit more complicated to Perl itself. Let us run <code>git</code> as an external command, since that&#39;s seemingly our easiest option. Besides, now that we have a sensible language we might go a bit further and consider not only lines added, but also lines taken from the file. And we can do that not by counting lines with <code>+</code> at the front, but parsing the <a href="https://www.gnu.org/software/diffutils/manual/html_node/Detailed-Unified.html#Detailed-Unified">diff format</a> which says how many lines have changed. The result is this program, a bit longish</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/env perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">File::Slurp::Tiny</span> <span class="words">qw(read_file write_file)</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="version">v5.14</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$commit_msg_fn</span> <span class="operator">=</span> <span class="core">shift</span> <span class="operator">||</span> <span class="word">die</span> <span class="double">&quot;No commit message file&quot;</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$commit_msg</span> <span class="operator">=</span> <span class="word">read_file</span><span class="structure">(</span> <span class="symbol">$commit_msg_fn</span> <span class="structure">);</span><br /><span class="word">die</span> <span class="word">if</span> <span class="operator">!</span><span class="symbol">$commit_msg</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$diff_output</span> <span class="operator">=</span> <span class="backtick">`git diff-index HEAD --cached -p`</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">@lines_changed</span> <span class="operator">=</span> <span class="structure">(</span><span class="symbol">$diff_output</span> <span class="operator">=~</span> <span class="match">/-\d+,(\d+) \+\d*,?(\d+)/gs</span><span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$lines_added</span><span class="operator">,</span> <span class="symbol">$lines_taken</span><span class="structure">);</span><br /><br /><span class="keyword">while</span> <span class="structure">(</span> <span class="symbol">@lines_changed</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$lines_taken</span> <span class="operator">+=</span> <span class="core">shift</span> <span class="symbol">@lines_changed</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$lines_added</span> <span class="operator">+=</span> <span class="core">shift</span> <span class="symbol">@lines_changed</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="keyword">my</span> <span class="symbol">$message</span><span class="operator">=</span><span class="double">&quot;\nYou have added $lines_added and taken $lines_taken lines&quot;</span><span class="structure">;</span><br /><br /><span class="keyword">if</span> <span class="structure">(</span> <span class="symbol">$commit_msg</span> <span class="operator">!~</span> <span class="match">/$message/</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">write_file</span><span class="structure">(</span> <span class="symbol">$commit_msg_fn</span><span class="operator">,</span> <span class="symbol">$commit_msg</span><span class="operator">.</span><span class="symbol">$message</span> <span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>That Perl script is pretty much what we did above in the smaller shell script. The results is more or less the same, and can be seen <a href="https://github.com/JJ/git-hooks/commit/bd19c3b69f8fbcc592e2c312a15656d34317f16a">in action in the repo</a>. But we are still not where we want to be.</p>
+
+<h3 id="Which-perl-are-we-running">Which perl are we running?</h3>
+
+<p>There is a caveat here in our script, and that is the <code>env</code> in the first line which causes whatever perl is first in our path to be executed.</p>
+
+<p>From the shell I use a perl created with <code>perlbrew</code>, and use the <code>perlbrew</code> command to manipulate the shell PATH to run that perl. That path is not going to be available in this spawned shell that my git hook is running, meaning it will use the system perl. There are many solutions to this - including simply installing the modules you need for your git hooks on your system perl with `cpan` / `cpanm`.</p>
+
+<h3 id="Lets-perlify-it-even-more">Let&#39;s perlify it even more</h3>
+
+<p>The second, and more significant, problem is that running an external command brings all kind of trouble in particular setups. It is not Pure Perl either.</p>
+
+<p>In fact, if you&#39;ve got git, you&#39;ve got a Perl way of doing git using a Perl module without having to directly script the <code>git</code> command ourselves. As part of the git distribution, a <code>Git.pm</code> file is directly installed in <code>/usr/share/perl5</code> (at least in new versions of git.) <code>perldoc Git</code> will show you what to expect from it, and you can also check it out <a href="https://metacpan.org/pod/Git">on MetaCPAN</a>, although in fact it is developed (pretty much, it&#39;s kind of quiet) alongside git itself in <a href="https://github.com/git/git">its repository</a>.</p>
+
+<p>Be that as it may, <code>Git.pm</code> provides a Perl interface for running git. After adding <code>use Git;</code> at the beginning, we will insert these new two lines</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$repo</span> <span class="operator">=</span> <span class="word">Git</span><span class="operator">-&gt;</span><span class="word">repository</span><span class="structure">();</span><br /><span class="keyword">my</span> <span class="symbol">$diff_output</span> <span class="operator">=</span> <span class="symbol">$repo</span><span class="operator">-&gt;</span><span class="word">command</span><span class="structure">(</span><span class="single">'diff-index'</span><span class="operator">,</span> <span class="single">'--cached'</span><span class="operator">,</span><span class="single">'-p'</span><span class="operator">,</span><span class="single">'HEAD'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>That is not buying us much, except, well, we are kind of less worried about running external commands from our program (which we are doing anyway, only kind of under the hood)</p>
+
+<h2 id="But-now-we-have-the-full-power-of-Perl">But now we have the full power of Perl</h2>
+
+<p>So let us use it for the greater good. For instance, it would be nice to prohibit anything that can&#39;t be compiled from being checked in. Many companies include <code>pre-commit</code> policies that check that, and <a href="http://codeinthehole.com/writing/tips-for-using-a-git-pre-commit-hook/">a host of other things</a>, there are <a href="http://pre-commit.com/">whole frameworks that allow management of this kind of policies, like this one written in Python by Yelp</a>. We might want to check that out later on (or not, because Not Perl), but meanwhile we can run a simple syntax check on the Perl files before they are even committed. This would do the trick:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/env perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Git</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Term::ANSIColor</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="version">v5.14</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$repo</span> <span class="operator">=</span> <span class="word">Git</span><span class="operator">-&gt;</span><span class="word">repository</span><span class="structure">();</span><br /><br /><span class="keyword">my</span> <span class="symbol">$diff_output</span> <span class="operator">=</span> <span class="symbol">$repo</span><span class="operator">-&gt;</span><span class="word">command</span><span class="structure">(</span><span class="single">'diff-index'</span><span class="operator">,</span> <span class="single">'--cached'</span><span class="operator">,</span><span class="single">'-p'</span><span class="operator">,</span><span class="single">'HEAD'</span><span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">@files_changed</span> <span class="operator">=</span> <span class="structure">(</span><span class="symbol">$diff_output</span> <span class="operator">=~</span> <span class="match">/\++\sb\/(\S+)/gs</span><span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">$syntax_ok</span> <span class="operator">=</span> <span class="number">0</span><span class="structure">;</span><br /><span class="keyword">foreach</span> <span class="keyword">my</span> <span class="symbol">$file</span> <span class="structure">(</span> <span class="symbol">@files_changed</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="word">next</span> <span class="word">if</span> <span class="structure">(</span> <span class="symbol">$file</span> <span class="operator">!~</span> <span class="match">/\.p[ml]/</span> <span class="structure">);</span><br />&nbsp;&nbsp;<span class="word">print</span> <span class="double">&quot;Checking $file  &quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$output</span> <span class="operator">=</span> <span class="backtick">`perl -cw $file 2&gt;&amp;1`</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$output</span> <span class="operator">=~</span> <span class="match">/syntax error/</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$syntax_ok</span> <span class="operator">=</span> <span class="symbol">$syntax_ok</span> <span class="operator">||</span> <span class="number">1</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="word">color</span><span class="structure">(</span><span class="double">&quot;red&quot;</span><span class="structure">)</span><span class="operator">,</span> <span class="double">&quot;\N{BALLOT X}&quot;</span><span class="operator">,</span> <span class="word">color</span><span class="structure">(</span><span class="double">&quot;reset&quot;</span><span class="structure">)</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;\n\tThere's an error in $file:&quot;</span><span class="operator">,</span> <span class="word">color</span><span class="structure">(</span><span class="double">&quot;red&quot;</span><span class="structure">)</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">join</span><span class="structure">(</span><span class="double">&quot;&quot;</span><span class="operator">,</span><span class="word">map</span><span class="structure">(</span> <span class="double">&quot;\n\t$_&quot;</span><span class="operator">,</span> <span class="word">split</span><span class="structure">(</span><span class="double">&quot;\n&quot;</span><span class="operator">,</span><span class="symbol">$output</span><span class="structure">)))</span><span class="operator">,</span> <span class="word">color</span><span class="structure">(</span><span class="double">&quot;reset&quot;</span><span class="structure">);</span><br />&nbsp;&nbsp;<span class="structure">}</span> <span class="keyword">else</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="word">color</span><span class="structure">(</span><span class="double">&quot;green&quot;</span><span class="structure">)</span><span class="operator">,</span><span class="double">&quot;\N{HEAVY CHECK MARK}&quot;</span><span class="operator">,</span> <span class="word">color</span><span class="structure">(</span><span class="double">&quot;reset&quot;</span><span class="structure">);</span><br />&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span><br /><br /><span class="word">exit</span> <span class="symbol">$syntax_ok</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>This script will be copied or symlinked to <code>pre-commit</code> in the <code>hooks</code> directory and will check syntax and warnings for any Perl file that has been modified during the commit. It uses the same git command as above for obtaining the files that have been modified, extracting the filenames from the diff output. That is why it is using:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="structure">(</span><span class="symbol">$diff_output</span> <span class="operator">=~</span> <span class="match">/\++\sb\/(\S+)/gs</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>which will get filenames from lines such as this one</p>
+
+<pre><code>    +++ b/2016/submission/git-hooks.pod</code></pre>
+
+<p>(this will work as long as the filenames do not have any whitespace in them). Anyway for every file modified it will proceed to run <code>perl-cw</code> on it. If it passes muster, it will give the go ahead. If it does not, it will exit with a 1, which will indicate to git that the commit cannot proceed, printing at the same time the cause of the error.</p>
+
+<p><img src="pass.png" alt="Screenshot of test pass">
+
+</p>
+
+
+
+<p>We also add color for niceness, using the <a href="https://metacpan.org/module/Term::ANSIColor">Term::ANSIColor</a> module. One of the good things we can use within Perl. But we have also got even better things.</p>
+
+<h2 id="Enter-Git::Hooks">Enter <a href="https://metacpan.org/module/Git::Hooks">Git::Hooks</a></h2>
+
+<p><a href="https://metacpan.org/module/Git::Hooks">Git::Hooks</a> is written specifically to do this kind of thing. It lays a layer of goodness over other modules that deal with Git and allows us to work easily with the information that is available to us inside the hooks. Besides, and this is the nicest thing, it allows us to unify all hooks in a single script. Let&#39;s unify the two files we have above in a single one.</p>
+
+<p>This is the one program to rule them all:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/env perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Git::Hooks</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Term::ANSIColor</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">File::Slurp::Tiny</span> <span class="words">qw(read_file write_file)</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="version">v5.14</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">diff_output</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$git</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$git</span><span class="operator">-&gt;</span><span class="word">command</span><span class="structure">(</span><span class="single">'diff-index'</span><span class="operator">,</span> <span class="single">'--cached'</span><span class="operator">,</span><span class="single">'-p'</span><span class="operator">,</span><span class="single">'HEAD'</span><span class="structure">);</span><br /><span class="structure">}</span><br /><br /><span class="word">PRE_COMMIT</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$git</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">@files_changed</span> <span class="operator">=</span> <span class="structure">(</span><span class="word">diff_output</span><span class="structure">(</span> <span class="symbol">$git</span><span class="structure">)</span> <span class="operator">=~</span> <span class="match">/\++\sb\/(\S+)/gs</span><span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><span class="word">the</span> <span class="word">same</span> <span class="word">pre-commit</span> <span class="word">logic</span> <span class="word">as</span> <span class="word">in</span> <span class="word">our</span> <span class="word">script</span><span class="operator">...</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$syntax_ok</span><span class="structure">;</span><br /><span class="structure">};</span><br /><br /><span class="word">PREPARE_COMMIT_MSG</span> <span class="structure">{</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$git</span><span class="operator">,</span> <span class="symbol">$commit_msg_fn</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$commit_msg</span> <span class="operator">=</span> <span class="word">read_file</span><span class="structure">(</span> <span class="symbol">$commit_msg_fn</span> <span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">die</span> <span class="word">if</span> <span class="operator">!</span><span class="symbol">$commit_msg</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">@lines_changed</span> <span class="operator">=</span> <span class="structure">(</span><span class="word">diff_output</span><span class="structure">(</span> <span class="symbol">$git</span> <span class="structure">)</span> <span class="operator">=~</span> <span class="match">/-\d+,(\d+) \+\d*,?(\d+)/gs</span><span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><span class="word">the</span> <span class="word">same</span> <span class="word">prepare-commit-msg</span> <span class="word">logic</span> <span class="word">as</span> <span class="word">in</span> <span class="word">our</span> <span class="word">other</span> <span class="word">script</span><span class="operator">...</span><br /><span class="structure">};</span><br /><br /><span class="word">run_hook</span><span class="structure">(</span><span class="magic">$0</span><span class="operator">,</span> <span class="symbol">@ARGV</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>This is just part of the program; the rest is in the <a href="https://github.com/JJ/git-hooks">git-hooks repository</a>. <a href="https://metacpan.org/module/Git::Hooks">Git::Hooks</a> has a centralized approach to hooks: it encourages you to create a single file, that is symlinked to the different hook names; in this case, <code>prepare-commit-msg</code> and <code>pre-commit-msg</code>. The magic is done by the last line containing <code>run_hook</code> which takes the command under which it is being invoked <code>$0</code> along with the command-line arguments.</p>
+
+<p>The hooks are declared LABEL-like (although they are actually function calls.) These calls receive always <code>$git</code> as the first argument, the git command itself. And its invocation is actually the same as we did before, only we have used a slightly different syntax via the <code>qw</code> quote operator. And we do that in the <code>diff_output</code> function, which is actually the only part where we are winning something by factoring out part of the code, this common code that includes the differences between the repository in the previous state and this one. A single file is easier to maintain and copy around; in fact, you can <a href="https://coderwall.com/p/jp7d5q/create-a-global-git-commit-hook">create a git directory template</a> which includes this single file and its corresponding symlinks so that your development team plays by the hook. Pun intended.</p>
+
+<h3 id="Enforcing-commit-refers-to-issue-policies">Enforcing commit-refers-to-issue policies</h3>
+
+<p>An idea that I try to instill in my students is that you always work in a project towards an objective, and that objective must be engraved in a milestone (get it? Engraved... in a mile-<i>stone</i>), which must be divided in tasks that are assigned issues. This is such a dyed-in-the-wool thing that <a href="https://metacpan.org/module/https:#metacpan.org-pod-Git::Hooks-Using-Plugins">Git::Hooks has a plugin that checks that every commit message includes a valid JIRA issue</a>. In fact, there are many off-the-shelf plug-ins that can be activated via the combination of git config variables and ready-to-go plug-ins. Other <a href="https://bigbrassband.com/api-doc.html">frameworks</a> also including little-to-no-programming hooks for integration in development ecosystems.</p>
+
+<p>However, we use plain old GitHub issues, and that is what we want to use: let&#39;s accept a commit message if and only if it addresses at least one valid issue. We will do this with that chunk of code, that is integrated along with the other hooks. Please go to <a href="https://github.com/JJ/git-hooks/blob/master/commit-hooks.pl">the repo</a> for the whole file, just the part including the new code has been included here.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">COMMIT_MSG</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$git</span><span class="operator">,</span> <span class="symbol">$commit_msg_file</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$git_repo</span> <span class="operator">=</span> <span class="word">Git::More</span><span class="operator">-&gt;</span><span class="word">repository</span><span class="structure">();</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$api_key</span> <span class="operator">=</span> <span class="symbol">$git_repo</span><span class="operator">-&gt;</span><span class="word">get_config</span><span class="structure">(</span> <span class="single">'github'</span><span class="operator">,</span><span class="single">'apikey'</span> <span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$gh</span> <span class="operator">=</span> <span class="word">Net::GitHub</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">version</span> <span class="operator">=&gt;</span> <span class="number">3</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">access_token</span> <span class="operator">=&gt;</span> <span class="symbol">$api_key</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$origin</span> <span class="operator">=</span> <span class="symbol">$git_repo</span><span class="operator">-&gt;</span><span class="word">get_config</span><span class="structure">(</span> <span class="single">'remote.origin'</span><span class="operator">,</span><span class="single">'url'</span> <span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span> <span class="symbol">$user</span><span class="operator">,</span> <span class="symbol">$repo</span> <span class="structure">)</span> <span class="operator">=</span> <span class="structure">(</span><span class="symbol">$origin</span> <span class="operator">=~</span> <span class="match">m{:(.+?)/(.+)\.git}</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$issue</span> <span class="operator">=</span> <span class="symbol">$gh</span><span class="operator">-&gt;</span><span class="word">issue</span><span class="structure">();</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">@these_issues</span> <span class="operator">=</span> <span class="symbol">$issue</span><span class="operator">-&gt;</span><span class="word">repos_issues</span><span class="structure">(</span> <span class="symbol">$user</span><span class="operator">,</span> <span class="symbol">$repo</span><span class="operator">,</span> <span class="structure">{</span> <span class="word">state</span> <span class="operator">=&gt;</span> <span class="single">'open'</span><span class="structure">}</span> <span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">%issues_map</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$i</span> <span class="structure">(</span> <span class="symbol">@these_issues</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$issues_map</span><span class="structure">{</span><span class="symbol">$i</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="single">'number'</span><span class="structure">}}</span> <span class="operator">=</span> <span class="symbol">$i</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="single">'title'</span><span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$commit_msg</span> <span class="operator">=</span> <span class="word">read_file</span><span class="structure">(</span> <span class="symbol">$commit_msg_file</span> <span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">@issues</span> <span class="operator">=</span> <span class="structure">(</span><span class="symbol">$commit_msg</span> <span class="operator">=~</span> <span class="match">/\#(\d+)/g</span><span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span> <span class="operator">!</span><span class="symbol">@issues</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="double">&quot;This commit should address at least one issue&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="number">0</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span> <span class="keyword">else</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$addresses_issue</span> <span class="operator">=</span> <span class="number">1</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$i</span> <span class="structure">(</span> <span class="symbol">@issues</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span> <span class="symbol">$issues_map</span><span class="structure">{</span><span class="symbol">$i</span><span class="structure">}</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="word">pass</span><span class="structure">(</span><span class="double">&quot;Addresses issue $i: $issues_map{$i}&quot;</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$addresses_issue</span> <span class="operator">&amp;&amp;=</span> <span class="number">1</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span> <span class="keyword">else</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="word">fail</span><span class="structure">(</span><span class="double">&quot;There is no issue $i&quot;</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$addresses_issue</span> <span class="operator">&amp;&amp;=</span> <span class="number">0</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="double">&quot;\N{INCREMENT}\N{NABLA}&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$addresses_issue</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>In order to use this, we will have first to create and copy an API key from GitHub. This key is going to be used to download the issues. After getting the API token from your profile, write</p>
+
+<pre><code>    git config --add github.apikey abcdeandmanylettersmoreandnumbers</code></pre>
+
+<p>Since we cannot pass through environment variables to the hooks, and it is really not a good idea to save the API key in a file, because you might accidentally add it to the repository, let&#39;s just handle it <i>outside</i> the repository by placing it in an environment that is available to the hooks: the git configuration file. We are going to be using <a href="https://metacpan.org/module/Git::More">Git::More</a>, which is part of the <a href="https://metacpan.org/module/Git::Hooks">Git::Hooks</a> repository, to retrieve that key, which we do in</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$api_key</span> <span class="operator">=</span> <span class="symbol">$git_repo</span><span class="operator">-&gt;</span><span class="word">get_config</span><span class="structure">(</span> <span class="single">'github'</span><span class="operator">,</span><span class="single">'apikey'</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>We then use this key to open the API using yet another module, <a href="https://metacpan.org/module/Net::GitHub">Net::GitHub</a>. We will need this one to access the issues, which is something we do in the next few lines using the $issue-&gt;repos_issues function.</p>
+
+<p>After that, the program creates a map with the issues (which makes them easier to check) and lets the commit pass if - and only if - there are issues and they actually exist and are open.</p>
+
+<p>After <i>hooking</i> this hook by symlinking it to the script, the result will be something like this:</p>
+
+<img src="issues.png" alt="Screenshot of test pass">
+
+<h2 id="The-tip-of-the-hook">The tip of the hook</h2>
+
+<p>By itself, Perl is a great tool for writing git hooks. Together with the git and GitHub related modules, writing a set of hooks for your repositories is fast and straightforward. You might even not need to write anything, by just using <a href="https://metacpan.org/module/Git::Hooks">Git::Hooks</a> plugins.</p>
+
+<p>Most difficult thing here is to debug the tools, but in many cases you will simply have to create a file with the right name and invoke the script with the right command line too, so that <code>$0</code> and <code>@ARGV</code> are correct. Always bear in mind the environment in which the scripts are running, and before you know, you&#39;ll be hooked.</p>
+
+<h2 id="SEE-ALSO">SEE ALSO</h2>
+
+<p>These are the modules that have been used here. There are hook frameworks in most other languages, some of them exclusively devoted to a particular hook. You might use them too if the language is already installed in your system.</p>
+
+<p>* <a href="https://metacpan.org/module/Git::More">Git::More</a></p>
+
+<p>* <a href="https://metacpan.org/module/Git::Repository">Git::Repository</a></p>
+
+<p>* <a href="https://metacpan.org/module/Net::GitHub">Net::GitHub</a></p>
+
+<p>* <a href="https://www.npmjs.com/package/pre-commit">pre-commit in node.js</a>, which can be configured via a JSON file.</p>
+
+<p>* <a href="https://github.com/pre-commit/pre-commit-hooks">pre-commit hooks in Python</a></p>
+
+<h2 id="POD-ERRORS">POD ERRORS</h2>
+
+<p>Hey! <b>The above document had some coding errors, which are explained below:</b></p>
+
+<dl>
+
+<dt>Around line 10:</dt>
+<dd>
+
+<p>Cannot have multiple =encoding directives</p>
+
+<p>Invalid =encoding syntax: utf8</p>
+
+</dd>
+</dl>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/e6a1fb97ff48541f76823937a8d7d45e?r=g&s=80&d=retro />
+This article contributed by: JMERELO &lt;JMERELO@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Help Santa Klaus Reward Only Nice Children" href="2016-12-06.html">Previous</a></li>
+
+    <li class="next"><a title="Geocoding the world at volume with open data" href="2016-12-08.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

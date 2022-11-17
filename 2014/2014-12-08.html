@@ -1,0 +1,195 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+The Complexity of Perl
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>The Complexity of Perl</h1>
+<div class='subtitle'>Perl::Metrics::Simple - 2014-12-08</div>
+
+<div class='pod'><h2 id="The-Complexity-of-Perl">The Complexity of Perl</h2>
+
+<p>When you&#39;re writing code, one of your goals should be to make your code as simple as possible. It seems self-evident that simple code will be easier to understand and easier to maintain and will therefore contain fewer bugs than complex code.</p>
+
+<p>Of course, we want to write software that does complex things. And this apparent paradox is easy enough to resolve. We just need to create a lot of very simple software and join it together in complex ways.</p>
+
+<p>But what constitutes &quot;complex code&quot;? Can we measure the complexity of an arbitrary piece of code? And what level of complexity should we be aiming at?</p>
+
+<p>Luckily for us, this is a solved problem. Back in 1976 Thomas J. McCabe came up with the idea of &quot;cyclometric complexity&quot;. McCabe&#39;s idea was to measure the complexity of a piece of code by counting the number of possible execution paths that can be traced through the code.</p>
+
+<p>Let&#39;s look at this with an example. Here&#39;s some arbitrary Perl code:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">foo</span> <span class="structure">{</span>                               <span class="comment"># 1: for non-empty code</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span> <span class="symbol">@list</span> <span class="structure">)</span> <span class="structure">{</span>                      <span class="comment"># 1: &quot;if&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">foreach</span> <span class="keyword">my</span> <span class="symbol">$x</span> <span class="structure">(</span> <span class="symbol">@list</span> <span class="structure">)</span> <span class="structure">{</span>       <span class="comment"># 1: &quot;foreach&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span> <span class="operator">!</span> <span class="symbol">$x</span> <span class="structure">)</span> <span class="structure">{</span>               <span class="comment"># 2: 1 for &quot;if&quot; and 1 for &quot;!&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">do_something</span><span class="structure">(</span><span class="symbol">$x</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span> <span class="structure">{</span>                      <span class="comment"># 1 for &quot;else&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">do_something_else</span><span class="structure">(</span><span class="symbol">$x</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>This subroutine has a complexity of 6, which is calculated from the following elements:</p>
+
+<ul>
+
+<li><p>1 for having some code in the subroutine</p>
+
+</li>
+<li><p>1 for the first &#39;if&#39; statement</p>
+
+</li>
+<li><p>1 for the &#39;foreach&#39; statement</p>
+
+</li>
+<li><p>1 for the second &#39;if&#39; statement</p>
+
+</li>
+<li><p>1 for the &#39;!&#39; in the second &#39;if&#39; statement</p>
+
+</li>
+<li><p>1 for the &#39;else&#39; statement</p>
+
+</li>
+</ul>
+
+<p>Calculating this for any given subroutine is relatively simple. We just analyse the source code looking for certain tokens. But, as with so many things in Perl. we don&#39;t need to do it ourselves as someone has already written the code and put it on CPAN.</p>
+
+<p>In this case, the module is called Perl::Metrics::Simple and it was written by Matisse Enzer. The code is based on PPI which is a handy way to extract useful information about Perl source code.</p>
+
+<p>There are a couple of ways to use Perl::Metrics::Simple. The simple case is handled by a command line program called <code>countperl</code>. You pass it the name of a directory and it analyses any Perl files that it finds under that directory. To test it, I used my Perl module Symbol::Approx::Sub. The results start by giving some high-level stats about the code:</p>
+
+<pre><code>    Perl files found: 6
+
+    Counts
+    ------
+    total code lines:         213
+    lines of non-sub code:    55
+    packages found:           6
+    subs/methods:             8
+
+    Subroutine/Method Size
+    ----------------------
+    min:                      3
+    max:                      87
+    mean:                     19.75
+    std. deviation:           28.08
+    median:                   6.50</code></pre>
+
+<p>That subroutine with 87 lines looks like it might be worth looking at further. It makes up over a third of the code in the distribution.</p>
+
+<p>The program then looks at the McCabe Complexity measures. You&#39;ll notice that the analysis differentiates between code in subroutines and code that exists at the file level (outside of any subroutines).</p>
+
+<pre><code>    McCabe Complexity
+    -----------------
+    Code not in any subroutine
+    min:                      2
+    max:                      2
+    mean:                     2.00
+    std. deviation:           0.00
+    median:                   2.00
+
+    Subroutines/Methods
+    min:                      1
+    max:                      37
+    mean:                     8.50
+    std. deviation:           11.99
+    median:                   2.50</code></pre>
+
+<p>The code outside of the subroutines looks fine. A McCabe measure of 2 means that the code is very simple. The subroutine code shows some more interesting numbers. But how do we interpret these numbers? A good rule of thumb seems to be to keep your code complexity under 20 and to get really worried if it goes over 30. So that maximum value of 37 should be a cause for concern.</p>
+
+<p>The output then shows us the McCabe scores for each subroutine it found.</p>
+
+<pre><code>    List of subroutines, with most complex at top
+    ---------------------------------------------
+    complexity  sub             path                      size
+    37          import          lib/Symbol/Approx/Sub.pm  87
+    18          _make_AUTOLOAD  lib/Symbol/Approx/Sub.pm  41
+    ...</code></pre>
+
+<p>I&#39;ve only shown the first couple of lines here, as that shows the most interesting subroutines. The whole file is online if you&#39;d like to see more.</p>
+
+<p><a href="http://perlhacks.com/symbol-approx-sub.txt">http://perlhacks.com/symbol-approx-sub.txt</a></p>
+
+<p>As you might suspect, the subroutine with the highest complexity is also the one with the most lines of code. That&#39;s really one that I should take a closer look at. Refactoring it to move a lot of the functionality into separate subroutines would make it simpler and, therefore, easier to maintain.</p>
+
+<p>The <code>countperl</code> program has one more useful feature. If you run it with the <code>--html</code> command line option, it produces the same output in HTML format. You can see this version online also:</p>
+
+<p><a href="http://perlhacks.com/symbol-approx-sub.html">http://perlhacks.com/symbol-approx-sub.html</a></p>
+
+<p>Helpfully, in this version, the values are colour-coded which makes it easier to see the ones that require attention.</p>
+
+<p>The <code>countperl</code> program is probably useful enough that it covers most requirements. You point it at code and it tells you the complexity of that code. If you want to do anything more complex, then you&#39;ll need to look at the documentation for Perl::Metrics::Simple itself. It&#39;s not complicated. You create a Perl::Metrics::Simple object.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$analyzer</span> <span class="operator">=</span> <span class="word">Perl::Metrics::Simple</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>And then call the <code>analyze_files</code> method, passing it a list of directories to analyse. This returns a Perl::Metrics::Simple::Analysis object</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$analysis</span> <span class="operator">=</span> <span class="symbol">$analyzer</span><span class="operator">-&gt;</span><span class="word">analyze_files</span><span class="structure">(</span><span class="single">'./lib'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>You can then call various methods on this object to get the actual data back. A good way to see how the methods are used is to look at the source of the <code>countperl</code> program. It&#39;s not, however, a great example of generating HTML - the source is littered with chunks of raw HTML and the whole thing would benefit greatly from being rewritten to use a templating engine.</p>
+
+<p>One warning about working with Perl::Metrics::Simple. The objects it creates are inside-out objects. That means that the actual data is stored in lexical variables within the class&#39;s package. That can make debugging your code a little frustrating.</p>
+
+<p>Since starting to work with Perl::Metrics::Simple, I&#39;ve seen that there is also a Perl::Metrics distribution on CPAN. I plan to investigate that in near future.</p>
+
+<p>Once you start measuring the complexity of code, it quickly becomes addictive. I&#39;m constantly searching for subroutines with high complexity scores. So far, the highest score I&#39;ve found is 209 (not my code, I hasten to add). I&#39;d be interested to hear about any high scores that you find.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Perl::Metrics::Simple">Perl::Metrics::Simple</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/PPI">PPI</a></p>
+
+</li>
+<li><p><a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity">http://en.wikipedia.org/wiki/Cyclomatic_complexity</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/acde2aaaba1e40097d66dad28063c1b3?r=g&s=80&d=retro />
+This article contributed by: Dave Cross &lt;dave@perlhacks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Out of Time" href="2014-12-07.html">Previous</a></li>
+
+    <li class="next"><a title="Async PostgreSQL with Mojo::Pg" href="2014-12-09.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

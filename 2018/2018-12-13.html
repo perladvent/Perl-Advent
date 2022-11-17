@@ -1,0 +1,141 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2018 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2018.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2018 - 
+Lost in legacy arguments
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2018</a></h1>
+        </div>
+
+        <p id="tagline">2018 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Lost in legacy arguments</h1>
+<div class='subtitle'>Sub::Params - 2018-12-13</div>
+
+<div class='pod'><h2 id="Working-with-legacy-code">Working with legacy code</h2>
+
+<p>Delivering Christmas gifts is a hard job. Every culture and every country has it&#39;s own different traditions. Each country has it&#39;s own different gift bringer - an old man (Santa Claus, Father Christmas, Grandfather Frost, ...), a child (Baby Jesus, Christ Child, Child God, ...) or other (The Three Kings, Yule Goat, ...) And each country has different days, from Christmas Eve, or January 7th following the Gregorian calendar, or even January 2nd in Japan.</p>
+
+<p>All these entities worked together in the Society of Annual Noel Transfer Association (S.A.N.T.A) to coordinate their deliveries. And it was someone&#39;s job to keep track of what everyone had to do.</p>
+
+<p>To help with this problem they&#39;d started with a <code>deliver_gift</code> subroutine. Well intention, well named, but over time as more members had joined S.A.N.T.A. it&#39;d grown little bit out of control:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">deliver_gift</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$gift</span><span class="operator">,</span> <span class="symbol">$child</span><span class="operator">,</span> <span class="symbol">$location</span><span class="operator">,</span> <span class="symbol">$delivery_day</span><span class="operator">,</span> <span class="symbol">$old_man_bringer</span><span class="operator">,</span> <span class="symbol">$delivery_method</span><span class="operator">,</span> <span class="symbol">$child_bringer</span><span class="operator">,</span> <span class="symbol">$other_bringer</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br /><span class="comment">   # few hundreds of lines of code untouched this millennium follows<br /></span>   <span class="operator">...</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<h2 id="Nightmare-Before-Christmas">Nightmare Before Christmas</h2>
+
+<p>The Nightmare begins for our maintainer - this function needs yet more changes. He needs to add a <code>delivery_time</code> argument to account for the time of day when presents are delivered (which again, apparently, varies between country).</p>
+
+<p>Now:</p>
+
+<ul>
+      <li>only first three arguments are mandatory</li>
+      <li>function is called from many places</li>
+      <li>optional arguments are often omitted</li>
+    </ul>
+
+<h3 id="A-Bad-Solution">A Bad Solution</h3>
+
+<p>The hacky solution that maintainer can implement is to put a new argument after last mandatory field. Pity our poor maintainer who chooses this solution and failed to update every last place that the function is called in the production code and accidentally calls the function with an argument in the wrong place!</p>
+
+<h3 id="A-Slightly-Better-Solution">A Slightly Better Solution</h3>
+
+<p>Our poor maintainer wants to spend Christmas at home with his family, not on call for bad code changes! At this point his slightly better solution is simple: Quit his job and enjoy peace and harmony on earth!</p>
+
+<h3 id="The-Better-Solution">The Better Solution</h3>
+
+<p>It was time for our maintainer to bite the bullet and change the function&#39;s calling style from positional to named arguments so it can be called like so:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">deliver_gift</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">gift</span>          <span class="operator">=&gt;</span> <span class="symbol">$gift</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">child</span>         <span class="operator">=&gt;</span> <span class="symbol">$child</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">location</span>      <span class="operator">=&gt;</span> <span class="symbol">$location</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...,</span><br /><span class="comment">    # our new functionality<br /></span>    <span class="word">delivery_time</span> <span class="operator">=&gt;</span> <span class="single">'after-dinner'</span><span class="operator">,</span><br />&nbsp;<span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>But how to do that without breaking all the existing code?</p>
+
+<h4 id="Plan-A:-deliver_gift_with_named_arguments">Plan A: deliver_gift_with_named_arguments</h4>
+
+<p>Our maintainer&#39;s first plan was a multi-step process:</p>
+
+<ul>
+  <li>implementation: introduce a new function</li>
+  <li>implementation: make the old function wrapper over the new one</li>
+  <li>implementation: replace the old function's calls with new one</li>
+  <li>cleanup: rename the new function into the old name, create a wrapper</li>
+  <li>cleanup: replace the new function name with the old name</li>
+  <li>cleanup: finally get rid of the wrapper</li>
+  </ul>
+
+<p>Oh My! So many steps!</p>
+
+<p>In these days of zero downtime deployment via microservices a lot of synchronization points are required for such a complicated plan, multiplied by number of modules that uses this function.</p>
+
+<p>Could we get all this done by Christmas? Unlikely! Our maintainer needed a better plan!</p>
+
+<h4 id="Plan-B:-Make-function-to-accept-both-positional-and-named-arguments">Plan B: Make function to accept both positional and named arguments</h4>
+
+<p>There is a handy module on CPAN called <a href="https://metacpan.org/module/Sub::Params">Sub::Params</a> that handles calling style duality.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Sub::Params</span> <span class="words">qw[ named_or_positional_arguments ]</span><span class="structure">;</span><br /><span class="keyword">sub</span> <span class="word">delivery_gift</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">@args</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">%args</span> <span class="operator">=</span> <span class="word">named_or_positional_arguments</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">args</span> <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">@args</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">names</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'gift'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'child'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'location'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'delivery_day'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'old_man_bringer'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'delivery_method'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'child_bringer'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'other_bringer'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>With these changes the function can be called in either style:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">delivery_gift</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="symbol">$gift</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="symbol">$child</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">);</span><br /><br /><span class="word">delivery_gift</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">gift</span>  <span class="operator">=&gt;</span> <span class="symbol">$gift</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">child</span> <span class="operator">=&gt;</span> <span class="symbol">$child</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Reducing the number of necessary changes into merely:</p>
+
+<ul>
+     <li>implementation: introduce duality</li>
+     <li>implementation: change positional style to named style</li>
+     <li>cleanup: remove duality</li>
+   </ul>
+
+<p>Merry Christmas and Happy Refactoring :-)</p>
+
+<h3 id="Thanks">Thanks</h3>
+
+<p><a href="https://gooddata.com/">GoodData</a> for contributing to open source.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/37bd8f20f282c1457ab228f65e0a394d?r=g&s=80&d=retro />
+This article contributed by: Branislav Zahradn&iacute;k &lt;barney@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Growing Christmas Trees" href="2018-12-12.html">Previous</a></li>
+
+    <li class="next"><a title="The future is now" href="2018-12-14.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

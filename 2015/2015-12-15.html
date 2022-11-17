@@ -1,0 +1,98 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2015 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2015.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2015 - 
+Garlands of YAML and JSON
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2015</a></h1>
+        </div>
+
+        <p id="tagline">2015 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Garlands of YAML and JSON</h1>
+<div class='subtitle'>File::Serialize - 2015-12-15</div>
+
+<div class='pod'><p>Gluggag&aelig;gir the Elf had to admit that the myriad of IT systems that worked together at the North Pole was amazing. All built different, in different languages, and with different technologies. Luckily, the Elves had decided that everyone should use a universal serialization format so that all the different systems could talk to each other. Unfortunately, however, none of the elves could agree what that should be, and they&#39;d all ended up using a <i>different</i> universal serialization format.</p>
+
+<p>While some elves are working at Santa&#39;s Gift Factories for a Holidays season or two before they move to greener pastures (usually quite literally greener, as the Easter Bunny is notoriously known to be the biggest elf poacher around) Gluggag&aelig;gir is one of your long-term commitment type of elf. He&#39;s been around and worked in most departments, and expects to be around longer still, slowly moving up the yuletide ladder until &mdash; who knows? &mdash; he makes it as Cheers Chief Officer.</p>
+
+<p>So Glugg has made the decision not to argue with the trend du jour, whatever that might be. Why can&#39;t we just accept input in any of the contested serialization formats and have the computer, which is pretty smart at processing data, figure it all out?</p>
+
+<p>The current hot debate was should the elves be serializing data in either YAML or JSON, both of which are readable and fairly easy to manipulate. Either was perfectly fine with Glugg, as he&#39;s an old-hand to the serialization/deserialization dance. And happens to have one more handy tool on his belt for those tasks: <a href="https://metacpan.org/module/File::Serialize">File::Serialize</a>.</p>
+
+<h3 id="Keep-it-short-keep-it-sweet">Keep it short, keep it sweet</h3>
+
+<p>The main raison d&#39;&ecirc;tre of <a href="https://metacpan.org/module/File::Serialize">File::Serialize</a> is to encapsulate and take care of all the boring, repetitive details that come with serialization. Before using File::Serialize, Glugg used to have two scripts that looked like</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">NorthPole::DB</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">YAML</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$nice_children</span> <span class="operator">=</span> <span class="word">YAML::LoadFile</span><span class="structure">(</span> <span class="single">'nice.yaml'</span> <span class="structure">);</span><br /><br /><span class="word">update_db</span><span class="structure">(</span> <span class="word">nice</span> <span class="operator">=&gt;</span> <span class="symbol">$nice_children</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>and</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">NorthPole::DB</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">JSON</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Path::Tiny</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$naughty_children</span> <span class="operator">=</span> <span class="word">from_json</span> <span class="word">path</span><span class="structure">(</span><span class="single">'naughty'</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">slurp</span><span class="structure">;</span><br /><br /><span class="word">update_db</span><span class="structure">(</span> <span class="word">naughty</span> <span class="operator">=&gt;</span> <span class="symbol">$naughty_children</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>In other words, almost the same, except for the serialization engine. But with <a href="https://metacpan.org/module/File::Serialize">File::Serialize</a>, he now can just hide that difference under the blanket:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">NorthPole::DB</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">File::Serialize</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">%list</span> <span class="operator">=</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">nice</span>    <span class="operator">=&gt;</span> <span class="single">'nice.yaml'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">naughty</span> <span class="operator">=&gt;</span> <span class="single">'naughty.json'</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">while</span> <span class="structure">(</span> <span class="keyword">my</span><span class="structure">(</span> <span class="symbol">$status</span><span class="operator">,</span> <span class="symbol">$file</span> <span class="structure">)</span> <span class="operator">=</span> <span class="word">each</span> <span class="symbol">%list</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">update_db</span><span class="structure">(</span> <span class="symbol">$status</span> <span class="operator">=&gt;</span> <span class="word">deserialize_file</span> <span class="symbol">$file</span> <span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>And it goes the other way around as well. The module can also figure out the right output format and deal with common options (pretty-printing, utf8 output, canonical representation) based on the filename the script is writing to:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">NorthPole::DB</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">File::Serialize</span> <span class="structure">{</span> <span class="word">pretty</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span> <span class="word">canonical</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span> <span class="word">utf8</span> <span class="operator">=&gt;</span> <span class="number">1</span> <span class="structure">};</span><br /><br /><span class="keyword">my</span> <span class="symbol">$children</span> <span class="operator">=</span> <span class="word">query_db</span><span class="structure">();</span><br /><br /><span class="keyword">my</span> <span class="symbol">%report</span> <span class="operator">=</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">nice</span>    <span class="operator">=&gt;</span> <span class="single">'nice_out.yaml'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">naughty</span> <span class="operator">=&gt;</span> <span class="single">'naughty_out.json'</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">while</span> <span class="structure">(</span> <span class="keyword">my</span><span class="structure">(</span> <span class="symbol">$status</span><span class="operator">,</span> <span class="symbol">$file</span> <span class="structure">)</span> <span class="operator">=</span> <span class="word">each</span> <span class="symbol">%list</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">serialize_file</span> <span class="symbol">$file</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">map</span> <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">behavior</span> <span class="operator">eq</span> <span class="symbol">$status</span> <span class="structure">}</span> <span class="cast">@</span><span class="symbol">$children</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">];</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>With, of course, always the possibility to explicitly choose a specific format, for those special cases.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># TODO: have a chat with the Teddy Bear division <br /># about cutesy extensions...<br /></span><br />&nbsp;&nbsp;&nbsp;<span class="word">serialize_file</span> <span class="single">'teddy.hohoho'</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">grep</span> <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">want</span> <span class="operator">eq</span> <span class="single">'teddy bear'</span> <span class="structure">}</span> <span class="cast">@</span><span class="symbol">$nice_children</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">]</span><span class="operator">,</span> <span class="structure">{</span> <span class="word">format</span> <span class="operator">=&gt;</span> <span class="single">'json'</span> <span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<h3 id="Keep-it-magic-when-you-need-to-be-l33t">Keep it magic, when you need to be l33t</h3>
+
+<p>And then there is the module&#39;s carefully guarded little hidden bonus: it also has a function called <code>transerialize_file</code>, which allows to implement a small pipeline (or, in dev<i>elf</i>oper lingo, a garland) of transformations. For example, Glugg&#39;s real script is even shorter than the snippets given above, and looks something like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">transerialize_file</span> <span class="word">query_db</span><span class="structure">()</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">=&gt;</span> <span class="structure">{</span> <span class="single">'all_children.yml'</span> <span class="operator">=&gt;</span> <span class="core">undef</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">[</span> <br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">sub</span> <span class="structure">{</span> <span class="structure">[</span> <span class="word">grep</span> <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">behavior</span> <span class="operator">eq</span> <span class="single">'naughty'</span> <span class="structure">}</span> <span class="cast">@</span><span class="magic">$_</span> <span class="structure">]</span> <span class="structure">}</span> <br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">=&gt;</span> <span class="single">'naughty.json'</span> <br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">sub</span> <span class="structure">{</span> <span class="structure">[</span> <span class="word">grep</span> <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">behavior</span> <span class="operator">eq</span> <span class="single">'nice'</span> <span class="structure">}</span> <span class="cast">@</span><span class="magic">$_</span> <span class="structure">]</span> <span class="structure">}</span> <br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">=&gt;</span> <span class="structure">{</span> <span class="single">'nice.json'</span> <span class="operator">=&gt;</span> <span class="core">undef</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="structure">[</span> <span class="word">grep</span> <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">want</span> <span class="operator">eq</span> <span class="single">'teddy bear'</span> <span class="structure">}</span> <span class="structure">]</span> <span class="cast">@</span><span class="magic">$_</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">=&gt;</span>  <span class="structure">{</span> <span class="single">'teddy.hohoho'</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">format</span> <span class="operator">=&gt;</span> <span class="single">'json'</span> <span class="structure">}</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">];</span></code><br />&nbsp;</td></table>
+
+<p>Short and efficient. That&#39;s how elves are, and that&#39;s how they like their code to be.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/2121b9ebc49fa7f8122e971628f04261?r=g&s=80&d=retro />
+This article contributed by: Yanick Champoux &lt;yanick@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="crash kayo zamm splatt" href="2015-12-14.html">Previous</a></li>
+
+    <li class="next"><a title="Building Santa&#39;s Naughty and Nice List with Stepford" href="2015-12-16.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

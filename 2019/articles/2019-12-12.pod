@@ -1,0 +1,246 @@
+Title: Now With Added Interactivity
+Topic: GUIDeFATE
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Yesterday the Wise Old Elf was L<showing|http://perladvent.org/2019/2019-12-10.html>
+a hacky way to quickly throw together a GUI with a touch of HTML,
+JavaScript and a smattering of Perl code.  It was really quick to
+create a GUI using that - but is there an even quicker, and easier, 
+way?
+
+=head2 Introducing GUIDeFATE
+
+L<GUIDeFATE> is a Perl GUI 'framework' (and I use that word in the loosest
+possible sense) that's primary goal is to allow you to quickly
+throw together a user interface in the least possible time.  You
+sacrifice the precise control that you might have with a traditional
+framework in order to get something working in minutes.
+
+Let's rewrite the first dialog example from yesterday.  First, as
+always, we show the finished result:  Running
+
+    $ ./guidefate-dialog.pl
+
+Pops up a native looking dialog box:
+
+=for :html
+   <center><img src="dialogguidefate.jpg" alt="A dialog with text field and OK and Cancel buttons" width='629' height='249'></center>
+
+Pressing the OK button closes the window and prints our familiar
+greeting:
+
+    $ ./guidefate-dialog.pl
+    Merry Christmas, Wise Old Elf
+
+I bet that was complicated to code, right?  Nope, couldn't be easier -
+we didn't even have to really I<code> the GUI bit at all:
+
+    #!/usr/bin/perl
+
+    use 5.024;
+    use warnings;
+
+    use GUIDeFATE;
+
+    my $gui = GUIDeFATE->new(<<'DIALOG');
+    +---------------------------------------+
+    |T Merry Christmas Wisher               |
+    +M--------------------------------------+
+    |  Who?                                 |
+    |  [                                  ] |
+    |  {   OK   }{ Cancel }                 |
+    +---------------------------------------+
+    DIALOG
+
+    my $frame = $gui->getFrame;
+
+    # ok
+    sub btn2 {
+        my $who = $frame->getValue('textctrl1');
+        say "Merry Christmas, $who";
+        $frame->quit
+    }
+
+    # cancel
+    sub btn3 { $frame->quit }
+
+    $gui->MainLoop;
+
+Rather than specifying the controls with some sort of abstract
+windowing toolkit, or laying them out with HTML and CSS as happened
+yesterday, GUIDeFATE takes a different approach: You simply draw out
+the user interface using ASCII-art.  This doesn't give the same level
+of control that you might normally want from your GUI toolkit, but
+what it does allow you to do is quickly create an interface in
+seconds.
+
+There's also no explicit mapping of controls to Perl.  Controls
+are named after the type of thing they are.  The first control is
+called 'textctrl1' because it's a text control and the first control.
+The second control, a button, is 'btn2', the third is 'btn3'.  Pressing
+buttons call the subroutines named after the control.  It's all
+very simple - but you don't have to even work that out. The quickest
+way to work out what a button is called is just to press it and read
+the error message.
+
+    $ ./guidefate-dialog.pl
+    Undefined subroutine &main::btn3 called at ./guidefate-dialog.pl line 35.
+
+The quickest way to work out what the name of a text field is is to
+just print out the contents of all the text fields and take it from
+there:
+
+    #!perl
+    sub show_all_values {
+        for (keys %{ $frame }) {
+            my $control = $frame->{$_};
+            say "$_: ".$control->GetValue
+              if $control && $control->can('GetValue');
+        }
+    }
+
+=head2 But I liked the Browser!
+
+In the above example GUIDeFATE was using the cross platform Wx
+graphics toolkit library.  This means that the same code I<should>
+run Linux, macOS, and even Windows.  But Wx can be a little
+tricky to install if you don't have precompiled binaries to hand
+(I've been doing Perl for over twenty five years and it took me
+a few hours to wrestle it into submission using the latest versions of
+Perl and macOS.)  The browser based solution we had yesterday didn't
+have that same level of complex dependencies.
+
+Luckily, GUIDeFATE isn't tied to any one underlying toolkit.  It
+actually support I<seven> different backends - Wx, Tk, Gtk, Qt, Win32,
+HTML and Websocket.  Switching to 'Tk' is as simple as passing an
+extra argument to the constructor
+
+    #!perl
+    my $gui = GUIDeFATE->new(<<'DIALOG', 'tk');
+    ...
+
+Or even ask it to just render in the browser:
+
+    #!perl
+    my $gui = GUIDeFATE->new(<<'DIALOG', 'web' );
+    ...
+ 
+Like so:
+
+=for :html
+   <center><img src="guidefatews.jpg" alt="A dialog with text field and OK and Cancel buttons in a web browser" width='661' height='384'></center>
+
+
+Clicking OK prints out the message as before - no further code
+changes were necessary.
+
+=head2 A More Complex Example
+
+For good measure here's a straight port of the code I wrote
+yesterday for editing notes.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.024;
+    use warnings;
+
+    use GUIDeFATE;
+    use Path::Tiny    qw( path );
+    use List::UtilsBy qw( min_by );
+    use File::Copy    qw( move );
+
+    my $gui = GUIDeFATE->new(<<'DIALOG' );
+    +---------------------------------------+
+    |T Note Processor                       |
+    +M--------------------------------------+
+    |[                                     ]|
+    |+T------------------------------------+|
+    ||                                     ||
+    ||                                     ||
+    ||                                     ||
+    ||                                     ||
+    ||                                     ||
+    ||                                     ||
+    ||                                     ||
+    ||                                     ||
+    |+-------------------------------------+|
+    |{ Archive }                    { Save }|
+    +---------------------------------------+
+    DIALOG
+    my $frame = $gui->getFrame;
+
+    # where the files are kept
+    my $notes_dir   = path($ENV{HOME}, 'notes');
+    my $archive_dir = path($ENV{HOME}, '.archived-notes');
+
+    # this is the current file we're working on
+    my $file;
+
+    sub next_note () {
+        # find the oldest file to work on 
+        $file = min_by { $_->stat->mtime } $notes_dir->children;
+
+        # update the form in the browser
+        # title is the filename (without dir nor extension)
+        $frame->setValue('textctrl0', $file->basename(qr/.txt/));
+        $frame->setValue('TextCtrl2', $file->slurp_utf8 );
+    }
+
+    # archive clicked
+    sub btn3 {
+        move($file, "$ENV{HOME}/.notes-archive");
+        next_note();
+    };
+
+    # save clicked
+    sub btn4 {
+        my $title    = $frame->getValue('textctrl0');
+        my $contents = $frame->getValue('TextCtrl2'); 
+
+        # write the note out, possibly in a new location
+        path( $notes_dir, $title . '.txt')->spew_utf8( $contents );
+
+        # if we renamed the note delete the old note
+        if ($title ne $file->basename(qr/.txt/)) {
+            unlink $file;
+        }
+
+        next_note();
+    }
+
+    next_note();
+    $gui->MainLoop;
+
+While not as colorful as the HTML version, it presents a simple
+functional interface:
+
+=for :html
+  <center><img src="noteproc.jpg" alt="Screenshot of editor instance" widht="632" height="478"></center>
+
+We can easily flesh this out just a little more.  For example,
+we can add confirmation for archiving:
+
+    #!perl
+    # archive clicked
+    sub btn3 {
+        if ($frame->showDialog(
+                "Sure?",
+                "Are you sure you want to archive?",
+                "OKC",
+                "!"
+            )
+        ){
+            move($file, "$ENV{HOME}/.notes-archive");
+            next_note();
+        }
+    };
+
+=for :html
+  <center><img src="confirm.jpg" alt="confirmation dialog" width="532" height="263"></center>
+
+GUIDeFATE has a bunch of handy things to make quick output really
+simple - file dialogs, menus, and a collection of other widgets that
+I haven't shown here.  I encourage you to have a play with it - it'll
+only take a minute or two to write your first app!
+

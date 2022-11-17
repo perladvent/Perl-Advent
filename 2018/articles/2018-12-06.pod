@@ -1,0 +1,297 @@
+Title: Sticky Delight
+Topic: Array::Sticky::INC
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=encoding utf8
+
+Sugar Plum Pudding was frustrated.  Things were going so sloooowly, and there's
+only so much time an elf can spend drinking eggnog waiting for yet another
+script to start up before he goes a little bit crazy. 
+
+It was his job to validate the updates to the naughty and nice lists that the
+elfs located in the off-grid field offices would send in.  It was a messy
+process, from extracting thumb drives tied to carrier pigeons to scanning and
+OCRing messages encoded in the personals section of various publications.  This
+process involved wielding a plethora of handy-dandy scripts that Plum had
+developed to automate the tedious nature of each of the bespoke data transfer
+mechanisms.
+
+Before he'd gone on vacation these scripts had been as fast as greased lightning.
+When he got back a slew of commits from the new intern - Jingle Frosted Cupcake
+- had made using them practically impossible.  Where they used to start up in
+seconds they now took almost a minute before they even printed out the first
+welcome line.  Inevitably Plum would get bored and distracted waiting for the
+scripts to do their thing and find himself surfing the internet for funny
+Reindeer videos rather than doing what he should be doing.
+
+It was obvious to Sugar Plum Pudding that that pesky intern was now somehow
+loading a whole bunch of code that he didn't really need to at the start of
+each module via one of the normal C<use> statements.  One of these had to
+be causing half the codebase to be loaded in each and every script, making
+the whole thing run at the speed of molasses.
+
+Of course, Jingle Frosted Cupcake denied the whole thing.
+
+"Look Sugar Plum Pudding, I know what you're talking about, which is why
+I instrumented the whole thing and I can tell you for sure, we're not
+loading anything unexpected."
+
+Plum asked Jingle to show him the code he'd used to instrument things.
+It was a pretty standard C<@INC> hook as described L<in last years advent calendar|http://www.perladvent.org/2017/2017-12-14.html>
+
+    #!perl
+    package onitorLoading;
+
+    use strict;
+    use warnings;
+
+    use Time::HiRes qw(time);
+
+    my $time = time;
+    my %seen;
+
+    unshift @INC, sub {
+        shift;
+        my $filename = shift;
+
+        my $modulename = $filename;
+        $modulename =~ s{/}{::}g;
+        $modulename =~ s{[.]pm$}{};
+        return if $seen{$modulename};
+
+        my $t = time - $time;
+        my $time = sprintf('[% 3d.%03d]',int($t),($t-int($t))*1000);
+
+        $seen{ $modulename } = 1;
+
+        print STDERR "$time $modulename\n";
+        return undef;
+    };
+
+    1;
+
+"So you see," Jingle explained, "we push a code ref to the start of
+C<@INC> and whenever Perl tries to load a module it runs the code ref
+first and prints out what it wants to load and the current time"
+
+    $ perl -MonitorLoading -e 'use DateTime'
+    [  0.000] DateTime
+    [  0.000] warnings::register
+    [  0.000] namespace::autoclean
+    [  0.000] B::Hooks::EndOfScope
+    [  0.000] Module::Implementation
+    [  0.000] Module::Runtime
+    [  0.001] Try::Tiny
+    [  0.002] Carp
+    [  0.002] overloading
+    [  0.005] Sub::Util
+    [  0.005] List::Util
+    [  0.006] constant
+    [  0.007] B::Hooks::EndOfScope::XS
+    [  0.008] Variable::Magic
+    [  0.008] base
+    [  0.008] vars
+    [  0.010] Sub::Exporter::Progressive
+    [  0.012] namespace::clean
+    [  0.012] Package::Stash
+    [  0.012] Package::Stash::XS
+    [  0.013] namespace::clean::_Util
+    [  0.015] DateTime::Duration
+    [  0.015] DateTime::Helpers
+    [  0.015] Scalar::Util
+    [  0.016] DateTime::Types
+    [  0.016] parent
+    [  0.016] Specio::Exporter
+    [  0.016] Specio::Helpers
+    [  0.016] overload
+    [  0.017] Specio::Registry
+    [  0.018] Specio
+    [  0.018] Specio::Declare
+    [  0.018] Specio::Coercion
+    [  0.018] Specio::OO
+    [  0.018] B
+    [  0.020] Eval::Closure
+    [  0.021] MRO::Compat
+    [  0.021] mro
+    [  0.021] DynaLoader
+    [  0.021] Config
+    [  0.023] Role::Tiny
+    [  0.025] Specio::PartialDump
+    [  0.025] utf8
+    [  0.026] utf8_heavy.pl
+    [  0.026] re
+    [  0.029] unicore::Heavy.pl
+    [  0.037] unicore::lib::Perl::Print.pl
+    [  0.038] Specio::TypeChecks
+    [  0.038] Storable
+    [  0.038] Log::Agent
+    [  0.038] Fcntl
+    [  0.041] Role::Tiny::With
+    [  0.041] Specio::Role::Inlinable
+    [  0.043] Specio::Constraint::Simple
+    [  0.043] Specio::Constraint::Role::Interface
+    [  0.043] Specio::Exception
+    [  0.044] Devel::StackTrace
+    [  0.044] Devel::StackTrace::Frame
+    [  0.045] File::Spec
+    [  0.045] File::Spec::Unix
+    [  0.045] Cwd
+    [  0.054] Specio::DeclaredAt
+    [  0.056] Specio::Library::Builtins
+    [  0.056] Specio::Constraint::Parameterizable
+    [  0.056] Specio::Constraint::Parameterized
+    [  0.061] Ref::Util
+    [  0.061] Ref::Util::XS
+    [  0.064] Specio::Library::Numeric
+    [  0.067] Specio::Library::String
+    [  0.068] Sub::Identify
+    [  0.069] Specio::Constraint::AnyCan
+    [  0.070] Specio::Constraint::Role::CanType
+    [  0.074] Specio::Constraint::ObjectIsa
+    [  0.075] Specio::Constraint::Role::IsaType
+    [  0.078] Specio::Constraint::Enum
+    [  0.083] Specio::Constraint::Union
+    [  0.085] Specio::Constraint::ObjectCan
+    [  0.091] Params::ValidationCompiler
+    [  0.091] Params::ValidationCompiler::Compiler
+    [  0.091] Params::ValidationCompiler::Exceptions
+    [  0.092] Exception::Class
+    [  0.092] Exception::Class::Base
+    [  0.092] Class::Data::Inheritable
+    [  0.095] Class::XSAccessor
+    [  0.095] Class::XSAccessor::Heavy
+    [  0.102] DateTime::Locale
+    [  0.102] DateTime::Locale::Data
+    [  0.102] File::ShareDir
+    [  0.103] Class::Inspector
+    [  0.105] List::MoreUtils
+    [  0.105] List::MoreUtils::PP
+    [  0.108] List::MoreUtils::XS
+    [  0.108] Exporter::Tiny
+    [  0.119] Params::Util
+    [  0.130] DateTime::Locale::FromData
+    [  0.131] DateTime::Locale::Util
+    [  0.135] DateTime::TimeZone
+    [  0.136] DateTime::TimeZone::Catalog
+    [  0.139] DateTime::TimeZone::Floating
+    [  0.139] Class::Singleton
+    [  0.139] DateTime::TimeZone::OffsetOnly
+    [  0.140] DateTime::TimeZone::UTC
+    [  0.142] DateTime::TimeZone::Local
+    [  0.143] DateTime::TimeZone::OlsonDB::Change
+    [  0.153] POSIX
+    [  0.155] Tie::Hash
+    [  0.158] integer
+    [  0.165] DateTime::Infinite
+
+"When I run it against our code base, I don't see a whole lot of our
+code being loaded at all."
+
+Plum thought that this was odd, so he tried it himself.  And Jingle was
+right, almost none of their code I<was> being listed!
+
+Three mince pies later, Jingle figured out why.  He'd opened up one of the
+scripts and spotted the offending lines:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    # load modules from our local directory too
+    use FindBin qw( $FindBin::Bin );
+    use File::Spec::Functions qw( catdir );
+    use lib catdir( $FindBin::Bin, 'lib' );
+
+The last three lines of the code were telling perl to load modules from
+the C<lib> directory located in the same directory as the script itself.
+And it did this by pushing a new directory to the front of C<@INC> -
+in B<front> of the code ref that C<onitorLoading> had put there, meaning
+that that code hook was never called!
+
+What Sugar Plum Pudding needed to do was somehow make this first entry
+of C<@INC> I<sticky> so that it always stayed where it was even if
+something else was pushed to the start of C<@INC>.
+
+Sugar Plum Pudding knew that you can tie arrays in Perl so that whenever
+someone reads from or writes to them instead of using a dumb old array perl
+would execute code.  And C<@INC> for these purposes can be tied just like
+any old array.
+
+So fixing this I<should> be as simple as writing a little Perl code.  Or,
+this being Perl, going to the CPAN for some Perl code that does this for
+us.
+
+=head2 Array::Sticky
+
+L<Array::Sticky> on the CPAN can help us here.  It's able to tie an
+array so that it has a static head part and a mutable end part.
+
+    #!perl
+    use Array::Sticky;
+
+    my @reindeer;
+    tie @reindeer, 'Array::Sticky',
+        head => ['Rudolph'],
+        tail => ['Dasher','Prancer','Vixen'];
+    
+    # add more reindeer.  We're only really manipulating
+    # the tail part of the list!
+    unshift @reindeer, 'Comet';
+
+    say join ', ', @reindeer;
+    # Rudolph, Comet, Dasher, Prancer, Vixen
+
+Note that Rudolph stays at the front of the list, and Comet is
+only C<unshift>-ed to second place.
+
+We can do the same with C<@INC> to keep the first element static:
+
+    #!perl
+    tie @INC, 'Array::Sticky', head => [shift @INC], body => [@INC];
+
+Or, Sugar Plum Pudding can use L<Array::Sticky::INC> from the CPAN, that does
+exactly that!
+
+    #!perl
+    package onitorLoading;
+
+    use strict;
+    use warnings;
+    use Array::Sticky::INC;
+
+    use Time::HiRes qw(time);
+
+    my $time = time;
+    my %seen;
+
+    unshift @INC, sub {
+        shift;
+        my $filename = shift;
+
+        my $modulename = $filename;
+        $modulename =~ s{/}{::}g;
+        $modulename =~ s{[.]pm$}{};
+        return if $seen{$modulename};
+
+        my $t = time - $time;
+        my $time = sprintf('[% 3d.%03d]',int($t),($t-int($t))*1000);
+
+        $seen{ $modulename } = 1;
+
+        print STDERR "$time $modulename\n";
+        return undef;
+    };
+
+    Array::Sticky::INC->make_sticky;
+
+    1;
+
+
+=head2 It's full of dependencies!
+
+Sugar Plum made the change and soon spotted the guilty commit that Jingle
+Frosted Cupcake had made that accidentally loaded a module that loaded a module
+that loaded a module that loaded their entire web app and the entire
+L<DBIx::Class> layer.

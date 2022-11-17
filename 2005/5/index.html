@@ -1,0 +1,273 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css"><!--
+.frac{ font-family: Arial Unicode MS, CaslonRoman, Code2000, Lucida Sans Regular, Palatino Linotype, Monospaced, Dialog, DialogInput,Y, SansSerif, Serif }
+--></style>
+<title>YA Perl Advent Calendar 2005: Catchup</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body>
+<h1><a href="../">YA Perl Advent Calendar</a>
+2005-12-01 &ndash; 2005-12-05</h1>
+<blockquote style="padding: 1em; border: 2px ridge black; background-color:#eee">
+Hello, as some may have noticed there's no
+<a href="http://perladvent.org">advent calendar</a> this year... and there was
+much <strike>rejoicing</strike>dismay. So I've&mdash;quite stupidly some might
+say&mdash;decided to take on the challenge. We're already
+<span class="frac">&#x2155;</span>th of the way through so you'll forgive me
+if I rush on the catching up and take a cue from Damian's Small Miracles. And
+now, on with the show.
+<span style="float:right">&mdash;jpierce@cpan &amp; belg4mit@perlmonks</span><br /><br />
+</blockquote>
+
+<p />
+Below is a code listing I whipped up to fetch a <a href="#list">list</a> of
+previously featured modules, so as not to flog a deceased equine designed by
+committee as it were ;-). The listing features five perl modules.
+<p />
+<dl>
+<dt><a href="http://perltidy.sf.net">Perl::Tidy</a> aka perltidy
+<dd>This utility is used for pretty printing your code, or rather your cow
+orkers' code since everyone reading this has read Perl Best Practices and taken
+it to heart, <em>n'est-ce pas</em>? Anyhow, perltidy can also output syntax
+highligthed HTML as in our example created with
+<tt>perltidy -html -nnn -css=style.css mods.pl</tt>.
+<dt><a href="http://search.cpan.org/search?module=LWP::Simple">LWP::Simple</a>
+<dd>Actually, this has already been featured twice before, so why not again?
+It really is quite useful and well, simple. Use it for all your HTTP GET/HEAD
+needs.
+<dt><a href="http://search.cpan.org/search?module=">HTML::Parser</a>
+<dd>We actually use two of the interfaces provided in this package,
+HTML::TokeParser and HTML::HeadParser. HeadParser is brilliantly simple and
+saved me from parsing HTML with a regexp. TokeParser works well, but like many
+screen scraping tools you need to have a feel for the document structure and
+may risk future breakage. Note the difference in calling syntax however,
+HeadParser will read a document from a variable whereas TokeParser requires
+a variable reference for this behavior.
+<dt><a href="http://search.cpan.org/search?module=Lingua::EN::Numbers::Ordinate">Lingua::EN::Numbers::Ordinate</a>
+<dd>This module was another nice piece of candy which prevented me from
+reinventing the wheel and implementing my own number English-ifier, since
+perladvent.org uses ordinal URIs :-( Similar modules exist for other languages,
+but not necessarily with similar names e.g;
+<a href="http://search.cpan.org/search?module=Lingua::PT::Nums2Ords">Lingua::PT::Nums2Ords</a>
+<dt><a href="http://search.cpan.org/search?module=Text::Table">Text::Table</a>
+<dd>To be honest, I originally just did a <tt>print</tt> instead of
+<tt>$table->add()</tt> but the module is quite simple to use, even if the
+POD is verbose. Plus it handles alignment, prior to using sprintf to format
+the date for constant width by zero-padding <tt>$D</tt> I had a simple
+<p/ >
+<pre>
+    <span class="i">$table</span><span class="i">-&gt;add</span><span class="s">(</span><span class="q">&quot;$Y-12-$D&quot;</span><span class="cm">,</span> <span class="i">$title</span><span class="s">)</span><span class="sc">;</span>    
+</pre></p>
+<p>and Text:Table still properly aligned the <tt>Module</tt> column.</p>
+</dl>
+
+<a name="-top-"></a>
+<h1><a href="mods.pl">mods.pl</a></h1>
+<hr />
+<pre>
+   1 #!perl -sw
+   2 <span class="c">#mods.pl -- Previous Perl Advent Calendar Modules v3</span>
+   3 
+   4 <span class="k">use</span> <span class="w">strict</span><span class="sc">;</span>
+   5 <span class="k">use</span> <span class="w">vars</span> <span class="q">'$html'</span><span class="sc">;</span> <span class="c">#Switch for HTML output to provide linked module names</span>
+   6 
+   7 <span class="k">use</span> <span class="w">LWP::Simple</span><span class="sc">;</span>
+   8 <span class="k">use</span> <span class="w">HTML::HeadParser</span><span class="sc">;</span>
+   9 <span class="k">use</span> <span class="w">HTML::TokeParser</span><span class="sc">;</span>
+  10 <span class="k">use</span> <span class="w">Text::Table</span><span class="sc">;</span>
+  11 <span class="k">use</span> <span class="w">Lingua::EN::Numbers::Ordinate</span><span class="sc">;</span>
+  12 
+  13 <span class="k">my</span> <span class="i">$table</span> = <span class="w">Text::Table</span><span class="w">-&gt;new</span><span class="s">(</span> <span class="q">qw(Date Module)</span> <span class="s">)</span><span class="sc">;</span>
+  14 
+  15 <span class="c">#2000 is a special case</span>
+  16 <span class="s">{</span>
+  17   <span class="k">my</span> <span class="i">$content</span> = <span class="i">get</span><span class="s">(</span><span class="i">$_</span>=<span class="q">&quot;http://perladvent.org/2000/&quot;</span><span class="s">)</span><span class="sc">;</span>
+  18   <span class="k">unless</span><span class="s">(</span> <span class="i">$content</span> <span class="s">)</span> <span class="s">{</span>
+  19     <span class="k">warn</span><span class="s">(</span><span class="q">&quot;No content for: $_\n&quot;</span><span class="s">)</span><span class="sc">;</span>
+  20     <span class="k">last</span><span class="sc">;</span> <span class="s">}</span>
+  21 
+  22   <span class="k">my</span> <span class="i">$parser</span> = <span class="w">HTML::TokeParser</span><span class="w">-&gt;new</span><span class="s">(</span>\<span class="i">$content</span><span class="s">)</span><span class="sc">;</span>
+  23 
+  24   <span class="k">my</span> <span class="i">$D</span> = <span class="n">1</span><span class="sc">;</span>
+  25   <span class="c">#Cheaply lifted from the Toke documentation</span>
+  26   <span class="k">while</span> <span class="s">(</span><span class="k">my</span> <span class="i">$token</span> = <span class="i">$parser</span><span class="i">-&gt;get_tag</span><span class="s">(</span><span class="q">&quot;li&quot;</span><span class="s">)</span><span class="s">)</span> <span class="s">{</span>
+  27     <span class="k">my</span> <span class="i">$title</span> = <span class="i">fixTitle</span><span class="s">(</span> <span class="i">$parser</span><span class="i">-&gt;get_trimmed_text</span><span class="s">(</span><span class="q">&quot;/li&quot;</span><span class="s">)</span> <span class="s">)</span><span class="sc">;</span>
+  28     <span class="i">$table</span><span class="i">-&gt;add</span><span class="s">(</span><span class="k">sprintf</span><span class="s">(</span><span class="q">&quot;2000-12-%02i&quot;</span><span class="cm">,</span> <span class="i">$D</span>++<span class="s">)</span><span class="cm">,</span> <span class="i">$title</span><span class="s">)</span><span class="sc">;</span>    
+  29   <span class="s">}</span>
+  30 <span class="s">}</span>
+  31 
+  32 <span class="k">my</span> <span class="i">$header</span> = <span class="w">HTML::HeadParser</span><span class="w">-&gt;new</span><span class="s">(</span><span class="s">)</span><span class="sc">;</span>
+  33 
+  34 <span class="k">foreach</span> <span class="k">my</span> <span class="i">$Y</span> <span class="s">(</span> <span class="n">2001</span> .. <span class="n">2004</span> <span class="s">)</span><span class="s">{</span>
+  35   <span class="k">foreach</span> <span class="k">my</span> <span class="i">$D</span> <span class="s">(</span> <span class="n">1</span>..<span class="n">25</span> <span class="s">)</span><span class="s">{</span>
+  36 
+  37     <span class="k">my</span> <span class="i">$content</span> = <span class="i">get</span><span class="s">(</span> <span class="i">$_</span> = <span class="k">sprintf</span><span class="s">(</span><span class="q">&quot;http://perladvent.org/$Y/%s&quot;</span><span class="cm">,</span>
+  38 				    <span class="i">ordinate</span><span class="s">(</span><span class="i">$D</span><span class="s">)</span><span class="s">)</span>
+  39 		     <span class="s">)</span><span class="sc">;</span>
+  40     <span class="k">unless</span><span class="s">(</span> <span class="i">$content</span> <span class="s">)</span> <span class="s">{</span>
+  41       <span class="k">warn</span><span class="s">(</span><span class="q">&quot;No content for: $_\n&quot;</span><span class="s">)</span><span class="sc">;</span>
+  42       <span class="k">next</span><span class="sc">;</span> <span class="s">}</span>
+  43 
+  44     <span class="i">$header</span><span class="i">-&gt;parse</span><span class="s">(</span><span class="i">$content</span><span class="s">)</span><span class="sc">;</span>
+  45     <span class="k">my</span> <span class="i">$title</span> = <span class="i">fixTitle</span><span class="s">(</span> <span class="i">$header</span><span class="i">-&gt;header</span><span class="s">(</span><span class="q">'Title'</span><span class="s">)</span><span class="cm">,</span> <span class="i">$Y</span><span class="s">)</span><span class="sc">;</span>
+  46     
+  47     <span class="i">$table</span><span class="i">-&gt;add</span><span class="s">(</span> <span class="k">sprintf</span><span class="s">(</span><span class="q">&quot;$Y-12-%02i&quot;</span><span class="cm">,</span> <span class="i">$D</span><span class="s">)</span><span class="cm">,</span> <span class="i">$title</span> <span class="s">)</span><span class="sc">;</span>
+  48   <span class="s">}</span>
+  49 <span class="s">}</span>
+  50 
+  51 <span class="k">print</span> <span class="i">$table</span><span class="sc">;</span>
+  52 
+  53 <span class="c">#Never you mind this...</span>
+<a name="fixTitle-"></a>  54 <span class="k">sub </span><span class="m">fixTitle</span><span class="s">{</span>
+  55   <span class="k">my</span><span class="s">(</span><span class="i">$title</span><span class="cm">,</span> <span class="i">$year</span><span class="s">)</span> = <span class="i">@_</span><span class="sc">;</span>
+  56 
+  57   <span class="i">$title</span> =~ <span class="q">s/Perl $year Advent Calendar: //</span> <span class="k">if</span> <span class="i">$year</span><span class="sc">;</span>
+  58 
+  59   <span class="c">#These are unavailable</span>
+  60   <span class="i">$title</span> = <span class="q">''</span> <span class="k">if</span> <span class="i">$title</span> =~ <span class="q">/^tbc|Perl Advent Calendar|Lost/</span><span class="sc">;</span>
+  61   <span class="k">if</span><span class="s">(</span> <span class="i">$html</span> &amp;&amp; <span class="k">length</span><span class="s">(</span><span class="i">$title</span><span class="s">)</span> <span class="s">)</span><span class="s">{</span>
+  62     <span class="i">$title</span> = <span class="q">qq(&lt;a href=&quot;http://search.cpan.org/search?module=$title&quot;&gt;$title&lt;/a&gt;)</span><span class="sc">;</span>
+  63   <span class="s">}</span>
+  64   <span class="k">elsif</span><span class="s">(</span> ! <span class="k">length</span><span class="s">(</span><span class="i">$title</span><span class="s">)</span> <span class="s">)</span><span class="s">{</span>
+  65     <span class="i">$title</span> = <span class="q">'N/A'</span><span class="sc">;</span>
+  66   <span class="s">}</span>
+  67 
+  68   <span class="k">return</span> <span class="i">$title</span><span class="sc">;</span>
+  69 <span class="s">}</span>
+</pre>
+
+Which gives us the following; well, almost. A list of all modules
+featured on prior perl advent calendars, see also
+<a href="alpha.html">ASCII-betical listing</a>:
+<a name="list"></a>
+<pre>
+Date       Module
+2000-12-01  <a href="http://search.cpan.org/search?module=Data::Dumper">Data::Dumper</a>
+2000-12-02  <a href="http://search.cpan.org/search?module=LWP::Simple">LWP::Simple</a>
+2000-12-03  <a href="http://search.cpan.org/search?module=POE::Component::IRC">POE::Component::IRC</a>
+2000-12-04  <a href="http://search.cpan.org/search?module=Exporter">Exporter</a>
+2000-12-05  <a href="http://search.cpan.org/search?module=Time::Local">Time::Local</a>
+2000-12-06  <a href="http://search.cpan.org/search?module=Time::Object">Time::Object</a>
+2000-12-07  <a href="http://search.cpan.org/search?module=Tie::Scalar::Timeout">Tie::Scalar::Timeout</a>
+2000-12-08  <a href="http://search.cpan.org/search?module=Tie::HashDefaults">Tie::HashDefaults</a>
+2000-12-09  <a href="http://search.cpan.org/search?module=Crypt::RC4">Crypt::RC4</a>
+2000-12-10  <a href="http://search.cpan.org/search?module=GD">GD</a>
+2000-12-11  <a href="http://search.cpan.org/search?module=Image::Imlib2">Image::Imlib2</a>
+2000-12-12  <a href="http://search.cpan.org/search?module=File::Remote">File::Remote</a>
+2000-12-13  N/A
+2000-12-14  <a href="http://search.cpan.org/search?module=XML::Grove">XML::Grove</a>
+2000-12-15  <a href="http://search.cpan.org/search?module=Getopt::Long">Getopt::Long</a>
+2000-12-16  <a href="http://search.cpan.org/search?module=File::Find">File::Find</a>
+2000-12-17  <a href="http://search.cpan.org/search?module=DBI">DBI</a>
+2000-12-18  <a href="http://search.cpan.org/search?module=Memoize">Memoize</a>
+2000-12-19  <a href="http://search.cpan.org/search?module=Storable">Storable</a>
+2000-12-20  <a href="http://search.cpan.org/search?module=Inline">Inline</a>
+2000-12-21  <a href="http://search.cpan.org/search?module=Class::Virtual">Class::Virtual</a>
+2000-12-22  <a href="http://search.cpan.org/search?module=Class::Multimethods">Class::Multimethods</a>
+2000-12-23  <a href="http://search.cpan.org/search?module=Symbol::Approx::Sub">Symbol::Approx::Sub</a>
+2000-12-24  <a href="http://search.cpan.org/search?module=Template">Template</a>
+2000-12-25  <a href="http://search.cpan.org/search?module=Date::Christmas">Date::Christmas</a>
+<a href="http://perladvent.org/2001/1st">2001-12-01</a>  <a href="http://search.cpan.org/search?module=Mail::Audit">Mail::Audit</a>
+<a href="http://perladvent.org/2001/2nd">2001-12-02</a>  <a href="http://search.cpan.org/search?module=Mail::ListDetector">Mail::ListDetector</a>
+<a href="http://perladvent.org/2001/3rd">2001-12-03</a>  <a href="http://search.cpan.org/search?module=Tie::DBI">Tie::DBI</a>
+<a href="http://perladvent.org/2001/4th">2001-12-04</a>  <a href="http://search.cpan.org/search?module=File::Spec">File::Spec</a>
+<a href="http://perladvent.org/2001/5th">2001-12-05</a>  <a href="http://search.cpan.org/search?module=XML::XPath">XML::XPath</a>
+<a href="http://perladvent.org/2001/6th">2001-12-06</a>  <a href="http://search.cpan.org/search?module=Acme::Pony">Acme::Pony</a>
+<a href="http://perladvent.org/2001/7th">2001-12-07</a>  <a href="http://search.cpan.org/search?module=Scalar::Util">Scalar::Util</a>
+<a href="http://perladvent.org/2001/8th">2001-12-08</a>  <a href="http://search.cpan.org/search?module=List::Util">List::Util</a>
+<a href="http://perladvent.org/2001/9th">2001-12-09</a>  <a href="http://search.cpan.org/search?module=GraphViz">GraphViz</a>
+<a href="http://perladvent.org/2001/10th">2001-12-10</a>  <a href="http://search.cpan.org/search?module=Test::More">Test::More</a>
+<a href="http://perladvent.org/2001/11th">2001-12-11</a>  <a href="http://search.cpan.org/search?module=POE">POE</a>
+<a href="http://perladvent.org/2001/12th">2001-12-12</a>  <a href="http://search.cpan.org/search?module=POE::Component::Client::HTTP">POE::Component::Client::HTTP</a>
+<a href="http://perladvent.org/2001/13th">2001-12-13</a>  <a href="http://search.cpan.org/search?module=Crypt::Solitaire">Crypt::Solitaire</a>
+<a href="http://perladvent.org/2001/14th">2001-12-14</a>  <a href="http://search.cpan.org/search?module=Spreadsheet::WriteExcel">Spreadsheet::WriteExcel</a>
+<a href="http://perladvent.org/2001/15th">2001-12-15</a>  <a href="http://search.cpan.org/search?module=Pod::Coverage">Pod::Coverage</a>
+<a href="http://perladvent.org/2001/16th">2001-12-16</a>  <a href="http://search.cpan.org/search?module=Tie::Hash::Cannabinol">Tie::Hash::Cannabinol</a>
+<a href="http://perladvent.org/2001/17th">2001-12-17</a>  <a href="http://search.cpan.org/search?module=Attribute::TieClasses">Attribute::TieClasses</a>
+<a href="http://perladvent.org/2001/18th">2001-12-18</a>  <a href="http://search.cpan.org/search?module=Attribute::Overload">Attribute::Overload</a>
+<a href="http://perladvent.org/2001/19th">2001-12-19</a>  <a href="http://search.cpan.org/search?module=Class::MethodMaker">Class::MethodMaker</a>
+<a href="http://perladvent.org/2001/20th">2001-12-20</a>  <a href="http://search.cpan.org/search?module=ExtUtils::ModuleMaker">ExtUtils::ModuleMaker</a>
+<a href="http://perladvent.org/2001/21st">2001-12-21</a>  <a href="http://search.cpan.org/search?module=Exporter::Simple">Exporter::Simple</a>
+<a href="http://perladvent.org/2001/22nd">2001-12-22</a>  <a href="http://search.cpan.org/search?module=Text::Autoformat">Text::Autoformat</a>
+<a href="http://perladvent.org/2001/23rd">2001-12-23</a>  <a href="http://search.cpan.org/search?module=Inline::Files">Inline::Files</a>
+<a href="http://perladvent.org/2001/24th">2001-12-24</a>  <a href="http://search.cpan.org/search?module=Quantum::Superpositions">Quantum::Superpositions</a>
+<a href="http://perladvent.org/2001/25th">2001-12-25</a>  <a href="http://search.cpan.org/search?module=Parse::RecDescent">Parse::RecDescent</a>
+<a href="http://perladvent.org/2002/1st">2002-12-01</a>  <a href="http://search.cpan.org/search?module=URI::Find">URI::Find</a>
+<a href="http://perladvent.org/2002/2nd">2002-12-02</a>  <a href="http://search.cpan.org/search?module=IO::AtomicFile">IO::AtomicFile</a>
+<a href="http://perladvent.org/2002/3rd">2002-12-03</a>  <a href="http://search.cpan.org/search?module=DBD::SQLite">DBD::SQLite</a>
+<a href="http://perladvent.org/2002/4th">2002-12-04</a>  <a href="http://search.cpan.org/search?module=Test::Builder">Test::Builder</a>
+<a href="http://perladvent.org/2002/5th">2002-12-05</a>  <a href="http://search.cpan.org/search?module=Image::Size">Image::Size</a>
+<a href="http://perladvent.org/2002/6th">2002-12-06</a>  <a href="http://search.cpan.org/search?module=Devel::Size">Devel::Size</a>
+<a href="http://perladvent.org/2002/7th">2002-12-07</a>  <a href="http://search.cpan.org/search?module=File::MMagic">File::MMagic</a>
+<a href="http://perladvent.org/2002/8th">2002-12-08</a>  <a href="http://search.cpan.org/search?module=XML::Handler::AxPoint">XML::Handler::AxPoint</a>
+<a href="http://perladvent.org/2002/9th">2002-12-09</a>  <a href="http://search.cpan.org/search?module=XML::SAX">XML::SAX</a>
+<a href="http://perladvent.org/2002/10th">2002-12-10</a>  <a href="http://search.cpan.org/search?module=Params::Validate">Params::Validate</a>
+<a href="http://perladvent.org/2002/11th">2002-12-11</a>  <a href="http://search.cpan.org/search?module=File::Find::Rule">File::Find::Rule</a>
+<a href="http://perladvent.org/2002/12th">2002-12-12</a>  <a href="http://search.cpan.org/search?module=Object::Realize::Later">Object::Realize::Later</a>
+<a href="http://perladvent.org/2002/13th">2002-12-13</a>  <a href="http://search.cpan.org/search?module=Benchmark">Benchmark</a>
+<a href="http://perladvent.org/2002/14th">2002-12-14</a>  <a href="http://search.cpan.org/search?module=Test::MockObject">Test::MockObject</a>
+<a href="http://perladvent.org/2002/15th">2002-12-15</a>  <a href="http://search.cpan.org/search?module=YAML">YAML</a>
+<a href="http://perladvent.org/2002/16th">2002-12-16</a>  <a href="http://search.cpan.org/search?module=WWW::Mechanize">WWW::Mechanize</a>
+<a href="http://perladvent.org/2002/17th">2002-12-17</a>  <a href="http://search.cpan.org/search?module=Acme::Intraweb">Acme::Intraweb</a>
+<a href="http://perladvent.org/2002/18th">2002-12-18</a>  <a href="http://search.cpan.org/search?module=CPANPLUS">CPANPLUS</a>
+<a href="http://perladvent.org/2002/19th">2002-12-19</a>  <a href="http://search.cpan.org/search?module=Inline::TT">Inline::TT</a>
+<a href="http://perladvent.org/2002/20th">2002-12-20</a>  <a href="http://search.cpan.org/search?module=Class::Data::Inheritable">Class::Data::Inheritable</a>
+<a href="http://perladvent.org/2002/21st">2002-12-21</a>  <a href="http://search.cpan.org/search?module=Tie::File">Tie::File</a>
+<a href="http://perladvent.org/2002/22nd">2002-12-22</a>  <a href="http://search.cpan.org/search?module=XML::LibXML">XML::LibXML</a>
+<a href="http://perladvent.org/2002/23rd">2002-12-23</a>  <a href="http://search.cpan.org/search?module=Class::DBI">Class::DBI</a>
+<a href="http://perladvent.org/2002/24th">2002-12-24</a>  <a href="http://search.cpan.org/search?module=Pixie">Pixie</a>
+<a href="http://perladvent.org/2002/25th">2002-12-25</a>  <a href="http://search.cpan.org/search?module=Devel::DProf">Devel::DProf</a>
+<a href="http://perladvent.org/2003/1st">2003-12-01</a>  <a href="http://search.cpan.org/search?module=CGI::Untaint">CGI::Untaint</a>
+<a href="http://perladvent.org/2003/2nd">2003-12-02</a>  <a href="http://search.cpan.org/search?module=HTML::Entities">HTML::Entities</a>
+<a href="http://perladvent.org/2003/3rd">2003-12-03</a>  <a href="http://search.cpan.org/search?module=Hook::LexWrap">Hook::LexWrap</a>
+<a href="http://perladvent.org/2003/4th">2003-12-04</a>  <a href="http://search.cpan.org/search?module=PPerl">PPerl</a>
+<a href="http://perladvent.org/2003/5th">2003-12-05</a>  <a href="http://search.cpan.org/search?module=Template::Extract">Template::Extract</a>
+<a href="http://perladvent.org/2003/6th">2003-12-06</a>  <a href="http://search.cpan.org/search?module=Mail::SpamAssassin">Mail::SpamAssassin</a>
+<a href="http://perladvent.org/2003/7th">2003-12-07</a>  <a href="http://search.cpan.org/search?module=Attribute::Handlers">Attribute::Handlers</a>
+<a href="http://perladvent.org/2003/8th">2003-12-08</a>  <a href="http://search.cpan.org/search?module=CGI::Application">CGI::Application</a>
+<a href="http://perladvent.org/2003/9th">2003-12-09</a>  <a href="http://search.cpan.org/search?module=Data::Dimensions">Data::Dimensions</a>
+<a href="http://perladvent.org/2003/10th">2003-12-10</a>  <a href="http://search.cpan.org/search?module=Test::Inline">Test::Inline</a>
+<a href="http://perladvent.org/2003/11th">2003-12-11</a>  <a href="http://search.cpan.org/search?module=File::chdir">File::chdir</a>
+<a href="http://perladvent.org/2003/12th">2003-12-12</a>  <a href="http://search.cpan.org/search?module=Class::ISA">Class::ISA</a>
+<a href="http://perladvent.org/2003/13th">2003-12-13</a>  <a href="http://search.cpan.org/search?module=only">only</a>
+<a href="http://perladvent.org/2003/14th">2003-12-14</a>  <a href="http://search.cpan.org/search?module=Date::Parse">Date::Parse</a>
+<a href="http://perladvent.org/2003/15th">2003-12-15</a>  <a href="http://search.cpan.org/search?module=Text::Glob">Text::Glob</a>
+<a href="http://perladvent.org/2003/16th">2003-12-16</a>  <a href="http://search.cpan.org/search?module=Math::BigInt">Math::BigInt</a>
+<a href="http://perladvent.org/2003/17th">2003-12-17</a>  <a href="http://search.cpan.org/search?module=diagnostics">diagnostics</a>
+<a href="http://perladvent.org/2003/18th">2003-12-18</a>  <a href="http://search.cpan.org/search?module=PDF::Reuse">PDF::Reuse</a>
+<a href="http://perladvent.org/2003/19th">2003-12-19</a>  <a href="http://search.cpan.org/search?module=Acme::Code::FreedomFighter">Acme::Code::FreedomFighter</a>
+<a href="http://perladvent.org/2003/20th">2003-12-20</a>  <a href="http://search.cpan.org/search?module=Regexp::Common">Regex::Common</a> (sic)
+<a href="http://perladvent.org/2003/21st">2003-12-21</a>  <a href="http://search.cpan.org/search?module=Inline::Java">Inline::Java</a>
+<a href="http://perladvent.org/2003/22nd">2003-12-22</a>  <a href="http://search.cpan.org/search?module=LWP::Simple">LWP::Simple</a>
+2003-12-23  N/A
+<a href="http://perladvent.org/2003/24th">2003-12-24</a>  <a href="http://search.cpan.org/search?module=Data::Structure::Util">Data::Structure::Util</a>
+<a href="http://perladvent.org/2003/25th">2003-12-25</a>  <a href="http://search.cpan.org/search?module=PAR">PAR</a>
+<a href="http://perladvent.org/2004/1st">2004-12-01</a>  <a href="http://search.cpan.org/search?module=DateTime">DateTime</a>
+<a href="http://perladvent.org/2004/2nd">2004-12-02</a>  <a href="http://search.cpan.org/search?module=Term::ANSIColor">Term::ANSIColor</a>
+<a href="http://perladvent.org/2004/3rd">2004-12-03</a>  <a href="http://search.cpan.org/search?module=Class::Accessor::Chained">Class::Accessor::Chained</a>
+<a href="http://perladvent.org/2004/4th">2004-12-04</a>  <a href="http://search.cpan.org/search?module=String::ShellQuote">String::ShellQuote</a>
+<a href="http://perladvent.org/2004/5th">2004-12-05</a>  <a href="http://search.cpan.org/search?module=CPAN::Mini">CPAN::Mini</a>
+<a href="http://perladvent.org/2004/6th">2004-12-06</a>  <a href="http://search.cpan.org/search?module=Module::Pluggable">Module::Pluggable</a>
+<a href="http://perladvent.org/2004/7th">2004-12-07</a>  <a href="http://search.cpan.org/search?module=Term::ProgressBar">Term::ProgressBar</a>
+<a href="http://perladvent.org/2004/8th">2004-12-08</a>  <a href="http://search.cpan.org/search?module=Data::Dumper::Simple">Data::Dumper::Simple</a>
+<a href="http://perladvent.org/2004/9th">2004-12-09</a>  <a href="http://search.cpan.org/search?module=Proc::Daemon">Proc::Daemon</a>
+<a href="http://perladvent.org/2004/10th">2004-12-10</a>  <a href="http://search.cpan.org/search?module=Data::UUID">Data::UUID</a>
+<a href="http://perladvent.org/2004/11th">2004-12-11</a>  <a href="http://search.cpan.org/search?module=Encode">Encode</a>
+<a href="http://perladvent.org/2004/12th">2004-12-12</a>  <a href="http://search.cpan.org/search?module=Text::Unidecode">Text::Unidecode</a>
+<a href="http://perladvent.org/2004/13th">2004-12-13</a>  <a href="http://search.cpan.org/search?module=Devel::Trace">Devel::Trace</a>
+<a href="http://perladvent.org/2004/14th">2004-12-14</a>  <a href="http://search.cpan.org/search?module=SQL::Abstract">SQL::Abstract</a>
+<a href="http://perladvent.org/2004/15th">2004-12-15</a>  <a href="http://search.cpan.org/search?module=Archive::Extract">Archive::Extract</a>
+<a href="http://perladvent.org/2004/16th">2004-12-16</a>  <a href="http://search.cpan.org/search?module=Cache::Cache">Cache::Cache</a>
+<a href="http://perladvent.org/2004/17th">2004-12-17</a>  <a href="http://search.cpan.org/search?module=Mac::Glue">Mac::Glue</a>
+<a href="http://perladvent.org/2004/18th">2004-12-18</a>  <a href="http://search.cpan.org/search?module=Acme::Drunk">Acme::Drunk</a>
+2004-12-19  N/A
+<a href="http://perladvent.org/2004/20th">2004-12-20</a>  <a href="http://search.cpan.org/search?module=Filesys::Virtual">Filesys::Virtual</a>
+<a href="http://perladvent.org/2004/21st">2004-12-21</a>  <a href="http://search.cpan.org/search?module=Sys::Hostname">Sys::Hostname</a>
+2004-12-22  N/A
+2004-12-23  N/A
+2004-12-24  N/A
+2004-12-25  N/A
+</pre>
+</body>
+</html>

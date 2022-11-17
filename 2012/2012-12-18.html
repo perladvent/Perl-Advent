@@ -1,0 +1,209 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Synchronous Operations are So Outdated
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Synchronous Operations are So Outdated</h1>
+<div class='subtitle'>AnyEvent - 2012-12-18</div>
+
+<div class='pod'><h2 id="Understanding-asynchronous-events">Understanding asynchronous events</h2>
+
+<p>The best way to explain why synchronous code can sometimes be daunting is to use an example from Real Life&trade;. A single day in our lives can contain plenty of actions that make us cringe and growl. Take, for instance, trying to make a meal.</p>
+
+<p>Imagine you&#39;re cooking. You wouldn&#39;t wait for the water to boil before you prepared the potatoes. Nor would you wait for the potatoes to be done before you started working on the salad.</p>
+
+<p>Asynchronous programming means having multiple events happen at the same time. It allows you to get more things done while you&#39;re waiting for other things to happen.</p>
+
+<p>The fundamental element of asynchronous programming is the callback, so let&#39;s review that first, and then take a look at some examples of async in code-land.</p>
+
+<p>We will be using <a href="https://metacpan.org/module/AnyEvent">AnyEvent</a> for this article, but the same principles exist in all other async frameworks.</p>
+
+<h2 id="Introduction-to-callbacks">Introduction to callbacks</h2>
+
+<p>Since multiple events run at the same time, the application (much like the spice) must flow. To make this work, whenever we start one event we include references to the code that should be run when it finishes or hits other milestones. Since the event then &quot;knows&quot; how to proceed on its own, it can start up and work in the background while the rest of the program continues on doing more things.</p>
+
+<p>We&#39;re going to be using a technique that some are not familiar with: <b>callbacks</b>. Just to get you up to speed, let me start by explaining callbacks in a nutshell: callbacks are just references to subroutines.</p>
+
+<p>These subroutines can be defined using names or they can be anonymous. We can call those subroutines by their reference instead of their name.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># callbacks to named subroutines<br /></span><span class="keyword">sub</span> <span class="word">func</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">}</span><br /><span class="keyword">my</span> <span class="symbol">$func_reference</span> <span class="operator">=</span> <span class="cast">\</span><span class="symbol">&amp;func</span><span class="structure">;</span><br /><span class="symbol">$func_reference</span><span class="operator">-&gt;</span><span class="structure">(</span><span class="symbol">@arguments</span><span class="structure">);</span><br /><br /><span class="comment"># callbacks to anonymous subroutines<br /></span><span class="keyword">my</span> <span class="symbol">$func_reference</span> <span class="operator">=</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">};</span><br /><span class="symbol">$func_reference</span><span class="operator">-&gt;</span><span class="structure">(</span><span class="symbol">@arguments</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>If we use <code>sub</code> to create a reference to a subroutine, we can pass the callback as a parameter directly, without saving it first:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">some_cb_handler</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$callback</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$callback</span><span class="operator">-&gt;</span><span class="structure">(</span><span class="double">&quot;hello&quot;</span><span class="structure">);</span><br /><span class="structure">}</span><br /><br /><span class="comment"># We pass in the callback without ever giving it a name or making it<br /># globally accessible.<br /></span><span class="word">some_cb_handler</span><span class="structure">(</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$greeting</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="double">&quot;$greeting, world!&quot;</span><span class="structure">;</span><br /><span class="structure">}</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h2 id="Reading-from-input">Reading from input</h2>
+
+<p>You have an application that needs to read from a handle (which could be a file descriptor, a socket, or even the standard input), but you don&#39;t know when it will be ready to be read.</p>
+
+<p>In a synchronous application, you&#39;ll be waiting for it to become available, possibly calling <code>sleep</code> in between. But these days, we&#39;re busy people, we can&#39;t just be waiting by the phone. We have stuff to do!</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">alert_action</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$action</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="double">&quot;New action found: $action&quot;</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="keyword">my</span> <span class="symbol">$io_watcher</span> <span class="operator">=</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">io</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">fh</span>   <span class="operator">=&gt;</span> <span class="symbol">$fh</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">poll</span> <span class="operator">=&gt;</span> <span class="single">'r'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">cb</span>   <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br /><span class="comment">        # we can now read!<br /></span>        <span class="keyword">my</span> <span class="symbol">$input</span> <span class="operator">=</span> <span class="readline">&lt;$fh&gt;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span> <span class="symbol">$input</span> <span class="operator">=~</span> <span class="match">/^New action: (\w+)/</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">alert_action</span><span class="structure">(</span><span class="magic">$1</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="comment"># continue to do something else</span></code><br />&nbsp;</td></table>
+
+<p>How does that work? By calling <a href="https://metacpan.org/module/AnyEvent">AnyEvent</a>&#39;s <code>io</code> method, you&#39;re creating a new watcher that checks a file handle for new read events. If it has something to read, it will call the code reference we provided. Both the checks and the subroutine call will happen in the background.</p>
+
+<p>Also, since we&#39;ve given it all the information it needs (which file handle to poll, what kind of events we want, and what to do in that case), it doesn&#39;t need to hold us back. That way we can continue with some other code, and the watcher will wait and run the background, without bothering us.</p>
+
+<h2 id="Keeping-the-watchers-alive">Keeping the watchers alive</h2>
+
+<p>There is a problem I haven&#39;t mentioned. That code is fine, except that once it executes the additional code, the application will close, simply because it reached the end of the file. We want to keep the application running, so our watchers will continue to work. How do we do that? Condition variables!</p>
+
+<p>Condition variables are variables that represent a condition waiting to come true, like your cat waiting for you to get comfortable with a laptop. When the variable becomes true, the cat comes over and lies on your lap, disrupting your work.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$done</span>    <span class="operator">=</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">condvar</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$watcher</span> <span class="operator">=</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">io</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">fh</span>   <span class="operator">=&gt;</span> <span class="symbol">$fh</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">poll</span> <span class="operator">=&gt;</span> <span class="single">'r'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">cb</span>   <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$input</span> <span class="operator">=</span> <span class="readline">&lt;$fh&gt;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">if</span> <span class="structure">(</span> <span class="symbol">$input</span> <span class="operator">=~</span> <span class="match">/^End of processing file/</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$done</span><span class="operator">-&gt;</span><span class="word">send</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="operator">...</span><br /><span class="symbol">$done</span><span class="operator">-&gt;</span><span class="word">recv</span><span class="structure">;</span><br /><span class="word">say</span> <span class="double">&quot;All done!&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>This time we created a condition variable that is available to the watcher. The watcher still dilligently continues its work. Only this time as soon as it finds a line in the file indicating the end of it, it will call <code>send</code> on the condition variable, making the condition true, effectively saying &quot;that&#39;s it, we&#39;re done&quot;.</p>
+
+<p>If someone has called <code>recv</code> on the condition variable, it will wait until something else in the background (like our watcher) will call <code>send</code> and then will continue running.</p>
+
+<p>That means that the line &quot;All done!&quot; will only get written once our worker finished reading the line.</p>
+
+<p>Another ramification of the condition variable&#39;s behavior is that it is possible to create an infinite loop by creating a condition variable, calling <code>recv</code>, and not having anything call <code>send</code> on it. It looks exactly like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$cv</span> <span class="operator">=</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">condvar</span><span class="structure">;</span><br /><span class="symbol">$cv</span><span class="operator">-&gt;</span><span class="word">recv</span><span class="structure">;</span><br /><br /><span class="comment"># or in short<br /></span><span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">condvar</span><span class="operator">-&gt;</span><span class="word">recv</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Since the application is now waiting for a condition variable to come true, it will not terminate. Because nothing can call <code>send</code> on this variable, it basically means the application will stay up indefinitely. The most common usage for this are daemons, which should always be running.</p>
+
+<h2 id="Timing-your-cooking">Timing your cooking</h2>
+
+<p>The last element in <a href="https://metacpan.org/module/AnyEvent">AnyEvent</a> that we&#39;ll be looking at is the timer. Timers are events (any kind of event) that gets run at some point in time. It can be in a few minutes from now or at a specific hour. It can happen once or it can repeat itself several times, or even forever.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$timer</span> <span class="operator">=</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">timer</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">after</span>    <span class="operator">=&gt;</span> <span class="float">3.5</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">interval</span> <span class="operator">=&gt;</span> <span class="number">5</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">cb</span>       <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="double">&quot;Ping? Pong!&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>This defines a timer that will wait 3.5 seconds, and then call the subroutine every 5 seconds. Fairly simple. Let&#39;s try a few timers.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@steps</span>        <span class="operator">=</span> <span class="words">qw&lt;Cutting Simmering Cooking Seasoning Serving&gt;</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$current_step</span> <span class="operator">=</span> <span class="single">'Preparing'</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$done</span> <span class="operator">=</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">condvar</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$t1</span>   <span class="operator">=</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">timer</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">interval</span> <span class="operator">=&gt;</span> <span class="number">60</span> <span class="operator">*</span> <span class="number">7</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">cb</span>       <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="double">&quot;Current cooking state: $current_step&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">$t2</span> <span class="operator">=</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">timer</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">after</span>    <span class="operator">=&gt;</span> <span class="number">2</span><span class="operator">,</span>       <span class="comment"># two seconds to wash hands before working!</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">interval</span> <span class="operator">=&gt;</span> <span class="number">60</span> <span class="operator">*</span> <span class="number">10</span><span class="operator">,</span> <span class="comment"># assuming every action takes 10 minutes</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">cb</span>       <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$current_step</span> <span class="operator">=</span> <span class="core">shift</span> <span class="symbol">@steps</span> <span class="operator">or</span> <span class="keyword">return</span> <span class="symbol">$done</span><span class="operator">-&gt;</span><span class="word">send</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">do_step</span><span class="structure">(</span><span class="symbol">$current_step</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="symbol">$done</span><span class="operator">-&gt;</span><span class="word">recv</span><span class="structure">;</span><br /><span class="word">say</span> <span class="double">&quot;Dinner is served!&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>What we have here isn&#39;t the best example for how to make a meal, but it does give us an example showing multiple timers. The first timer (<code>$t1</code>) keeps alerting us every seven minutes about our progress. Meanwhile, our second timer picks up an action to do every 10 minutes, and does it. Once no more actions are available, it tells the condition variable that it&#39;s done. It does this by simply returning out of the subroutine (so we don&#39;t call <code>do_step</code> again) and calling <code>send</code> at the same time.</p>
+
+<p>After we created our timers, we set up a <code>recv</code> on a condition variable, meaning &quot;don&#39;t continue running the rest of the application until we are notified that the timers finished their work&quot;. It will wait in that point in time (without blocking the timers) until the <code>send</code> is called. Then it will continue and say dinner is finally served. Since it&#39;s the end of the application, the timers will close and the application will end.</p>
+
+<p>Here is the output we&#39;ll get from running the application:</p>
+
+<pre><code>  Current cooking state: Preparing
+  (do_step() called with &quot;Cutting&quot;)
+  Current cooking state: Cutting
+  (do_step() called with &quot;Simmering&quot;)
+  Current cooking state: Simmering
+  Current cooking state: Simmering
+  (do_step() called with &quot;Cooking&quot;)
+  Current cooking state: Cooking
+  (do_step() called with &quot;Seasoning&quot;)
+  Current cooking state: Seasoning
+  (do_step() called with &quot;Serving&quot;)
+  Current cooking state: Serving
+  Current cooking state: Serving
+  Dinner is served!</code></pre>
+
+<h2 id="Condition-variables-with-multiple-calls">Condition variables with multiple calls</h2>
+
+<p>Sometimes the behavior of the condition variable&#39;s <code>send</code> and <code>recv</code> is not flexible enough to handle instances in which you need to be able to wait on multiple calls.</p>
+
+<p>Suppose you have a calculation to do that depends on the result of multiple database queries. Before the SQL experts jump at it, let&#39;s also suppose these queries are made across different databases.</p>
+
+<p>A database connection is in fact a network operation, which means it blocks. This is an ideal example for async programming. You could initiate several connections and queries concurrently instead of consequtively. Using condition variables, you would probably try to open three condition variables, and then waiting for each to come true. That won&#39;t work, since you can only call <code>recv</code> on one variable at a time.</p>
+
+<p>Instead, condition variables can accept a <code>begin</code> and <code>end</code> call to signify a multi-call request. Once there&#39;s been an <code>end</code> call for each <code>begin</code> call, it will return to the <code>recv</code> method.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$cv</span>  <span class="operator">=</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">condvar</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$sum</span> <span class="operator">=</span> <span class="number">0</span><span class="structure">;</span><br /><span class="keyword">foreach</span> <span class="keyword">my</span> <span class="symbol">$db</span> <span class="structure">(</span><span class="symbol">@dbs</span><span class="structure">)</span> <span class="structure">{</span><br /><span class="comment">    # beginning an event<br /></span>    <span class="symbol">$cv</span><span class="operator">-&gt;</span><span class="word">begin</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$db</span><span class="operator">-&gt;</span><span class="word">query</span><span class="structure">(</span> <span class="symbol">$query</span><span class="operator">,</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$amount</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$sum</span> <span class="operator">+=</span> <span class="symbol">$amount</span><span class="structure">;</span><br /><br /><span class="comment">        # finishing an event<br /></span>        <span class="symbol">$cv</span><span class="operator">-&gt;</span><span class="word">end</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">}</span><br /><br /><span class="symbol">$cv</span><span class="operator">-&gt;</span><span class="word">recv</span><span class="structure">;</span><br /><span class="word">say</span> <span class="double">&quot;All database queries finished.&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<h2 id="Bringing-it-all-together">Bringing it all together</h2>
+
+<p>After we&#39;ve gone over a few elements of AnyEvent, we can build a small useful application. We&#39;ll add a few more elements such as <a href="https://metacpan.org/module/AnyEvent::HTTP">AnyEvent::HTTP</a>, <a href="https://metacpan.org/module/Regexp::Common">Regexp::Common</a>, and <a href="https://metacpan.org/module/File::Basename">File::Basename</a>.</p>
+
+<p>Suppose we have a file that has contains a lot of links and we want to download every image listed in it. These are two different actions: (1) reading the file and (2) downloading the images. We will also have a timer that gives us the progress every two seconds.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">AnyEvent</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">AnyEvent::HTTP</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Regexp::Common</span> <span class="single">'URI'</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">File::Basename</span> <span class="single">'basename'</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">autodie</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$counter</span>   <span class="operator">=</span> <span class="number">0</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$cv</span>        <span class="operator">=</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">condvar</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$fh</span>        <span class="operator">=</span> <span class="word">open</span> <span class="keyword">my</span> <span class="symbol">$fh</span><span class="operator">,</span> <span class="single">'&lt;'</span><span class="operator">,</span> <span class="single">'links.txt'</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$fhwatcher</span> <span class="operator">=</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">io</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">fh</span>   <span class="operator">=&gt;</span> <span class="symbol">$fh</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">poll</span> <span class="operator">=&gt;</span> <span class="single">'r'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">cb</span>   <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$line</span> <span class="operator">=</span> <span class="readline">&lt;$fh&gt;</span><span class="structure">;</span><br /><br /><span class="comment">        # ignoring lines that aren't HTTP URIs<br /></span>        <span class="symbol">$line</span> <span class="operator">=~</span> <span class="match">/^$RE{URI}{HTTP}$/</span> <span class="operator">or</span> <span class="keyword">return</span><span class="structure">;</span><br /><br /><span class="comment">        # call an HTTP request<br /></span>        <span class="symbol">$cv</span><span class="operator">-&gt;</span><span class="word">begin</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">http_get</span> <span class="symbol">$line</span><span class="operator">,</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$body</span>     <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$filename</span> <span class="operator">=</span> <span class="word">basename</span><span class="structure">(</span><span class="symbol">$line</span><span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">syswrite</span> <span class="symbol">$filename</span><span class="operator">,</span> <span class="symbol">$body</span> <span class="operator">?</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$counter</span><span class="operator">++</span>            <span class="operator">:</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">or</span> <span class="word">warn</span> <span class="double">&quot;Couldn't write to $filename: $!&quot;</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$cv</span><span class="operator">-&gt;</span><span class="word">end</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">$progress</span> <span class="operator">=</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">timer</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">after</span>    <span class="operator">=&gt;</span> <span class="number">2</span><span class="operator">,</span> <span class="comment"># giving it two seconds before starting</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">interval</span> <span class="operator">=&gt;</span> <span class="number">2</span><span class="operator">,</span> <span class="comment"># report every two seconds</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">cb</span>       <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">printf</span> <span class="double">&quot;[%s] Update: finished downloading $counter images.\n&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">scalar</span> <span class="word">AnyEvent</span><span class="operator">-&gt;</span><span class="word">now</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="symbol">$cv</span><span class="operator">-&gt;</span><span class="word">recv</span><span class="structure">;</span><br /><span class="word">close</span> <span class="symbol">$fh</span><span class="structure">;</span><br /><span class="word">say</span> <span class="double">&quot;Finished downloading all files&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Let&#39;s analyze what we&#39;ve got here. We use some modules that you should recognize. If you don&#39;t, you should check them out.</p>
+
+<p>The next thing is opening a file handle. We then set up a watcher for some I/O operations using <a href="https://metacpan.org/module/AnyEvent">AnyEvent</a>&#39;s <code>io</code> method. It needs the file handle we are going to operate on, and the kind of operation we&#39;ll do (we pick <code>r</code> for reading) and a callback to run. This callback is the main thing that takes a bit to understand.</p>
+
+<p>Every time we read a line that has a URL, we call <code>begin</code> on the condition variable. We issue an HTTP request for that URL and once we finish fetching it and saving it, we issue the corresponding <code>end</code> call. When all <code>begin</code> calls have <code>end</code>ed, it will return to the <code>recv</code> method, much like calling <code>send</code>.</p>
+
+<p>We also created a progress timer that announces, every two seconds, the number of links we&#39;ve sent. You&#39;ll notice it uses <a href="https://metacpan.org/module/AnyEvent">AnyEvent</a>&#39;s <code>now</code>, which is the recommended way to call <code>time</code> when running in an event loop.</p>
+
+<p>The <code>recv</code> call in the end will wait until all <code>begin</code> calls will be closed. Once we&#39;ve worked on the entire file, it will print a nice message and the application will end.</p>
+
+<h2 id="Just-the-beginning">Just the beginning...</h2>
+
+<p>Once you get used to programming asynchronously, it&#39;s like having scissors: you just run with it! <b>Note:</b> Do not run with scissors. &#x2702; &#x1F3C3;</p>
+
+<p>Try out an event framework and see how much fun it is for yourself. Perl has many to offer, such as <a href="https://metacpan.org/module/AnyEvent">AnyEvent</a>, <a href="https://metacpan.org/module/POE">POE</a>, <a href="https://metacpan.org/module/IO::Async">IO::Async</a>, <a href="https://metacpan.org/module/Reflex">Reflex</a>, <a href="https://metacpan.org/module/IO::Lambda">IO::Lambda</a>, <a href="https://metacpan.org/module/Coro">Coro</a>, and more.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/AnyEvent">AnyEvent</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/POE">POE</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/IO::Async">IO::Async</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Reflex">Reflex</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/IO::Lambda">IO::Lambda</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Coro">Coro</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/f2bdad6d5883044b9d3c88e50f957bfc?r=g&s=80&d=retro />
+This article contributed by: Sawyer X &lt;xsawyerx@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Santa Has Dependencies Too" href="2012-12-17.html">Previous</a></li>
+
+    <li class="next"><a title="A Cache Present" href="2012-12-19.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

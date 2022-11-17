@@ -1,0 +1,102 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Testing networking client code using Test::LWP::UserAgent
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Testing networking client code using Test::LWP::UserAgent</h1>
+<div class='subtitle'>Test::LWP::UserAgent - 2012-12-12</div>
+
+<div class='pod'><p><a href="https://metacpan.org/module/Test::LWP::UserAgent">Test::LWP::UserAgent</a> is a module I wrote after writing several networking client libraries for <code>$work</code> with inconsistent and spotty test coverage &mdash; what I most wanted to do was fully simulate the server end of a network connection, without having to delve deeply into <a href="https://metacpan.org/module/LWP">LWP</a>&#39;s internal implementation, nor mock a lot of methods, which the traditional mock object approach would require.</p>
+
+<p>Exploring the options available led me to Yury Zavarin&#39;s <a href="https://metacpan.org/module/Test::Mock::LWP::Dispatch">Test::Mock::LWP::Dispatch</a>, whose API I adapted into the initial version of <a href="https://metacpan.org/module/Test::LWP::UserAgent">Test::LWP::UserAgent</a>. It behaves exactly like <a href="https://metacpan.org/module/LWP::UserAgent">LWP::UserAgent</a>, one of the most popular HTTP client libraries in perl, in all respects except for the portion that actually sends the request out to the network - at that point it returns the first response that you have preconfigured that matches the outbound request.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$useragent</span> <span class="operator">=</span> <span class="word">Test::LWP::UserAgent</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="symbol">$useragent</span><span class="operator">-&gt;</span><span class="word">map_response</span><span class="structure">(</span><span class="regexp">qr/example.com/</span><span class="operator">,</span> <span class="word">HTTP::Response</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="number">200</span><span class="structure">));</span><br /><br /><span class="keyword">my</span> <span class="symbol">$response</span> <span class="operator">=</span> <span class="symbol">$useragent</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">(</span><span class="single">'http://example.com'</span><span class="structure">);</span><br /><span class="comment"># prints 200<br /></span><span class="word">say</span> <span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">code</span><span class="structure">;</span><br /><br /><span class="symbol">$response</span> <span class="operator">=</span> <span class="symbol">$useragent</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">(</span><span class="single">'http://google.com'</span><span class="structure">);</span><br /><span class="comment"># prints 404<br /></span><span class="word">say</span> <span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">code</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>In the above example, no outbound reqest passing through this user agent will use the live network (this is the default behaviour). Any request whose URI matches <code>/example.com/</code> will receive an HTTP 200 response, and the remaining requests will return a 404.</p>
+
+<p>If, however, you wish to capture only some requests, while letting the remainder use the network normally, you can enable the <code>network_fallback</code> feature:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$useragent</span> <span class="operator">=</span> <span class="word">Test::LWP::UserAgent</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="symbol">$useragent</span><span class="operator">-&gt;</span><span class="word">network_fallback</span><span class="structure">(</span><span class="number">1</span><span class="structure">);</span><br /><span class="symbol">$useragent</span><span class="operator">-&gt;</span><span class="word">map_response</span><span class="structure">(</span><span class="regexp">qr/example.com/</span><span class="operator">,</span> <span class="word">HTTP::Response</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="number">200</span><span class="structure">));</span><br /><br /><span class="keyword">my</span> <span class="symbol">$response</span> <span class="operator">=</span> <span class="symbol">$useragent</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">(</span><span class="single">'http://example.com'</span><span class="structure">);</span><br /><span class="comment"># prints 200<br /></span><span class="word">say</span> <span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">code</span><span class="structure">;</span><br /><br /><span class="symbol">$response</span> <span class="operator">=</span> <span class="symbol">$useragent</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">(</span><span class="single">'http://google.com'</span><span class="structure">);</span><br /><span class="comment"># prints 200 … if Google is up!<br /></span><span class="word">say</span> <span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">code</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>And indeed if you inspect the <code>$response</code> object returned, you will see that it contains the actual network response from contacting <a href="http://google.com">http://google.com</a>.</p>
+
+<p>Configuration can also be done globally, if you want all user agents in your program to use the same settings (or if you do not have direct control over the actual user agent object being used, but just its class):</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">Test::LWP::UserAgent</span><span class="operator">-&gt;</span><span class="word">map_response</span><span class="structure">(</span><span class="operator">...</span><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$response</span> <span class="operator">=</span> <span class="word">Test::LWP::UserAgent</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">-&gt;</span><span class="word">request</span><span class="structure">(</span><span class="operator">...</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p><a href="https://metacpan.org/module/Test::LWP::UserAgent">Test::LWP::UserAgent</a> inherits from <a href="https://metacpan.org/module/LWP::UserAgent">LWP::UserAgent</a>, so it satisfies <code>isa</code> requirements that you may have via <a href="https://metacpan.org/module/Moose">Moose</a> or another system that uses type checking. This means that all the normal options available in <a href="https://metacpan.org/module/LWP::UserAgent">LWP::UserAgent</a> are still available to you, and work identically, for example:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$useragent</span> <span class="operator">=</span> <span class="word">Test::LWP::UserAgent</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">timeout</span> <span class="operator">=&gt;</span> <span class="number">10</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">cookie_jar</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">file</span> <span class="operator">=&gt;</span> <span class="double">&quot;$ENV{HOME}/.cookies.txt&quot;</span> <span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>You can also use <a href="https://metacpan.org/module/Test::LWP::UserAgent">Test::LWP::UserAgent</a> to connect to a local <a href="https://metacpan.org/module/PSGI">PSGI</a> application seamlessly, which can be very useful when you have a client and server installed on the same box but do not want to fuss with separate code for handling this case, or if you want more fine-grained control over what responses to send:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$app</span> <span class="operator">=</span> <span class="word">Plack::Util::load_psgi</span><span class="structure">(</span><span class="single">'./myapp.psgi'</span><span class="structure">);</span><br /><span class="symbol">$useragent</span><span class="operator">-&gt;</span><span class="word">register_psgi</span><span class="structure">(</span><span class="single">'mytestdomain.com'</span><span class="operator">,</span> <span class="symbol">$app</span><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$response</span> <span class="operator">=</span> <span class="symbol">$useragent</span><span class="operator">-&gt;</span><span class="word">request</span><span class="structure">(</span><span class="operator">...</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h2 id="CODE-EXAMPLES">CODE EXAMPLES</h2>
+
+<p>The code examples above are fleshed out as fully-working code in the examples/ directory under <a href="http://metacpan.org/release/Test-LWP-UserAgent">http://metacpan.org/release/Test-LWP-UserAgent</a>, along with a detailed example of some unit tests for a hypothetical networking client library.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Test::LWP::UserAgent">Test::LWP::UserAgent</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/LWP::UserAgent">LWP::UserAgent</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/bdc5cd06679e732e262f6c1b450a0237?r=g&s=80&d=retro />
+This article contributed by: Karen Etheridge &lt;ether@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Making a list and checking it twice" href="2012-12-11.html">Previous</a></li>
+
+    <li class="next"><a title="Take a little REST" href="2012-12-13.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

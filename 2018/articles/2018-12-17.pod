@@ -1,0 +1,294 @@
+Title: Christmas Tunes!
+Topic: OAuth::CmdLine::Spotify
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=for :html
+  <center><img src="noddy.jpg" width="315" height="315" alt="Noddy Meme"></center>
+
+For some people it's just not Christmas until we hear Noddy Holder shouting "It's Christmas!" at the end of Slade's Merry Xmas Everybody.
+Heck, it's just not Christmas without our Christmas Music.  Be it daft old
+Christmas number ones, covers of carols by warbling modern day divas, or
+choir recordings, we've all got our own little playlists that put us in the
+Christmas mood.  Honestly, I've listened to the same playlist as the kids and I
+decorated the tree for the last three years.
+
+Being an Apple geek, I subscribe to Apple Music and that's where
+L<that playlist lives|https://itunes.apple.com/us/playlist/marks-christmas-playlist/pl.bdbdd828fdba47778211ce4d248f8ee9>
+for any other Apple Music subscribers that have my same eccentric taste
+to listen to.
+
+The trouble with Apple Music is that, unlike some of its competitors, it
+doesn't have a free ad-supported web player that anyone can click on and
+immediately listen to the playlist.  If I really want to spread Christmas cheer
+wide I should port that playlist over to Spotify for sharing purposes.  Of
+course, that sounds like a lot of work...unless I get Perl to do it for me!
+
+=head2 Interrogating iTunes
+
+The easiest way to extract the details of my playlist from Apple Music is
+to use the Mac's I<Open Scripting Architecture> to talk directly to iTunes and
+ask it for the details we want.  Far by the most common way to do this on
+a Mac is to write some AppleScript which sends the OSA events for you automatically.
+AppleScript is a very odd bespoke programming langauge designed to have a
+shallow learning curve for non-programmers to do simple things.  Unfortunately
+however, this means it has a very steep learning curve for programmers who are
+used to totally different syntax when they want to do anything moderately
+complex (like, say, writing a loop or subroutine.)  Luckily being an I<Open>
+Scripting Architecture means that other languages can send these events just
+as well - you can even do this with Perl using L<Mac::Glue>.
+
+Sometimes however - shock, horror - the best programming language for a task always
+I<isn't Perl>.  Apple produce L<JavaScript For Automation|https://www.macstories.net/tutorials/getting-started-with-javascript-for-automation-on-yosemite/>
+which is a simple interface to the OSA from JavaScript.  And Perl being Perl
+it's I<really> easy to glue this in the middle of a Perl script:
+
+    #!perl
+    #!perl
+
+    use strict;
+    use warnings;
+
+    use JSON::PP qw( encode_json decode_json );
+    use IPC::Run3 qw( run3 );
+
+    my $js = <<'JAVASCRIPT';
+    console.log(
+    	JSON.stringify(
+    		Application('iTunes').currentPlaylist.tracks().map( track => {
+    			return {
+    				artist    : track.artist(),
+    				title     : track.name()
+    			};
+    		})
+    	)
+    )
+    JAVASCRIPT
+
+    my $output;
+    run3([qw( osascript -l JavaScript )], \$js, undef, \$output );
+    my $itunes_tracks = decode_json($output);
+
+The technique is simple: Write some JavaScript, have it output JSON.  Send
+that JavaScript on STDIN to C<osascript>, capture the JSON it outputs and
+decode it in Perl.  To give us a data structure that looks something like this:
+
+        #!perl
+        [
+          {
+            'artist' => 'Slade',
+            'title' => 'Merry Xmas Everybody'
+          },
+          {
+            'artist' => 'Vile Richard',
+            'title' => 'We Wish You a Merry Christmas'
+          },
+          {
+            'artist' => 'The Darkness',
+            'title' => 'Christmas Time (Don\'t Let the Bells End)'
+          },
+          {
+            'title' => 'Last Christmas (Single Version)',
+            'artist' => 'Wham!'
+          },
+          ...
+
+=head2 Signing Up For a Spotify Developer Account
+
+I'm going to need to use the Spotify Web API to build a playlist full of
+these tracks.  Before I can do that, I need to sign up with their developer
+platform and create a new test application.
+
+After logging into Spotify and navigating to the
+L<Spotify Developer Dashboard|https://developer.spotify.com/dashboard/applications>
+I can click on "Create a Client ID"
+
+=for :html
+  <center><img src="spotify1.jpg" width="514" height="368" alt="Spotify Client Registration Picture"></center>
+
+And then fill in all the details for my account.  Since this is just a bit of
+fun, I just accepted the non-commercial agreements.
+
+=for :html
+  <center><img src="spotify2.jpg" width="514" height="368" alt="Spotify Client Registration Picture"></center>
+
+Once I've clicked through I end up on a screen that contains my client id
+and my client secret.  I'll need these later:
+
+=for :html
+  <center><img src="spotify3.jpg" width="514" height="368" alt="Spotify Client Registration Picture"></center>
+
+There's one more thing to do before we're done with the web interface.  I
+need to register a callback URL that my Perl code will use in the OAuth process
+that I'll be describing later.  Clicking on the "Edit Settings" page takes
+me to a page where I can enter the http://localhost:8082/callback address
+that the module I'm going to introduce in a minute uses:
+
+=for :html
+  <center><img src="spotify4.jpg" width="514" height="368" alt="Spotify Client Registration Picture"></center>
+
+=head2 OAuth
+
+So far I've only registered a developer application.  Now I need to go through
+the OAuth process that grants my developer application the contexts (the privilidges)
+it needs to access my account (even though it's only me using this application
+with my own account, Spotify needs us to go through the same process that we'd
+use if we were letting many different people use this application with their own accounts.)
+
+A typical OAuth enabled web application bounces you from the application's website
+to Spotify's website, has you log in, then show you a permissions dialog
+saying what contexts (privileges) you're prepared to have that application
+use and then finally bounce you back to the original application's website's
+callback URL with secrets in the URL parameters.  But we're developing a
+command line application.  How is that going to work?
+
+Well, as usual, there's a module for that on the CPAN: L<OAuth::Cmdline::Spotify>.
+We're going to use it first in a simple standalone script:
+
+    #!perl
+    #!perl
+
+    use strict;
+    use warnings;
+
+    use OAuth::Cmdline::Spotify;
+    use OAuth::Cmdline::Mojo;
+
+    my $oauth = OAuth::Cmdline::Spotify->new(
+        client_id     => '**REDACTED**',
+        client_secret => '**REDACTED**',
+        login_uri     => 'https://accounts.spotify.com/authorize',
+        token_uri     => 'https://accounts.spotify.com/api/token',
+        scope         => join ',', qw(
+            playlist-read-private
+            playlist-modify-private
+            playlist-modify-public
+        )
+    );
+
+    my $app = OAuth::Cmdline::Mojo->new(
+        oauth => $oauth,
+    );
+    $app->start( 'daemon', '-l', $oauth->local_uri );
+
+When this script is executed it starts up a webserver running on localhost:
+
+    shell$ perl ~/tmp/oath.pl
+    [2018-12-09 08:58:07.68615] [32423] [info] Listening at "http://localhost:8082"
+    Server available at http://localhost:8082
+
+Visiting that URL gives us a simple link to Spotify, allowing me to log in if needed, and then display the permissions
+dialog:
+
+=for :html
+  <center><img src="spotify5.jpg" width="700" height="636" alt="Spotify OAuth"></center>
+
+When I click "Okay" I'll be redirected to the callback URL on localhost
+that'll capture the token and store it in C<~/.spotify.yml> for later use.
+
+Whenever another script now needs that OAuth token we can use
+OAuth::Cmdline::Spotify to access it from the YAML file:
+
+    #!perl
+    use OAuth::Cmdline::Spotify;
+
+    my $oauth = OAuth::Cmdline::Spotify->new();
+    my $token = $oauth->access_token;
+
+=head2 Accessing the Spotify Web API
+
+Now I've got the complicated authentication and authorization out of the
+way it's now just a simple matter of programming to complete my interface
+to Spotify:
+
+    #!perl
+    use LWP::UserAgent;
+    use HTTP::Request::Common;
+
+    my $ua       = LWP::UserAgent->new();
+    my $BASE_URL = 'https://api.spotify.com';
+
+    my @STANDARD_HEADERS = (
+        'Accept'        => 'application/json',
+        'Authorization' => "Bearer $token",
+        'Content-Type'  => 'application/json',
+    );
+
+    sub get {
+        my $path = shift;
+        my $url = URI->new("$BASE_URL$path");
+        $url->query_form( @_ );
+
+        my $response = $ua->request(
+            GET $url,
+            @STANDARD_HEADERS,
+        );
+        die $response->message unless $response->is_success;
+        return decode_json( $response->content );
+    }
+
+    sub post {
+        my $path = shift;
+        my $data = shift;
+        my $url = URI->new("$BASE_URL$path");
+
+        my $response = $ua->request(
+            POST $url,
+            @STANDARD_HEADERS,
+            Content => encode_json( $data ),
+        );
+        die $response->message unless $response->is_success;
+        return decode_json( $response->content );
+    }
+
+And finally I can write the code to build my playlist:
+
+    #!perl
+    # find the uri of the best matching song for the
+    # track name and artist
+    my @found_tracks;
+    foreach my $itunes_track (@{ $itunes_tracks }) {
+        my $title = $itunes_track->{title};
+        $title =~ s/[(][^)]+[)]//g;
+
+        my $artist = $itunes_track->{artist};
+        $artist =~ s/,.*//g;
+
+        my $search_string = "$title $artist";
+        print STDERR "Matching $search_string\n";
+
+        my $search = get(
+            '/v1/search',
+            q => $search_string,
+            type => 'track',
+        );
+
+        my $spotify_track = $search->{tracks}{items}[0];
+        unless ($spotify_track) {
+            print STDERR "No match!\n";
+            next;
+        }
+        push @found_tracks, $spotify_track->{uri};
+    }
+
+    # create a new playlist
+    my $playlist_id = post(
+        '/v1/users/2shortplanks/playlists',
+        { name => q{Mark's Christmas Playlist} },
+    )->{id};
+
+    # add the tracks to that playlist
+    post(
+        "/v1/playlists/$playlist_id/tracks",
+        { uris => \@found_tracks },
+    );
+
+=head2 And done
+
+Running the script produces a best-effort version of the iTunes playlist
+L<on Spotify|https://open.spotify.com/playlist/5hyCf0PuWFknHdmGNjarFZ>
+(hampered not in the least by the fact that Slade doesn't distribute via Spotify).
+
+=for :html
+  <center><iframe src="https://open.spotify.com/embed/playlist/5hyCf0PuWFknHdmGNjarFZ" width="600" height="380" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe></center>
+
+Happy listening!

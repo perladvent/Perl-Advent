@@ -1,0 +1,165 @@
+Title: Revisiting Test::Routine
+Topic: Test::Routine
+Author: Piers Cawley <pdcawley@bofh.org.uk>
+
+Back in September 2010, I was still actively working on my L<MooseX::Declare>
+inspired and L<Devel::Declare> powered layer over L<Test::Class>;
+Test::Class::Sugar and was feeling some pain as I tried to extend it. I was
+struggling to combine the xUnit style behaviour of Test::Class with L<Moose>'s
+expressive tools for declaring attributes and generally writing object
+oriented code. I don't want to go into the details (because I've mercifully
+forgotten them), but I couldn't see a way to make Test::Class's innards
+compatible with Moose's innards.
+
+So, when a message from rjbs appeared in my IRC client pointing me at his
+Moosey testing framework, Test::Routine, it appeared at the most opportune
+moment possible. You may have noticed that Test::Class::Sugar hasn't been
+updated in a long time - that's because I've switched all my testing to
+Test::Routine.
+
+=head2 Wrapping my head around Test::Routine
+
+When I first started playing with Test::Routine there was one thing I found
+rather frustrating. In xUnit style testing, test isolation (a I<very> good
+thing) is isolated because each test is run with a fresh instance of the test
+class. It's much harder to have your tests getting tangled when you do
+this. However, consider something like:
+
+    #!perl
+    use Test::Routine;
+    use Test::More
+
+    has a_big_immutable_fixture => (
+      is => 'ro',
+      lazy_builder => 1,
+    );
+
+    sub _build_a_big_immutable_fixture {
+      my($self) = @_;
+      my $xml = fetch_document_over_a_slow_connection;
+      $self->munge_10megs_of($xml);
+    }
+
+    ...
+
+    test "this"      => sub { ... };
+    test "that"      => sub { ... };
+    test "the other" => sub { ... };
+
+    run_me;
+    done_testing;
+
+If Test::Routine worked like xUnit, that big fixture would make the test suite
+slow. The usual way fixture building is done in xUnit style classes is that
+the test suite calls C<setup> before it runs a test and C<teardown>
+after. With Test::Routine I found that I could dispense with an explicit setup
+phase by declaring my attributes with the C<lazy_build> flag and using
+builders to set up my attributes and an C<after> hook to clear up any
+attributes that needed resetting. So I might do:
+
+    #!perl
+    use Test::Routine;
+    use Test::More;
+
+    has big_immutable_fixture => (
+        is => 'ro',
+        lazy_build => 1,
+    );
+
+    has something_mutable => (
+        is => 'rw',
+        lazy_build => 1,
+    );
+
+    sub _build_a_big_immutable_fixture { ... }
+    sub _build_something_mutable { ... }
+
+    after run_test => sub {
+       my $self = shift;
+       $self->clear_something_mutable;
+    }
+
+    ...
+
+Now, this is all very well, and it certainly works, but it's not very
+declarative. What would be rather handy, I said to Rik, would be if I could
+write something like:
+
+    #!perl
+    has something_mutable => (
+        is => 'rw',
+        lazy_build => 1,
+        auto_clear => 1,
+    );
+
+and let the C<after run_test> part be handled automatically by
+Test::Routine. Rik agreed that that would be cool, but that he wasn't in a
+hurry to get it written. Nor was I. And there we left it.
+
+=head2 It's Advent all over again
+
+Spool forward to now. Rik's written about Test::Routine in his 2010 advent
+calendar and the world knows about it. But in 2011, he's not just plotting an
+Advent calendar, he's also the recently crowned (on Halloween, natch) Perl
+Pumpking and he can't just dash off 25 articles about cool perl modules like he
+has done for the past couple of years. Once again, a chat window opens up in my
+IRC client.
+
+"Hey, Piers, would you like to write an article for this year's Advent
+calendar?"
+
+Well... there's an invitation you take very seriously.
+
+=head2 Not very many lines of code later
+
+Do you know how hard Moose rocks? Really? In one evening's hacking, most of
+which was spent reading documentation and a couple of different MooseX modules
+to see how it was done, I can now write:
+
+    #!perl
+    use Test::Routine::xUnitish;
+    use Test::Routine::Util;
+    use Test::More;
+
+    use namespace::autoclean;
+
+    has counter => (
+        is => 'rw',
+        isa => 'Int',
+        default => 0,
+        lazy => 1,
+        auto_clear => 1,
+    );
+
+    test "first" => sub {
+        my($self) = @_;
+
+        is($self->counter, 0, "Always starting from zero");
+        $self->counter( 1 );
+        is($self->counter, 1, "And going to 1");
+    };
+
+    test "second" => sub {
+        my($self) = @_;
+
+        is($self->counter, 0, "Always starting from zero");
+        $self->counter( 1 );
+        is($self->counter, 1, "And going to 1");
+    };
+
+    run_me;
+    done_testing;
+
+And it all Just Works. The code isn't on the main line of Test::Routine. The
+documentation is laughably non-existent and I'm not entirely sure that the
+implementation is properly robust, but it works. If you're interested in
+having a play, you can pull the latest version from my
+L<Test::Routine github fork|http://github.com/pdcawley/Test-Routine>. Enjoy
+yourselves.
+
+=head1 See Also
+
+=for :list
+* L<Test::Routine>
+* L<Test::Class>
+* L<Test::Routine::xUnitish|https://github.com/pdcawley/Test-Routine/blob/master/lib/Test/Routine/xUnitish.pm> (on GitHub)

@@ -1,0 +1,132 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Making a list and checking it twice
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Making a list and checking it twice</h1>
+<div class='subtitle'>IO::Prompt::Tiny - 2012-12-11</div>
+
+<div class='pod'><p>Poor Santa. It&#39;s getting close to Christmas, and he still hasn&#39;t made his list of CPAN authors yet! Who will get coal? Who will get a present?</p>
+
+<p>With the clock ticking, he decides to automate his list building with Perl, but still needs to check it twice.</p>
+
+<p>Santa doesn&#39;t need a GUI, he likes the terminal just fine, so he&#39;s going to write a program to decide if the CPAN authors are naughty or nice and then prompt him to confirm each one.</p>
+
+<p>How should he prompt? He likes the nice simple prompt of ExtUtils::MakeMaker, should he use it?</p>
+
+<pre><code>    $ perl -MExtUtils::MakeMaker -wE &#39;prompt(&quot;Naughy?&quot;, &quot;yes&quot;)&#39;
+    Naughty? [yes]</code></pre>
+
+<p>Loading all of ExtUtils::MakeMaker just to get a prompt is just a little bit gross, so maybe he can do better. Next stop&hellip; CPAN!</p>
+
+<p>So many prompting modules to choose from&hellip; (sigh)&hellip; the usual problem with CPAN. But wait, look! A &quot;Tiny&quot; module, and it works <b>exactly</b> like ExtUtils::MakeMaker&hellip; <a href="https://metacpan.org/module/IO::Prompt::Tiny">IO::Prompt::Tiny</a>.</p>
+
+<p>Santa decides to give it a try:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="version">v5.14</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">File::Slurp</span> <span class="words">qw/write_file/</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">IO::Prompt::Tiny</span> <span class="words">qw/prompt/</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">ORDB::CPANUploads</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Time::Piece</span><span class="structure">;</span><br /><br /><span class="comment"># Find each CPAN author's latest release date<br /># If they didn't release in 2012, let's call them naughty<br /></span><span class="keyword">my</span> <span class="symbol">$results</span> <span class="operator">=</span> <span class="word">ORDB::CPANUploads</span><span class="operator">-&gt;</span><span class="word">selectall_arrayref</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="single">'select author, max(released) from uploads group by author'</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="comment"># Make a list<br /></span><span class="keyword">my</span> <span class="symbol">%list</span><span class="structure">;</span><br /><br /><span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$author</span> <span class="structure">(</span><span class="cast">@</span><span class="symbol">$results</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$id</span>   <span class="operator">=</span> <span class="symbol">$author</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">0</span><span class="structure">];</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$date</span> <span class="operator">=</span> <span class="word">gmtime</span><span class="structure">(</span> <span class="symbol">$author</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">1</span><span class="structure">]</span> <span class="structure">);</span><br /><br /><span class="comment">  # Check it once<br /></span>  <span class="keyword">my</span> <span class="symbol">$prompt</span> <span class="operator">=</span> <span class="word">sprintf</span><span class="structure">(</span> <span class="double">&quot;\n%-9s released on %s.  Naughty? (yes/no)&quot;</span><span class="operator">,</span> <span class="symbol">$id</span><span class="operator">,</span> <span class="symbol">$date</span> <span class="structure">);</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$ans</span> <span class="operator">=</span> <span class="word">prompt</span><span class="structure">(</span> <span class="symbol">$prompt</span><span class="operator">,</span> <span class="symbol">$date</span><span class="operator">-&gt;</span><span class="word">year</span> <span class="operator">&lt;</span> <span class="number">2012</span> <span class="operator">?</span> <span class="double">&quot;yes&quot;</span> <span class="operator">:</span> <span class="double">&quot;no&quot;</span> <span class="structure">);</span><br />&nbsp;&nbsp;<span class="symbol">$list</span><span class="structure">{</span><span class="symbol">$id</span><span class="structure">}</span> <span class="operator">=</span> <span class="structure">(</span> <span class="symbol">$ans</span> <span class="operator">=~</span> <span class="match">/^y/i</span> <span class="operator">?</span> <span class="double">&quot;naughty&quot;</span> <span class="operator">:</span> <span class="double">&quot;nice&quot;</span> <span class="structure">);</span><br /><br /><span class="comment">  # Check it twice<br /></span>  <span class="keyword">my</span> <span class="symbol">$check</span> <span class="operator">=</span> <span class="word">prompt</span><span class="structure">(</span> <span class="double">&quot;Are you sure $id is $list{$id}? (yes/no)&quot;</span><span class="operator">,</span> <span class="double">&quot;yes&quot;</span> <span class="structure">);</span><br />&nbsp;&nbsp;<span class="word">redo</span> <span class="word">unless</span> <span class="symbol">$check</span> <span class="operator">=~</span> <span class="match">/^y/i</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="word">write_file</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="single">'list.txt'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">{</span> <span class="word">atomic</span> <span class="operator">=&gt;</span> <span class="number">1</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">map</span> <span class="structure">{</span> <span class="double">&quot;$_ is $list{$_}\n&quot;</span> <span class="structure">}</span> <span class="word">sort</span> <span class="word">keys</span> <span class="symbol">%list</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Excellent, now he&#39;s ready to make his list and find all those naughty CPAN authors who haven&#39;t released in 2012:</p>
+
+<pre><code>    $ perl naughty-or-nice.pl
+
+    AADLER    released on Sun Feb 13 20:32:59 2011.  Naughty? (yes/no) [yes] 
+    Are you sure AADLER is naughty? (yes/no) [yes] 
+
+    AAKD      released on Wed Nov  9 06:26:08 2005.  Naughty? (yes/no) [yes] 
+    Are you sure AAKD is naughty? (yes/no) [yes] 
+
+    AAKHTER   released on Thu Nov 10 03:18:33 2005.  Naughty? (yes/no) [yes] 
+    Are you sure AAKHTER is naughty? (yes/no) [yes] 
+
+    AALLAN    released on Fri Nov 17 20:44:54 2006.  Naughty? (yes/no) [yes] 
+    Are you sure AALLAN is naughty? (yes/no) [yes] 
+
+    AANOAA    released on Sat Feb 12 09:10:34 2011.  Naughty? (yes/no) [yes] 
+    Are you sure AANOAA is naughty? (yes/no) [yes] 
+
+    AAR       released on Sun Mar 11 19:50:00 2012.  Naughty? (yes/no) [no] 
+    Are you sure AAR is nice? (yes/no) [yes] 
+
+    AARDEN    released on Wed Apr 30 16:19:59 2003.  Naughty? (yes/no) [yes] 
+    Are you sure AARDEN is naughty? (yes/no) [yes]
+
+    &#x22EE;
+
+    ZWON      released on Thu Sep  1 15:21:14 2011.  Naughty? (yes/no) [yes] yes
+    Are you sure ZWON is naughty? (yes/no) [yes] yes
+
+    ZZZ       released on Tue Aug 16 17:05:53 2011.  Naughty? (yes/no) [yes] yes
+    Are you sure ZZZ is naughty? (yes/no) [yes] yes</code></pre>
+
+<p>After bouncing on the return key almost 12,000 times, Santa is ready for Christmas on CPAN!</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/IO::Prompt::Tiny">IO::Prompt::Tiny</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/IO::Prompt::Hooked">IO::Prompt::Hooked</a> - a handy, minimalist validation wrapped around IO::Prompt::Tiny</p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/IO::Prompter">IO::Prompter</a> - a feature-packed all-singing all-dancing bit of Damianware</p>
+
+</li>
+<li><p>IO::Prompter::Tinier - not yet written</p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/bb755c989fcb9897f28a2c6e00df61e2?r=g&s=80&d=retro />
+This article contributed by: David Golden &lt;dagolden@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="The Greatest Tradition of All" href="2012-12-10.html">Previous</a></li>
+
+    <li class="next"><a title="Testing networking client code using Test::LWP::UserAgent" href="2012-12-12.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

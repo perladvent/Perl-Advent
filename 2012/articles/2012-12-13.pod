@@ -1,0 +1,172 @@
+Title: Take a little REST
+Topic: adenosine
+Author: Arthur Axel "fREW" Schmidt <frew@cpan.org>
+
+=encoding utf8
+
+About six months ago I learned about L<resty|https://github.com/micha/resty>.
+I think Stevan Little may have mentioned it in his L<Web::Machine> talk.
+Unfortunately C<resty> had problems running in C<zsh>.  I initially tried to
+fix the problem, but then I ported it to Perl instead, which was not only
+easier but also ended up having a lot of other exciting benfits.
+
+=head1 L<What even is that thing?|https://www.youtube.com/watch?v=H4w0_n1Yras&t=3m29s>
+
+Adenosine is a tool that allows you to fiddle with
+L<RESTful|https://en.wikipedia.org/wiki/Representational_state_transfer>
+services easily.  The basic gist is that you can use C<HTTP> verbs (C<POST>,
+C<PUT>, C<HEAD>, C<GET>, C<OPTIONS>, C<TRACE>) directly in your shell.
+You get the body of the response as stdout, headers and more as stderr if
+you turn on C<-v>, the exit code is directly related to the error code,
+and there's a minimal plugin architecture (with more hooks on their way.)
+
+=head1 How do I use it?
+
+The first thing you need to do with adenosine is to set up your environment to
+use it:
+
+  $ eval $(adenosine exports)
+
+The next thing you need to do is set the base URI.  The base URI is just a
+URI with a C<*> in it.  So for example, why don't we start with the
+DuckDuckGo API.  A simple, useful base URI could be set as follows:
+
+ $ adenosine 'http://api.duckduckgo.com/?q=*&o=json'
+
+So with that set all you need to do is:
+
+ $ GET test | pp
+
+The above will put C<test> into the base URI in place of the C<*>.  L<pp>
+is just a tiny json pretty printer bundled with adenosine.
+
+If you don't specify a URI scheme (C<http://> or C<https://>), your URI will
+be prepended with C<http://>, and if you don't specify a C<*> it will be
+appended to your URI.
+
+C<GET> isn't all you can do, though it's certainly what I<I> do most often.
+Here's an example of how I might send a text message with our API at work:
+
+  #!code
+  $ adenosine 'http://our.api.com/api/2/*/sms'
+  $ POST myaccount '{"message":"Hello Frew!","destinations":[8675309]}' \
+    -H 'Content-Type: application/json' -H 'Accept: application/json'
+
+If you want to edit the data you are about to post, use adenosine's C<-V>
+switch to open your C<$EDITOR>.
+
+There's more in the L<documentation|adenosine>, but that's basically how
+it works.
+
+=head1 Too much to type!
+
+Sometimes you'll want to set certain headers for a given host.  For example, in
+my previous example I need to set the C<Content-Type> and C<Accept> headers so
+that my application will do the right thing.  I actually B<always> want to set
+those headers when interacting with my application.  The way to do this nicely
+is to create a configuration file for my server.  For example, I could create
+the following:
+
+F<~/.resty/our.api.com>:
+
+  #!code
+  POST -H 'Content-Type: application/json' -H 'Accept: application/json'
+  PUT -H 'Content-Type: application/json' -H 'Accept: application/json'
+  DELETE -H 'Content-Type: application/json' -H 'Accept: application/json'
+  GET -H 'Content-Type: application/json' -H 'Accept: application/json'
+
+That will set those two headers for all four of the major HTTP verbs, so the
+previous example could now be merely:
+
+  $ POST myaccount '{"message":"Hello Frew!","destinations":[8675309]}'
+
+=head1 Plugins
+
+One of the most exciting new features of adenosine (vs. resty) is that it
+supports plugins.  I initially just wrote two:  Stopwatch and Rainbow.
+
+=head2 C<Stopwatch>
+
+C<Stopwatch> adds timing info to the output from C<-v>.  I like to know
+how long various commands and requests take, especially when I am the
+implementor of said command.  If something takes longer than 0.5s, I did a
+bad job.  So C<Stopwatch> gives me exactly what information I need to know.
+To enable it put the following in F<~/.adenosinerc.yml>:
+
+  #!vim yaml
+  plugins:
+     - ::Stopwatch
+
+=head2 C<Rainbow>
+
+C<Rainbow> color codes the output from C<-v>.  I really like this, but
+obviously it's not for everyone.  At the most basic, you can enable it the
+same way that you enable C<Stopwatch>, but that just gives you the most
+basic color coding.  C<Rainbow> is implemented to be easily themable as well
+as overridable.  If you just wanted to override the color of the method from
+the request, put the following in F<~/.adenosinerc.yml>:
+
+  #!vim yaml
+  plugins:
+     - ::Rainbow: {
+           request_method_color: cyan
+       }
+
+That's fine for experimentation, but I'd like to encourage everyone to make
+their own themes and submit them as pull requests.  To make a theme, all you
+need to do is create a file as follows:
+
+  #!perl
+  package App::Adenosine::Plugin::Rainbow::Halloween;
+
+  use Moo;
+  extends 'App::Adenosine::Plugin::Rainbow';
+  has '+response_header_colon_color' => (default => sub { '' });
+  has '+response_header_name_color'  => (default => sub { 'orange1' });
+  has '+response_header_value_color' => (default => sub { 'orange2' });
+  # ...
+
+C<Rainbow> uses L<Term::ExtendedColor>, so to see what colors are available
+run the C<color_matrix> script that comes with it.  Also note that while in the
+example above only a single color is specified, the foreground, backround, and
+even a few other (spottily supported) attributes may be set:
+
+  #!perl
+  has '+response_header_value_color' => (
+    default => sub {
+       {
+          fg        => 'orange2',
+          bg        => 'cyan', # what a bad choice
+          bold      => 1,
+          italic    => 1,
+          underline => 1,
+       }
+    }
+  );
+
+Once you've done that, your F<~/.adenosinerc.yml> can reference your theme
+directly:
+
+  #!vim yaml
+  plugins:
+     - ::Rainbow::Halloween
+     - ::Stopwatch
+
+…and that's adenosine!  Please play with it and let me know if you like it!
+
+=head1 Installing C<adenosine> without CPAN
+
+Most readers of this article are likely to be comfortable installing adenosine
+from the CPAN, but if you don't want to use CPAN, or you somehow got to this
+post as a non-L<japh|http://en.wikipedia.org/wiki/Just_another_Perl_hacker>,
+this might be more your speed:
+
+ git clone http://github.com/frioux/app-adenosine-prefab
+ source app-adenosine-prefab/adenosine-exports
+
+=head1 See Also
+
+=for :list
+* L<adenosine>
+* L<resty|https://github.com/micha/resty>
+

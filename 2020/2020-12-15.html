@@ -1,0 +1,275 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2020 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2020.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2020 - 
+A Christmas Memory
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2020</a></h1>
+        </div>
+
+        <p id="tagline">2020 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>A Christmas Memory</h1>
+<div class='subtitle'>Devel::MAT - 2020-12-15</div>
+
+<div class='pod'><p><div class="bestof"> 2020 has been time consuming - a global pandemic, giant fires, horrific floods and political unrest - which has left us little time for side projects. This year we're looking back to happier times into the 20+ year archive with the Best of the Perl Advent Calendar. </div>
+
+</p>
+
+
+
+<p>&quot;I just don&#39;t get it!&quot;</p>
+
+<p>An elf raising his voice was unheard of. Normally softly spoken, Cedar Greentrifle was several decibels above where his voice should have been and getting louder.</p>
+
+<p>&quot;Mr Greentrifle&quot;, the Wise Old Elf interjected, &quot;May I be of some assistance?&quot;</p>
+
+<p>&quot;It&#39;s this baubling code! It keeps eating all the memory. And I can&#39;t work out why!&quot;</p>
+
+<p>&quot;Ah, then maybe this might be a good time to show you a tool I learned about at the London Perl Workshop that might be just the ticket!&quot;</p>
+
+<h3 id="Introducing-Devel::MAT">Introducing Devel::MAT</h3>
+
+<p>Devel::MAT is a handy dandy command line tool that can help you work out exactly what is taking up the memory in your Perl program. You can trigger a dump summarizing your program&#39;s memory usage at any point in the execution, then load up the <code>pmat</code> console and poke around in that dump to your heart&#39;s content until you figure out exactly what went wrong.</p>
+
+<p>Let&#39;s see how to use it on a simple example program that&#39;s going to allocate a <b>huge</b> string.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$elf</span> <span class="operator">=</span> <span class="double">&quot;happy&quot;</span><span class="structure">;</span><br /><span class="symbol">$elf</span> <span class="operator">x=</span> <span class="number">1024</span><span class="operator">*</span><span class="number">1024</span><span class="operator">*</span><span class="number">1024</span><span class="structure">;</span>  <span class="comment"># 5 Gigs!</span></code><br />&nbsp;</td></table>
+
+<p>In order to analyze the memory usage in our code we need to alter it so that it dumps a summary of the memory to a <i>pmat</i> dump file during the execution of the code. The simplest way to do this is to add a <code>die</code> statement...</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$elf</span> <span class="operator">=</span> <span class="double">&quot;happy&quot;</span><span class="structure">;</span><br /><span class="symbol">$elf</span> <span class="operator">x=</span> <span class="number">1024</span><span class="operator">*</span><span class="number">1024</span><span class="operator">*</span><span class="number">1024</span><span class="structure">;</span>  <span class="comment"># 5 Gigs!</span><br /><br /><span class="word">die</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>..then run the same code with the Devel::MAT::Dumper module configured on the command line to hook exception handling so that a dump file is written when the die occurs:</p>
+
+<pre><code>    shell$ perl -MDevel::MAT::Dumper=-dump_at_DIE script.pl
+    Dumping to /Users/Cedar/test/script.pl.pmat because of DIE
+    Died at script.pl line 9.</code></pre>
+
+<p>This creates a <i>pmat</i> dump file on disk named the same as our Perl script with an additional <code>.pmat</code> extension:</p>
+
+<pre><code>    shell$ ls
+    script.pl  script.pl.pmat</code></pre>
+
+<p>We can load this into the <code>pmat</code> interactive console</p>
+
+<pre><code>    shell$ pmat script.pl.pmat
+    Perl memory dumpfile from perl 5.22.0
+    Heap contains 2366 objects
+    pmat&gt;</code></pre>
+
+<p>And away we go. <code>pmat</code> offers a bunch of commands, all of which can be listed with the <code>help</code> option.</p>
+
+<pre><code>    pmat&gt; help
+    callstack - Display the call stack
+    count     - Count the various kinds of SV
+    elems     - List the elements of an ARRAY SV
+    find      - List SVs matching given criteria
+    help      - Display a list of available commands
+    identify  - Identify an SV by its referrers
+    io        - Commands working with IO SVs
+    largest   - Find the largest SVs by size
+    roots     - Display a list of the root SVs
+    show      - Show information about a given SV
+    sizes     - Summarize object and byte counts across different SV types
+    symbols   - Display a list of the symbol table
+    values    - List the values of a HASH-like SV</code></pre>
+
+<h3 id="Tracking-down-the-largest-things-in-your-code">Tracking down the largest things in your code</h3>
+
+<p>The <code>largest</code> command can be very helpful in tracking down what&#39;s taking up the most space:</p>
+
+<pre><code>    pmat&gt; largest
+    SCALAR(PV) at 0x7fab7d016a60: 5.0 GiB
+    HASH(540) at 0x7fab7d002e90=strtab: 33.6 KiB
+    INVLIST() at 0x7fab7e01bf88: 9.9 KiB
+    INVLIST() at 0x7fab7e01c018: 9.8 KiB
+    STASH(84) at 0x7fab7d0030d0=defstash: 3.1 KiB
+    others: 228.5 KiB</code></pre>
+
+<p>There&#39;s our string, right there at the top: <code>0x7fab7d016a60</code>. Because our example code was so simple we already know which scalar that is. But, if we didn&#39;t, we could easily ask pmat to identify it for us</p>
+
+<pre><code>    pmat&gt; identify 0x7fab7d016a60
+    SCALAR(PV) at 0x7fab7d016a60 is:
+    \-the lexical $elf at depth 1 of CODE() at 0x7fab7d003478=main_cv, which is:
+      \-the main code</code></pre>
+
+<p>Oh, that&#39;s obvious. If our code is a little more complex then things are still descriptive enough for us to understand what&#39;s happening. For example:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">santas_workshop</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$phrase</span> <span class="operator">=</span> <span class="double">&quot;happy&quot;</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$elf</span> <span class="operator">=</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">attributes</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">mood</span> <span class="operator">=&gt;</span> <span class="word">scalar</span><span class="structure">(</span><span class="symbol">$phrase</span> <span class="operator">x</span> <span class="structure">(</span><span class="number">1024</span><span class="operator">*</span><span class="number">1024</span><span class="operator">*</span><span class="number">1024</span><span class="structure">))</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">height</span> <span class="operator">=&gt;</span> <span class="single">'short'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">name</span> <span class="operator">=&gt;</span> <span class="single">'Cedar Greentrifle'</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">die</span><span class="structure">();</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Results in the identification:</p>
+
+<pre><code>    pmat&gt; identify 0x7f9f9b011860
+    SCALAR(PV) at 0x7f9f9b011860 is:
+    \-value {state} of HASH(1) at 0x7f9f9b003250, which is:
+      \-(via RV) value {attr} of HASH(1) at 0x7f9f9b011878, which is:
+        \-(via RV) the lexical $elf at depth 1 of CODE(PP) at 0x7f9f9b016a78, which is:
+          \-the symbol &#39;&amp;main::santas_workshop&#39;</code></pre>
+
+<p>So, we can easily identify large strings. What about big data structures</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">expand</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$count</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">()</span> <span class="operator">-</span> <span class="number">1</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="double">&quot;Merry Christmas&quot;</span> <span class="word">if</span> <span class="symbol">$count</span> <span class="operator">==</span> <span class="number">0</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">map</span> <span class="structure">{</span> <span class="magic">$_</span> <span class="operator">=&gt;</span> <span class="word">expand</span><span class="structure">(</span><span class="symbol">$count</span><span class="structure">)</span> <span class="structure">}</span> <span class="number">1</span><span class="operator">..</span><span class="number">10</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br /><span class="structure">}</span><br /><br /><span class="keyword">my</span> <span class="symbol">$big_data_structure</span> <span class="operator">=</span> <span class="word">expand</span><span class="structure">(</span><span class="number">6</span><span class="structure">);</span><br /><span class="word">die</span><span class="structure">();</span></code><br />&nbsp;</td></table>
+
+<p>This creates a tree with a million copies of the string <code>Merry Christmas</code> in it. What does <code>pmat</code> make of this?</p>
+
+<pre><code>    Perl memory dumpfile from perl 5.22.0
+    Heap contains 124628 objects
+    pmat&gt; largest
+    HASH(548) at 0x7fb053002e90=strtab: 33.9 KiB
+    INVLIST() at 0x7fb053085f88: 9.9 KiB
+    INVLIST() at 0x7fb053086018: 9.8 KiB
+    STASH(85) at 0x7fb0530030d0=defstash: 3.2 KiB
+    HASH(70) at 0x7fb0530217c8: 2.7 KiB
+    others: 10.4 MiB</code></pre>
+
+<p>Not so helpful, the largest thing is the <code>strtab</code> (the cache of constant strings used in our code itself.) Not very helpful.</p>
+
+<p>This is where the <code>--owned</code> option for <code>largest</code> comes in handy. This takes a while to execute, but it can work out cumulative sizes.</p>
+
+<pre><code>    pmat&gt; largest --owned
+    CODE() at 0x7fb053003478=main_cv: 10.2 MiB: of which
+     |   PAD(3) at 0x7fb053003490: 10.2 MiB: of which
+     |    |   REF() at 0x7fb053016ad8: 10.2 MiB
+     |    |   HASH(10) at 0x7fb053011950: 10.2 MiB
+     |    |   others: 10.2 MiB
+     |   SCALAR(UV) at 0x7fb053016a60: 24 bytes
+    STASH(85) at 0x7fb0530030d0=defstash: 70.4 KiB: of which
+     |   GLOB(%*) at 0x7fb053017918: 22.6 KiB: of which
+     |    |   STASH(2) at 0x7fb053021678: 22.4 KiB
+     |    |   GLOB(%*) at 0x7fb053034d48: 22.1 KiB
+     |    |   others: 22.1 KiB
+     |   GLOB(%*) at 0x7fb053080b20: 14.6 KiB: of which
+     |    |   STASH(39) at 0x7fb053080b38: 14.5 KiB
+     |    |   GLOB(&amp;*) at 0x7fb055015de0: 2.4 KiB
+     |    |   others: 12.7 KiB
+     |   GLOB(%*) at 0x7fb0530809e8: 3.9 KiB: of which
+     |    |   STASH(3) at 0x7fb053080a60: 3.8 KiB
+     |    |   GLOB(&amp;*) at 0x7fb053080ad8: 3.3 KiB
+     |    |   others: 3.3 KiB
+     |   others: 26.1 KiB
+    HASH(548) at 0x7fb053002e90=strtab: 33.9 KiB
+    REF() at 0x7fb053085fb8: 10.0 KiB: of which
+     |   ARRAY(5) at 0x7fb053085fd0: 10.0 KiB: of which
+     |    |   INVLIST() at 0x7fb053085f88: 9.9 KiB
+     |    |   SCALAR(UV) at 0x7fb053085fa0: 24 bytes
+    REF() at 0x7fb0530f1450: 9.9 KiB: of which
+     |   ARRAY(5) at 0x7fb053085fe8: 9.9 KiB: of which
+     |    |   INVLIST() at 0x7fb053086018: 9.8 KiB
+     |    |   SCALAR(UV) at 0x7fb0530f1438: 24 bytes
+    others: 162.8 KiB</code></pre>
+
+<p>So the largest thing is unsurprisingly the main code. It owns a <code>REF()</code> to a data structure at <code>0x7fb053016ad8</code> that is just over ten megabytes in size. And if we identify that:</p>
+
+<pre><code>    pmat&gt; identify 0x7fb053016ad8
+    REF() at 0x7fb053016ad8 is:
+    \-the lexical $big_data_structure at depth 1 of CODE() at 0x7fb053003478=main_cv, which is:
+      -\the main code</code></pre>
+
+<p>...we see it&#39;s the <code>$big_data_structure</code> we were expecting.</p>
+
+<h3 id="Tracking-Down-Leaks">Tracking Down Leaks</h3>
+
+<p>Perl uses reference counting to keep track of memory. When a data structure has nothing pointing to it anymore (i.e. no variables point to it, no other parts of a data structure point at it) it&#39;s unreachable by the program and can be cleared away.</p>
+
+<p>But what happens if we have a data structure point to itself?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$greeting</span><span class="structure">;</span><br /><span class="symbol">$greeting</span> <span class="operator">=</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">data</span> <span class="operator">=&gt;</span> <span class="single">'Merry Christmas'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">link</span> <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">$greeting</span><span class="operator">,</span><br /><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>Perl will never be able to reclaim that. The anonymous hash will always be pointed to by the hash value, and the hash value will always be pointed to by the anonymous hash. When <code>$greeting</code> goes out of scope this will leak memory. Do that enough times and this will be the source of the extra memory your program is using.</p>
+
+<p>How can we find these? It&#39;s tricky. If the data structure is large enough we can use the <code>largest</code> technique above. Otherwise, we can search for things in the data structure to see if we&#39;ve got more of these still hanging around than we might expect. For example:</p>
+
+<pre><code>    pmat&gt; find pv --eq &#39;Merry Christmas&#39;
+    SCALAR(PV) at 0x7fa2d56e3330: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d54fa2d0: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d57a0588: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d5052890: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d3901790: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d29b26a0: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d518f440: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d579dae0: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d391f868: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d2c7a2a8: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d5259f48: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d2c7b1a8: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d297ae00: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d2a53528: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d510f6a0: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d55ce980: &quot;Merry Christmas&quot;
+    SCALAR(PV) at 0x7fa2d401d0d8: &quot;Merry Christmas&quot;
+    ...</code></pre>
+
+<p><code>identify</code> can tell us a little about each of these scalars (including that it has a loop), but obviously not which variable holds them (because none does):</p>
+
+<pre><code>    pmat&gt; identify 0x7fa2d56e3330
+    SCALAR(PV) at 0x7fa2d56e3330 is:
+    \-value {data} of HASH(2) at 0x7fa2d56e3300, which is (*A):
+      \-(via RV) the referrant of REF() at 0x7fa2d56e3348, which is:
+        \-value {link} of HASH(2) at 0x7fa2d56e3300, which is:
+          \-already found as *A</code></pre>
+
+<p>You might be tempted to search for a hash key. This won&#39;t go as well:</p>
+
+<pre><code>    pmat&gt; find pv --eq &#39;data&#39;
+    SCALAR(PV) at 0x7fa2d2003340: &quot;data&quot;
+
+    pmat&gt; identify 0x7fa2d2003340
+    SCALAR(PV) at 0x7fa2d2003340 is:
+    \-a constant of CODE() at 0x7fa2d2003478=main_cv, which is:
+      \-the main code</code></pre>
+
+<p>That&#39;s because internally perl doesn&#39;t keep a copy of the hash key inside each hash - the one and only scalar containing <code>data</code> is the one perl created for the constant string used in the code itself.</p>
+
+<h3 id="A-Happy-Elf">A Happy Elf</h3>
+
+<p>&quot;I GOT IT I GOT IT I GOT IT&quot;</p>
+
+<p>&quot;Mr Greentrifle! Please keep the noise down...&quot;</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Tie::File" href="2020-12-14.html">Previous</a></li>
+
+    <li class="next"><a title="Sleigh Upgrade" href="2020-12-16.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

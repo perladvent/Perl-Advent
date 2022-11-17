@@ -1,0 +1,261 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: CPANPLUS</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 18th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">CPANPLUS</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../17th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../19th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>The hard way to install modules is to download them off of CPAN with
+your web browser, uncompress them, run the <code>Makefile.PL</code> (and do the
+same for any prerequisite modules that script complains about that are
+missing) then run the make file to build the module, then <code>make test</code>
+to test it and <i>finally</i> run <b>make install</b> to install the module.</p>
+<p>While that works, I'm not a big fan of going to going to such lengths
+needlessly.  Especially when I can just use the <b>CPAN</b> shell to
+install a module (including all the modules that that module needs
+itself to function) with one command.</p>
+<p>Having lauded <b>CPAN</b>, there's a new installation tool on the block.
+<b>CPANPLUS</b>.</p>
+<p>So what's the difference?  Well, to be honest, from a user point of
+view, not much - well, nothing significant anyhow.  The real difference
+is in the backend.  You see, <b>CPANPLUS</b> was designed from the outset
+to be used programatically instead of just interactively.  This means
+you can write scripts to do automatic module installation for you
+easily.  Indeed, yesterday's module <b>Acme::Intraweb</b> was written
+using <b>CPANPLUS</b>.  But more than that, you can apply intelligence to
+querying CPAN for you - for the first time you as a user can turn the
+power of Perl on the Centralised Peal Archive Network itself.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?CPANPLUS">[Read the documentation for CPANPLUS on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Once you've installed CPANPLUS and configured it (it'll ask you lots
+of questions so it knows where it can download modules from) you can
+then run the shell.</p>
+<pre>  [root@gan] cpanp
+  CPANPLUS::Shell::Default 
+   -- CPAN exploration and modules installation (v0.03)
+  *** Please report bugs to &lt;cpanplus-bugs@lists.sourceforge.net&gt;.
+  *** Using CPANPLUS::Backend v0.040.  
+  *** ReadLine support available (try 'i Term::ReadLine::Perl').</pre>
+
+<pre>  CPAN Terminal&gt; install Acme::ManekiNeko</pre>
+
+<p>The syntax is a little different to CPAN.pm, and it's got a few good
+extra features.  For example, it's able to interact with the CPAN
+Testers system allowing you to report if installations were successful
+on your system and query the existing database of other user's attempts
+to install the module.</p>
+<p>Now, how about using it programatically?  Let's write a simple script
+to get a list of modules that are currently installed on my system.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # create a new CPANPLUS object
+  use CPANPLUS::Backend;
+  my $backend = CPANPLUS::Backend-&gt;new();</pre>
+
+<pre>  # get work out what's installed
+  my $installed_rv = $backend-&gt;installed();</pre>
+
+<pre>  # check we got that data back okay
+  unless ($installed_rv-&gt;ok())
+  {
+    die "Can't get list of installed modules";
+  }</pre>
+
+<pre>  # get just names of the installed modules
+  # (the -&gt;rv returns a hash of module names / locations)
+  my @installed = keys %{ $installed_rv-&gt;rv() };</pre>
+
+<p>The <code>$backend-&gt;installed</code> returns a <b>CPANPLUS::Backend::RV</b>
+object.  These 'Result Values' are used thoughtout the
+CPANPLUS::Backend api to represent the results of a query.  They can
+be integrated to see if a query was successful or not (we can check it
+with the <code>ok</code> method.)  They also hold the results for that query and
+provide us a way of getting the data back again (with the <code>rv</code>
+method.)  Dependant on the type of query we did the result value may
+also support many other methods.  In this case we simply get the
+results back which is a hashref of the locations of the modules that
+are installed keyed by their name.  We then took the keys of this hash
+(the module names) and placed them in a list, as that's all we're
+really interested in at the moment - a list of the names of the
+modules installed on the system.</p>
+<p>So, what can we use this list of modules for?  Well, I find that if I've
+installed a module then it's often worth looking at the other modules
+that that person has written to see if they're useful too.  So, let's
+write a script to find out who wrote each of the modules we have installed
+already, and who's written the most.</p>
+<p>Before we get ahead of ourselves, we first need to get the module
+object for each of the modules that we have rather than just the name
+of the modules.  <b>CPANPLUS::Backend</b> has the <code>module_tree</code> method
+that we can ask for hashref that contains a module object for each
+module that's ever been uploaded to the CPAN keyed by name.  We want
+to produce a similar hash, but just with the objects that represent
+the modules we've installed in it.</p>
+<pre>  # get the module tree
+  my $tree = $backend-&gt;module_tree();</pre>
+
+<pre>  # get the object for each of the installed modules
+  # i.e. build a module tree for just the installed modules
+  my %installed_module_objs;
+  foreach my $module (@installed)
+  {
+    # get the object from the tree for that module
+    $installed_module_objs{ $module } = $tree-&gt;{ $module };
+  }</pre>
+
+<p>Now what we need to do is work our way though that hash and count
+how many modules each author did.</p>
+<pre>  # run over our installed modules tree and count how many
+  # times each author's name comes up
+  my %authors;
+  foreach my $module (keys %installed_module_objs)
+  {
+    $authors{ $installed_module_objs{ $module }-&gt;author }++;
+  }</pre>
+
+<p>Note that this <code>%authors</code> hash contains the number of <i>modules</i>, not
+the number of distributions, each author uploaded to CPAN.  People
+like ABW are going to have a large number of modules since just
+installing something like the Template Toolkit will install seventy or
+so little modules.  Still, understanding the limitations of this, we
+still sort the modules:</p>
+<pre>  # create a sorted list of authors,
+  my @sorted = sort { </pre>
+
+<pre>    # those with the largest number of modules first
+    $authors{ $b } &lt;=&gt; $authors{ $a }</pre>
+
+<pre>    # and for those with the same number of modules
+    # then sorted alphabetically
+    or $a cmp $b</pre>
+
+<pre>  } keys %authors;</pre>
+
+<p>And finally we can create a little HTML page that lists all those
+modules.</p>
+<pre>  # and finally print that out</pre>
+
+<pre>  # open the file
+  use IO::File;
+  my $fh = IO::File-&gt;new("authors.html","&gt;")
+   or die "Can't open 'authors.html': $!"; </pre>
+
+<pre>  # module to encode strings for html
+  use HTML::Entities;</pre>
+
+<pre>  print {$fh} q{
+  &lt;html&gt;
+   &lt;head&gt;&lt;title&gt;module count&lt;/title&gt;
+   &lt;body&gt;
+    &lt;table border="1"&gt;
+     &lt;tr&gt;&lt;th&gt;Author&lt;/th&gt;&lt;th&gt;Number of Modules&lt;/th&gt;&lt;/tr&gt;
+  };</pre>
+
+<pre>  # print out the authors and their rank;
+  foreach my $author (@sorted)
+  {
+    print {$fh} "&lt;tr&gt;&lt;td&gt;".
+                encode_entities($author).
+                "&lt;/td&gt;&lt;td&gt;$authors{$author}&lt;/td&gt;&lt;/tr&gt;\n";
+  }</pre>
+
+<pre>  print {$fh} q{
+    &lt;/table&gt;
+   &lt;/body&gt;
+  &lt;/html&gt;
+  }</pre>
+
+<p>Which should produce something that looks like <li><a href="authors.html">this</a></li>.
+As you can see.  Since I'm running perl 5.8.0 Jarko easily 'wins,'
+having released every single core module to CPAN when he released
+the 5.8.0 distribution.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/author/KANE/CPANPLUS/lib/CPANPLUS/Backend.pm">CPANPLUS::Backend</a></li>
+<li><a href="http://www.perl.com/pub/a/2002/03/26/cpanplus.html">CPANPLUS article on Perl.com</a></li>
+<li><a href="http://www.perl.com/pub/a/2002/04/30/cpants.html">Becoming a CPAN Tester With CPANPLUS article on Perl.com</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:53 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

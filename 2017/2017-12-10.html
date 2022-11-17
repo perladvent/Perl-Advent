@@ -1,0 +1,125 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2017 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2017.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2017 - 
+Evaluating the NaughtyNice Formula
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2017</a></h1>
+        </div>
+
+        <p id="tagline">2017 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Evaluating the NaughtyNice Formula</h1>
+<div class='subtitle'>Eval::Closure - 2017-12-10</div>
+
+<div class='pod'><p>As we talked about yesterday, Sugarplum Stripyboughs was developing a system where a formula was stored in the database could be used to calculate the NaughtyNice Formula for a particular gift for a particular child. Using a recursive regular expression she&#39;d already verified that the formula string was valid. Now she had to work out how to execute it.</p>
+
+<h3 id="Turning-the-Formula-into-Perl-Code">Turning the Formula into Perl Code</h3>
+
+<p>One approach to executing the formula might be build some sort of evaluation engine in code that could interpret the formula - though this would be quite complicated to do and run slowly! A simpler, and more performant, technique would be to transform the formula into Perl code.</p>
+
+<p>Remember, the formula Sugarplum has to execute looks something like this:</p>
+
+<pre><code>  (number_of_tantrums/6)+(age/12*(teeth_brushs_this_year+flosses_this_year))/2</code></pre>
+
+<p>The corresponding Perl code for this would be the following, more or less:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$formula</span> <span class="operator">=</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">(</span><span class="magic">$_</span><span class="structure">[</span><span class="number">0</span><span class="structure">]{</span><span class="word">number_of_tantrums</span><span class="structure">}</span> <span class="operator">/</span> <span class="number">6</span><span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;<span class="operator">+</span> <span class="structure">(</span><span class="magic">$_</span><span class="structure">[</span><span class="number">0</span><span class="structure">]{</span><span class="word">age</span><span class="structure">}</span> <span class="operator">/</span> <span class="number">12</span> <span class="operator">*</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="magic">$_</span><span class="structure">[</span><span class="number">0</span><span class="structure">]{</span><span class="word">teeth_brushs_this_year</span><span class="structure">}</span><span class="operator">+</span><span class="magic">$_</span><span class="structure">[</span><span class="number">0</span><span class="structure">]</span><span class="word">flosses_this_year</span><span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">)</span><span class="operator">/</span><span class="number">2</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Which could then be called like so:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$result</span> <span class="operator">=</span> <span class="symbol">$formula</span><span class="operator">-&gt;</span><span class="structure">({</span><br />&nbsp;&nbsp;<span class="word">age</span> <span class="operator">=&gt;</span> <span class="number">12</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">number_of_tantrums</span> <span class="operator">=&gt;</span> <span class="number">49</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">teeth_brushs_this_year</span> <span class="operator">=&gt;</span> <span class="number">721</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">flosses_this_year</span> <span class="operator">=&gt;</span> <span class="number">321</span><span class="operator">,</span><br /><span class="structure">});</span></code><br />&nbsp;</td></table>
+
+<p>Turning the validated expression into code is reasonably straight forward - we just need to convert the variables in the expression into Perl variables as everything else is already valid Perl code.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">build_formula</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$formula</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br /><span class="comment">    # replace foo_bar -&gt; $_[0]{foo_bar}<br /></span>    <span class="symbol">$formula</span> <span class="operator">=~</span> <span class="substitute">s{([a-z_]+)}{\$_[0]{$1}}g</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="word">eval</span> <span class="double">&quot;sub { $formula }&quot;</span> <span class="operator">||</span> <span class="word">die</span> <span class="magic">$@</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<h3 id="Closing-over-variables">Closing over variables</h3>
+
+<p>It turns out that several of the variables that the elves over in the Niceness Assurance Department wanted to use in the formula weren&#39;t related to the child at all. Things like the value of the gift and number left in stock are instead related to database attributes for that gift, and they need to pass these values in at the time the formula is compiled.</p>
+
+<p>&quot;Hmm,&quot; thought Sugarplum Stripyboughs to herself, &quot;How can I do that?&quot; She decided to extend the previous grammar to allow uppercase constants.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$string</span> <span class="operator">=</span> <span class="single">'good_deeds/GIFT_VALUE*STOCK'</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$playing_cards</span> <span class="operator">=</span> <span class="word">build_formula</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$string</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">gift_value</span> <span class="operator">=&gt;</span> <span class="number">2</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">stock</span>      <span class="operator">=&gt;</span> <span class="number">100</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">$real_elephant</span> <span class="operator">=</span> <span class="word">build_formula</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$string</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">gift_value</span> <span class="operator">=&gt;</span> <span class="number">10_000</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">stock</span>      <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Now all she had to do was rewrite her conversions regular expressions to allow upper case variables to be used in the calculation.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">build_formula</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$formula</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">%args</span>    <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$GIFT_VALUE</span> <span class="operator">=</span> <span class="symbol">$args</span><span class="structure">{</span><span class="word">gift_value</span><span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$STOCK</span>      <span class="operator">=</span> <span class="symbol">$args</span><span class="structure">{</span><span class="word">stock</span><span class="structure">};</span><br /><br /><span class="comment">    # replace FOO_BAR -&gt; $FOO_BAR<br /></span>    <span class="symbol">$formula</span> <span class="operator">=~</span> <span class="substitute">s{([A-Z][A-Z_]*)}{\$$1}g</span><span class="structure">;</span><br /><br /><span class="comment">    # replace foo_bar -&gt; $_[0]{foo_bar}<br /></span>    <span class="symbol">$formula</span> <span class="operator">=~</span> <span class="substitute">s{([a-z][a-z_]*)}{\$_[0]{$1}}g</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="word">eval</span> <span class="double">&quot;sub { $formula }&quot;</span> <span class="operator">||</span> <span class="word">die</span> <span class="magic">$@</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Sugarplum was taking advantage of the way perl&#39;s memory management works to <i>close over</i> the constants in the subroutine. Each subroutine reference that <code>build_formula</code>&#39;s <code>eval</code> creates <i>sees</i> the particular version of <code>$GIFT_VALUE</code> and <code>$STOCK</code> that was assigned in that subroutine only and <i>closes over</i> them retaining their value.</p>
+
+<p>She deployed the updated code and started happily working on the next story in the backlog.</p>
+
+<h3 id="The-Mistake-and-a-Solution">The Mistake, and a Solution</h3>
+
+<p>When Sugarplum got back to work early the next data she discovered that one of the elves in the Niceness Assurance Department had created a ticket.</p>
+
+<pre><code>    Value for COST is wrong</code></pre>
+
+<p>Wait, what? There was no <code>$COST</code> variable in this subroutine! After staring at her editor for a few minutes she was stumped. In a last ditch effort she tried searching for the string. And then she found it....at the top of the file, in a totally unrelated part of the code</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># boolean to enable/disable cost tracking functionality<br /></span><span class="word">const</span> <span class="word">my</span> <span class="symbol">$COST</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Ooooh, that&#39;s right. The <code>eval</code> will close over <i>any</i> variable that&#39;s in scope, including those we don&#39;t want it to, letting anyone use anything from anywhere despite it having nothing to do with the formula calculations. What Sugarplum needed was a way to convince Perl which variables she wanted, and which she didn&#39;t.</p>
+
+<p>Enter <a href="https://metacpan.org/module/Eval::Closure">Eval::Closure</a> from the CPAN.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">build_formula</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$formula</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">%args</span>    <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br /><span class="comment">    # replace FOO_BAR -&gt; $FOO_BAR<br /></span>    <span class="symbol">$formula</span> <span class="operator">=~</span> <span class="substitute">s{([A-Z][A-Z_]*)}{\$$1}g</span><span class="structure">;</span><br /><br /><span class="comment">    # replace foo_bar -&gt; $_[0]{foo_bar}<br /></span>    <span class="symbol">$formula</span> <span class="operator">=~</span> <span class="substitute">s{([a-z][a-z_]*)}{\$_[0]{$1}}g</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="word">eval_closure</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">source</span> <span class="operator">=&gt;</span> <span class="double">&quot;sub { $formula }&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">environment</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'$GIFT_VALUE'</span> <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">$args</span><span class="structure">{</span><span class="word">gift_value</span><span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'$STOCK'</span>      <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">$args</span><span class="structure">{</span><span class="word">stock</span><span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Eval::Closure lets us control exactly which variables the code we compile has access to! Passing in an invalid formula like:</p>
+
+<pre><code>  age/COST</code></pre>
+
+<p>Results in a proper error being thrown even when a <code>$COST</code> is in scope</p>
+
+<pre><code>  Failed to compile source: Global symbol &quot;$COST&quot; requires explicit
+  package name (did you forget to declare &quot;my $COST&quot;?) at (eval 5) line 5.</code></pre>
+
+<p>That bug was fixed! Now all Sugarplum had left to do was head down to the Niceness Assurance Department to inquire exactly what they expected <code>COST</code> to do....</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Matching the NaughtyNice Formula" href="2017-12-09.html">Previous</a></li>
+
+    <li class="next"><a title="Tiny Path Handling" href="2017-12-11.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

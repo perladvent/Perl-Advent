@@ -1,0 +1,174 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+PSGI, Enabling Modern Web Technology in Perl
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>PSGI, Enabling Modern Web Technology in Perl</h1>
+<div class='subtitle'>Plack - 2014-12-04</div>
+
+<div class='pod'><p>In recent years we&#39;ve seen an explosion of powerful web technologies in Perl not at the least due to the creation of the PSGI specification.</p>
+
+<p>PSGI and Plack allow us to glue together webservers and web frameworks in interesting ways, not only allowing us to hook any webservice up to any web framework, but allowing us to chain our frameworks together and transform output in interesting and exciting ways.</p>
+
+<h3 id="Why-PSGI">Why PSGI?</h3>
+
+<p>PSGI is a convention that allows an easy way to connect webservers and web frameworks together. By following the convention any PSGI compatible webserver can connect to any PSGI compatible web framework. When someone writes a new web framework, as long as it supports PSGI, then it&#39;ll work with any webserver. Whenever someone writes a new webserver, as long as it supports PSGI (or has an adapter written for it like Apache and nginx do) they can support any of the web frameworks.</p>
+
+<h3 id="PSGI-by-example">PSGI by example</h3>
+
+<p>PSGI applications are surprisingly simple to write:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$app</span> <span class="operator">=</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$env</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'200'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">[</span> <span class="single">'Content-Type'</span> <span class="operator">=&gt;</span> <span class="single">'text/plain'</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">[</span> <span class="double">&quot;Merry Christmas from $env-&gt;{PATH_INFO}\n&quot;</span><span class="structure">]</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]</span><br /><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>You can actually launch the application in the simple Perl script above as a functioning webserver with the <code>plackup</code> command that comes with plack.</p>
+
+<pre><code>  bash$ plackup merryxmas.pl
+  HTTP::Server::PSGI: Accepting connections at http://0:5000/</code></pre>
+
+<p>Plackup expects the last thing in the script to be the subroutine reference that is the PSGI application. And it works just as you might expect:</p>
+
+<pre><code>  bash$ curl http://127.0.0.1:5000/santa/and/the/elves
+  Merry Christmas from /santa/and/the/elves</code></pre>
+
+<p>This all works because at its most basic a PSGI compatible web application is a simple subroutine. The subroutine is passed one argument - a hashref representing the environment variables, and returns something representing the response.</p>
+
+<p>These environment variables represent the environment the webserver would normally see like <code>PATH_INFO</code>, <code>QUERY_STRING</code>, etc, etc and a few PSGI specific ones including <code>psgi.input</code> (a IO::Handle like object that allows the reading of the request body) and <code>psgi.errors</code> (an IO::Handle that can be written to to, say, write to apache&#39;s error log.) The subroutine return value is one of three things - an arrayref containing the strings that make up the output, or a IO::Handle like object the output can be read from, or another callback that can be used for server push like applications.</p>
+
+<p>There&#39;s slightly more to the PSGI spec than this - for example, there&#39;s optional streaming support so if the server and client want they can send parts of the web page back before the whole thing has been generated - but that&#39;s the gist of it.</p>
+
+<h3 id="Plack">Plack</h3>
+
+<p>Aside from providing us with the handy <code>plackup</code> command line utility, what&#39;s Plack&#39;s role in this? Well at the very least Plack can be thought of as a slightly higher level abstraction that sits on top of the raw PSGI specification to make it easier to do the common things with the PSGI input and output.</p>
+
+<p>For example, something as simple as getting a query parameter is complicated since it&#39;s entirely the responsibility of the PSGI application to decode the contents of the <code>QUERY_STRING</code> to get at the query parameters. Similarly cookies are problematic, requiring both encoding and setting and parsing and decoding http header strings.</p>
+
+<p>Plack provides a <b>Plack::Request</b> and <b>Plack::Response</b> classes that can be constructed from the incoming <code>$env</code> hash and be used to build the array ref response respectively.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Plack::Request</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$app</span> <span class="operator">=</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$request</span> <span class="operator">=</span> <span class="word">Plack::Request</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="core">shift</span><span class="structure">);</span><br /><br /><span class="comment">    # get who is saying merry christmas<br /></span>    <span class="keyword">my</span> <span class="symbol">$who</span> <span class="operator">=</span> <span class="symbol">$request</span><span class="operator">-&gt;</span><span class="word">param</span><span class="structure">(</span><span class="single">'who'</span><span class="structure">);</span><br /><br /><span class="comment">    # did they come back a second time?<br /></span>    <span class="keyword">my</span> <span class="symbol">$again</span> <span class="operator">=</span> <span class="double">&quot;&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$again</span> <span class="operator">=</span> <span class="double">&quot; again&quot;</span> <span class="word">if</span> <span class="symbol">$request</span><span class="operator">-&gt;</span><span class="word">cookies</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">again</span><span class="structure">};</span><br /><br /><span class="comment">    # create a response in a much more friendly way<br /></span>    <span class="keyword">my</span> <span class="symbol">$response</span> <span class="operator">=</span> <span class="symbol">$request</span><span class="operator">-&gt;</span><span class="word">new_response</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">status</span><span class="structure">(</span><span class="number">200</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">content_type</span><span class="structure">(</span><span class="double">&quot;text/plain&quot;</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">body</span><span class="structure">(</span><span class="double">&quot;Merry Christmas$again from $who&quot;</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">cookies</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">again</span><span class="structure">}</span> <span class="operator">=</span> <span class="number">1</span><span class="structure">;</span><br /><br /><span class="comment">    # convert the response back into an array ref<br />&nbsp;&nbsp;&nbsp;&nbsp;# and return it<br /></span>    <span class="keyword">return</span> <span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">finalize</span><span class="structure">;</span><br /><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p></p>
+
+<pre><code>  bash$ plackup merryxmas2.pl
+  HTTP::Server::PSGI: Accepting connections at http://0:5000/
+
+  bash$ curl -b jar -c jar http://127.0.0.1:5000?who=Santa+and+the+elves
+  Merry Christmas from Santa and the elves
+
+  bash$ curl -b jar -c jar http://127.0.0.1:5000?who=Santa+and+the+elves
+  Merry Christmas again from Santa and the elves</code></pre>
+
+<h3 id="Plack-Middleware">Plack Middleware</h3>
+
+<p>One of the handy things about the PSGI specification is that it makes it trivial for a PSGI compatible client to make a request to another PSGI compatible client to help fulfill the request. Because the <i>outer</i> client is playing the role of yet another compatible PSGI webserver the <i>inner</i> client doesn&#39;t need to care its not directly hooked up to the so-called <i>real</i> web server.</p>
+
+<p>For example, we could easily adapt our previous script to give a Very Special Christmas Message from Mr Hankey:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Plack::Request</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$app</span> <span class="operator">=</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="operator">...</span> <span class="comment"># as before</span><br /><span class="structure">};</span><br /><br /><span class="keyword">my</span> <span class="symbol">$app2</span> <span class="operator">=</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$env</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$request</span> <span class="operator">=</span> <span class="word">Plack::Request</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="symbol">$env</span><span class="structure">);</span><br /><br /><span class="comment">    # If Mr Hankey is saying Merry Christmas, send them to the<br />&nbsp;&nbsp;&nbsp;&nbsp;# video instead.<br /></span>    <span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$request</span><span class="operator">-&gt;</span><span class="word">param</span><span class="structure">(</span><span class="single">'who'</span><span class="structure">)</span> <span class="operator">eq</span> <span class="double">&quot;Mr Hankey&quot;</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$response</span> <span class="operator">=</span> <span class="symbol">$request</span><span class="operator">-&gt;</span><span class="word">new_response</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">redirect</span><span class="structure">(</span><span class="double">&quot;http://www.hulu.com/watch/249828&quot;</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">finalize</span><span class="structure">();</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><br /><span class="comment">     # otherwise chain through to the original app<br /></span>    <span class="keyword">return</span> <span class="symbol">$app</span><span class="operator">-&gt;</span><span class="structure">(</span><span class="symbol">$env</span><span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Because we&#39;re just wrapping the original application we don&#39;t have to alter the application in any way. Of course, in this example, we have the source code for the original application in the same file - but the application could be provided third party code inside a module and the same technique would work.</p>
+
+<p>Plack provides the <b>Plack::Middleware</b> class that makes the process of modifying the response easier, and along with <b>Plack::Util</b> helps us deal with the slightly more complex cases where there&#39;s a callback for a response from our inner class:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Plack::Middleware::XReindeer</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">base</span> <span class="words">qw(Plack::Middleware)</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Plack::Util</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Acme::MetaSyntactic::reindeer</span> <span class="words">qw(metareindeer)</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">call</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span><span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$env</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br /><span class="comment">    # run the original application<br /></span>    <span class="keyword">my</span> <span class="symbol">$res</span>  <span class="operator">=</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">app</span><span class="operator">-&gt;</span><span class="structure">(</span><span class="symbol">$env</span><span class="structure">);</span><br /><br /><span class="comment">    # now modify the response.  Use response_cb to turn<br />&nbsp;&nbsp;&nbsp;&nbsp;# any response into the three-item list before we process it<br /></span>    <span class="word">Plack::Util::response_cb</span><span class="structure">(</span><span class="symbol">$res</span><span class="operator">,</span> <span class="keyword">sub</span> <span class="structure">{</span><br /><span class="comment">        # get the three item arrayref<br /></span>        <span class="keyword">my</span> <span class="symbol">$res</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br /><span class="comment">        # add an extra header with some random reindeer<br /></span>        <span class="word">push</span> <span class="cast">@</span><span class="structure">{</span> <span class="symbol">$res</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">1</span><span class="structure">]</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;X-Reindeer&quot;</span> <span class="operator">=&gt;</span> <span class="word">metareindeer</span><span class="structure">;</span><br /><br /><span class="comment">        # return nothing;  It doesn't matter what we return, we<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# always directly modify the original arrayref<br /></span>        <span class="keyword">return</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">});</span><br />&nbsp;<span class="structure">}</span><br /><br />&nbsp;<span class="number">1</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>By turning our middleware into a <b>Plack::Middleware</b> subclass we can easily make use of the <code>Plack::Builder</code> module to glue our applications together:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Plack::Builder</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$app</span> <span class="operator">=</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">};</span><br /><br /><span class="comment"># builder returns a new app annoymous sub that wraps $app with the<br /># middleware we specify<br /></span><br /><span class="word">builder</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">enable</span> <span class="double">&quot;XReindeer&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$app</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Plenty of pre-existing middleware modules exist on CPAN. For example we could have implemented gzip compression on our application as well just by wrapping the output with <b>Plack::Middleware::Deflater</b>.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">builder</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">enable</span> <span class="double">&quot;Deflater&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">enable</span> <span class="double">&quot;XReindeer&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$app</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<h3 id="Plack::Test">Plack::Test</h3>
+
+<p>Another great thing about abstracting away the actual webserver that our PSGI application is talking to is that we don&#39;t actually have to have a real webserver at the outer layer at all! If we just want to test our application we can do this in process by just sending input to the anonymous subroutine and examining the return values.</p>
+
+<p>This is a tremendous improvement over such frameworks as Apache::Test that actually have to launch a mod_perl Apache webserver in another process and talk to it over TCP/IP sockets. Not only is talking in process significantly less complex, but its an order of magnitude quicker and can save many minutes off a test suite execution time.</p>
+
+<p>Plack ships with the Plack::Test module that can perform the job of the external server. Designed to have LWP style requests thrown at it and LWP style responses coming back, it gets the job done with minimal fuss:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Test::More</span> <span class="word">tests</span> <span class="operator">=&gt;</span> <span class="number">4</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Plack::Test</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">HTTP::Request::Common</span> <span class="words">qw(GET)</span><span class="structure">;</span><br /><br /><span class="comment"># load the application from the other script<br /></span><span class="keyword">my</span> <span class="symbol">$app</span> <span class="operator">=</span> <span class="word">do</span> <span class="single">'merryxmas3.pl'</span><span class="structure">;</span><br /><br /><span class="word">test_psgi</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">app</span> <span class="operator">=&gt;</span> <span class="symbol">$app</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">client</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$response</span> <span class="operator">=</span> <span class="core">shift</span><span class="operator">-&gt;</span><span class="structure">(</span><span class="word">GET</span> <span class="single">'/?who=Santa'</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">status</span><span class="operator">,</span> <span class="number">200</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">content</span><span class="operator">,</span> <span class="double">&quot;Merry Christmas from Santa\n&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br /><br /><span class="word">test_psgi</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">app</span> <span class="operator">=&gt;</span> <span class="symbol">$app</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">client</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$response</span> <span class="operator">=</span> <span class="core">shift</span><span class="operator">-&gt;</span><span class="structure">(</span><span class="word">GET</span> <span class="single">'/?who=Mr+Hankey'</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">status</span><span class="operator">,</span> <span class="number">302</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">like</span> <span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">header</span><span class="structure">(</span><span class="single">'Location'</span><span class="structure">)</span><span class="operator">,</span> <span class="regexp">qr/hulu[.]com/</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br /><br /><span class="word">done_testing</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<h3 id="In-Conclusion">In Conclusion</h3>
+
+<p>Plack and PSGI offer a wonderful toolset. I&#39;m blown away that I can go from a simple server for testing:</p>
+
+<pre><code>   bash$ plackup perladventcalendar.pl</code></pre>
+
+<p>Right the way up to running a powerful pre-forking server (like Starman) suitable for handling the traffic that the Perl Advent Calendar receives by just changing one command line argument:</p>
+
+<pre><code>   bash$ plackup -s Starman perladventcalendar.pl</code></pre>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/PSGI">PSGI</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Plack">Plack</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Plack::Builder">Plack::Builder</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Plack::Util">Plack::Util</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Plack::Middleware">Plack::Middleware</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Attention Seeking Behavior" href="2014-12-03.html">Previous</a></li>
+
+    <li class="next"><a title="A Subroutine By Any Other Name" href="2014-12-05.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

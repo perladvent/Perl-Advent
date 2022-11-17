@@ -1,0 +1,127 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2013 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2013.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2013 - 
+Playing it safe with Safe::Isa
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2013</a></h1>
+        </div>
+
+        <p id="tagline">2013 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Playing it safe with Safe::Isa</h1>
+<div class='subtitle'>Safe::Isa - 2013-12-05</div>
+
+<div class='pod'><p>Earlier this year in Manhattan, a garage worker drove an Audi into an open car elevator shaft. The car fell three floors and the worker escaped through the sun roof.</p>
+
+<p>Every year I see stories of people falling in elevator shafts &mdash; sometimes dying &mdash; when the elevator they are expecting to be there suddenly isn&#39;t.</p>
+
+<p>But what do elevator shafts have to do with Perl?</p>
+
+<p>There is a common idiom for checking an object&#39;s class that is remarkably like stepping through an elevator door without checking that the elevator is there:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">if</span> <span class="structure">(</span> <span class="symbol">$thing</span><span class="operator">-&gt;</span><span class="word">isa</span><span class="structure">(</span> <span class="double">&quot;Class::I'm::Looking::For&quot;</span> <span class="structure">)</span> <span class="structure">}</span> <span class="structure">{</span><br /><span class="comment">    # do something with $thing<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>If <code>$thing</code> is an unblessed reference, you&#39;ve just fallen down the elevator shaft and gotten a fatal error.</p>
+
+<p>If <code>$thing</code> is a scalar, then it&#39;s treated like a class name. That might be what you want, but if you really wanted <i>an object</i>, then you&#39;re in trouble if you call any object methods on it.</p>
+
+<p>Usually, the <code>isa</code> method comes from the <a href="https://metacpan.org/module/UNIVERSAL">UNIVERSAL</a> class, so maybe you thought (or were taught) to call it as a function:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">if</span> <span class="structure">(</span> <span class="word">UNIVERSAL::isa</span><span class="structure">(</span> <span class="symbol">$thing</span><span class="operator">,</span> <span class="double">&quot;Class::I'm::Looking::For&quot;</span> <span class="structure">)</span> <span class="structure">}</span> <span class="structure">{</span><br /><span class="comment">    # do something with $thing<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>That is wrong, too, because <code>isa</code> is supposed to be a <i>method</i>, and you&#39;ve just skipped the entire <code>@ISA</code> hierarchy. If any class defined its own <code>isa</code> method, you&#39;ll get a different answer than what you should. (A <a href="https://en.wikipedia.org/wiki/Mock_object">mock object</a> used in testing might do that, for instance.)</p>
+
+<p>You might have learned to check for an object first, with <a href="https://metacpan.org/module/Scalar::Util">Scalar::Util</a> and <code>blessed</code>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Scalar::Util</span> <span class="single">'blessed'</span><span class="structure">;</span><br /><br /><span class="keyword">if</span> <span class="structure">(</span> <span class="word">blessed</span><span class="structure">(</span> <span class="symbol">$thing</span> <span class="structure">)</span> <span class="operator">&amp;&amp;</span> <span class="symbol">$thing</span><span class="operator">-&gt;</span><span class="word">isa</span><span class="structure">(</span> <span class="double">&quot;Class::I'm::Looking::For&quot;</span> <span class="structure">)</span> <span class="structure">}</span> <span class="structure">{</span><br /><span class="comment">    # do something with $thing<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>That is mostly correct (someone could have blessed an object into the class &quot;0&quot; for instance), but in any ordinary code, it will do what you want.</p>
+
+<p>Unfortunately, that&#39;s a lot to write over and over, as you might if you&#39;re using some sort of exception object system like <a href="https://metacpan.org/module/Throwable">Throwable</a> or <a href="https://metacpan.org/module/failures">failures</a> or the venerable <a href="https://metacpan.org/module/Exception::Class">Exception::Class</a>.</p>
+
+<p>For example, imagine you&#39;re using <a href="https://metacpan.org/module/failures">failures</a> and you&#39;ve wrapped some possibly fatal code with <code>try</code> from <a href="https://metacpan.org/module/Try::Tiny">Try::Tiny</a> and you need to test the error to see if it&#39;s an object of various types or just a string.</p>
+
+<p>Do you really want to type <code>blessed</code> in every conditional?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">failures</span> <span class="words">qw/io::file io::network/</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Try::Tiny</span><span class="structure">;</span><br /><br /><span class="word">try</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">something_that_might_fail</span><span class="structure">()</span><br /><span class="structure">}</span><br /><span class="word">catch</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>   <span class="structure">(</span> <span class="word">blessed</span><span class="structure">(</span><span class="magic">$_</span><span class="structure">)</span> <span class="operator">&amp;&amp;</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">isa</span><span class="structure">(</span><span class="double">&quot;failure::io::file&quot;</span><span class="structure">)</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">elsif</span><span class="structure">(</span> <span class="word">blessed</span><span class="structure">(</span><span class="magic">$_</span><span class="structure">)</span> <span class="operator">&amp;&amp;</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">isa</span><span class="structure">(</span><span class="double">&quot;failure::io&quot;</span><span class="structure">)</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">elsif</span><span class="structure">(</span> <span class="word">blessed</span><span class="structure">(</span><span class="magic">$_</span><span class="structure">)</span> <span class="operator">&amp;&amp;</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">isa</span><span class="structure">(</span><span class="double">&quot;failure&quot;</span><span class="structure">)</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span> <span class="structure">{</span> <span class="comment"># string or ref or other object exception</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Or wrap it all in another <code>if</code> just to test <code>blessed</code>?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">failures</span> <span class="words">qw/io::file io::network/</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Try::Tiny</span><span class="structure">;</span><br /><br /><span class="word">try</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">something_that_might_fail</span><span class="structure">()</span><br /><span class="structure">}</span><br /><span class="word">catch</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span> <span class="word">blessed</span><span class="structure">(</span><span class="magic">$_</span><span class="structure">)</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>   <span class="structure">(</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">isa</span><span class="structure">(</span><span class="double">&quot;failure::io::file&quot;</span><span class="structure">)</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">elsif</span><span class="structure">(</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">isa</span><span class="structure">(</span><span class="double">&quot;failure::io&quot;</span><span class="structure">)</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">elsif</span><span class="structure">(</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="symbol">$isa</span><span class="structure">(</span><span class="double">&quot;failure&quot;</span><span class="structure">)</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span> <span class="structure">{</span> <span class="comment"># other object</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span> <span class="structure">{</span> <span class="comment"># string or ref exception</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p><a href="https://metacpan.org/module/Safe::Isa">Safe::Isa</a> makes this easier by exporting an <code>$_isa</code> variable containing a code reference that you can use in place of <code>UNIVERSAL::isa</code>. It checks <code>blessed</code> and <code>isa</code> for you, just the way you want:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Safe::Isa</span><span class="structure">;</span><br /><br /><span class="keyword">if</span> <span class="structure">(</span> <span class="symbol">$thing</span><span class="operator">-&gt;</span><span class="symbol">$_isa</span><span class="structure">(</span> <span class="double">&quot;Class::I'm::Looking::For&quot;</span> <span class="structure">)</span> <span class="structure">}</span> <span class="structure">{</span><br /><span class="comment">    # do something with $thing<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>This works because Perl treats a code reference on the right side of an arrow operator as a method to invoke. These are equivalent:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$thing</span><span class="operator">-&gt;</span><span class="symbol">$_isa</span><span class="structure">(</span>   <span class="double">&quot;Class::I'm::Looking::For&quot;</span> <span class="structure">)</span><br /><span class="symbol">$_isa</span><span class="operator">-&gt;</span><span class="structure">(</span> <span class="symbol">$thing</span><span class="operator">,</span> <span class="double">&quot;Class::I'm::Looking::For&quot;</span> <span class="structure">)</span></code><br />&nbsp;</td></table>
+
+<p>That makes our earlier <code>failures</code> example a bit more concise:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">failures</span> <span class="words">qw/io::file io::network/</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Try::Tiny</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Safe::Isa</span><span class="structure">;</span> <span class="comment"># for $_isa</span><br /><br /><span class="word">try</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">something_that_might_fail</span><span class="structure">()</span><br /><span class="structure">}</span><br /><span class="word">catch</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>   <span class="structure">(</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="symbol">$_isa</span><span class="structure">(</span><span class="double">&quot;failure::io::file&quot;</span><span class="structure">)</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">elsif</span><span class="structure">(</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="symbol">$_isa</span><span class="structure">(</span><span class="double">&quot;failure::io&quot;</span><span class="structure">)</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">elsif</span><span class="structure">(</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="symbol">$_isa</span><span class="structure">(</span><span class="double">&quot;failure&quot;</span><span class="structure">)</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p><a href="https://metacpan.org/module/Safe::Isa">Safe::Isa</a> gives you several similar helpers, including <code>$_can</code>, <code>$_does</code>, and <code>$_DOES</code>, plus a generic <code>$_call_if_object</code> code reference that works like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$thing</span><span class="operator">-&gt;</span><span class="symbol">$_call_if_object</span><span class="structure">(</span><span class="word">method_name</span> <span class="operator">=&gt;</span> <span class="symbol">@args</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The lesson is this: calling a method on something that you aren&#39;t sure is an object is like stepping into an elevator without checking that it&#39;s there. Most of the time, you&#39;re safe, right until you have a long fall and crash.</p>
+
+<p>Using <a href="https://metacpan.org/module/Safe::Isa">Safe::Isa</a> gives you a safe, concise way to look before you step.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Safe::Isa">Safe::Isa</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/bb755c989fcb9897f28a2c6e00df61e2?r=g&s=80&d=retro />
+This article contributed by: David Golden &lt;dagolden@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Gift Exchanges as a Practical Example of Cyclic Directional Graphs" href="2013-12-04.html">Previous</a></li>
+
+    <li class="next"><a title="Find My Santa" href="2013-12-06.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

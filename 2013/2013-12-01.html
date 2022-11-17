@@ -1,0 +1,226 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2013 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2013.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2013 - 
+Semantic Perl
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2013</a></h1>
+        </div>
+
+        <p id="tagline">2013 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Semantic Perl</h1>
+<div class='subtitle'>RDF::Trine and RDF::Query - 2013-12-01</div>
+
+<div class='pod'><h2 id="SEMANTIC-PERL">SEMANTIC PERL</h2>
+
+<p>Oh, what was that Christmas song I was trying to remember? It was a duet... I know that. Wikipedia&#39;s &quot;Christmas songs&quot; list is enormous; I don&#39;t want to click through each of those to find it.</p>
+
+<p>Anyway, I&#39;ll forget about that for now; time for a Perl Advent...</p>
+
+<h3 id="The-Triple">The Triple</h3>
+
+<p>The semantic web is built around the idea of the &quot;triple&quot;. The idea of the triple is so simple that a three year old can grasp it. (Trust me.)</p>
+
+<p>To meaningfully describe anything we need at least three pieces of information:</p>
+
+<ul>
+
+<li><p>We need to know what thing is being described.</p>
+
+</li>
+<li><p>We need to specify an attribute of the thing.</p>
+
+</li>
+<li><p>We need to provide a value for that attribute.</p>
+
+</li>
+</ul>
+
+<p>For example, assuming we have two <code>Person</code> objects, in Perl we might write something like:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">### Three triples...<br /></span><span class="symbol">$person1</span><span class="operator">-&gt;</span><span class="word">name</span><span class="structure">(</span><span class="double">&quot;Alice&quot;</span><span class="structure">);</span>     <span class="comment"># $person1's name is &quot;Alice&quot;.</span><br /><span class="symbol">$person2</span><span class="operator">-&gt;</span><span class="word">name</span><span class="structure">(</span><span class="double">&quot;Bob&quot;</span><span class="structure">);</span>       <span class="comment"># $person2's name is &quot;Bob&quot;.</span><br /><span class="symbol">$person1</span><span class="operator">-&gt;</span><span class="word">spouse</span><span class="structure">(</span><span class="symbol">$person2</span><span class="structure">);</span>  <span class="comment"># $person1's spouse is $person2.</span></code><br />&nbsp;</td></table>
+
+<p>If you&#39;ve ever told anyone your name, then you&#39;ve used a triple.</p>
+
+<p>More complex descriptions might be temporally or geographically qualified (Alice&#39;s spouse hasn&#39;t been Bob since the dawn of time), but information theory tells us that complex facts can be broken down into multiple triples, generally by taking a relationship and turning it into a &quot;thing&quot; in its own right:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$marriage</span><span class="operator">-&gt;</span><span class="word">participant1</span><span class="structure">(</span><span class="symbol">$person1</span><span class="structure">);</span><br /><span class="symbol">$marriage</span><span class="operator">-&gt;</span><span class="word">participant2</span><span class="structure">(</span><span class="symbol">$person2</span><span class="structure">);</span><br /><span class="symbol">$marriage</span><span class="operator">-&gt;</span><span class="word">start</span><span class="structure">(</span><span class="symbol">$wedding_date</span><span class="structure">);</span><br /><span class="symbol">$marriage</span><span class="operator">-&gt;</span><span class="word">legally_recognised_in</span><span class="structure">(</span><span class="symbol">@countries</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>So that&#39;s the triple. Three components. Any fewer would be useless; any more are just sugar.</p>
+
+<p>A little terminology: in semantic web circles these three components are generally referred to as the subject, predicate and object respectively.</p>
+
+<h3 id="The-Resource">The Resource</h3>
+
+<p>The semantic web takes the concept of the triple and marries it with the concept of &quot;resources&quot;.</p>
+
+<p>What is a resource? A resource is anything that can be identified with a uniform resource identifier (URI). (If you&#39;re unfamiliar with URIs, think URL, or &quot;web address&quot;. They&#39;re almost the same thing. Almost.) This is a somewhat circular definition.</p>
+
+<p><code>https://metacpan.org/</code> is a URI. It is an identifier for a resource. That particular identifier happens to identify a resource which is a document. There are plenty of other URIs that identify documents, images, videos, mailboxes, FTP sites, and so forth on the Internet.</p>
+
+<p>But nothing in the URI specifications places any limits on what kind of things may be identified by a URI. You could generate a URI to identify a car, or a planet, or a person.</p>
+
+<p>While you can &quot;dereference&quot; <code>https://metacpan.org/</code> to get (a copy of) the actual document identified by that URI, you cannot expect to dereference a URI representing a car to retrieve an actual car. This is the difference between URLs and URIs. URLs are locators; URIs are mere identifiers. URLs are a subset of URIs.</p>
+
+<p>URIs give us a global namespace for identifying things. So in the semantic web, we have triples where each component is a resource (i.e. something that can be identified by a URI).</p>
+
+<p>It is fine to have multiple URIs identifying the same thing (think multiple references to the same object in Perl), but multiple things identified by the same URI leads to ambiguity.</p>
+
+<p>This model of triples of resources is referred to as the Resource Description Framework (snappy name, right?) or RDF.</p>
+
+<h3 id="My-First-Triple">My First Triple</h3>
+
+<p>Let&#39;s assume that I&#39;ve chosen the URI <code>http://tobyinkster.co.uk/#i</code> to identify myself. The inclusion of <code>#i</code> means that it&#39;s different from the URL that identifies my homepage. (Remember, multiple things identified by the same URI leads to ambiguity; so the URI I use to identify myself must be different to the URI for my homepage.) Now I can state my name in RDF like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>&nbsp;<span class="synIdentifier">&lt;</span><span class="synSpecial">http</span><span class="synComment">:</span><span class="synIdentifier">//</span><span class="synType">tobyinkster</span><span class="synComment">.</span><span class="synType">co</span><span class="synComment">.</span><span class="synType">uk</span><span class="synIdentifier">/#i&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;</span><span class="synSpecial">http</span><span class="synComment">:</span><span class="synIdentifier">//</span><span class="synType">xmlns</span><span class="synComment">.</span><span class="synType">com</span><span class="synIdentifier">/</span><span class="synType">foaf</span><span class="synIdentifier">/0.1/name&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;Toby&quot; .</code><br />&nbsp;</td></table>
+
+<p>The second component there is a URI defined by the FOAF specification to identify the concept of having a name,</p>
+
+<p>Note that the last component there is not a URI. A resource is anything that <i>can</i> be identified by a URI, but that doesn&#39;t always mean that it <i>must</i> be identified by a URI. Sometimes it&#39;s useful for a string to just be a string.</p>
+
+<h3 id="Introducing-RDF::Trine-and-RDF::Query">Introducing RDF::Trine and RDF::Query</h3>
+
+<p>While there are several other semantic web tool-kits on CPAN, <a href="https://metacpan.org/module/RDF::Trine">RDF::Trine</a> has emerged as the defacto standard.</p>
+
+<p>RDF::Trine provides an object-oriented interface for dealing with resources and triples; persistent stores for triples, along with some basic methods for querying them; parsers and serialisers for various triple-based file formats (RDF/XML, Turtle, etc).</p>
+
+<p>RDF::Trine is often used in conjunction with <a href="https://metacpan.org/module/RDF::Query">RDF::Query</a> which provides an implementation of SPARQL, an SQL-like query and update language for triple stores. The author of RDF::Trine and RDF::Query is involved in the W3C group standardising SPARQL 1.1, and as a result his Perl libraries are very high quality and standards-compliant implementations.</p>
+
+<p>Here&#39;s an example of using the previous triple in RDF::Trine:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="float">5.010</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">RDF::Trine</span> <span class="words">qw( statement iri literal )</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">RDF::Query</span><span class="structure">;</span><br /><br /><span class="comment"># Create the triple.<br />#<br /></span><span class="keyword">my</span> <span class="symbol">$triple</span> <span class="operator">=</span> <span class="word">statement</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">iri</span><span class="structure">(</span><span class="double">&quot;http://tobyinkster.co.uk/#i&quot;</span><span class="structure">)</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">iri</span><span class="structure">(</span><span class="double">&quot;http://xmlns.com/foaf/0.1/name&quot;</span><span class="structure">)</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">literal</span><span class="structure">(</span><span class="double">&quot;Toby&quot;</span><span class="structure">)</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="comment"># Let's take a look at that.<br />#<br /></span><span class="word">say</span> <span class="symbol">$triple</span><span class="operator">-&gt;</span><span class="word">as_string</span><span class="structure">;</span><br /><br /><span class="comment"># Create an in-memory triple database for querying...<br />#<br /></span><span class="keyword">my</span> <span class="symbol">$model</span> <span class="operator">=</span> <span class="word">RDF::Trine::Model</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><br /><span class="comment"># ... and add our triple.<br />#<br /></span><span class="symbol">$model</span><span class="operator">-&gt;</span><span class="word">add_statement</span><span class="structure">(</span><span class="symbol">$triple</span><span class="structure">);</span><br /><br /><span class="comment"># I told you it was SQL-like...<br />#<br /></span><span class="keyword">my</span> <span class="symbol">$query</span> <span class="operator">=</span> <span class="word">RDF::Query</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="heredoc">&lt;&lt;'SPARQL'</span><span class="structure">);</span><br /><span class="heredoc_content">SELECT $name<br />WHERE {<br />&nbsp;&nbsp;&nbsp;&lt;http://tobyinkster.co.uk/#i&gt;<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;http://xmlns.com/foaf/0.1/name&gt;<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$name .<br />}<br /></span><span class="heredoc_terminator">SPARQL<br /></span><br /><span class="comment"># Run the query against the database<br />#<br /></span><span class="keyword">my</span> <span class="symbol">$results</span> <span class="operator">=</span> <span class="symbol">$query</span><span class="operator">-&gt;</span><span class="word">execute</span><span class="structure">(</span><span class="symbol">$model</span><span class="structure">);</span><br /><br /><span class="comment"># This is an iterator, a bit like DBI results<br />#<br /></span><span class="keyword">while</span> <span class="structure">(</span><span class="keyword">my</span> <span class="symbol">$row</span> <span class="operator">=</span> <span class="symbol">$results</span><span class="operator">-&gt;</span><span class="word">next</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="double">&quot;GOT &quot;</span><span class="operator">,</span> <span class="symbol">$row</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">name</span><span class="structure">}</span><span class="operator">-&gt;</span><span class="word">value</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<h3 id="What-is-it-Good-For">What is it Good For?</h3>
+
+<p>RDF is a good way of representing highly heterogeneous data.</p>
+
+<p>Imagine that you&#39;re storing the following data in an SQL database:</p>
+
+<ul>
+
+<li><p>Alice is called Alice</p>
+
+</li>
+<li><p>Bob is called Bob</p>
+
+</li>
+<li><p>Alice is married to Bob</p>
+
+</li>
+</ul>
+
+<p>Easy peasy, right? You can probably already envisage the tables you&#39;d use. Now let&#39;s store some more data:</p>
+
+<ul>
+
+<li><p>Alice takes a drug called Foo-lin.</p>
+
+</li>
+<li><p>Foo-lin is manufactured by ACME Corp.</p>
+
+</li>
+<li><p>Foo-lin is a variety of insulin.</p>
+
+</li>
+<li><p>Bob likes &quot;Fight Club&quot;.</p>
+
+</li>
+<li><p>&quot;Fight Club&quot; is a film.</p>
+
+</li>
+<li><p>&quot;Fight Club&quot; stars Brad Pitt.</p>
+
+</li>
+<li><p>Brad Pitt is called Brad.</p>
+
+</li>
+</ul>
+
+<p>Ten facts, and already the tables are spiralling out of control. Using RDF all that is just ten triples.</p>
+
+<p>RDF allows you to model messy data; allows you to merge data from different data sources which have different models of the world. As long as two RDF data sources agree on URIs to identify things with, merging two databases can be as easy as concatenating two lists of triples.</p>
+
+<h3 id="All-You-Can-Eat-Data-Buffet">All You Can Eat Data Buffet</h3>
+
+<p>There are over <a href="http://wifo5-03.informatik.uni-mannheim.de/lodcloud/state/">30 billion RDF triples</a> out there on the Internet. Because RDF uses URIs to identify things, and different data sources can use each others&#39; URIs, this forms a loosely interlinked &quot;web of data&quot;. (Just as web pages link to each other to form a &quot;web of documents&quot;.)</p>
+
+<p>DBpedia, a project to lift Wikipedia&#39;s information into RDF, might indicate the location for a particular World War II battle using a URI from the GeoNames project. Status.net, an open source microblogging platform, uses the same predicate URIs to describe people as LiveJournal.</p>
+
+<p>I won&#39;t say that it&#39;s <i>easy</i> to use the entire web of data as a massive distributed database, but it&#39;s beginning to look possible.</p>
+
+<p>For our conclusion, let&#39;s focus on just one of those linked open data projects: DBpedia.</p>
+
+<h3 id="The-SPARQL-Protocol">The SPARQL Protocol</h3>
+
+<p>(Yes, that sounds like a new Dan Brown book.)</p>
+
+<p>As well as being an SQL-like query language, SPARQL also includes a RESTful HTTP protocol for querying remote RDF data stores.</p>
+
+<p>DBpedia&#39;s SPARQL endpoint is <a href="http://dbpedia.org/sparql">http://dbpedia.org/sparql</a>. Let&#39;s query it using <a href="https://metacpan.org/module/RDF::Query::Client">RDF::Query::Client</a>.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="float">5.010</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">RDF::Query::Client</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">constant</span> <span class="word">DBPEDIA</span> <span class="operator">=&gt;</span> <span class="single">'http://dbpedia.org/sparql'</span><span class="structure">;</span><br /><br /><span class="comment"># Notice the &quot;PREFIX&quot; keyword in SPARQL can be used to set up<br /># abbreviations for long URIs.<br />#<br /></span><span class="keyword">my</span> <span class="symbol">$query</span> <span class="operator">=</span> <span class="word">RDF::Query::Client</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="heredoc">&lt;&lt;'SPARQL'</span><span class="structure">);</span><br /><span class="heredoc_content">PREFIX category: &lt;http://dbpedia.org/resource/Category:&gt;<br />PREFIX dc:       &lt;http://purl.org/dc/terms/&gt;<br />PREFIX rdfs:     &lt;http://www.w3.org/2000/01/rdf-schema#&gt;<br />SELECT $title<br />WHERE {<br />&nbsp;&nbsp;&nbsp;$resource dc:subject category:Christmas_songs .<br />&nbsp;&nbsp;&nbsp;$resource dc:subject category:Vocal_duets .<br />&nbsp;&nbsp;&nbsp;$resource rdfs:label $title .<br />&nbsp;&nbsp;&nbsp;FILTER ( langMatches(lang($title), &quot;en&quot;) )<br />}<br /></span><span class="heredoc_terminator">SPARQL<br /></span><br /><span class="keyword">my</span> <span class="symbol">$results</span> <span class="operator">=</span> <span class="symbol">$query</span><span class="operator">-&gt;</span><span class="word">execute</span><span class="structure">(</span> <span class="word">DBPEDIA</span> <span class="structure">);</span><br /><span class="keyword">while</span> <span class="structure">(</span><span class="keyword">my</span> <span class="symbol">$row</span> <span class="operator">=</span> <span class="symbol">$results</span><span class="operator">-&gt;</span><span class="word">next</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="double">&quot;GOT &quot;</span><span class="operator">,</span> <span class="symbol">$row</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">title</span><span class="structure">}</span><span class="operator">-&gt;</span><span class="word">value</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>This gives me a list of five songs; much easier to narrow down the song I was looking for. Oh yes, that was it...</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/RDF::Trine">RDF::Trine</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/RDF::Query">RDF::Query</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/RDF::Query::Client">RDF::Query::Client</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/f8faf2a422aecd1007b7d54c19ce7f39?r=g&s=80&d=retro />
+This article contributed by: Toby Inkster &lt;tobyink@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous">Previous</li>
+
+    <li class="next"><a title="Dancer Goes Megasplat" href="2013-12-02.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

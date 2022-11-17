@@ -1,0 +1,269 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Inline::TT</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 19th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Inline::TT</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../18th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../20th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>One of the hardest things to do when you're developing scripts is to
+keep your presentation separate from your programming logic.  This is
+the problem where your script gets intertwined with a hundred or so
+little print statements and when your manager calls you up and informs
+you that the output of your program must change, you have to hunt
+though your code trying to work out what does what.  Anyone who's ever
+tried to do this will tell you just how annoying and time consuming
+this is.</p>
+<p>The ideal solution would of course to be to utilise one of the hundred
+or so templating solutions out there to generate all your output, thus
+keeping it in a separate place.  And indeed, that's what many people 
+creating web pages do do, with much success.</p>
+<p>However, it's often just too much trouble when you're creating a
+simple script to do a simple job like reporting on the number of files
+modified in a filesystem.  Setting up separate files that contain the
+templates, keeping track of them and making sure they're installed on
+all the machines you install the scripts on in a place where each
+script (which you're loath to modify on a per machine basis) can
+find them is hard to do.</p>
+<p>This is where <b>Inline::TT</b> comes in.  It allows you to define your
+templates <i>Inline</i> in the actual code itself.  Now, this may sound
+like we've come around full circle, but it provides enough of a
+distinction that the presentation code is separated out (and made
+reusable.)</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Inline::TT">[Read the documentation for Inline::TT on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>I can't believe I've managed to get to the 19th of the month, and this
+is the first "Hello World" example of the year.  Anyway, here it is,
+the wonderful program that prints out "Hello World", this time making
+use of <b>Inline::TT</b>.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # use Inline with the TT module.  Note that this is
+  # not 'use Inline::TT' as Inline::TT is a plugin to Inline
+  use Inline 'TT' ;</pre>
+
+<pre>  # call the block defined below
+  print hello()</pre>
+
+<pre>  __END__
+  __TT__</pre>
+
+<pre>  [% BLOCK hello -%]
+  Hello World!</pre>
+
+<pre>  [% END %]</pre>
+
+<p>This, rather predictably, prints out the expected greeting</p>
+<pre>  [mark@gan] perl hellow 
+  Hello World!</pre>
+
+<p>So what happened?  Well, the TT section of the source code was compiled
+into perl code by the Template Toolkit and any blocks it found in
+there were mapped to functions in the same namespace as before.  So
+any block you declare in the <code>__TT__</code> section you can call directly
+from Perl.  <b>Inline</b> supports a range of other syntaxes for defining
+inline code if you don't like this "lumping all the code together at
+the end" approach, all of which are well documented in the manual.</p>
+<p>Like all Inline programs, the first time you run a Inline::TT the code
+runs slower than normal.  That's because it's extracting out the
+inline data (in this case the template code) and compiling it to Perl
+code which it places in the <code>_Inline</code> directory.  The second time you
+run the code it checks to see if the original code has changed at all,
+and if it hasn't it uses the version in <code>_Inline</code>.</p>
+<pre>  bash-2.05b$ ls -l
+  total 8
+  drwxr-sr-x    3 mark     mark         4096 Dec 16 18:51 _Inline
+  -rw-r--r--    1 mark     mark          282 Dec 16 18:39 hellow</pre>
+
+<p>When you're actually installing these scripts on a box it's a good
+idea to create a <code>.Inline</code> directory in the directory that <b>Inline</b>
+can use to store the files in instead.  If you're installing the
+script to somewhere that normal users can't write to, you'll need to
+be logged in as a privileged user (probably root) the first time you
+run the script in order to create the files.</p>
+<pre> [root@gan] cp hellow /usr/local/bin
+ [root@gan] mkdir /usr/local/bin/.Inline
+ [root@gan] hellow</pre>
+
+<p>Right, now we've got that out the way, let's look at a few things that
+we can do now we've got the power of the Template Toolkit at our
+fingertips.  The most obvious thing we can do is do conditional
+processing in the template</p>
+<pre>  print a_warning(text      =&gt; "You are running low on pie",
+                  important =&gt; 1);</pre>
+
+<pre>  [% BLOCK a_warning;</pre>
+
+<pre>    # create bar if it was important
+    IF important;
+     "*" | repeat(60);
+    END;</pre>
+
+<pre>    # print the message with a space and a newline
+    %] [% text %]
+    %]</pre>
+
+<pre>    # create bar if it was important
+    IF important;
+     "*" | repeat(60);
+    END;</pre>
+
+<pre>  END %]</pre>
+
+<pre>  ******************************************************
+   You are running low on pie
+  ******************************************************</pre>
+
+<p>This example made use of the <code>IF</code> directive, but it also demonstrated
+the <code>FILTER</code> directive, in this case utilised to repeat the astrix
+sixty times in each example.  The other obvious thing we can do that's
+normally messy in Perl code is create little templates for formatting
+data structures properly.</p>
+<pre>  print list_template(items =&gt; ["foo","bar","bob"])</pre>
+
+<pre>  [% BLOCK list_template -%]
+   [% FOREACH item = items %] * [% item %]
+  [% END; END %]</pre>
+
+<pre>   * foo
+   * bar
+   * bob</pre>
+
+<p>It's possible using the Template Toolkit's view system to make
+mappings between blocks and data structures so you can dump any data
+structure (including objects) out and have it automatically converted
+into the correct format recursively.</p>
+<p>Of course, just because these little templates are accessible
+to Perl, there's nothing to stop you using them in other templates</p>
+<pre>  print important_items(vital =&gt; \@important );</pre>
+
+<pre>  [% BLOCK important_items -%]
+  The three most important items are:</pre>
+
+<pre>  [% INCLUDE list_template items = vital.first(3) %]</pre>
+
+<pre>  These must be delt with first.
+  [% END %]</pre>
+
+<pre>  The three most important items are:   </pre>
+
+<pre>    * Take over the world
+    * Do tomorrow's advent calendar
+    * Buy pie at the supermarket</pre>
+
+<pre>  These must be delt with first</pre>
+
+<p>It's perfectly simple to make use of the numerous plugins that are
+available for the Template Toolkit.  One of the most useful plugins for
+printing output to the terminal is the plugin module that allows
+Template Toolkit to use the exceedingly useful <b>Text::AutoFormat</b>
+module to intelligently reformat text that is filtered though it.</p>
+<pre> [% BLOCK hello;
+    USE autoformat;
+    FILTER autoformat(left =&gt; 5, right =&gt; 30) -%]</pre>
+
+<pre> Hello, and good tidings
+ to you on this day.  I hope you have been
+ keeping in good health.</pre>
+
+<pre> [% END; END %]</pre>
+
+<pre>     Hello, and good tidings
+     to you on this day. I
+     hope you have been
+     keeping good health.</pre>
+
+<p>This, of course, just is the tip of the iceberg of what the Template
+Toolkit can do but already we can see how it can be utilised in ways
+that would potentially be very messy in normal Perl.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/author/ABW/Template-Toolkit/lib/Template.pm">The Template module documentation</a></li>
+<li><a href="http://www.tt2.org/">Template Toolkit Homepage</a></li>
+<li><a href="http://search.cpan.org/author/INGY/Inline-0.44/Inline.pod">The Inline module documentation</a></li>
+<li><a href="http://inline.perl.org/">Inline Homepage</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:53 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

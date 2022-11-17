@@ -1,0 +1,154 @@
+Title: Bisecting Perl to find when something broke (or was fixed!)
+Topic: bisect.pl
+Author: Matthew Horsfall (alh) <WolfSage@gmail.com>
+
+=encoding utf8
+
+So, it's Christmas Eve and you've decided now's the time to update production to
+the latest and greatest version of Perl. But since you don't want to spend your
+holidays fixing production, you decide to build Perl on your dev machine and
+run your ample test suite against it first.
+
+One of your tests looks like this: (Why it has your production code in it I have
+no idea):
+
+  #!perl
+  # t/a_test.t
+  use strict;
+  use warnings;
+
+  use Test::More;
+  plan tests => 4;
+
+  sub terrible {
+    my $gift = shift;
+
+    return 1 if $gift =~ /(charcoal|sweater)/;
+  }
+
+  for my $gift qw(charcoal sweater) {
+    ok(terrible($gift), "Gift $gift is terrible!");
+  }
+
+  for my $gift qw(car motorcycle) {
+    ok(!terrible($gift), "Gift $gift is awesome!");
+  }
+
+After upgrading Perl from 5.8.8 to 5.18.1, you find this test breaks:
+
+  $ perl-5.18.1 ~/t/a_test.t
+  "my" variable $gift masks earlier declaration in same statement at ~/t/a_test.t line 18.
+  "my" variable $gift masks earlier declaration in same statement at ~/t/a_test.t line 19.
+  syntax error at ~/t/a_test.t line 14, near "$gift qw(charcoal sweater)"
+  Global symbol "$gift" requires explicit package name at ~/t/a_test.t line 15.
+  Execution of ~/t/a_test.t aborted due to compilation errors.
+
+But why?! That's perfectly valid Perl!
+
+=head1 Bisecting to the rescue!
+
+Thankfully, with a clone of the Perl git repository, we can answer this
+question. So first we grab a copy:
+
+  $ git clone git://perl5.git.perl.org/perl.git perl
+
+In F<Porting/> you'll find a tool called F<bisect.pl>. This is a nice wrapper
+around L<git-bisect(1)> that will build Perl for each revision being tested and run
+your tests, telling you when your test first broke.
+
+However, this script cannot be run from the Perl repository it is testing, so
+first we must make a copy of a clean checkout of blead:
+
+  $ git clone perl perl-2
+
+And now we can bisect Perl from 5.8.8 (when everything worked) to 5.18.1 (when
+our world collapsed) and wait a very long time to get our results:
+
+  $ cd perl-2
+  $ ../perl/Porting/bisect.pl --start=perl-5.8.8 --end=v5.18.1 \
+    -- ./perl -Ilib ~/t/a_test.t
+
+Grab an eggnog, wrap some presents, write your memoirs, this will take awhile.
+
+Optionally, we can make this go a I<little> faster, because we have an awesome
+computer that we got last Christmas, and it can do many things in parallel.  We
+just add a C<-j> option which gets passed to L<make(1)>:
+
+  $ ../perl/Porting/bisect.pl --start=perl-5.8.8 --end=v5.18.1 \
+    -j 8 -- ./perl -Ilib ~/t/a_test.t
+
+Note that while above C<--start> and C<--end> are git tags, instead they could
+even be commit IDs.
+
+Anyways, after waiting a long while the bisect finally finishes and tells us
+this:
+
+  [...]
+  Use of qw(...) as parentheses is deprecated at ~/t/a_test.t line 14.
+  Use of qw(...) as parentheses is deprecated at ~/t/a_test.t line 18.
+  1..4
+  ok 1 - Gift charcoal is terrible!
+  ok 2 - Gift sweater is terrible!
+  ok 3 - Git car is awesome!
+  ok 4 - Git motorcycle is awesome!
+  HEAD is now at eb3d0a5 Block signals during fork (fixes RT#82580)
+  good - zero exit from ./perl -Ilib ~/t/a_test.t
+
+  417a992d4dc78be79e44d19e029d9742d0334128 is the first bad commit
+  commit 417a992d4dc78be79e44d19e029d9742d0334128
+  Author: Zefram <zefram@fysh.org>
+  Date:   Fri May 25 22:25:21 2012 +0100
+
+      remove deprecated qw-as-parens behaviour
+  ⋮
+  bisect run success
+  That took 2019 seconds
+
+Voila! And knowing that, we can fix our test by changing:
+
+  #!perl
+  for my $gift qw(charcoal sweater) {
+
+To
+
+  #!perl
+  for my $gift (qw(charcoal sweater)) {
+
+And
+
+  #!perl
+  for my $gift qw(car motorcycle) {
+
+To
+
+  #!perl
+  for my $gift (qw(car motorcycle)) {
+
+And upgrade our servers and go home and enjoy the holidays!
+
+=head1 A few more tricks…
+
+There are a few more neat things that F<bisect.pl> can also do for us, and its
+documentation includes examples of many of them.
+
+For instance, you don't need to provide a start and end, that just speeds things
+up:
+
+  # When did this become an error?
+  ../perl/Porting/bisect.pl -e 'my $a := 2;'
+
+Or you can search for the reverse:
+
+  # When did this start working?
+  ../perl/Porting/bisect.pl --expect-fail -e '1 // 2'
+
+Check out C<perldoc Porting/pod/bisect-runner.pl> for more information.
+
+=head1 In closing
+
+F<bisect.pl> is an incredibly useful tool. Here, we used it to find why some
+external Perl program failed, but it's most often used to figure out when
+something broke in Perl itself.
+
+If you hack on the Perl language, keep this in your toolbelt. It will save you
+time and frustration.

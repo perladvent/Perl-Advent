@@ -1,0 +1,148 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2018 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2018.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2018 - 
+Legacy code strikes again
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2018</a></h1>
+        </div>
+
+        <p id="tagline">2018 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Legacy code strikes again</h1>
+<div class='subtitle'>Context::Singleton - 2018-12-23</div>
+
+<div class='pod'><p>It&#39;s 3 o&#39;clock in the morning. Our poor programmer is finally asleep. It&#39;s the run up to Christmas and work has been hectic with the increased website traffic. But all is good. All is well. And finally the programmer can dream of a life where...</p>
+
+<p><i>ding ding, ding ding</i></p>
+
+<p>&quot;Our databases are stuck AGAIN, we are NOT delivering, do something! NOW!&quot;</p>
+
+<p>Bleary eyed our protagonist rolls out of bed and logs into the production systems. Our programmer-soon-hero-again has discovered that database servers are overloaded with unused connections.</p>
+
+<h3 id="Code-architecture">Code architecture</h3>
+
+<p>In order to process every gift delivery the code has to access several databases:</p>
+
+<p><ul> <li>The delivery queue database</li> <li>The accounting department database</li> <li>The legal department database</li> <li>The compliance database</li> </ul>
+
+</p>
+
+
+
+<p>The location of every database for every gift&#39;s delivery region is located in the central key-value storage, which at least is holding up under the increased website traffic.</p>
+
+<p>The problem is that gift processing opens all four connections when it first it starts up keeping the connections open idle between gift processing. With the increased workload during the run up to Christmas there&#39;s too many processes with open database connections!</p>
+
+<h3 id="Refactoring">Refactoring</h3>
+
+<p>If our programmer is ever going to get a full night&#39;s sleep, he has to refactor the code quickly.</p>
+
+<p>The solution is &quot;easy&quot;. Do lazy connections! While the code is off doing other things that don&#39;t involve accessing the database there&#39;s no reason it should have the connections open.</p>
+
+<h4 id="Naive-solution">Naive solution</h4>
+
+<p>The naive solution would be to connect only when needed - making a new connection in each function that needs to access the database.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">foo</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$delivery_queue_db</span> <span class="operator">=</span> <span class="word">delivery_queue_connect</span><span class="structure">(</span> <span class="magic">@_</span> <span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">}</span><br /><br /><span class="keyword">sub</span> <span class="word">bar</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span><span class="keyword">my</span> <span class="symbol">$delivery_queue_db</span> <span class="operator">=</span> <span class="word">delivery_queue_connect</span><span class="structure">(</span> <span class="magic">@_</span> <span class="structure">))</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Unfortunately that makes the performance even worse! The same connection is required by many independent parts of the code and reconnecting in every single function overloads the database server even more!</p>
+
+<h4 id="OOP-refactoring">OOP refactoring</h4>
+
+<p>In an ideal world our programmer would refactor the code to work in an object orientated fashion so that each database connection is available from an object accessor only where it was needed.</p>
+
+<p>Unfortunately that is going to be a <b>huge</b> amount of work. The programmer did a bit of estimating, and figured out he could get it all done by the end of March...and he&#39;s like to sleep sometime before then.</p>
+
+<h4 id="Legacy-solution">Legacy solution</h4>
+
+<p>One solution is to make use of global variables, and <i>localize</i> them so they&#39;re automatically cleared up as execution leaves scope (and the database connections will automatically be dropped)</p>
+
+<p>For example.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># our global package variables<br /></span><span class="keyword">our</span> <span class="structure">(</span><span class="symbol">$delivery_queue_db</span><span class="operator">,</span> <span class="symbol">$accounting_db</span><span class="operator">,</span> <span class="operator">...</span><span class="structure">);</span><br /><br /><span class="comment"># do the bit of code that needs the same database connections<br /></span><span class="keyword">sub</span> <span class="word">handle_gift</span> <span class="structure">{</span><br /><span class="comment">    # localize the connections so when we leave scope they'll<br />&nbsp;&nbsp;&nbsp;&nbsp;# be automatically cleared up<br /></span>    <span class="keyword">local</span> <span class="structure">(</span><span class="symbol">$delivery_queue_db</span><span class="operator">,</span> <span class="symbol">$accounting_db</span><span class="operator">,</span> <span class="operator">...</span><span class="structure">);</span><br /><br /><span class="comment">    # use functions that connect to the various databases<br />&nbsp;&nbsp;&nbsp;&nbsp;# the first time a connection to the database is needed<br /></span>    <span class="word">record_shipping_timeline</span><span class="structure">(</span><span class="operator">...</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">update_stock_count</span><span class="structure">(</span><span class="operator">...</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">}</span><br /><br /><span class="comment"># some code that is eventually called by something<br /># record_shipping_timeline eventually calls<br /></span><span class="keyword">sub</span> <span class="word">calculate_shipping_method</span> <span class="structure">{</span><br /><span class="comment">    # in each function that needs a connection to the<br />&nbsp;&nbsp;&nbsp;&nbsp;# database we connect if we need to if the global variable<br />&nbsp;&nbsp;&nbsp;&nbsp;# doesn't already have a connection<br /></span>    <span class="symbol">$delivery_queue_db</span> <span class="operator">//=</span> <span class="word">delivery_queue_connect</span><span class="structure">(</span> <span class="magic">@_</span> <span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>It&#39;s a lot better. Now the database connections aren&#39;t created until the very point they&#39;re about to be used. But it&#39;s still a lot of additional code to maintain, and the programmer will have well over 100 such parameters.</p>
+
+<p>And now he will also have to extend every function with connectivity information, or make that yet another global variable too.</p>
+
+<p>Trembling between 100 variables, 10_000 functions and who knows how many lines of code our programmer suddenly hears something start to whisper. Has the sleep deprivation finally sent him over the edge?</p>
+
+<p>... &quot;Use me, search me, use me, search me&quot;</p>
+
+<p>&quot;Is it you, Almighty CPAN? Do you have solution for me?&quot;</p>
+
+<p>&quot;Take a look at Context::Singleton&quot;</p>
+
+<h4 id="Curiosity-driven-development-solution">Curiosity driven development solution</h4>
+
+<p><a href="https://metacpan.org/module/Context::Singleton">Context::Singleton</a> is a way of handling shared state in a much more controlled and organized fashion. It handles the localization and allows a centralized place for declaring a <i>recipe</i> for deducing shared state when it&#39;s first needed.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># define a recipe for deducing the delivery_queue_db<br /># whenever we need it<br /></span><span class="word">contrive</span> <span class="single">'delivery_queue_db'</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">dep</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="words">qw[ gift ... ]</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">as</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$gift</span><span class="operator">,</span> <span class="operator">...</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span> <span class="operator">...</span> <span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">sub</span> <span class="word">foo</span> <span class="structure">{</span><br /><span class="comment">    # get the delivery_queue_db for the current frame<br />&nbsp;&nbsp;&nbsp;&nbsp;# calling the logic in contrive to create a new<br />&nbsp;&nbsp;&nbsp;&nbsp;# connection if that hasn't already happened this frame<br /></span>    <span class="keyword">my</span> <span class="symbol">$delivery_queue_db</span> <span class="operator">=</span> <span class="word">deduce</span> <span class="single">'delivery_queue_db'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">}</span><br /><br /><span class="keyword">sub</span> <span class="word">bar</span> <span class="structure">{</span><br /><span class="comment">    # this is the same thing as in foo above - getting<br />&nbsp;&nbsp;&nbsp;&nbsp;# the delivery_queue_db for the current frame and<br />&nbsp;&nbsp;&nbsp;&nbsp;# using the logic in contrive to do create a new<br />&nbsp;&nbsp;&nbsp;&nbsp;# connection if delivery_queue_db doesn't exist in<br />&nbsp;&nbsp;&nbsp;&nbsp;# the current frame, but here we're also using<br />&nbsp;&nbsp;&nbsp;&nbsp;# try_deduce to see if we have all the dependencies<br />&nbsp;&nbsp;&nbsp;&nbsp;# to do that first<br /></span>    <span class="keyword">if</span> <span class="structure">(</span><span class="word">try_deduce</span> <span class="single">'delivery_queue_db'</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$delivery_queue_db</span> <span class="operator">=</span> <span class="word">deduce</span> <span class="single">'delivery_queue_db'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span><br /><br /><span class="keyword">sub</span> <span class="word">handle_gift</span> <span class="structure">{</span><br /><span class="comment">    # start a new context.  Things that we deduce will be<br />&nbsp;&nbsp;&nbsp;&nbsp;# cleared up when execution leaves the frame<br /></span>    <span class="word">frame</span> <span class="structure">{</span><br /><span class="comment">        # declare the gift in our current frame.  Now<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# we don't have to pass it around to the functions<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# that we call from within the frame since they<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# can access it via the context singleton keywords<br /></span>        <span class="word">proclaim</span> <span class="single">'gift'</span> <span class="operator">=&gt;</span> <span class="symbol">$gift</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>By using Context::Singleton our programmer has removed four arguments from every important function - resulting largest code reducing commit in the project history!</p>
+
+<p>Each connection is now created first time it is needed and persisted till end of the frame. The programmer&#39;s system finally works again, and gifts are being delivered.</p>
+
+<p>This approach even allowed a long desired optimization (previously not implemented due to &quot;argument hell&quot;) so now it&#39;s most likely system will handle even next Christmas&#39; load ...</p>
+
+<h3 id="How-it-works">How it works</h3>
+
+<p><a href="https://metacpan.org/module/Context::Singleton">Context::Singleton</a> offers data control mechanism similar to <code>my</code> variable within code blocks, but independent of code architecture and execution flow. Things within the frame will always exist just until the end of the frame so will be cleared up automatically avoiding globals existing throughout the entire codebase.</p>
+
+<p>It affords reasonable caching as well - derived properties are stored in same <code>frame</code> as their requirements. In our case, <code>delivery_queue_db</code> will always be populated in same frame as <code>gift</code> value was set.</p>
+
+<p>It provides multiple ways how to populate variables based on availability of other variables. The simple <code>contrive</code> example above is just one simple implementation - Context::Singleton also allows you to specify recipies where you can specify class names, builder methods to be called, or defaults and values.</p>
+
+<p>It handles a lot of the complex stuff hand rolling a simple solution with a combination of the <code>local</code> keyword and accessor subroutines can&#39;t handle alone: It gives immutability on scope, and can build values based on dependencies. With dependency tracking it can rebuild them in inner scope when their dependencies have been modified! And it is able to handle cyclic dependencies as well.</p>
+
+<p>One way to think about it is that it acts like <code>$_</code> providing &quot;default object&quot; where every deducible property acts like method (with some kind of multi-dispatch) though you can compose specific classes as you need using / providing different <code>contrive</code> recipes.</p>
+
+<p>See <a href="https://www.youtube.com/watch?v=KBQ0prTu5ys">TPC in Amsterdam presentation</a> (<a href="https://rawgit.com/happy-barney/slides/master/2017-08-09%20-%20TPCiA%20-%20Context%20Singleton/src/tpcia-2017-08-09-context-singleton.html">slides</a>) for more.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/37bd8f20f282c1457ab228f65e0a394d?r=g&s=80&d=retro />
+This article contributed by: Branislav Zahradn&iacute;k &lt;barney@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Validation" href="2018-12-22.html">Previous</a></li>
+
+    <li class="next"><a title="Watching The Perl Conference Again" href="2018-12-24.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

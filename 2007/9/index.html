@@ -1,0 +1,63 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3c.org/TR/1999/REC-html401-19991224/loose.dtd">
+<HTML xmlns="http://www.w3.org/1999/xhtml">
+<HEAD><TITLE>2007 Perl Advent Calendar: E.L.F.</TITLE>
+<META http-equiv=Content-Type content="text/html; charset=iso-8859-1">
+<LINK href="../style.css" type=text/css rel=stylesheet></HEAD>
+<BODY>
+<H1><A href="http://www.perladvent.org/2007/">Perl Advent Calendar 
+2007-12</A>-09</H1>
+<H2 align=center>E.L.F.</H2>
+<H3 align=center>by Jerrad Pierce</H3>
+
+<BLOCKQUOTE>Actually published 12-26</BLOCKQUOTE>
+
+<P><TT><A href="http://search.cpan.org/search?module=Sub::Versive">Sub::Versive</A></TT>
+permits you to install stackable pre- and post- execution chunks of code on
+arbitrary subroutines. An interesting use one might attempt with the module
+is to employ an lvalue subroutine with a post handler to make more than mere
+mutators e.g; reimplement substr, etc. Alas, due to the slight of hand used
+to achieve these results&mdash;symbol smashing and iteration over cached
+lists of coderefs&mdash;the module is not compatible with lvalue subroutines.
+What <em>might</em> one subvert then? Well, as our code sample demonstrates,
+among other things it's possible to setup some debugging at a distance. The
+output is:</P>
+
+<pre><span class="c">Entering _bar(1 1 2 3)...
+baz quux
+Exiting _bar()...
+Entering _bar(99)...
+baz quux
+Exiting _bar()...</span></pre>
+
+<p>Finally, note that the 0.01 SYNOPSIS has reversed the print statements for
+prepend and append.</P>
+
+<H1><A href="mod9.pl">mod9.pl</A></H1>
+<HR>
+<PRE>
+   1 <span class="k">use</span> <span class="w">Sub::Versive</span> <span class="q">':all'</span><span class="sc">;</span>
+   2 
+   3 <span class="c">#Unable to munge @_</span>
+   4 <span class="i">prepend_to_sub</span><span class="s">{</span> <span class="k">print</span> <span class="i">STDERR</span> <span class="q">&quot;Entering _bar(@_)...\n&quot;</span> <span class="s">}</span> <span class="i">&amp;There::_bar</span><span class="sc">;</span>
+   5 <span class="c">#Unable to access the sub's return value, &quot;modify&quot; it by returning</span>
+   6  <span class="i">append_to_sub</span><span class="s">{</span> <span class="k">print</span> <span class="i">STDERR</span> <span class="q">&quot;Exiting _bar(@rv)...\n&quot;</span> <span class="s">}</span> <span class="i">&amp;There::_bar</span><span class="sc">;</span>
+   7 
+   8 <span class="c">#Make a subroutine available everywhere via an unqualified name;</span>
+   9 <span class="c">#this *must* happen after mungers have been installed</span>
+  10 <span class="w">builtinify</span> <span class="i">&amp;There::foo</span><span class="sc">;</span>
+  11 
+  12 <span class="i">foo</span><span class="s">(</span><span class="n">1</span><span class="cm">,</span><span class="n">1</span><span class="cm">,</span><span class="n">2</span><span class="cm">,</span><span class="n">3</span><span class="s">)</span><span class="sc">;</span>
+  13 
+<a name="package-Here-"></a>  14 <span class="k">package </span><span class="i">Here</span><span class="sc">;</span>
+  15 <span class="i">foo</span><span class="s">(</span><span class="n">99</span><span class="s">)</span><span class="sc">;</span>
+  16 
+<a name="package-There-"></a>  17 <span class="k">package </span><span class="i">There</span><span class="sc">;</span>
+<a name="foo-"></a>  18 <span class="k">sub </span><span class="m">foo</span><span class="s">{</span>
+  19     <span class="i">_bar</span><span class="s">(</span><span class="i">@_</span><span class="s">)</span><span class="sc">;</span>
+  20 <span class="s">}</span>
+  21 
+<a name="_bar-"></a>  22 <span class="k">sub </span><span class="m">_bar</span><span class="s">{</span>
+  23     <span class="k">print</span> <span class="q">&quot;baz quux\n&quot;</span><span class="sc">;</span>
+  24     <span class="k">return</span> <span class="n">9</span><span class="sc">;</span>
+  25 <span class="s">}</span>
+</PRE></BODY></HTML>

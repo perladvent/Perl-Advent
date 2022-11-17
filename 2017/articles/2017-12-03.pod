@@ -1,0 +1,184 @@
+Title: Context Matters
+Topic: Enforcing coding standards via Perl::Critic
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+The Wise Old Elf was looking at a code snippet Garland Twinklecake had brought
+to him.
+
+    #!perl
+    use Moose;
+
+    # holds our DBIx::Class resultsets that can be used to get the
+    # naughty or nice children one by one
+    has '_result_sets' => (
+        is => 'ro',
+        lazy => 1,
+        builder => '_build_result_sets',
+    );
+
+    sub _build_result_sets {
+        my $self = shift;
+        my $children = $self->_schema->resultset('Child');
+        return {
+            naughty => $rs->search( naughty => 1 ),
+            nice    => $rs->search( naughty => 0 ),
+        };
+    }
+
+    sub naughty_child {
+        my $self = shift;
+        return $self->_result_sets->next;
+    }
+
+    sub nice_child {
+        my $self = shift;
+        return $self->_result_sets->next;
+    }
+
+"I just don't understand why it doesn't work.", Garland complained, "it just
+freezes right up".
+
+"Okay, okay", the Wise Old Elf reassured, "we can get to the bottom of this.
+Just run the whole thing with the C<DBIC_TRACE> environment variable set to
+true. and DBIx::Class will spit out the SQL it's doing to STDERR."
+
+No sooner had Garland run the command again than he immediately saw the problem;
+Perl was trying to bring back every single child from the database, and, well,
+that was, as you might expect, taking some time.
+
+"I see what's going on now.  You've been bitten by using the C<search> method in
+list context", the Wise Old Elf explained.
+
+=head2 Context Matters
+
+One way that people (and elves) often get into trouble with Perl is forgetting
+that some functions and methods act differently when called in list or scalar
+context.
+
+For example, this code creates two results sets we can use later to request
+children one by one:
+
+    #!perl
+    my $naughty_result_set = $schema->resultset('Child')
+                                    ->search( naughty => 1 );
+
+    my $nice_result_set    = $schema->resultset('Child')
+                                    ->search( naughty => 0 );
+
+This works because C<search> is being called in scalar context both times, and
+when it's called in scalar context we get back a resultset as the names of the
+variables indicate.  At this point these two abstract resultsets represent sets
+of conditions that will be run against the database as soon as we call C<first>,
+C<next>, etc on them or can be used to create further refined result sets by
+adding additional conditions with further calls to C<search>.
+
+However, this seemingly similar code does something dramatically different
+
+    #!perl
+    my $result_sets = {
+        naughty => $schema->resultset('Child')->search( naughty => 1 ),
+        nice    => $schema->resultset('Child')->search( naughty => 0 ),
+    };
+
+While it looks like the C<search> method here should return one value each
+time it's called to pair with C<naughty> and C<nice>, that's not what happens.
+C<search> in list context actually returns all the results as a big list
+making C<$result_sets> huge and filled with nonsensical data rather than just
+the two key-value pairs we were expecting.  In other situations this can result
+in security risks where keys and parameters become mismatched.
+
+One way to fix this is to force scalar context with the C<scalar> keyword:
+
+    #!perl
+    my $result_sets = {
+        naughty => scalar($schema->resultset('Child')->search( naughty => 1 )),
+        nice    => scalar($schema->resultset('Child')->search( naughty => 0 )),
+    };
+
+The better solution however, is to just call C<search_rs> instead of C<search>.
+
+    #!perl
+    my $result_sets = {
+        naughty => $schema->resultset('Child')->search_rs( naughty => 1 ),
+        nice    => $schema->resultset('Child')->search_rs( naughty => 0 ),
+    };
+
+C<search_rs> is exactly the same as C<search>, except it always returns a result
+set object even when called in list context.
+
+=head2 Writing a Perl Critic rule
+
+After all this explanation, Garland was frustrated.  "Okay, I give up.  We
+should just B<never> call the C<search> method.  We should B<always> use
+C<search_rs>"
+
+The Wise Old Elf agreed, and he had a plan.  Rather than just updating the
+coding standards document, he made sure that no code in the repository contained
+calls to the C<search> method and made it impossible for new code to sneak in
+calls to C<search>.
+
+How did he do that?  Well, the test suite for the North Pole codebase uses
+Test::Perl::Critic to ensure that the code in the repo meets the Perl::Critic
+guidelines defined in the C<.perlcriticrc>.  So all the Wise Old Elf had left
+to do was write a quick Perl::Critic rule that freaks out at any method call
+to C<search> that isn't wrapped in a C<no critic> type declaration.
+
+    #!perl
+    package Perl::Critic::Policy::NorthPole::ProhibitSearchMethod;
+
+    use strict;
+    use warnings;
+
+    use Perl::Critic::Utils qw( :severities is_method_call );
+    use base 'Perl::Critic::Policy';
+
+    sub default_severity     { return $SEVERITY_HIGHEST }
+    sub default_themes       { return qw( northpole ) }
+
+    # Don't support any parameters in the config file
+    sub supported_parameters { return () }
+
+    # only call 'violates' for elements that are Words (this speeds things up)
+    sub applies_to           { return 'PPI::Token::Word' }
+
+    # examine each PPI::Token::Word in the source code, and violate if it's any
+    # call to the method 'search'
+    sub violates {
+        my $self    = shift;
+        my $element = shift;
+
+        return unless $element->content eq 'search';
+        return unless is_method_call($element);
+
+        return $self->violation(
+            'Use of the search() method is prohibited',
+            <<'END',
+    DBIx::Class's search() method returns a result set object in scalar context, but
+    returns a list of results in list context.  This is unsafe when such a call is
+    used in a constructor as it can mix up the parameter keys and values.  For
+    example, if search returns no results this:
+
+       Foo::Bar->new(
+            foo => $schema->resultset('Foo')->search(...),
+            bar => $user_value,
+            baz => $user_value2,
+            ...
+       );
+
+    Could be interpreted as
+
+        Foo::Bar->new(
+             foo => 'bar',
+             $user_value => baz,
+             $user_value2 => ...
+        );
+
+    This critic rule can easily have false positives if other classes have a
+    C<search> method - we can't tell the difference with simple static analysis.
+    END
+            $element
+        );
+    }
+
+    1;
+

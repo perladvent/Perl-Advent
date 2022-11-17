@@ -1,0 +1,173 @@
+Title: Making Perl Functional
+Topic: List::Util
+Author: Mark Allen <mrallen1@cpan.org>
+
+=pod
+
+"So you see, I simply have too many nice children to sort from the naughty
+ones. There's only a few days until its time to take presents to only the nice
+ones," Santa said sadly. "To make things worse, our database provider
+got DDoS'd by the naughty children's botnets, and all I have is this
+CSV backup!"
+
+"Santa! Don't worry!" said Isabella the elf cheerily. "I think I have a
+solution to your problem!"
+
+Santa looked at Isabella with keen interest. "Well, what's that then?" he asked
+curiously.
+
+=head2 Using functional techniques on Perl lists
+
+Perl is not often thought of as a functional programming language,
+but it has the key list evaluation primitives of C<filter> known as C<grep> in
+Perl, C<map>, and C<reduce> (sometimes called C<fold> in other languages.)
+
+Perl also supports functions as first-class variables, so it has all of the
+necessary ingredients to be a fruitful functional programming environment.
+(If this idea intrigues you, I very highly recommend Mark Jason Dominus'
+excellent book L<Higher Order Perl|http://hop.perl.plover.com/book/>
+which you may read and download for free from his website.)
+
+C<grep> takes a list and applies a "predicate" - a code block that returns
+a true or false value.  If the predicate returns true, the list item is
+passed into a new list. If the predicate returns false, the list item
+is discarded.
+
+Here's part of Santa's CSV file:
+
+    id, name, nice, siblings, present
+    1, Hermione, 1, 0, Wand
+    2, Delores, 0, 1, Coal
+    3, Draco, 0, 0, Dirty sock
+    4, Ronald, 1, 6, Scarf
+
+=head2 Using grep
+
+Our task here is to filter the naughty names from the nice ones. We're
+going to use L<Text::CSV> to parse the data, because friends don't
+let friends parse CSV using C<split>.
+
+In this particular case, our predicate is very simple. We can check
+to see if the C<nice> field contains a 1 or a 0. If it has a 1,
+we add the child to our list of nice children.
+
+    #!perl
+    use 5.014;
+    use Text::CSV; # could use Text::CSV_XS instead
+    use IO::String;
+
+    my $data = <<'DATA';
+    id, name, nice, siblings, present
+    1, Hermione, 1, 0, Wand
+    2, Delores, 0, 1, Coal
+    3, Draco, 0, 0, Dirty sock
+    4, Ronald, 1, 6, Scarf
+    DATA
+
+    my $fh = IO::String->new($data);
+    my $csv = Text::CSV->new( { allow_whitespace => 1 } );
+
+    $csv->column_names( $csv->getline($fh) );
+    my @nice = grep {; $_->{nice} } @{ $csv->getline_hr_all($fh) };
+    close $fh;
+
+=head2 Why do I use C<;> as the first character in my code block?
+
+I want to make it abundantly clear to Perl that I am using a code block.
+There are various ways to ensure that curly braces are interpreted as
+a code block but I never remember them. Using a semi-colon (C<;>) as the
+very first token in my block ensures that Perl knows that whatever
+follows should be considered a code block (and not, for example
+a hash operation.)
+
+=head2 Using map
+
+Santa has a database with latitude and longitude for each child's home. We need
+to add this information to each nice child entry.
+
+To do this we can use a C<map> function. A map takes each element of a list and
+applies a function to it, and returns the transformed item in a new list.
+
+    #!perl
+    my %locations = (
+        'Wrigley Field' => [41.94757, -87.6562],
+        'The Getty'     => [34.07905, -118.4744],
+        'Austin'        => [30.26759, -97.74299],
+        'Honolulu'      => [21.30485, -157.8578],
+    );
+
+We also need to do some calculations of how much distance Santa expects to cover
+when he's delivering the gifts, so instead of just using the latitude and
+longitude as given in the database, we're going to represent these points using
+L<Geo::Calc::XS>
+
+    #!perl
+    use Geo::Calc::XS;
+    my @locations = map {;
+        my $loc = $locations{$_};
+        Geo::Calc::XS->new(
+            lat  => $loc->[0],
+            lon  => $loc->[1],
+            units => 'mi'
+        )
+    } @nice;
+
+=head2 Using reduce
+
+Now we can compute the total distance traveled between each location using a
+reduction. This is a list operation that performs a function on each list
+element and adds its results into an accumulator variable. When the list is
+exhausted, the function returns the accumulator's value.
+
+In Perl, C<reduce> is found in L<List::Util> and has been in core since 5.7.3,
+so it should (almost) always be available, the same as C<map> and C<grep>.
+
+    #!perl
+    use List::Util qw(reduce);
+
+    my $miles_traveled = reduce {;
+        $a->distance_to( $b )
+    } @deliveries;
+
+    say $miles_traveled;
+
+I hope Santa gets plenty of cocoa and cookies for that long trip.
+
+=head2 Pipelines
+
+A really powerful technique is to build a pipeline of successive map and grep
+operations.
+
+    #!perl
+    my $miles_traveled = reduce {;
+        $a->distance_to( $b )
+    } map {;
+        my $loc = $locations{$_};
+        Geo::Calc::XS->new(
+            lat  => $loc->[0],
+            lon  => $loc->[1],
+           units => 'mi'
+        )
+    }  grep {;
+        $_->{nice}
+    } @{ $csv->getline_hr_all($fh) };
+
+This is a compact and expressive way to signal your intention of
+how to modify data which comes in a list form.  Some areas where this is
+especially useful Perl programmers are likely to encounter in everyday use are
+DBI results and JSON input and/or transformation.
+
+I hope you enjoyed this exploration of C<grep>, C<map>, and C<reduce>. I find
+them tremendously useful and I use them frequently instead of foreach or
+while or other such loops.
+
+=head2 SEE ALSO
+
+=for :list
+* C<perldoc -f grep>
+* C<perldoc -f map>
+* L<List::Util>
+* L<Higher Order Perl|http://hop.perl.plover.com/book/>
+* L<Complete code listing and cpanfile|https://gist.github.com/mrallen1/f95cfc7ae9fc89020e574fc979faad05>
+
+=cut

@@ -1,0 +1,170 @@
+Title: Mu
+Topic: Mu
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=encoding utf8
+
+There's a day in every elf's life where they learn something that changes
+the whole way they approach problems from then on.
+
+For Yule Presentgiver that day was today.  He was about to learn about L<Mu>,
+a way to quickly and compactly write L<Moo> and L<Moose> compatible classes
+with almost no typing.
+
+Yule had written a simple script that read in a CSV file and added up all
+the present counts in the third column.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.12.0;
+    use warnings;
+
+    use Text::CSV;
+
+    my $filename = shift;
+
+    my $csv = Text::CSV->new ({ binary => 1 })
+        or die "Cannot use CSV: ".Text::CSV->error_diag;
+    open my $fh, "<:encoding(utf8)", $filename or die "$filename: $!";
+    my $total = 0;
+    while ( my $row = $csv->getline($fh) ) {
+      $total += $row->[2];
+    }
+    $csv->eof or $csv->error_diag;
+
+    say $total;
+
+Now he had to take it to the Wise Old Elf for code review.
+
+"That's a nice compact script", The Wise Old Elf commented, "But it's not
+very reusable.  The next ticket has us writing a second script that gives
+us the total across all the continents, and you can't reuse any of that
+code you just wrote"
+
+"What would be nice to do would be to put your logic in a reusable module"
+
+   #!perl
+   package DeliveryCount;
+   use Moo;
+   use Text::CSV;
+
+   use experimental 'signatures';
+
+   has 'filename' => (
+      is => 'ro',
+      required => 1;
+   );
+
+   has 'count' => (
+       is => 'lazy',
+       builder => sub ($self,@) {
+           my $csv = Text::CSV->new ({ binary => 1 })
+               or die "Cannot use CSV: ".Text::CSV->error_diag;
+           open my $fh, "<:encoding(utf8)", $self->filename
+             or die $self->filename.": $!";
+           my $total = 0;
+           while ( my $row = $csv->getline($fh) ) {
+             $total += $row->[2];
+           }
+           $csv->eof or $csv->error_diag;
+           return $total;
+       },
+   );
+
+   1;
+
+"And then", the Wise Old Elf continued, "you'd just have to write a
+simple launch script".
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.12.0;
+    use warnings;
+
+    use DeliveryCount;
+    say DeliveryCount->new( filename => shift )->count;
+
+"Now you've made that into reusable code the next next ticket is just writing
+this tiny additional script"
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.12.0;
+    use warnings;
+
+    use DeliveryCount;
+    use List::Util qw( sum );
+    say sum map { DeliveryCount->new( filename => $_ )->count } qw(
+        africa.csv antartica.csv asia.csv oceania.csv europe.csv na.csv sa.csv
+    );
+
+"I know, I<I know>.." Yule explained, "but it's soooo much more typing to put
+the code in a module.  All that Moo B<boilerplate>.  has-this...lazy that...And
+we need to move B<FAST>.  Christmas is a-comming....".
+
+The Wise Old Elf nodded his head.  This was a common theme with Yule.  He'd
+repeatedly shyed away from writing OO code in quick and dirty scripts because
+he saw it as too much work.  Of course, as in this cases, those quick and
+dirty scripts often turned into something bigger and then Yule'd have to not
+only write the object orintated code he should have written in the first place
+but also rewrite all his existing code then too.   If only there was
+a way to get him to write the object orintated code just as quickly in the
+first place...Oh, yes, now the Wise Old Elf knew what to teach Yule.
+
+"You need to learn about L<Mu>"
+
+    #!perl
+    package DeliveryCount;
+    use Mu;
+    use Text::CSV;
+    use experimental 'signatures';
+
+    ro 'filename';
+    lazy 'count' => sub ($self,@) {
+        my $csv = Text::CSV->new ({ binary => 1 })
+            or die "Cannot use CSV: ".Text::CSV->error_diag;
+        open my $fh, "<:encoding(utf8)", $self->filename
+          or die $self->filename.": $!";
+        my $total = 0;
+        while ( my $row = $csv->getline($fh) ) {
+          $total += $row->[2];
+        }
+        $csv->eof or $csv->error_diag;
+        return $total;
+    };
+
+    1;
+
+"Mu is Moo, with less typing", the Wise Old Elf explained.  "Whenever you
+write"
+
+    #!perl
+    use Mu;
+
+"It's just the same as writing"
+
+    #!perl
+    use Moo;
+    use MooX::ShortHas;
+
+"L<MooX::ShortHas> exports some extra syntatic sugar that gives you this
+C<ro> and C<lazy> syntax.  Instead of having to write the long C<has> statements
+you can just use the much shorter syntax."
+
+Yule's face lit up.  The C<ro 'filename'> wasn't any more code that writing
+C<my $filename>.  The C<< lazy 'count' => sub ($self,@) >> wasn't really any
+longer than writing a simple subroutine declaration.  This was Moo without
+all the overhead!
+
+The Wise Old Elf went on to explain the best thing - because Mu was just a
+shortcut for Moo, all the classes that are created are compatible with Moo,
+and therefore are compatible with Moose if and when you use it.  And the
+C<has> syntax is still avaible in Mu scripts - so you can always use it if
+there's something better written in that style.
+
+From that day on Yule Presentgiver was a different elf.  He quickly produced
+code that was both compact and reusable with a song in his heart and a
+jolly old grin on his face.

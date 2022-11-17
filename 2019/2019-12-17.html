@@ -1,0 +1,170 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2019 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2019.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2019 - 
+Taking the Sleigh to a CloudFront
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2019</a></h1>
+        </div>
+
+        <p id="tagline">2019 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Taking the Sleigh to a CloudFront</h1>
+<div class='subtitle'>AWS::Lambda::PSGI - 2019-12-17</div>
+
+<div class='pod'><p>The Wise Old Elf was very impressed how Sugarplum Snoozysnaps had <a href="http://perladvent.org/2019/2019-12-15.html|">saved Christmas</a> this year by moving some code to AWS Lambda at the last moment. So impressed that he wanted her to investigate how it could be used to do more.</p>
+
+<p>Right now the elves were running dedicated servers for a few internal Mojolicious apps. Would it be possible to port these to run entirely on AWS Lambda?</p>
+
+<h3 id="Bundling-Mojolicious">Bundling Mojolicious</h3>
+
+<p>First, let&#39;s download Mojolicious to a local directory with <a href="https://metacpan.org/module/cpanm">cpanm</a></p>
+
+<pre><code>    $shell cpanm -L extra Mojolicious
+    --&gt; Working on Mojolicious
+    Fetching http://www.cpan.org/authors/id/S/SR/SRI/Mojolicious-8.27.tar.gz ... OK
+    Configuring Mojolicious-8.27 ... OK
+    Building and testing Mojolicious-8.27 ... OK
+    Successfully installed Mojolicious-8.27
+    1 distribution installed</code></pre>
+
+<p>This creates a local copy of Mojolicious in our file system like so:</p>
+
+<pre><code>    shell$ find extra/lib/perl5
+    extra/lib/perl5
+    extra/lib/perl5/Mojo.pm
+    extra/lib/perl5/Test
+    extra/lib/perl5/Test/Mojo.pm
+    extra/lib/perl5/ojo.pm
+    extra/lib/perl5/Mojolicious.pm</code></pre>
+
+<p>Sugarplum can now ask AWS::Lambda::Quick to upload this for her with the rest of her code by specifying <code>extra</code> as an argument to <code>extra_files</code>.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl5<br /></span><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">AWS::Lambda::Quick</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">name</span>        <span class="operator">=&gt;</span> <span class="single">'mojo'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">extra_files</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="single">'extra'</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">timeout</span>     <span class="operator">=&gt;</span> <span class="number">10</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Once that&#39;s done she can modify her script to load modules from the lib dir within the extra dir. Note the use of the <code>LAMBDA_TASK_ROOT</code> environment variable to help us locate those files:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># Where we put the local Mojo<br /></span><span class="keyword">use</span> <span class="pragma">lib</span> <span class="double">&quot;$ENV{'LAMBDA_TASK_ROOT'}/extra/lib/perl5&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Since Mojolicious is a pure Perl distribution just uploading the installed files works regardless of different system architecture or perl versions between Sugarplum&#39;s local machine and the virtual machine AWS Lambda is running under.</p>
+
+<h3 id="Connecting-Lambda-to-Mojolicious">Connecting Lambda to Mojolicious</h3>
+
+<p>Sugarplum needs to plumb the various bits together now, to get Mojolicious to somehow understand the hashref passed into the handler function and get it to spit out the hashref that the handler is expected to return.</p>
+
+<p>The first stage is to get AWS::Lambda to talk to any standard web server that can communicate via the PSGI function</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">AWS::Lambda::PSGI</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$psgi_app</span> <span class="operator">=</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="number">200</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">[</span> <span class="single">'Content-Type'</span> <span class="operator">=&gt;</span> <span class="single">'text/plain'</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">[</span> <span class="single">'&lt;html&gt;&lt;body&gt;Hello, World @ '</span><span class="operator">.</span><span class="word">time</span><span class="operator">.</span><span class="single">'&lt;/body&gt;&lt;/html&gt;'</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">];</span><br /><span class="structure">}</span><br /><br /><span class="keyword">sub</span> <span class="word">handler</span> <span class="structure">{</span> <br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="word">AWS::Lambda::PSGI</span><span class="operator">-&gt;</span><span class="word">wrap</span><span class="structure">(</span> <span class="symbol">$psgi_app</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="structure">(</span> <span class="magic">@_</span> <span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>We already know how to get Mojolicious to produce a PSGI application. Sugarplum can use that instead of the hard coded application above:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Mojolicious::Lite</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$psgi_app</span> <span class="operator">=</span> <span class="word">app</span><span class="operator">-&gt;</span><span class="word">start</span><span class="structure">(</span><span class="single">'psgi'</span><span class="structure">);</span><br /><br /><span class="keyword">sub</span> <span class="word">handler</span> <span class="structure">{</span> <br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="word">AWS::Lambda::PSGI</span><span class="operator">-&gt;</span><span class="word">wrap</span><span class="structure">(</span> <span class="symbol">$psgi_app</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="structure">(</span> <span class="magic">@_</span> <span class="structure">);</span><br /><span class="structure">}</span><br /><br /><span class="word">get</span> <span class="single">'/'</span> <span class="operator">=&gt;</span> <span class="single">'index'</span><span class="structure">;</span><br /><br /><span class="number">1</span><span class="structure">;</span><br /><br /><span class="separator">__DATA__</span><br /><span class="data"><br />@@ index.html.ep<br /><br />&lt;html&gt;<br />&lt;body&gt;<br />Hello, World @ &lt;%= scalar time %&gt;<br />&lt;/body&gt;<br />&lt;/html&gt;</span></code><br />&nbsp;</td></table>
+
+<p>And works! Well, at least Mojolicious executes and produces output of some sort...</p>
+
+<p><center><img src="mojoerr.jpg" width="457" height=315 alt="mojo error"></center>
+
+</p>
+
+
+
+<p>Uh, but what happened to her page? Why isn&#39;t it producing her hello world application?</p>
+
+<p>Well, we remember we declared a route on <code>/</code> but look at that debug output that&#39;s not what the on the server is: It&#39;s running on <code>/mojo</code> for the base of <code>/quick</code>.</p>
+
+<p>We&#39;ll fix that, but before we do, let&#39;s consider how Sugarplum is going to host this as a top level domain.</p>
+
+<h3 id="Configuring-Cloudfront">Configuring Cloudfront</h3>
+
+<p>Cloudfront is AWS&#39;s CDN solution that can sit infront of origin servers, S3 buckets, and - most usefully to Ms Snoozysnaps - the API Gateway running her Lambda function.</p>
+
+<p>For today&#39;s exercise Sugarplum is just going to use one of Amazon&#39;s own subdomains. When Sugarplum releases the live version she&#39;s going to setup a CNAME for domain name she owns - but for development testing she doesn&#39;t want to go to the trouble of verifying all that with Amazon.</p>
+
+<p>Sugarplum needs to load up the <a href="https://console.aws.amazon.com/cloudfront/home#create-distribution">web interface</a> to setup a new Cloudfront distribution and click on &quot;Web&quot; to see</p>
+
+<p><center><img src="cloudfront.jpg" width="530" height=494 alt="cloudfront web ui"></center>
+
+</p>
+
+
+
+<p><ul> <li>Origin Domain Name should be set to the Lambda gateway domain name (in this case '52p3rf890b.execute-api.us-east-1.amazonaws.com')</li> <li>Origin Path should be set to <code>/quick/mojo</code></li> <li>Origin Protocol Policy (which will show after you set Origin Domain Name) should be set to <code>HTTPS Only</code> (as our API gateway doesn't support HTTP)</li> <li>Object Caching should be set to <code>Customize</code>, and all the TTLs should be set to <code>0</code> to disable caching. Sugarplum Snoozysnaps will want to eventually to have her Mojo app produce custom caching headers to avoid each and every request running through Lambda, but this is good for development.</li> </ul>
+
+</p>
+
+
+
+<p>Finally we Sugarplum can click on the <code>Create Distribution</code> at the very bottom of the page. She&#39;s probably got time to go get a cup of fresh eggnog while AWS churns away getting all that set up and allowing domain names to propagate.</p>
+
+<p>When the interface finally tells us it&#39;s ready, we can load it up...and still see errors. At least this time we can tell <i>exactly</i> what is broken.</p>
+
+<h3 id="Making-the-Paths-Work">Making the Paths Work</h3>
+
+<p>Sugarplum now knows what she needs to do to modify the paths.</p>
+
+<p><ul> <li>The base URL needs to have /quick stripped off of it</li> <li>The url itelf needs to have /mojo stripped off</li> </ul>
+
+</p>
+
+
+
+<p>It&#39;s important to do both of these so that URLs that Mojolicious creates linking to named routes (i.e. with the <code>url_for</code> or <code>link_to</code> helpers) end up linking to the right place.</p>
+
+<p>Modification of the URLs can be managed by adding a hook that does the modifications before dispatch</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">app</span><span class="operator">-&gt;</span><span class="word">hook</span><span class="structure">(</span><span class="word">before_dispatch</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$c</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br /><span class="comment">    # see https://mojolicious.org/perldoc/Mojolicious/Guides/Cookbook#Rewriting<br />&nbsp;&nbsp;&nbsp;&nbsp;# for details on what exactly we're doing here<br /></span><br /><span class="comment">    # remove the '/quick' from the base url<br /></span>    <span class="core">shift</span> <span class="cast">@</span><span class="structure">{</span><span class="symbol">$c</span><span class="operator">-&gt;</span><span class="word">req</span><span class="operator">-&gt;</span><span class="word">url</span><span class="operator">-&gt;</span><span class="word">base</span><span class="operator">-&gt;</span><span class="word">path</span><span class="operator">-&gt;</span><span class="word">trailing_slash</span><span class="structure">(</span><span class="number">1</span><span class="structure">)};</span><br /><br /><span class="comment">    # remove the '/mojo' from the main url<br /></span>    <span class="core">shift</span> <span class="cast">@</span><span class="structure">{</span><span class="symbol">$c</span><span class="operator">-&gt;</span><span class="word">req</span><span class="operator">-&gt;</span><span class="word">url</span><span class="operator">-&gt;</span><span class="word">path</span><span class="operator">-&gt;</span><span class="word">leading_slash</span><span class="structure">(</span><span class="number">0</span><span class="structure">)};</span><br /><span class="structure">});</span></code><br />&nbsp;</td></table>
+
+<h3 id="A-live-test">A live test</h3>
+
+<p>Just to make sure this is working let&#39;s add a few routes that will (a) link to each other via route names (b) change content randomly each page load</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;<br />46:&nbsp;<br />47:&nbsp;<br />48:&nbsp;<br />49:&nbsp;<br />50:&nbsp;<br />51:&nbsp;<br />52:&nbsp;<br />53:&nbsp;<br />54:&nbsp;<br />55:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">AWS::Lambda::Quick</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">name</span>        <span class="operator">=&gt;</span> <span class="single">'mojo'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">extra_files</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="single">'extra'</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">timeout</span>     <span class="operator">=&gt;</span> <span class="number">10</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">use</span> <span class="pragma">lib</span> <span class="double">&quot;$ENV{'LAMBDA_TASK_ROOT'}/extra/lib/perl5&quot;</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">AWS::Lambda::PSGI</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Mojolicious::Lite</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$psgi_app</span> <span class="operator">=</span> <span class="word">app</span><span class="operator">-&gt;</span><span class="word">start</span><span class="structure">(</span><span class="single">'psgi'</span><span class="structure">);</span><br /><span class="keyword">sub</span> <span class="word">handler</span> <span class="structure">{</span> <span class="keyword">return</span> <span class="word">AWS::Lambda::PSGI</span><span class="operator">-&gt;</span><span class="word">wrap</span><span class="structure">(</span> <span class="symbol">$psgi_app</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="structure">(</span> <span class="magic">@_</span> <span class="structure">);</span> <span class="structure">}</span><br /><br /><span class="word">app</span><span class="operator">-&gt;</span><span class="word">hook</span><span class="structure">(</span><span class="word">before_dispatch</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$c</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="core">shift</span> <span class="cast">@</span><span class="structure">{</span><span class="symbol">$c</span><span class="operator">-&gt;</span><span class="word">req</span><span class="operator">-&gt;</span><span class="word">url</span><span class="operator">-&gt;</span><span class="word">base</span><span class="operator">-&gt;</span><span class="word">path</span><span class="operator">-&gt;</span><span class="word">trailing_slash</span><span class="structure">(</span><span class="number">1</span><span class="structure">)};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="core">shift</span> <span class="cast">@</span><span class="structure">{</span><span class="symbol">$c</span><span class="operator">-&gt;</span><span class="word">req</span><span class="operator">-&gt;</span><span class="word">url</span><span class="operator">-&gt;</span><span class="word">path</span><span class="operator">-&gt;</span><span class="word">leading_slash</span><span class="structure">(</span><span class="number">0</span><span class="structure">)};</span><br /><span class="structure">});</span><br /><br /><span class="comment">#   path         template    route name<br /></span><span class="word">get</span> <span class="single">'/'</span>       <span class="operator">=&gt;</span> <span class="single">'index'</span>  <span class="operator">=&gt;</span> <span class="single">'main-page'</span><span class="structure">;</span><br /><span class="word">get</span> <span class="single">'/random'</span> <span class="operator">=&gt;</span> <span class="single">'random'</span> <span class="operator">=&gt;</span> <span class="single">'merry-christmas-page'</span><span class="structure">;</span><br /><br /><span class="number">1</span><span class="structure">;</span><br /><br /><span class="separator">__DATA__</span><br /><span class="data"><br />@@ index.html.ep<br /><br />&lt;html&gt;<br />&lt;body&gt;<br />&lt;p&gt;Hello, World&lt;/p&gt;<br />&lt;p&gt;&lt;%= link_to 'Say Merry Christmas' =&gt; 'merry-christmas-page' %&gt;&lt;/p&gt;<br />&lt;/body&gt;<br />&lt;/html&gt;<br /><br />@@ random.html.ep<br /><br />&lt;html&gt;<br />&lt;body&gt;<br />% my @options = (<br />%     &quot;Merry Christmas&quot;,<br />%     &quot;Happy Holidays&quot;,<br />%     &quot;Bon Noel&quot;,<br />%     &quot;Feliz Navidad&quot;,<br />% );<br />%= $options[ rand @options ];   # render a random @option<br />&lt;/body&gt;<br />&lt;/html&gt;</span></code><br />&nbsp;</td></table>
+
+<p>Once we&#39;ve uploaded that we can <a href="https://duvw0nvf3um1j.cloudfront.net/">finally test it in the browser</a></p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Paws to Plan What Todo" href="2019-12-16.html">Previous</a></li>
+
+    <li class="next"><a title="Core Strength" href="2019-12-18.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

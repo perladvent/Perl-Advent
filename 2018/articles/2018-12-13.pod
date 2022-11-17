@@ -1,0 +1,151 @@
+Title: Lost in legacy arguments
+Topic: Sub::Params
+Author: Branislav Zahradník <barney@cpan.org>
+
+=encoding utf8
+
+=head1 Working with legacy code
+
+Delivering Christmas gifts is a hard job. Every culture and every country has
+it's own different traditions.  Each country has it's own different gift bringer - an old man (Santa Claus, Father Christmas, Grandfather Frost, ...),
+a child (Baby Jesus, Christ Child, Child God, ...) or other (The Three Kings, Yule Goat, ...)
+And each country has different days, from Christmas Eve, or January 7th following the Gregorian calendar, or even January 2nd in Japan.
+
+All these entities worked together in the Society of Annual Noel Transfer Association (S.A.N.T.A)
+to coordinate their deliveries.  And it was someone's job to keep track of
+what everyone had to do.
+
+To help with this problem they'd started with a C<< deliver_gift >> subroutine.
+Well intention, well named, but over time as more members had joined S.A.N.T.A.
+it'd grown little bit out of control:
+
+   #!perl
+   sub deliver_gift {
+      my ($gift, $child, $location, $delivery_day, $old_man_bringer, $delivery_method, $child_bringer, $other_bringer) = @_;
+
+      # few hundreds of lines of code untouched this millennium follows
+      ...
+   }
+
+
+=head1 Nightmare Before Christmas
+
+The Nightmare begins for our maintainer - this function needs yet more changes.
+He needs to add a C<delivery_time> argument to account for the time of day
+when presents are delivered (which again, apparently, varies between country).
+
+Now:
+
+=for html
+    <ul>
+      <li>only first three arguments are mandatory</li>
+      <li>function is called from many places</li>
+      <li>optional arguments are often omitted</li>
+    </ul>
+
+=head2 A Bad Solution
+
+The hacky solution that maintainer can implement is to put a new argument after last mandatory field.
+Pity our poor maintainer who chooses this solution and failed to update every
+last place that the function is called in the production code and accidentally calls the function
+with an argument in the wrong place!
+
+=head2 A Slightly Better Solution
+
+Our poor maintainer wants to spend Christmas at home with his family, not
+on call for bad code changes!  At this point his slightly better solution is
+simple: Quit his job and enjoy peace and harmony on earth!
+
+=head2 The Better Solution
+
+It was time for our maintainer to bite the bullet and change the function's
+calling style from positional to named arguments so it can be called like so:
+
+   #!perl
+   deliver_gift (
+       gift          => $gift,
+       child         => $child,
+       location      => $location,
+       ...,
+       # our new functionality
+       delivery_time => 'after-dinner',
+    );
+
+But how to do that without breaking all the existing code?
+
+=head3 Plan A: deliver_gift_with_named_arguments
+
+Our maintainer's first plan was a multi-step process:
+
+=for html
+  <ul>
+  <li>implementation: introduce a new function</li>
+  <li>implementation: make the old function wrapper over the new one</li>
+  <li>implementation: replace the old function's calls with new one</li>
+  <li>cleanup: rename the new function into the old name, create a wrapper</li>
+  <li>cleanup: replace the new function name with the old name</li>
+  <li>cleanup: finally get rid of the wrapper</li>
+  </ul>
+
+Oh My! So many steps!
+
+In these days of zero downtime deployment via microservices a lot of synchronization
+points are required for such a complicated plan, multiplied by number of modules that uses this function.
+
+Could we get all this done by Christmas?  Unlikely!  Our maintainer needed
+a better plan!
+
+=head3 Plan B: Make function to accept both positional and named arguments
+
+There is a handy module on CPAN called L<< Sub::Params >> that handles
+calling style duality.
+
+   #!perl
+   use Sub::Params qw[ named_or_positional_arguments ];
+   sub delivery_gift {
+      my ($self, @args) = @_;
+
+      my %args = named_or_positional_arguments (
+         args => \@args,
+         names => [
+             'gift',
+             'child',
+             'location',
+             'delivery_day',
+             'old_man_bringer',
+             'delivery_method',
+             'child_bringer',
+             'other_bringer',
+         ],
+      );
+   }
+
+With these changes the function can be called in either style:
+
+    #!perl
+    delivery_gift (
+       $gift,
+       $child,
+       ...
+    );
+
+    delivery_gift (
+       gift  => $gift,
+       child => $child,
+       ...
+    );
+
+Reducing the number of necessary changes into merely:
+
+=for html
+   <ul>
+     <li>implementation: introduce duality</li>
+     <li>implementation: change positional style to named style</li>
+     <li>cleanup: remove duality</li>
+   </ul>
+
+Merry Christmas and Happy Refactoring :-)
+
+=head2 Thanks
+
+L<GoodData|https://gooddata.com/> for contributing to open source.

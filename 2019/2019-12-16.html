@@ -1,0 +1,141 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2019 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2019.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2019 - 
+Paws to Plan What Todo
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2019</a></h1>
+        </div>
+
+        <p id="tagline">2019 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Paws to Plan What Todo</h1>
+<div class='subtitle'>Paws - 2019-12-16</div>
+
+<div class='pod'><p>Christmas is a busy time of the year. So much to do! And who can keep track of it all?</p>
+
+<p>Why, I can, with the help of OmniGroup&#39;s <a href="https://www.omnigroup.com/omnifocus/">OmniFocus</a> app. It&#39;s an excellent all singing-all dancing GTD machine. Fully scriptable (both on macOS and iOS) and with <i>Focus</i> views allowing you to filter your tasks by context, tag, or any other dimension, it really is a programmer&#39;s todo list app.</p>
+
+<p>However, the one feature that OmniFocus is missing is a way to add things to its inbox of new tasks via a REST interface. Sure, you can <i>email</i> things to a private email address on the OmniGroup servers so next time OmniFocus syncs it&#39;ll import them into its encrypted database, but email <i>sucks</i> as an import mechanism. SMTP is a fiddly little protocol, requiring non-core libraries, authentication, and considerable thought into avoiding anti-spam technologies. A HTTP endpoint can be accessed from anywhere - from Perl, from curl, or even from JavaScript in a browser bookmarklet.</p>
+
+<p>What I need is some way to bridge between an HTTP request to sending an email into my todo list.</p>
+
+<p>After reading <a href="http://perladvent.org/2019/2019-12-15.html">yesterday&#39;s Perl Advent Calendar</a> we know we can use <a href="https://metacpan.org/module/AWS::Lambda::Quick">AWS::Lambda::Quick</a> to very quickly throw together a web accessible HTTP API. Maybe we can use something like that here?</p>
+
+<h3 id="Permissions">Permissions</h3>
+
+<p>In order to send email our Lambda services is going to have do more than just do some calculations and spit out a web page. Amazon offer an extensive range of web services APIs that allow Lambda to do anything from simply persisting data to a database to using Hyperledger Frabric for Blockchain shenanigans. Sometimes it seems like they&#39;ve got an API for everything and the kitchen sink (actually they <a href="https://www.amazon.com/Pull-Down-Activated-Technology-Stainless-9159TV-AR-DST/dp/B07CWY6M9R">really do</a>).</p>
+
+<p>In order to send mail from our Lambda function we&#39;re going to need tp make use of <a href="https://aws.amazon.com/ses/">Amazon Web Services&#39;s Simple Email Services</a> (AWS SES.) But, before we can make use of that we&#39;re going to have to grant our Lambda function permission to actually call it!</p>
+
+<p>As part of the setup that AWS::Lambda::Quick does, it creates a new AWS IAM Role that gives it permission to do things. This role, called <code>perl-aws-lambda-quick</code>, is initially configured to attach the <code>AWSLambdaRole</code> and <code>CloudWatchLogsFullAccess</code> policies so the Lambda function can be executed and so logs can be written. It&#39;s through modifying this role we&#39;re going to get SES access.</p>
+
+<p>First we write a new policy document that describes access to SES. In a production environment we&#39;d probably want to limit the addresses that people can send emails from or to, but for our purposes today a broad policy that grants <code>ses:SendEmail</code> and <code>ses:SendRawEmail</code> for anywhere is fine.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synSpecial">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">Version</span>&quot;: &quot;<span class="synConstant">2012-10-17</span>&quot;,<br />&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">Statement</span>&quot;: <span class="synSpecial">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">Action</span>&quot;: <span class="synSpecial">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synConstant">ses:SendEmail</span>&quot;,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synConstant">ses:SendRawEmail</span>&quot;<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">]</span>,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">Resource</span>&quot;: &quot;<span class="synConstant">*</span>&quot;,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">Effect</span>&quot;: &quot;<span class="synConstant">Allow</span>&quot;<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">]</span><br /><span class="synSpecial">}</span></code><br />&nbsp;</td></table>
+
+<p>Then we can use the <code>aws</code> command line interface to create a new policy from that document (which we&#39;ve saved in <code>/tmp/allow-all-ses.json</code>)</p>
+
+<pre><code>    shell$ aws iam create-policy \
+             --policy-name allow-all-ses \
+             --policy-document file:///tmp/allow-all-ses.json</code></pre>
+
+<p>That command returns a bunch of data:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synSpecial">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">Policy</span>&quot;: <span class="synSpecial">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">PolicyName</span>&quot;: &quot;<span class="synConstant">allow-all-ses</span>&quot;,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">PermissionsBoundaryUsageCount</span>&quot;: <span class="synConstant">0</span>,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">CreateDate</span>&quot;: &quot;<span class="synConstant">2019-12-15T22:56:49Z</span>&quot;,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">AttachmentCount</span>&quot;: <span class="synConstant">0</span>,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">IsAttachable</span>&quot;: <span class="synConstant">true</span>,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">PolicyId</span>&quot;: &quot;<span class="synConstant">ANPA25GBIG3Z2LOSXPAAH</span>&quot;,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">DefaultVersionId</span>&quot;: &quot;<span class="synConstant">v1</span>&quot;,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">Path</span>&quot;: &quot;<span class="synConstant">/</span>&quot;,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">Arn</span>&quot;: &quot;<span class="synConstant">arn:aws:iam::749877081843:policy/allow-all-ses</span>&quot;,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;<span class="synStatement">UpdateDate</span>&quot;: &quot;<span class="synConstant">2019-12-15T22:56:49Z</span>&quot;<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">}</span><br /><span class="synSpecial">}</span></code><br />&nbsp;</td></table>
+
+<p>Most important in there is the ARN of the newly created policy. We can now attach that to our existing role.</p>
+
+<pre><code>    shell$ aws iam attach-role-policy \
+             --policy-arn arn:aws:iam::749877081843:policy/allow-all-ses \
+             --role-name perl-aws-lambda-quick</code></pre>
+
+<p>Hooray! Our Lambda functions now has permission to send email in general. However, we can&#39;t still can&#39;t send any old email just yet - because we haven&#39;t verified our email addresses.</p>
+
+<p>You have to prove to Amazon that you own any email address you&#39;re sending email from. This process is as simple as using the CLI to get Amazon to send you an email with a link you can click on:</p>
+
+<pre><code>    shell$ aws ses verify-email-identity --email-address mark@twoshortplanks.com</code></pre>
+
+<p>You&#39;ll also need to move SES out of sandbox mode if you don&#39;t want to have to verify email addresses you send to as well. This is a complicated process where you have to explain what I&#39;m doing sending email to real humans. For now, I can just verify my destination address too so I&#39;ll be able to send to that address without further ado:</p>
+
+<pre><code>    shell$ aws ses verify-email-identity --email-address sent-to-of@twoshortplanks.com</code></pre>
+
+<h3 id="Writing-The-Perl-Code">Writing The Perl Code</h3>
+
+<p>In order to call the AWS API we&#39;re going to need to make use of <a href="https://metacpan.org/module/Paws">Paws</a> (the hilariously named Perl AWS interface.) Paws is an interface to all of AWS&#39;s current APIs - but for today we&#39;re just going to be making use of the <a href="https://metacpan.org/module/Paws::SES::SendEmail">Paws::SES::SendEmail</a> workflow.</p>
+
+<p>In order to use Paws we need to install the modules somewhere where our Lambda script can make use of them. One option is to use the <code>extra_files</code> option to AWS::Lambda::Quick to bundle up all the files along with our source code.</p>
+
+<p>A simpler option is to make use of Lambda <i>layers</i>. These are common reusable zipfiles that layer their contents on top of the Lambda filesystem.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">AWS::Lambda::Quick</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">name</span> <span class="operator">=&gt;</span> <span class="single">'send-to-omnifocus'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">extra_layers</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="symbol">$layer_arn</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">timeout</span> <span class="operator">=&gt;</span> <span class="number">10</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>(We&#39;ve also bumped out the timeout now to ten seconds to give our function more time to do stuff.)</p>
+
+<p>One of the best things about layers is that they can be shared between accounts. In fact, all AWS::Lambda::Quick <i>always</i> uses the standard Perl Lambda prebuilt layer to provide the AWS::Lambda code that drives the handler. Here we&#39;re just adding a second shared layer ontop of that (AWS Lambda currently allows you to have up to five layers and your per-function source code.)</p>
+
+<p>Since we want to use Paws we don&#39;t even have to build our own layer - we can use one of the standard ones. Instead of passing in the ARN, we can just pass in the AWS::Lambda::Quick identifier for a layer it knows about and it&#39;ll use the ARN for the layer in your region.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">AWS::Lambda::Quick</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">name</span> <span class="operator">=&gt;</span> <span class="single">'send-to-omnifocus'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">extra_layers</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="single">'paws'</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">timeout</span> <span class="operator">=&gt;</span> <span class="number">10</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Finally, we can get to writing the actual meat of the function:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;<br />46:&nbsp;<br />47:&nbsp;<br />48:&nbsp;<br />49:&nbsp;<br />50:&nbsp;<br />51:&nbsp;<br />52:&nbsp;<br />53:&nbsp;<br />54:&nbsp;<br />55:&nbsp;<br />56:&nbsp;<br />57:&nbsp;<br />58:&nbsp;<br />59:&nbsp;<br />60:&nbsp;<br />61:&nbsp;<br />62:&nbsp;<br />63:&nbsp;<br />64:&nbsp;<br />65:&nbsp;<br />66:&nbsp;<br />67:&nbsp;<br />68:&nbsp;<br />69:&nbsp;<br />70:&nbsp;<br />71:&nbsp;<br />72:&nbsp;<br />73:&nbsp;<br />74:&nbsp;<br />75:&nbsp;<br />76:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">AWS::Lambda::Quick</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">name</span> <span class="operator">=&gt;</span> <span class="single">'send-to-omnifocus'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">extra_layers</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="single">'paws'</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">timeout</span> <span class="operator">=&gt;</span> <span class="number">10</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">use</span> <span class="word">JSON::PP</span> <span class="words">qw( encode_json )</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Paws</span><span class="structure">;</span><br /><br /><span class="comment"># this is my own personal address that forwards to my top secret<br /># OmniGroup maildrop address.<br /></span><span class="keyword">my</span> <span class="symbol">$EMAIL_ADDRESS</span> <span class="operator">=</span> <span class="single">'send-to-omnifocus@twoshortplanks.com'</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">handler</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$args</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$param</span> <span class="operator">=</span> <span class="symbol">$args</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">queryStringParameters</span><span class="structure">};</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$text</span> <span class="operator">=</span> <span class="symbol">$param</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">text</span><span class="structure">}</span> <span class="operator">or</span> <span class="keyword">return</span> <span class="word">_error</span><span class="structure">(</span><span class="number">400</span><span class="operator">,</span> <span class="double">&quot;Missing text&quot;</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$note</span> <span class="operator">=</span> <span class="symbol">$args</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">note</span><span class="structure">}</span> <span class="operator">//</span> <span class="literal">q{}</span><span class="structure">;</span><br /><br /><span class="comment">    # get access to AWS's Simple Email Service<br /></span>    <span class="keyword">my</span> <span class="symbol">$ses</span> <span class="operator">=</span> <span class="word">Paws</span><span class="operator">-&gt;</span><span class="word">service</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'SES'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">region</span> <span class="operator">=&gt;</span> <span class="single">'us-east-1'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><br /><span class="comment">    # and use it to send an email<br /></span>    <span class="symbol">$ses</span><span class="operator">-&gt;</span><span class="word">SendEmail</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Destination</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">ToAddresses</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="symbol">$EMAIL_ADDRESS</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Message</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Subject</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Charset</span> <span class="operator">=&gt;</span> <span class="single">'UTF-8'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Data</span>    <span class="operator">=&gt;</span> <span class="symbol">$text</span><span class="operator">,</span>        <span class="comment"># todo text goes in the subject</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Body</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Text</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Charset</span> <span class="operator">=&gt;</span> <span class="single">'UTF-8'</span><span class="operator">,</span>  <span class="comment"># todo details go in the body</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Data</span>    <span class="operator">=&gt;</span> <span class="symbol">$note</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Source</span> <span class="operator">=&gt;</span> <span class="single">'mark@twoshortplanks.com'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">statusCode</span> <span class="operator">=&gt;</span> <span class="number">200</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">headers</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'Content-Type'</span> <span class="operator">=&gt;</span> <span class="single">'application/json'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">body</span> <span class="operator">=&gt;</span> <span class="single">'{&quot;ok&quot;:true}'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br /><span class="structure">}</span><br /><br /><span class="keyword">sub</span> <span class="word">_error</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$status</span>  <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$message</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">statusCode</span> <span class="operator">=&gt;</span> <span class="symbol">$status</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">headers</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'Content-Type'</span> <span class="operator">=&gt;</span> <span class="single">'application/json'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">body</span> <span class="operator">=&gt;</span> <span class="word">encode_json</span><span class="structure">({</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">ok</span> <span class="operator">=&gt;</span> <span class="word">JSON::PP::false</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">error</span> <span class="operator">=&gt;</span> <span class="symbol">$message</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">})</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span><br /><br /><span class="number">1</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>And now we can execute it</p>
+
+<pre><code>    shell$ perl send-to-omnifocus.pl
+    https://52p3rf890b.execute-api.us-east-1.amazonaws.com/quick/send-to-omnifocus</code></pre>
+
+<p>And start adding todo entires:</p>
+
+<pre><code>    shell$ curl &#39;https://52p3rf890b.execute-api.us-east-1.amazonaws.com/quick/send-to-omnifocus?text=Write+More+Perl+Advent+Articles&#39;</code></pre>
+
+<p>Now...I just have to <i>do</i> those things.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Suddenly Serverless" href="2019-12-15.html">Previous</a></li>
+
+    <li class="next"><a title="Taking the Sleigh to a CloudFront" href="2019-12-17.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

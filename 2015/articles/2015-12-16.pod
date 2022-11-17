@@ -1,0 +1,459 @@
+Title: Building Santa's Naughty and Nice List with Stepford
+Topic: Stepford
+Author: Dave Rolsky <autarch@urth.org>
+
+=pod
+
+It's a little known fact that Santa's elves are the ones responsible for
+producing his yearly naughty and nice list. But working on the list has been
+taking up time that they'd rather use for drinking pine juice and playing Dark
+Souls. They have a crufty C<Makefile> but it doesn't do a great job of
+rebuilding things when dependencies change, so they're constantly finding
+output errors and having to delete old files. It also doesn't play all that
+nicely with the Perl code they wrote to do the real work.
+
+So the elves pooled their money and hired me to automate building the
+list. Looking at how they'd built the list before, I realized that
+L<Stepford|https://metacpan.org/release/Stepford> was the perfect tool for the
+job!
+
+=head2 What is Stepford?
+
+L<Stepford|https://metacpan.org/release/Stepford> is a tool that takes a set
+of steps (tasks), figures out their dependencies, and then runs them in the
+right order to get the result that you ask for. The result itself is just
+another step that you specify when creating the
+L<C<Stepford::Runner>|https://metacpan.org/pod/Stepford::Runner> object. Steps
+are Perl classes built using L<C<Moose>|https://metacpan.org/release/Moose>.
+
+=head3 Dependencies and Productions
+
+The "big thing" that Stepford does for you is to figure out the dependencies
+needed to get to the final step. It does this by looking at the dependencies
+and productions of all your steps and then running those steps in the
+necessary order.
+
+Both dependencies and productions are declared as Moose attributes with a
+special C<trait>. Here's an example:
+
+    #!perl
+    has geolite2_database_file => (
+        traits   => ['StepDependency'],
+        is       => 'ro',
+        isa      => File,
+        required => 1,
+    );
+
+    has ip_scores_file => (
+        traits  => ['StepProduction'],
+        is      => 'ro',
+        isa     => File,
+        lazy    => 1,
+        builder => '_build_ip_scores_file',
+    );
+
+You'll see how to actually populate the C<ip_scores_file> later.
+
+Stepford matches a production to a dependency solely by name, which means that
+attribute names for productions and dependencies must be unique to a given set
+of steps.
+
+=head3 Step Classes
+
+A "Step class" is any Moose class which consumes the
+L<C<Stepford::Role::Step>|https://metacpan.org/pod/Stepford::Role::Step> role
+(or another role which in turn consumes that role). This role in turn requires
+that a step class implement a few specific methods named C<run> and
+C<last_run_time>. You'll see examples of both of these methods as we go
+further.
+
+=head2 What Goes Into the Naughty and Nice List?
+
+The elves gave me a long list of requirements, but honestly it all seemed like
+too much trouble. And since these elves are not very technically savvy, I'm
+going to take the easy route instead and just make some stuff up.
+
+Here's what I'm going to do:
+
+=for :list
+* Get the names and IP addresses for all the children in the world, or at least a few of them.
+* Assign each child a UUID so I can track them easily.
+* Download the L<free GeoLite2 database|http://dev.maxmind.com/geoip/geoip2/geolite2/> from MaxMind.
+* Use the GeoLite2 database to look at each child's geographical location and use that to give their IP a naughty/nice score. This will be very scientific.
+* Look at each child's name and use that to give their name a naughty/nice score. Again, this will be very scientific.
+* Combine the IP and name scores into a single score per child and generate a text file with the naughty/nice list.
+
+Here's a graph of each step showing each steps' dependencies:
+
+=for html
+  <center><a href="step-graph.svg"><img src="step-graph.svg" height="450" width="450"></a></center>
+
+Looking at this graph, you can see a couple interesting things. First, there
+are two steps, "Get list of children" and "Download GeoLite2 databases", with
+no dependencies. Next, there are steps that are dependencies for more than one
+other steps, "Assign UUIDs" and "Get list of children". Finally, the "Combine
+scores" step has three dependencies but is not a dependency of any other step.
+
+Figuring all this stuff out is what Stepford is for. In fact, it calculates a
+graph just like this internally.
+
+=head2 Building our First Step
+
+Let's start by building the step to "Get list of children". All the step
+classes for a single set of steps should live under the same namespace. I'm
+going to use C<NN::Step> as our namespace prefix.
+
+    #!perl
+    package NN::Step::Children;
+
+    use strict;
+    use warnings;
+    use autodie;
+    use experimental 'signatures';
+
+    use Data::GUID;
+    use MooseX::Types::Path::Class qw( Dir File );
+    use Text::CSV_XS;
+
+    use Moose;
+
+    with 'Stepford::Role::Step::FileGenerator';
+
+    no warnings 'experimental::signatures';
+
+    has root_dir => (
+        is      => 'ro',
+        isa     => Dir,
+        coerce  => 1,
+        default => '.',
+    );
+
+    has children_file => (
+        traits  => ['StepProduction'],
+        is      => 'ro',
+        isa     => File,
+        lazy    => 1,
+        builder => '_build_children_file',
+    );
+
+    sub run ($self) {
+        my $file = $self->children_file;
+
+        $self->logger->info("Writing names and IPs to $file");
+
+        my $data = do {
+            local $/;
+            <DATA>;
+        };
+
+        # CSV line ending per http://tools.ietf.org/html/rfc4180
+        $data =~ s/\n/\r\n/g;
+        $file->spew($data);
+    }
+
+    sub _build_children_file ($self) {
+        return $self->root_dir->file('children.csv');
+    }
+
+    __PACKAGE__->meta->make_immutable;
+
+    1;
+
+    __DATA__
+    "Alexander Marer",42.235.92.147
+    "Andrew Bernard Cray",205.145.143.62
+    ...
+
+Let's look at the interesting bits more closely.
+
+    #!perl
+    with 'Stepford::Role::Step::FileGenerator';
+
+All Stepford classes must consume one of the Step roles provided by
+Stepford. This particular role tells Stepford that all of this step's outputs
+are in the form of files. This lets Stepford calculate the step's last run
+time by looking at the file's modification time. For non-file steps, you have
+to provide a C<last_run_time> method of your own.
+
+    #!perl
+    has root_dir => (
+        is      => 'ro',
+        isa     => Dir,
+        coerce  => 1,
+        default => '.',
+    );
+
+    has children_file => (
+        traits  => ['StepProduction'],
+        is      => 'ro',
+        isa     => File,
+        lazy    => 1,
+        builder => '_build_children_file',
+    );
+
+This class has two attributes. The C<root_dir> attribute is neither a
+dependency nor a production. You'll see how to set this attribute later
+on. The C<children_file> attribute is a production. Some other steps will
+depend on this production.
+
+    #!perl
+    sub run ($self) {
+        my $file = $self->children_file;
+
+        $self->logger->info("Writing names and IPs to $file");
+
+        my $data = do {
+            local $/;
+            <DATA>;
+        };
+
+        # CSV line ending per http://tools.ietf.org/html/rfc4180
+        $data =~ s/\n/\r\n/g;
+        $file->spew($data);
+    }
+
+Every Step class must provide a C<run> method. This method is expected to do
+whatever work the step does. In this case I take the list of children in
+C<DATA> and turn it into a CSV file.
+
+The C<logger> attribute is provided to each step by the
+L<C<Stepford::Runner>|https://metacpan.org/pod/Stepford::Runner> class. You'll
+learn more about that class later.
+
+=head3 Atomic File Steps
+
+I could have used
+L<C<Stepford::Role::Step::FileGenerator::Atomic>|https://metacpan.org/pod/Stepford::Role::Step::FileGenerator::Atomic>
+instead. If your step is writing a file, using this role will prevent you from
+leaving behind a half-finished file if the step dies. I didn't use it in my
+example code just to keep the code simpler, but I highly recommend it for
+production code.
+
+=head2 More Steps
+
+The other steps are pretty similar. They take some data and spit something new
+out. Let's take a look at some of the code from the step that adds the UUIDs:
+
+    #!perl
+    package NN::Step::AssignUUIDs;
+
+    ...
+
+    has children_file => (
+        traits   => ['StepDependency'],
+        is       => 'ro',
+        isa      => File,
+        required => 1,
+    );
+
+    has children_with_uuids_file => (
+        traits  => ['StepProduction'],
+        is      => 'ro',
+        isa     => File,
+        lazy    => 1,
+        builder => '_build_children_with_uuids_file',
+    );
+
+This step depends on the C<children_file> created by the C<Children>
+step. Stepford will figure this out and make sure that the steps are run in
+the correct order.
+
+The C<AssignUUIDs> step in turn has its own C<StepProduction> which future steps
+will depend on.
+
+The remaining steps follow a similar pattern. They take an input file and
+produce an output file. The last step, C<WriteList>, is a little different,
+so let's see how:
+
+    #!perl
+    package NN::Step::WriteList;
+
+    use Moose;
+
+    with 'Stepford::Role::Step';
+
+The first difference is that I'm consuming the
+L<C<Stepford::Role::Step>|https://metacpan.org/pod/Stepford::Role::Step> role
+instead of
+L<C<Stepford::Role::Step::FileGenerator>|https://metacpan.org/pod/Stepford::Role::Step::FileGenerator>.
+
+This is mostly so I can demonstrate how to write a C<last_run_time> method.
+
+    #!perl
+    has children_with_uuids_file => (
+        traits   => ['StepDependency'],
+        is       => 'ro',
+        isa      => File,
+        required => 1,
+    );
+
+    has ip_scores_file => (
+        traits   => ['StepDependency'],
+        is       => 'ro',
+        isa      => File,
+        required => 1,
+    );
+
+    has name_scores_file => (
+        traits   => ['StepDependency'],
+        is       => 'ro',
+        isa      => File,
+        required => 1,
+    );
+
+This step has three dependencies, unlike the previous steps you've seen. Each
+of these dependencies comes from a separate step. Stepford will figure all
+that out for us and run those steps before this one.
+
+And here's the C<last_run_time> method:
+
+    #!perl
+    sub last_run_time ($self) {
+        my $file = $self->_naughty_nice_list;
+        return undef unless -e $file;
+
+        return $file->stat->mtime;
+    }
+
+This is pretty straightforward. If the file exists, I return its last
+modification time. If not, I return C<undef>.
+
+Stepford uses the value of each step's C<last_run_time> to determine whether or
+not a given step needs to be run at all. If the data in a dependency is newer
+than the data in the step that depends on that data, there's no point in
+regenerating the dependency's data.
+
+(By the way, the C<last_run_time> method above is essentially the same as the
+one in C<Stepford::Role::Step::FileGenerator>.)
+
+=head2 Running Your Steps
+
+Now that I've written my steps, how do I run them? Here's the script I wrote:
+
+    #!perl
+    #!/usr/bin/env perl
+
+    use strict;
+    use warnings;
+
+    use FindBin qw( $Bin );
+    use lib "$Bin/../lib";
+
+    use Getopt::Long;
+    use Log::Dispatch;
+    use Stepford::Runner;
+
+    sub main {
+        my $debug;
+        my $jobs;
+        my $root;
+
+        GetOptions(
+            'debug'  => \$debug,
+            'jobs:i' => \$jobs,
+            'root:s' => \$root,
+        );
+
+        my $logger = Log::Dispatch->new(
+            outputs => [
+                [
+                    'Screen',
+                    newline => 1,
+                    min_level => $debug ? 'debug' : 'warning',
+                ]
+            ]
+        );
+
+        Stepford::Runner->new(
+            step_namespaces => 'NN::Step',
+            logger          => $logger,
+            )->run(
+            config => { $root ? ( root_dir => $root ) : () },
+            final_steps => 'NN::Step::WriteList',
+            );
+
+        exit 0;
+    }
+
+    main();
+
+The only interesting piece is my use of
+L<C<Stepford::Runner>|https://metacpan.org/pod/Stepford::Runner>.
+
+    #!perl
+    Stepford::Runner->new(
+        step_namespaces => 'NN::Step',
+        logger          => $logger,
+        jobs            => $jobs // 1,
+        )->run(
+        config => { $root ? ( root_dir => $root ) : () },
+        final_steps => 'NN::Step::WriteList',
+        );
+
+The C<Stepford::Runner> constructor takes several named arguments. The
+C<step_namespaces> argument tells Stepford under what namespace it should look
+for steps. It will load all the classes that it finds under this namespace.
+
+You can pass multiple namespaces as an array reference. When two steps have a
+production of the same name, then the step that comes first in the list of
+namespaces wins. This is useful for testing, as it lets you mock as many steps
+as you need to.
+
+The C<logger> can be any object that provides a certain set of methods
+(C<debug>, C<info>, etc.).
+
+Finally, if you set C<jobs> to a value greater than one, Stepford will run
+steps in parallel, running up to C<$jobs> steps at once whenever possible.
+
+The call to the C<run> method also accepts named arguments. Keys in the
+C<config> argument which match constructor arguments for a step will be passed
+to that step class as the step is constructed. Remember way back up above when
+I mentioned that I'd show you how to set the C<root_dir> attribute of the
+C<NN::Step::Children> class. This is how you do that.
+
+The C<final_steps> argument can be a single step class name or an array
+reference of names. This is how you specify the result you're asking Stepford
+for.
+
+=head2 Why Stepford?
+
+Stepford is lot like C<make>, C<rake>, and many other tools. Stepford was
+originally created to help improve our automation around building
+L<GeoIP databases|https://www.maxmind.com/en/geoip2-databases> at
+L<MaxMind|https://www.maxmind.com/>.
+
+I investigated C<make> and C<rake>, which are both great tools. However, what
+makes them shine is how they integrate with certain environments. The C<make>
+tool is great if you're interacting with a lot of existing command line tools
+like compilers, linkers, etc. And of course C<rake> is great if you're dealing
+with existing Ruby code.
+
+But our database building code was is written in Perl, so it made sense to
+write a tool in Perl.
+
+If you're in a similar situation, with a Perl code base that executes a series
+of steps towards one or more final products, then Stepford might be a good
+choice for you as well.
+
+It certainly worked well for those elves. Sure, the naughty and nice list they
+get is complete and utter nonsense, but it's a lot quicker to generate, giving
+them more time for their pine juice-fueled Dark Souls speedruns.
+
+=head2 The Code
+
+If you want to see all the step code for this article, check out
+L<this article's GitHub repo|https://github.com/autarch/perl-advent-calendar-2015-stepford>.
+
+=head2 See Also
+
+=over 4
+
+=item * L<Stepford|https://metacpan.org/release/Stepford>
+
+=item * L<make|https://www.gnu.org/software/make/>
+
+=item * L<rake|http://docs.seattlerb.org/rake/>
+
+=back
+
+=cut

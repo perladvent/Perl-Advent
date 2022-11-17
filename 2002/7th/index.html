@@ -1,0 +1,247 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: File::MMagic</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 7th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">File::MMagic</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../6th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../8th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>What we normally mean by the 'type' of a file is actually the MIME
+type of a file.  Every file sent across the web is sent with it's own
+MIME type.  Attachments in mails have MIME type declarations.  For
+example, a JPEG image is 'image/jpeg' and a web page is 'text/html'.</p>
+<p>When we know a file's MIME type then we know what what kind of data it
+is and what we can do with it.  We know what program to load to view
+it.  At the very least, you can use it to check that the data that
+some user just uploaded to their user page on your webserver is
+actually valid picture file, and isn't some other kind of binary data
+that a corrupt client has decided to encode the data as.  This of course
+is following good practice guidelines - never trust any data the user
+sends you without checking it first.</p>
+<p>The File::MMagic module can be used to determine the mime type of a
+file.  It uses all kinds of cunning to do this.  Firstly it uses a
+database of "magic" numbers to look at the first few bytes for
+telltale signs - for example GIF files start with "GIF" and flash files
+start with "FWS".  If that fails - for example html files don't start
+with anything special - then the module can use extra regular expression
+techniques to check both the filename and the contents of the file
+for give away signs that distinguish them.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?File::MMagic">[Read the documentation for File::MMagic on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>The <b>File::MMagic</b> module is pretty easy to use.  Essentially it's
+just case of creating a parser object, and then telling it to look at
+a file</p>
+<pre>  use File::MMagic;
+  my $mm = File::MMagic-&gt;new();</pre>
+
+<pre>  print "The mime type of '$ARGV[0]' is :"
+          $mm-&gt;checktype_filename($ARGV[0]) . "\n";</pre>
+
+<p>Of course, it can check an open filehandle</p>
+<pre>  use File::MMagic;
+  my $mm = File::MMagic-&gt;new();</pre>
+
+<pre>  # open the file in binary mode
+  my $filehandle = IO::File-&gt;new("image.jpg")
+    or die "coundn't open 'image.jpg': $!";
+  binmode $filehandle;</pre>
+
+<pre>  print "The mime type of 'image.jpg' is :"
+          $mm-&gt;checktype_filehandle($filehandle) . "\n";</pre>
+
+<p>Or even from a chunk of data already loaded into memory:</p>
+<pre>  use File::MMagic;
+  my $mm = File::MMagic-&gt;new();</pre>
+
+<pre>   # open a file in binary mode 
+   my $filehandle = IO::File-&gt;new("image.jpg")
+     or die "coundn't open 'image.jpg': $!";
+   binmode $filehandle;</pre>
+
+<pre>   # read in the entire file into $data
+   my $data;
+   {
+     local $/;   # set it so &lt;&gt; reads all the file at once
+     $data = &lt;$filehandle&gt;;  # read in the file
+   }</pre>
+
+<pre>  print "The mime type of 'image.jpg' is :"
+          $mm-&gt;checktype_contents($data) . "\n";</pre>
+
+<p>So with this new found knowledge we can construct an example script
+that looks at all files in a directory and builds a web page with a
+graph.  First we check each file for it's MIME type and size and store
+the cumaltive value in a hash.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load the modules
+  use File::MMagic;</pre>
+
+<pre>  # new parser
+  my $mm = File::MMagic-&gt;new();</pre>
+
+<pre>  # open the dir
+  opendir DIR, $ARGV[0]
+     or die "Couldn't open the directory '$ARGV[0]': $!";</pre>
+
+<pre>  # work though the files in the dir
+  my %files;
+  while (my $file = readdir DIR)
+  {
+    # skip it if it isn't just a normal file
+    next unless -f $file;</pre>
+
+<pre>    # get the mime type and other info
+    my $magic =  $mm-&gt;checktype_filename($file);</pre>
+
+<pre>    # delete anything after the mime type
+    $magic =~ s/ ;  # look for a the first semicolon
+                 .* # and then anything up until
+                 $  # the end of line
+                 /;/x;</pre>
+
+<pre>    # add on that size to a hash
+    $files{ $magic } += -s $file;
+  }
+  closedir DIR;</pre>
+
+<p>Now using that information we can create a chart using the
+<b>GD::Chart::hbars</b> module.</p>
+<pre>  use GD::Graph::hbars;
+  use IO::File;</pre>
+
+<pre>  # create a new pie chart
+  my $pie = GD::Graph::hbars-&gt;new(400,300);</pre>
+
+<pre>  # plot the data onto it, and get a GD::Image back
+  my $gd = $pie-&gt;plot([[keys %files],[values %files]]);</pre>
+
+<pre>  # open a file to write it to, and save it as a png
+  my $img_fh = IO::File-&gt;new("chart.png","&gt;")
+    or die "Can't open 'chart.png': $!";
+  binmode $img_fh;
+  print {$img_fh} $gd-&gt;png;</pre>
+
+<p>And finally print out the HTML.  Note that we use the <b>HTML::Entities</b>
+module to encode the data that we're printing out.  This means that
+any HTML chars like '&lt;' or '&gt;' will be protected - not that we are
+likely to have these charecters in the directory, but we never know.</p>
+<pre>  use HTML::Entities;</pre>
+
+<pre>  # open the file
+  my $html_fh = IO::File-&gt;new("chart.html","&gt;")
+    or die "Can't open 'chart.html': $!";</pre>
+
+<pre>  # and write out the html
+  my $dir = encode_entities($ARGV[0]);
+  print {$html_fh} qq{
+  &lt;html&gt;
+<link rel="stylesheet" href="../style.css" type="text/css" />   &lt;head&gt;&lt;title&gt;Files by mime type for: $dir&lt;/title&gt;&lt;/head&gt;
+  &lt;body&gt;
+  &lt;img src="chart.png" width="400" height="300"&gt;
+  &lt;table&gt;};</pre>
+
+<pre>  # print a line for each MIME type
+  foreach my $key (keys %files)
+  {
+    print {$html_fh}
+       "&lt;tr&gt;&lt;td&gt;" . encode_entities($key) . "&lt;/td&gt;" .
+       "&lt;td&gt;" . int($files{ $key }/1024). "k&lt;/td&gt;&lt;/tr&gt;";
+  }</pre>
+
+<pre>  print {$html_fh} q{
+  &lt;/table&gt;
+  &lt;/body&gt;
+  &lt;/html&gt;
+  };</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="chart.html">Example output from my home dir</a></li>
+<li><a href="http://search.cpan.org/author/MVERB/GDGraph/Graph.pm">GD::Graph</a></li>
+<li><a href="http://search.cpan.org/author/GAAS/HTML-Parser/lib/HTML/Entities.pm">HTML::Entities</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:52 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" 
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>2006 Perl Advent Calendar: Peeking under the tree</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body>
+<h1><a href="../">Perl Advent Calendar 2006-12</a>-02</h1>
+<h2 align="center">Peeking under the tree</h2>
+<h3 align="center">by Shlomi Fish &amp; Jerrad Pierce</h3>
+<blockquote style="padding: 1em; border: 2px ridge black; background-color:#eee">The first author is one of the current maintainers of today's package from Olivier Thauvin.</blockquote>
+
+<p>Most perl hackers are familiar with the module, <tt>File::Find</tt>, which
+has been shipped with the core distribution since 5.000 and works well.
+<tt>File::Find</tt> (<tt>FF</tt>) is used to recursively scan a directory tree and
+execute user code. Several modules offering a softer, higher-level interfaces
+to it have cropped up on CPAN such as
+<tt><a href="http://search.cpan.org/dist/File-Find-Rule/">File::Find::Rule</a></tt>
+and <tt><a href="http://search.cpan.org/dist/File-Finder/">File::Finder</a></tt>.
+</p>
+
+<p>
+<tt>File::Find</tt> is very robust, but not without its drawbacks. Among its most
+serious limitations are:
+</p>
+
+<ul>
+
+<li>
+<b>It cannot be instantiated</b> - 
+<tt>FF</tt> shares package-scope variables and exports package-scoped
+functions. This does not allow for easy compartmentalization. It would then,
+for instance, be difficult to use <tt>FF</tt> within multiple threads.</li>
+
+<li><b>
+It is not short-circuitable</b> - <tt>FF</tt>'s interface invokes a callback
+for <em>every</em> file it finds, wherein na&iuml;ve use of loop-controls can
+result in many headaches.
+
+<pre>find(\&amp;wanted, $ENV{HOME})
+sub wanted{
+   # Do something with the filename.
+}</pre>
+
+Alas, we cannot terminate the find process from within
+<tt>wanted</tt>&mdash;without resorting to playing around with
+exceptions&mdash;after we've found (only a few instances of) what we were
+looking for. What would be preferable is an iterative approach that retrieves
+one file at a time, and can be stopped in the middle.
+</ul>
+
+<h2>Introducing File::Find::Object</h2>
+
+<p>
+<tt><a href="http://search.cpan.org/dist/File-Find-Object/">File::Find::Object</a></tt> (<tt>FFO</tt>)
+provides an OO alternative to <tt>File::Find</tt> which addresses both of
+these deficiencies. Like <tt>FF</tt>, the constructor accepts a list of
+directories to scan which are then traversed one by one. And while <tt>FFO</tt>
+provides a backwards compatible callback based interface, the recommended
+mode of use is to retrieve results via the <tt>next()</tt> method.
+Several other esoteric traversal-control functions are also provided:
+<ul>
+<li><tt>set_traverse_to()</tt> controls which files will be scanned from the
+current node onwards</li>
+<li><tt>prune()</tt> is equivalent to calling <tt>set_traverse_to()</tt> with an empty array reference, and ignores the remaining directory entries</li>
+<li><tt>get_traverse_to()</tt> retrieves the current set of items which will be traversed</li>
+<li><tt>get_current_node_file_list()</tt> retrieves the current directory listing</li>
+</ul>
+</p>
+
+<p>Our example below is a simple command line application that searches for
+the first file or directory with a filename matching the supplied certain
+pattern and reports some information about it.</p>
+
+<h1 id="mod2_pl"><a href="mod2.pl">mod2.pl</a></h1>
+<hr />
+<pre>
+   1 #!/usr/bin/perl
+   2 
+   3 <span class="k">use</span> <span class="w">strict</span><span class="sc">;</span>
+   4 <span class="k">use</span> <span class="w">warnings</span><span class="sc">;</span>
+   5 
+   6 <span class="k">use</span> <span class="w">File::Find::Object</span><span class="sc">;</span>
+   7 <span class="k">use</span> <span class="w">File::Basename</span><span class="sc">;</span>
+   8 
+   9 <span class="k">my</span> <span class="i">$pattern_str</span> = <span class="k">shift</span><span class="sc">;</span>
+  10 <span class="k">my</span> <span class="i">@dirs</span> = <span class="i">@ARGV</span><span class="sc">;</span>
+  11 
+  12 <span class="k">my</span> <span class="i">$pattern</span> = <span class="q">qr/$pattern_str/</span><span class="sc">;</span>
+  13 
+  14 <span class="k">my</span> <span class="i">$ff</span> = <span class="w">File::Find::Object</span><span class="w">-&gt;new</span><span class="s">(</span><span class="s">{</span><span class="s">}</span><span class="cm">,</span> <span class="i">@dirs</span><span class="s">)</span><span class="sc">;</span>
+  15 
+  16 <span class="k">my</span> <span class="i">$result</span><span class="sc">;</span>
+  17 <span class="j">RESULTS_LOOP:</span>
+  18 <span class="k">while</span> <span class="s">(</span><span class="k">defined</span><span class="s">(</span><span class="i">$result</span> = <span class="i">$ff</span><span class="i">-&gt;next</span><span class="s">(</span><span class="s">)</span><span class="s">)</span><span class="s">)</span>
+  19 <span class="s">{</span>
+  20     <span class="k">if</span> <span class="s">(</span><span class="i">basename</span><span class="s">(</span><span class="i">$result</span><span class="s">)</span> =~ <span class="q">m{$pattern}</span><span class="s">)</span>
+  21     <span class="s">{</span>
+  22         <span class="k">last</span> <span class="j">RESULTS_LOOP</span><span class="sc">;</span>
+  23     <span class="s">}</span>
+  24 <span class="s">}</span>
+  25 
+  26 <span class="c"># Now we&#39;ve exited from the loop and can do something with $result.</span>
+  27 
+  28 <span class="k">my</span> <span class="i">@stat</span> = <span class="k">stat</span><span class="s">(</span><span class="i">$result</span><span class="s">)</span><span class="sc">;</span>
+  29 <span class="k">print</span> <span class="k">sprintf</span><span class="s">(</span><span class="q">&quot;Found the file \&quot;%s\&quot; of size %i, modified at %s\n&quot;</span><span class="cm">,</span>
+  30     <span class="i">$result</span><span class="cm">,</span>
+  31     <span class="i">$stat</span>[<span class="n">7</span>]<span class="cm">,</span>
+  32     <span class="k">scalar</span><span class="s">(</span><span class="k">localtime</span><span class="s">(</span><span class="i">$stat</span>[<span class="n">9</span>]<span class="s">)</span><span class="s">)</span>
+  33 <span class="s">)</span><span class="sc">;</span>
+</pre>
+
+<h2>See Also</h2>
+
+<p>
+There are several similar modules to <tt>FFO</tt> including
+<tt><a href="http://search.cpan.org/dist/File-Find-Iterator/">File::Find::Iterator</a></tt>,
+<tt><a href="http://search.cpan.org/dist/File-Walker/">File::Walker</a></tt>
+and the unmaintained
+<tt><a href="http://search.cpan.org/dist/File-FTS/">File::FTS</a></tt>.
+Also of possible interest is
+<a href="http://www.stonehenge.com/merlyn/LinuxMag/col30.html">Randal L.
+Schwartz's column</a> that implements directory traversal using a tied hash.</p>
+</body>
+</html>

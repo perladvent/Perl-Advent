@@ -1,0 +1,270 @@
+Title: How Santa's Elves Keep their Workshop Tidy
+Topic: Code::TidyAll
+Author: Olaf Alders <olaf@wundersolutions.com>
+
+=for :html
+<div class="bestof">
+2020 has been time consuming - a global pandemic, giant fires, horrific floods
+and political unrest - which has left us little time for side projects.
+This year we're looking back to happier times into the 20+ year archive with the
+Best of the Perl Advent Calendar.
+</div>
+
+L<Code::TidyAll> bills itself as
+C<< Your all-in-one code tidier and validator >>. Many people do not know this,
+but C<< tidyall >> has become an indispensable part of the toolkit in Santa's
+workshop.  It makes it trivial for the elves to keep their code formatting
+consistent and clean.
+
+=head2 Perl::Tidy
+
+Many of us are familiar with L<Perl::Tidy> (the Perl module for reformatting
+your source code in a consistent manner according to a set of rules,) so we'll
+start with it as an example.  Since the elves work as a team, it's easiest for
+them to add their common C<< .perltidyrc >> to their Git repository.  Next they
+create an rc file for the C<< tidyall >> command line utility.  They add this to
+the top level of their repository and call it C<< .tidyallrc >>:
+
+    #!vim dosini
+    [PerlTidy]
+    select = {bin,lib,t}/**/*.{pl,pm,t,psgi}
+    select = santas-workshop.psgi
+    ignore = lib/Acme/Claus/Roles/JellyBelly.pm
+    argv = --profile=$ROOT/.perltidyrc
+
+Each section of a C<< .tidyallrc >> file begins by specifying the
+tidier/formatter which is being configured.  In this case it's the
+L<Code::TidyAll::Plugin::PerlTidy> plugin which plugs L<Perl::Tidy> into
+C<< tidyall >>.  The C<< select >> args accept L<File::Zglob> patterns (i.e.
+shell glob pattern).  This allows the elves to configure which files the plugin
+should be applied to.  Similarly, they can also add C<< ignore >> patterns to
+exclude arbitrary files and patterns.
+
+The C<< argv >> param lets the elves specify a set of arguments to pass to
+L<Perl::Tidy>.  In this case the elves use the C<< profile >> arg, which tells
+C<< perltidy >> where to find a valid C<< .perltidyrc file >>.  C<< $ROOT >> is a
+special variable provided by C<< tidyall >> which means the top level of the
+repository it has been added to.
+
+Now, they're all set.  C<< tidyall -a >> will tidy everything which matches the
+C<< select >> statements in the configuration.  C<< tidyall -g >> is much like
+C<< tidyall -a >> but it is restricted to all files which have been changed but
+not yet committed to the git repository they're currently working in.
+
+Let's have a look at an example.  This is the repository the elves are working
+on:
+
+    $ tree
+    .
+    |-- Changes
+    |-- MANIFEST.SKIP
+    |-- dist.ini
+    |-- lib
+    |   `-- Acme
+    |        `-- Claus
+    |        |    `-- Roles
+    |        |    |    `-- JellyBelly.pm
+    |        |    `-- Sleigh.pm
+    |        `-- Claus.pm
+    `-- santas-workshop.psgi
+
+Let's ask C<< tidyall >> to check everything, using the C<< -a >> flag.
+
+    $ tidyall -a
+    [tidied]  lib/Acme/Claus.pm
+    [checked] lib/Acme/Claus/Sleigh.pm
+    [checked] santas-workshop.psgi
+
+You can see from the above that tidyall only checked the files that we
+configured it to look at.  Now, what if we only want to check the files which
+have uncommitted changes in Git.
+
+    $ git status
+    On branch master
+    Changes not staged for commit:
+    (use "git add <file>..." to update what will be committed)
+    (use "git checkout -- <file>..." to discard changes in working directory)
+
+    modified:   lib/Acme/Claus.pm
+
+We have one modified file, C<< lib/Acme/Claus.pm >>.  So, let's constrain this
+further and use the C<< -g >> flag.  This should mean that only one file gets
+checked and possibly tidied.
+
+    tidyall -g
+    [tidied]  lib/Acme/Claus.pm
+
+It worked!  At this point the elves essentially have a wrapper around
+C<< perltidy >>, which lets them restrict which files the transformations are
+applied to.  Helpful, right?  Let's take it a step further.  Two of the elves on
+the gifting geolocation team, Holly and Max, are pretty good about tidying their
+files before they commit them to the workshop's main repo.  However, the other
+half of the team, Buddy and Peppermint aren't quite so disciplined.  How can
+Holly and Max ensure that Buddy and Peppermint work together with the rest of
+the team?  Well, since they're using Git, there are a few things they can do.
+(This would be a good time to note that C<< tidyall >> has Subversion support
+too.)
+
+=head2 No Untidy Code Makes it Past this Hook
+
+The first thing Holly and Max can try is using a pre-commit hook.  Setting it up
+is easy.
+
+    mkdir -p git/hooks
+
+Now create git/hooks/pre-commit with the following content:
+
+    #!perl
+    #!/usr/bin/env perl
+
+    use strict;
+    use warnings;
+
+    use Code::TidyAll::Git::Precommit;
+    Code::TidyAll::Git::Precommit->check();
+
+Then create git/setup.sh
+
+    #!vim sh
+    #!/bin/bash
+    chmod +x git/hooks/pre-commit
+    cd .git/hooks
+    ln -s ../../git/hooks/pre-commit
+
+Now, all Holly and Max need to do is tell Buddy and Peppermint to check out the
+latest commits from master and run the following command:
+
+    sh git/setup.sh
+
+This will set up a hook which runs before any git commit in the local repo is
+finalized.  Note that the hook will not tidy your files.  It will merely warn
+you about untidy code and prevent the commit.  (You can get the same behaviour
+at the command line by supplying the C<< --check-only >> arg).  At this point you
+can check what the problems are and then run C<< tidyall -g >> as appropriate.
+Then be sure to perform your tidying before you commit.  If you don't,
+C<< tidyall >> will be fooled into thinking that your commits are clean, even
+if you haven't staged the tidied bits.
+
+For example, what happens if someone tries to commit untidy code?
+
+    $ git commit
+    [checked] lib/Acme/Claus.pm
+    *** needs tidying
+    1 file did not pass tidyall check
+
+In a traditional git setup it's also possible to install similar pre-receive
+hooks that run on the main repository whenever someone pushes code to it.
+However, since Santa's workshop runs Github Enterprise - where pre-receive hooks
+aren't possible without some wrangling - pre-commit hooks and a strong lecture
+on always installing them clientside will have to do.
+
+=head2 Testing to Keep Buddy and Peppermint in Line
+
+Now, it's entirely possible that someone will forget to enable the hook or even
+intentionally bypass it.  (You can do this with C<< git commit --no-verify >>).
+Let's put another safeguard in place to catch the naughty elves.
+
+Let's create a file called t/tidyall.t and add the following lines:
+
+    #!perl
+    #!/usr/bin/perl
+    use Test::Code::TidyAll;
+    tidyall_ok();
+
+Now we'll have a failing test whenever something untidy makes it into the master
+branch.  Holly and Max are now safe in the knowledge that whenever untidy code
+is tested via their CS (continuous santagration) that the test suite will curse
+loudly and the perpetrator(s) will be exposed.  In fact, it should look a little
+bit like this:
+
+    $ prove t/tidyall.t
+    t/tidyall.t ..
+    1..4
+    [checked] lib/Acme/Claus.pm
+    *** needs tidying
+    # *** needs tidying
+    not ok 1 - lib/Acme/Claus.pm
+
+    #   Failed test 'lib/Acme/Claus.pm'
+    #   at t/tidyall.t line 3.
+    ok 2 - lib/Acme/Claus/Sleigh.pm
+    ok 3 - santas-workshop.psgi
+    [checked] t/tidyall.t
+    ok 4 - t/tidyall.t
+    # Looks like you failed 1 test of 4.
+    Dubious, test returned 1 (wstat 256, 0x100)
+    Failed 1/4 subtests
+
+    Test Summary Report
+    -------------------
+    t/tidyall.t (Wstat: 256 Tests: 4 Failed: 1)
+    Failed test:  1
+    Non-zero exit status: 1
+    Files=1, Tests=4,  1 wallclock secs ( 0.03 usr  0.01 sys +  0.24 cusr  0.02 csys =  0.30 CPU)
+    Result: FAIL
+
+=head2 Can the Elves add a vim Key Binding?
+
+Of course.  They can add the following to their .vimrc file:
+
+    " Run tidyall on the current buffer. If an error occurs, show it and leave it
+    " in tidyall.ERR, and undo any changes.
+
+    command! TidyAll :call TidyAll()
+    function! TidyAll()
+    let cur_pos = getpos( '.' )
+    let cmdline = ':1,$!tidyall --mode editor --pipe %:p 2> tidyall.ERR'
+    execute( cmdline )
+    if v:shell_error
+    echo "\nContents of tidyall.ERR:\n\n" . system( 'cat tidyall.ERR' )
+    silent undo
+    else
+    call system( 'rm tidyall.ERR' )
+    endif
+    call setpos( '.', cur_pos )
+    endfunction
+
+    " Uncomment to set leader to ,
+    " let mapleader = ','
+
+    " Bind to ,t (or leader+t)
+    map <leader>t :TidyAll<cr>
+
+There may also be the odd elf who swears by emacs.  The emacs code can be found
+in the repository L<https://github.com/autarch-code/perl-code-tidyall/blob/master/etc/editors/tidyall.el>
+
+=head2 What next?
+
+So far we have perltidy set up, we have a Git hook to enforce it and a test to
+make sure the hook is being enforced.  What's next?
+
+The great thing about this module is that it has many plugins, so it's not just
+about tidying Perl code.  You can add any of the following plugins to your projects:
+
+=for :list
+* L<Code::TidyAll::Plugin::CSSUnminifier>
+* L<Code::TidyAll::Plugin::Go>
+* L<Code::TidyAll::Plugin::JSBeautify>
+* L<Code::TidyAll::Plugin::JSHint>
+* L<Code::TidyAll::Plugin::JSLint>
+* L<Code::TidyAll::Plugin::JSON>
+* L<Code::TidyAll::Plugin::MasonTidy>
+* L<Code::TidyAll::Plugin::PHPCodeSniffer>
+* L<Code::TidyAll::Plugin::PerlCritic>
+* L<Code::TidyAll::Plugin::PodChecker>
+* L<Code::TidyAll::Plugin::PodSpell>
+* L<Code::TidyAll::Plugin::SVG>
+* L<Code::TidyAll::Plugin::SortLines>
+* L<Code::TidyAll::Plugin::SortLines::Naturally>
+* L<Code::TidyAll::Plugin::UniqueLines>
+
+With this much plugin support C<< tidyall >> can be used for front end as well
+as back end development.  As mentioned above, it works with Subversion as well
+as Git.  It helps Santa's elves keep their workshop clean and tidy.  Maybe it
+can help your workshop as well.
+
+=head1 See Also
+
+=for :list
+* L<Code::TidyAll>
+* L<Perl::Tidy>

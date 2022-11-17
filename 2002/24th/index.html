@@ -1,0 +1,374 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Pixie</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 24th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Pixie</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../23rd/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../25th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Yesterday we looked at <b>Class::DBI</b>, a module that lets us create
+objects that represent the rows stored in a database.  Today we're
+going to look at <b>Pixie</b>, a module that allows us to store data in
+rows of the database to represent objects.  The distinction between
+the two is a subtle, but important one.</p>
+<p>A relational database is a tightly constrained system, where the
+database knows exactly what is being stored in it and how it relates to
+other data in it.  Using this knowledge it can do powerful searches for
+you and produce.  On the other hand setting up all this takes quite
+a bit of effort on the programmers behalf as he must try and map each
+object from the database to one or more rows in the table.</p>
+<p>This is in direct contrast to the way <b>Pixie</b> works.  <b>Pixie</b> allows
+you, with no fuss, to simply store complex objects in the database and
+pull them out again.  You don't have to worry about setting up mapping
+code like you do with <b>Class::DBI</b>, and you don't have to worry about
+creating tables for each different object you want to store.  <b>Pixie</b>
+will simply serialise up the object, object by object and stores it in
+the database as binary data.</p>
+<p>This does mean that Pixie can't perform complex searches like a true
+relational database, but what it does mean instead is that objects stored
+in Pixie don't have any artificial hierarchy instilled in them through their
+trip through the database.  Suddenly any relationship that makes sense
+to you in code can instantly be stored in the database.
+This sudden escape from the constraints is truly liberating.  I find
+this freeform storage system it particularly useful for storing session
+data for people between pages on a website.  Because the session
+object isn't constrained by the database I can add new sections to it
+and store ad hoc data in it depending on the need of any particular
+page on my site.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Pixie">[Read the documentation for Pixie on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Before we begin storing objects, we must first get <b>Pixie</b> to
+configure the database so that it has all the correct tables to store
+the Pixie records in it.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # setup the database in the file 'pixie.db' 
+  # with no username or password
+  use Pixie::Store::DBI;
+  Pixie::Store::DBI-&gt;deploy("dbi:SQLite:pixie.db", '', '');</pre>
+
+<p>Obviously the user that you connect to the database must have sufficient
+privileges to create tables and so forth (which you always will have with
+a SQLite database at least.)</p>
+<p>Once the database is created then inserting objects into it couldn't be
+simpler.  All you need to do is create a pixie object and use it to
+insert any objects that you want to store:</p>
+<pre>  # create a pixie that's connected to the database
+  use Pixie;
+  my $pixie = Pixie-&gt;new();
+  $pixie-&gt;connect("dbi:SQLite:pixie.db", '', '');
+  
+  # create an object, any old object, it doesn't need to be
+  # anything special or know how to store itself or anything</pre>
+
+<pre>  use Person;
+  use Math::BigInt;
+  use Time::Piece;</pre>
+
+<pre>  my $person = Person-&gt;new(
+     firstname =&gt; "Mark",
+     lastname  =&gt; "Fowler",
+     username  =&gt; "2shortplanks",
+     email     =&gt; 'mark@perladvent.com',
+     dob       =&gt; Time::Piece-&gt;strptime("4 Mar 1978",
+                                       "%d %b %Y"),
+     credit    =&gt; Math::BigInt-&gt;new("5000"),
+  );</pre>
+
+<pre>  # store the object and all objects it
+  # contains in the database
+  my $cookie = $pixie-&gt;insert($person);</pre>
+
+<p>The cookie we get back is a unique identifier for the object that we've
+just stored.  If we want an object back from Pixie then all we need do
+is request the object for that cookie.</p>
+<pre>  # get the person's details back again
+  my $mark = $pixie-&gt;get($cookie);</pre>
+
+<pre>  # check we got an object back in $mark
+  defined( $mark ) or die "Unknown cookie '$cookie'";</pre>
+
+<pre>  # set the greeting string
+  $greeting =  "Hello " . $person-&gt;firstname .
+               " "      . $person-&gt;lastname;</pre>
+
+<p>If we make any changes an object that we've stored in the database then
+all we need to do is reinsert it.  Pixie will be intelligent enough to
+realise that this object was stored before and that it should change the
+object in there not create a second instance of it.</p>
+<pre>  # actually, set my real email address not the
+  # Perl advent calendar one
+  $person-&gt;email('mark@twoshortplanks.com');</pre>
+
+<pre>  # reinsert $mark to store it in the database again
+  $pixie-&gt;insert($mark);</pre>
+
+<p><b>Pixie</b> will also Do The Right Thing when it comes to storing changes
+to objects that are sub objects of what we're inserting, assuming that
+the sub object have been pulled out of <b>Pixie</b> too.</p>
+<pre>  # spend ten pounts, therefore lower my credit limit
+  $person-&gt;credit-&gt;bsub(10);</pre>
+
+<pre>  # store it again
+  $pixie-&gt;insert($person);</pre>
+
+<p>I normally store the <code>$cookie</code> string for each person's session in
+their browser cookies so that whenever they show up at my site I can
+look up their session object.  Sometimes however my users decide to
+user another computer or a different browser and I can't get this
+cookie back again.  What I need to do then is offer them a way of
+getting at their data without their cookie.</p>
+<p>Pixie can bind a name to object which can be used instead of the
+cookie to retrieve the object:</p>
+<pre>  # bind my username to my object
+  $pixie-&gt;bind_name($mark-&gt;username =&gt; $mark);</pre>
+
+<p>Data can be extracted with the <code>get_object_named</code> method that's pretty
+much identical to <code>get</code>, but it uses a bound name rather than a cookie
+id</p>
+<pre>  # get me back again
+  $pixie-&gt;get_object_named("2shortplanks");</pre>
+
+<p>As way of a demonstration, here's a sample CGI script that will get the
+session of a person for a person based on either their cookie or their
+username and password, and will create a new session for them if they
+don't supply either.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # get the cookie back
+  my $cgi = CGI-&gt;new();
+  my $cookie   = $cgi-&gt;cookie("cookie");
+  my $username = $cgi-&gt;param("username");
+  my $password = $cgi-&gt;param("password");</pre>
+
+<pre>  # my session
+  my $session;</pre>
+
+<pre>  # try and get the session with either the username or
+  # cookie
+  if ($username)
+  {
+    # get the object named the same as their username
+    $session = $pixie-&gt;get_object_named($username);
+  
+    # don't let them get access to the session if they
+    # got the password wrong
+    if (defined($session) &amp;&amp; $session-&gt;password ne $password)
+    {
+        # just print the invalid login page and exit
+        print $cgi-&gt;header;
+	print invalid_login();
+        exit;
+    }
+  }
+  else
+  {
+    # get with the cookie
+    $session = $pixie-&gt;get($cookie);
+  }</pre>
+
+<pre>  # check we got a session out in the end
+  unless ($session) 
+  {
+    # No session recreated?  Create a new session then!
+    my $person = Person-&gt;new();</pre>
+
+<pre>    # create 
+    $cookie = $pixie-&gt;insert($person)
+  }</pre>
+
+<pre>  # print the header containing the cookie
+  print $cgi-&gt;header(-type =&gt; 'text/html',
+                     -cookie =&gt; $cgi-&gt;cookie(-name  =&gt; 'cookie'
+                                             -value =&gt; $cookie,
+                                             -expires =&gt; '+1M'));</pre>
+
+<h2>Proxy objects</h2>
+<p>One of the cleverest things about Pixie is the way that it returns
+object trees from the database.  Consider the situation where you have
+an object in the database and that object has references to another
+few objects, and each of those objects have a few more objects
+themselves and so on and so on.  Suddenly pulling the top object of
+the database requires a few hundred objects to be pulled out of the
+database.  This is pretty wasteful if you only needed to check a
+simple attribute of the topmost object.</p>
+<p>To avoid this situation Pixie creates what are called "Proxy" objects.
+Whenever you pull an object out of the database the objects it
+references in turn are not pulled out of the database, but instead in
+the place in the object where they would have been stored one or more
+"Proxy" object are created.  As soon as you call any method on these
+objects they are magically upgrade themselves to the real object by
+extracting themselves from the database (in a similar fashion to the
+way <b>Object::Realize::Later</b> objects upgrade themselves.)  What this
+means is that <b>Pixie</b> is very efficient with database access, but you
+can't access the data structures of objects that haven't been
+extracted yet.  For example:</p>
+<pre>  my $person = $pixie-&gt;get($cookie);</pre>
+
+<pre>  # wont work, as shopping_basket is only a proxy object
+  # you really should be using accessors methods!
+  print $person-&gt;shopping_basket-&gt;{type};</pre>
+
+<pre>  # works, as causes shopping_basket to be sucked in
+  print $person-&gt;shopping_basket-&gt;value();</pre>
+
+<pre>  # now works as shopping basket has been loaded and is
+  # the real object now.
+  print $person-&gt;shopping_basket-&gt;{type};</pre>
+
+<h2>Complicity</h2>
+<p>Although <b>Pixie</b> can store an awful lot of objects nicely and
+automatically, it does have problems when the data that is part of an
+object is inaccessible to Perl itself.  One such case is when Perl is
+interfacing with a C library. Some of the data <b>Pixie</b> needs to store
+for that object may be squirrled away by the library in some place
+that Perl can't find it.</p>
+<p>For this reason you shouldn't expect <b>Pixie</b> to be infallible when it
+comes to storing objects, and you should see if a module is
+implemented in C before storing it with <b>Pixie</b>.  However, even if it
+is all is not lost.  <b>Pixie</b> has a system called "Complicity" that
+allows you to override the way it stores and retrieves objects.</p>
+<p><b>Pixie</b> declares a few methods in the <code>UNIVERSAL</code> class that all
+classes inherit from.  These methods tell pixie how to store and
+retrieve normal objects, but any class can override these methods to
+provide a custom way of storing these objects.</p>
+<p>As way of an example consider a GD Image.  As the <b>GD</b> module is a
+wrapper to a C library Perl has no way of accessing the image data.
+However, we can instruct <b>GD</b> to dump out the image in the gd2 file
+format (the format that GD uses to store temporary copies of image on
+disk,) so we could store that in the database and recreate the
+original image object from that instead.</p>
+<p>Firstly we need to convince Pixie that we can save this object to the
+database.  To do this we create a fully qualified method subroutine.
+This declares the subroutine right in the <b>GD::Image</b> namespace
+meaning that when <code>GD::Image-&gt;px_storable</code> is called it will be
+executed.</p>
+<pre>  # yes yes, we *can* store it
+  sub GD::Image::px_is_storable { return 1 };</pre>
+
+<p>Now we need to create the <code>px_freeze</code> method that must return a plain
+object that <b>Pixie</b> is capable of storing whenever <code>$image-&gt;px_freeze</code> is called.  The resulting object needs to be in a
+separate class to <b>GD::Image</b>, so we choose the name
+<b>Memento::GD::Image</b>.</p>
+<pre>  sub GD::Image::px_freeze
+  {
+    my $gd = shift;</pre>
+
+<pre>    # get the image as binary data
+    my $bin = $gd-&gt;gd2;</pre>
+
+<pre>    # return that data in a data structure blessed into a new class
+    return bless [ $bin ], "Memento::GD::Image";
+  }</pre>
+
+<p>Finally we must write a <code>px_thaw</code> method for <b>Memento::GD::Image</b>
+objects that will will recreate the original <b>GD::Image</b> for us.</p>
+<pre>  sub Memento::GD::Image::px_thaw
+  {
+    my $memento = shift;</pre>
+
+<pre>    # get the binary data out of the object
+    my $bin = $memento-&gt;[0];</pre>
+
+<pre>    # create a new GD image from it and return it
+    return GD::Image-&gt;newFromGD2Data($bin);
+  }</pre>
+
+<h2>Conclusion</h2>
+<p><b>Pixie</b> presents a powerful and robust solution to storing objects
+that can easily be adapted to store any possible object.  By choosing
+to use a relational and object database for the right tasks you can
+solve your data storage needs in a very much more efficient manner than
+with either solution alone.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/author/JDUNCAN/Pixie/lib/Pixie/Complicity.pm">Documentation on Pixie's Complcitiy</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:54 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

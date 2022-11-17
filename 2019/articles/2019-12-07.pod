@@ -1,0 +1,296 @@
+Title: Show Me Mo'
+Topic: Mo
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Conifer Sweetbaker, Software Programmer Elf second class grumbled.
+Despite what the Wise Old Elf insisted about maintaining the quality of
+the code they used at the North Pole, Conifer had to admit it to
+himself: He hated doing code reviews.  And there was no code that
+he hated reviewing more than his best friend Currant Northwick's
+spaghetti code.
+
+The Elf's code was a mess of Perl that looks like it had been
+written before the first dot com boom.  There were mostly no objects
+and Conifer had already caught more than one case where there'd been
+a typo in the hash keys (if those had just been objects and method
+calls Currant would have got a proper error message.)  Occasionally
+Currant did deign to use an object - or at least that's what Conifer
+thought he was doing by the smattering of C<new> and C<bless> that
+peppered his code, but worryingly, there was a lack of accessor methods
+and direct access into the blessed hash all over the shop.
+
+"Why, for Santa's sake, WHY?  It's as if you'd never heard of Moose" he
+cajoled his buddy.
+
+L<Moose> was of course the object framework of choice at the North Pole.
+The powerful postmodern object system not only provides a awesome
+abstraction for defining object classes and accessor methods beyond
+the primitive C<bless> keywords, but also provides a rich meta object
+protocol the envy of many lesser languages.
+
+"Too slow startup time", Conifer complained. "And I couldn't get it
+installed on the old development platform over in the southern workshop
+- they don't have a C compiler for installing software like that".
+
+Conifer didn't want to argue with his friend.  When Moose programs
+start up they do take a little longer than basic Perl code that doesn't
+maintain a meta object protocol.  And yes, you need a working compiler
+to install Moose's dependencies (or the ability to apt-get install
+it - Moose is widely distributed in the ten years or so it's been the
+defacto standard in Perl.)  Conifer wasn't sure which system Currant
+was talking about (all buildings surrounding the North Pole are to
+the south) but he realized he just didn't want to argue.
+
+"How about Moo?  That's quick.", Conifer tried a conciliatory
+suggestion.
+
+"Still slower than coding it by hand!", Currant quipped, "Still needs
+an external dependency!  And still too much typing."
+
+There was no satisfying some elves.  Moo is set of pure Perl classes
+that offered a subset of the Moose syntax that'll do very nicely if
+for any number of reasons you can't use Moose.  But Conifer really
+wanted something as portable, quick and with as little typing as
+writing the broken frameworkless code he was trying to maintain now.
+
+There's really no arguing with some Elves.
+
+"I know what you want," Conifer laughted, "You want Mo, Baby!"
+
+=head2 Mo
+
+If Moo is a cut down version of Moose, then L<Mo> is a super trimmed to
+the bone and then slightly further implementation of something not
+too dissimilar to Moo in as little code as humanly possible.
+
+Mo is like a super-terse version of Moose suitable for prototyping
+and quick one off scripts.  For example, if you need to get a
+bunch of super heros together very, very quickly:
+
+  #!perl
+  #!/usr/bin/perl
+  use 5.024;
+
+  package Person;
+  use Mo;
+  has 'name';
+  has 'codename';
+
+  package Team;
+  use Mo;
+  has 'members';
+  sub assemble { say $_->name.' assemble!' for shift->members->@* }
+
+  package main;
+
+  my $avengers = Team->new(
+    members => [
+      Person->new(name => 'Bruce Banner', codename => 'The Hulk'),
+      Person->new(name => 'Clint Barton', codename => 'Hawkeye' ),
+      Person->new(name => 'Natasha Romanoff', codename => 'Black Widow'),
+      Person->new(name => 'Steve Rogers', codename => 'Captain America'),
+      Person->new(name => 'Tony Stark', codename => 'Ironman' ),
+    ],
+  );
+  print $avengers->assemble;
+
+=head2 Brevity
+
+Just like Moose and Moo, Mo creates the constructor for your object
+class for you and allows you to define accessor methods with the handy
+C<has> syntax.
+
+However, whereas Moose and Moo require at least an C<is> directive
+like so:
+
+  #!perl
+  package Person;
+  use Moose;
+  has name     => ( is => 'rw');
+  has codename => ( is => 'rw');
+
+Mo allows you to skip all the boilerplate if you want.
+
+  #!perl
+  package Person;
+  use Mo;
+  has 'name';
+  has 'codename';
+
+That doesn't mean Mo isn't able to handle complex things...it just
+does it with a lot less code.
+
+Consider this Moose code:
+
+  #!perl
+  package Archer;
+  use Moose;
+  extends 'Person';
+
+  has weapon => (
+    is => 'rw',
+    lazy => 1,
+    default => sub { shift->codename . "'s bow" }
+  );
+
+  has arrows => (
+    is => 'ro',
+    lazy => 1,
+    default => sub { [ 'normal'x5, 'trick', 'explosive' ] },
+  );
+
+This can we written a lot more succinctly in Mo
+
+  #!perl
+  package Archer;
+  use Mo;
+  extends 'Person';
+
+  has weapon => sub { shift->codename . "'s bow" };
+  has arrows => is => ro => [ 'normal'x5, 'trick', 'explosive' ];
+
+Three key things make this code quicker to write:
+
+=over
+
+=item Everything is lazy by default.  This means that the accessor values aren't populated until they're accessed the first time.  To force something to be non-lazy with Mo, you explicitly have to use C<<lazy => 0>>.
+
+=item The default keyword is completely optional.  If Mo sees a subroutine reference it assumes it's the default subroutine.
+
+=item Array references and hash references are assumed to be templates that need to be shallow copied.  So C<[1,2,3]> is the same as C<< lazy => 1, default => sub { [1,2,3] } >> in Moose.  (Deep hash / arrays still require more traditional syntax however!)
+
+=back
+
+=head2 Speed
+
+Okay, so it's quicker to write...but what about quicker to run, and
+more importantly, quicker to start up.
+
+Let's see what the timings are for our above script by
+benchmarking it on one of Microsoft's Standard Linux 4 core 8GB
+instances.  I've prepared three versions of the script for testing, each
+using either Moose, Moo or Mo.
+
+    $ time perl moose.pl >/dev/null
+    real    0m0.183s
+    user    0m0.163s
+    sys     0m0.020s
+    
+    $ time perl moo.pl >/dev/null
+    real    0m0.036s
+    user    0m0.020s
+    sys     0m0.016s
+    
+    $ time perl mo.pl >/dev/null
+    real    0m0.006s
+    user    0m0.006s
+    sys     0m0.000s
+
+We can see that just as Moo is faster than Moose
+an order of magnitude, Mo is fast by an order
+of magnitude again.  To put this in some real world
+scenario, the Mo code is so fast that we could
+execute it every single frame of a 60Hz television
+video playback.  The Moose version barely gets the five
+frames a second of the worst possible animated gif.
+
+=head2 Memory
+
+Speed isn't everything.  What about memory usage?
+
+    $ /usr/bin/time -f '%MK' perl moose.pl >/dev/null
+    20200K
+    $ /usr/bin/time -f '%MK' perl moo.pl >/dev/null
+    8372K
+    $ /usr/bin/time -f '%MK' perl mo.pl >/dev/null
+    4668K
+
+Whoa, that's a big difference.  We should also consider
+that the baseline Perl interpreter takes up the majority
+of the memory:
+
+    /usr/bin/time -f '%MK' perl -e 1 >/dev/null
+    4144K
+
+=head2 Portability
+
+In order to install Moose and its dependencies you need
+a working compiler.  Moo is much easier to install - it's
+a pure Perl solution, though still has several classes
+and its own distribution on the CPAN that you'll need to
+run any Moo code.  Mo?  Mo is designed to be bundled
+with your application.
+
+It's common to see a custom versions of Mo bundled
+with other modules within their distribution.  Instead
+of using the CPAN version of Mo:
+
+   #!perl
+   package Spline::Reticulator;
+   use Mo;
+   ...
+
+They rely on their own version that the include in
+the distribution itself
+
+   #!perl
+   use Spline::Reticulator::Mo;
+   ...
+
+The version of Mo that is distribution is often a
+cut down selection of the Mo source code providing just
+what the project needs and no more.  Mo ships with
+a tool C<Mo::Inline> that makes producing these
+modules trivial.
+
+First, write a dummy package shim explaining what
+parts of Mo you'd like included
+
+   #!perl
+   package Spline::Reticulator::Mo;
+   # use Mo qw'build builder default import';
+   1;
+
+Then run the C<mo-inline> script to expand the
+code:
+
+  $ mo-inline .
+  Mo Inlined ./lib/Spline/Reticulator/Mo.pm
+
+If you were to poke inside the class now you'd
+see it contains a single line optomised version
+of Mo, just like one of the L<many examples on the CPAN|https://fastapi.metacpan.org/source/ANPARKER/MikroTik-Client-v0.520/lib/MikroTik/Client/Mo.pm>.
+
+It's even possible to completely inline Mo inside a
+script by including the inlined code directly in the
+script:
+
+  #!perl
+  #!/usr/bin/perl
+
+  package My::Mo;
+  BEGIN { $INC{'My/Mo.pm'}=__FILE__;
+    no warnings;my$M=__PACKAGE__.'::';*{$M.Objec...<snip>
+  }
+
+  use 5.024;
+
+  package Person;
+  use My::Mo;
+  has 'name';
+  has 'codename';
+  ...
+
+By wrapping the inline code inside a C<BEGIN { ... }> (to
+make sure that the code is executed before the code below it
+is parsed) and by introducing C<$INC{'My/Mo.pm'}=__FILE__>
+(which prevents perl from actually searching on disk for a file
+called C<My/Mo.pm>) we can create a C<My::Mo> class we can use
+in the script whenever we want to enable Mo.
+
+=head2 A Victory, FSVO Victory...
+
+"Okay...Okay!", Currant Northwick begrudgingly agreed, "I'll rewrite
+this code with Mo.  But you do realize you're going to have to code
+review it again from scratch, right?"
+

@@ -1,0 +1,130 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2020 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2020.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2020 - 
+Regexp::Common
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2020</a></h1>
+        </div>
+
+        <p id="tagline">2020 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Regexp::Common</h1>
+<div class='subtitle'>Regexp::Common - 2020-12-10</div>
+
+<div class='pod'><p><div class="bestof"> 2020 has been time consuming - a global pandemic, giant fires, horrific floods and political unrest - which has left us little time for side projects. This year we're looking back to happier times into the 20+ year archive with the Best of the Perl Advent Calendar. </div>
+
+</p>
+
+
+
+<p>Are you fed up writing the same regexes over and over again? Even though someone&#39;s bound to have written (and debugged) them a hundred times already.</p>
+
+<p>Someone should put a module of a collection of them up on the CPAN. Oh, wait, someone did.</p>
+
+<p>Suppose you want to make sure a scalar has something that looks like a number in it. It&#39;s a fairly simple regex to write, right?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$scalar</span> <span class="operator">=~</span> <span class="match">/^\d+$/</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>That&#39;s</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$scalar</span> <span class="operator">=~</span> <span class="match">/^    # start of line <br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\d   # digit<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+    # one or more times<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$    # till the end of line<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/x</span><span class="structure">;</span>   <span class="comment"># allow me to split the line up like this&lt;/pre&gt;</span></code><br />&nbsp;</td></table>
+
+<p>Of course, that falls over as soon as someone puts in a floating point number.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="float">3.14159265</span>   <span class="comment"># the dot doesn't match \d</span></code><br />&nbsp;</td></table>
+
+<p>So we need to expand that to cover situations where there might optionally be extra bits on the end</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$scalar</span> <span class="operator">=~</span> <span class="match">/^    # start of line <br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\d   # digit<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+    # one or more times<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(    # group for floating point part<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\.  # literal dot<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\d  # digit<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+   # one or more times<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)    # end group for floating point type<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;?    # group may or may not exist (is optional)<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$    # till the end of line<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/x</span><span class="structure">;</span>   <span class="comment"># allow me to split the line up like this&lt;/pre&gt;</span></code><br />&nbsp;</td></table>
+
+<p>Which works fine until someone does this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="float">-2.71828183</span><span class="operator">&lt;</span><span class="match">/pre&gt;</span></code><br />&nbsp;</td></table>
+
+<p>So we have to modify it to have an optional plus or minus sign at the start:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$scalar</span> <span class="operator">=~</span> <span class="match">/^    # start of line <br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[+-] # plus or minus<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;?    # which is optional<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\d   # digit<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+    # one or more times<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(    # group for floating point part<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\.  # literal dot<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\d  # digit<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+   # one or more times<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)    # end group for floating point type<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;?    # group may or may not exist (is optional)<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$    # till the end of line<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/x</span><span class="structure">;</span>   <span class="comment"># allow me to split the line up like this&lt;/pre&gt;</span></code><br />&nbsp;</td></table>
+
+<p>And guess what...then someone writes this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="exp">6.626068e10</span><span class="number">-34</span></code><br />&nbsp;</td></table>
+
+<p>And we get really annoyed. At this point I&#39;m writing so much code that I have the distinct urge to write some tests. But more than this I get to thinking...wouldn&#39;t it be <i>nice</i> if someone had written this already. It&#39;s a fairly common occurrence - it&#39;s not like we&#39;re the first people ever to want to match a number.</p>
+
+<p>And then we look in Regexp::Common. Lo and behold! There&#39;s one there to do it! Remind me again why I&#39;m writing my own code?</p>
+
+<p>Using <b>Regexp::Common</b> exports a hash <code>%RE</code> into our namespace. This hash contains many compiled regexes which we an use in our regular expressions. For example:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$scalar</span> <span class="operator">=~</span> <span class="match">/$RE{num}{real}/</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p><b>Regexp::Common</b> also provides a subroutine method to get at the regexes, if you prefer to use it like that:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Regexp::Common</span> <span class="single">'RE_ALL'</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$regex</span> <span class="operator">=</span> <span class="word">RE_num_real</span><span class="structure">();</span><br /><span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$scalar</span> <span class="operator">=~</span> <span class="symbol">$regex</span><span class="structure">)</span><br />&nbsp;&nbsp;<span class="structure">{</span> <span class="word">print</span> <span class="double">&quot;It matched!&quot;</span> <span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>In either case the regexes are blessed, meaning you can call methods on them and treat them just like they&#39;re objects.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$num_regex</span> <span class="operator">=</span> <span class="symbol">$RE</span><span class="structure">{</span><span class="word">num</span><span class="structure">}{</span><span class="word">real</span><span class="structure">};</span><br /><span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$num_regex</span><span class="operator">-</span><span class="symbol">&amp;gt</span><span class="structure">;</span><span class="word">match</span><span class="structure">(</span><span class="symbol">$scalar</span><span class="structure">))</span><br />&nbsp;&nbsp;<span class="structure">{</span> <span class="word">print</span> <span class="double">&quot;It matched!&quot;</span> <span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>One thing you can say about <b>Regexp::Common</b>, it provides a lot of syntactic sugar.</p>
+
+<h3 id="What-Regexp::Common-can-match">What Regexp::Common can match</h3>
+
+<p>I&#39;m not going to provide examples of everything that <b>Regexp::Common</b> can match - that would take forever and a day. I&#39;m just going to touch on some of the things that I&#39;ve found most useful.</p>
+
+<p>Aside from number matching, the one regular expression set I&#39;ve found the most useful is the profanity matching. This is impossible to do properly without really annoying the residents of Middlesex and Scunthorpe by blocking out the inappropriate words in their place names, and you can only provide basic checking that&#39;s &#39;good enough&#39;. <b>Regexp::Common</b> provides a collection that&#39;s &#39;good enough&#39; from the outset, and means I no longer have to worry about constructing such things.</p>
+
+<p>There&#39;s one or two regexes in the collection that I could easily write but are really tiresome to do each time and - as always when you write code rather than reusing existing known good code - you run the risk of making a mistake or typo; The ones that spring particularly to mind are the code for removing whitespace from the start or end of strings, and the code for removing comments from text.</p>
+
+<p>Straying onto more advanced territory there&#39;s even code for matching balanced brackets, something that strictly in a mathematical sense a regular expression shouldn&#39;t be able to do (but Perl can because it&#39;s regular expressions aren&#39;t that regular.)</p>
+
+<p>Then there&#39;s some clever stuff in there to match lists, where you can have things like &quot;rod, jane, and freddy&quot; and get the results back carefully dumping things like &quot;and&quot;.</p>
+
+<p>I could go on all day like this...have a look around in the list of modules yourself: http://search.cpan.org/dist/Regexp-Common/</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Speedy Validation" href="2020-12-09.html">Previous</a></li>
+
+    <li class="next"><a title="CPAN::Mini" href="2020-12-11.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

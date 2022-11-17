@@ -1,0 +1,119 @@
+Title: Give the gift of dependency clarity
+Topic: CPANfile
+Author: Mark Allen <mrallen1@yahoo.com>
+
+=encoding utf8
+
+=head1 Oh no! This gist does what I need, but it won't run!
+
+How many times have you turned to your favorite search engine and found a
+code snippet that implements a solution to a problem, but it's not at all
+clear what dependencies are embedded in the code snippet?
+
+Now this Advent, you can give the gift of clear dependencies to your
+users.
+
+=head1 Introducing CPANfile
+
+A few years ago Tatsuhiko Miyagawa wrote a specification for perl projects based
+on the Ruby gemfile format. This specification is called
+L<CPANfile|https://metacpan.org/pod/release/MIYAGAWA/Module-CPANfile-1.0002/lib/cpanfile.pod> and
+it is not as well known as it ought to be.
+
+=head1 Why CPANfile is super cool
+
+=begin :list
+
+1. Makes dependency requirements explicit
+
+Using a tool like L<carton|https://metacpan.org/pod/Carton> you can quickly and
+easily "freeze" the module dependencies for your project into a local folder, and
+then push the frozen deps along with the application code to your version
+control system and somewhere else checkout the same repo with the necessary
+dependencies already bundled in.
+
+This is very useful in an environment where you want to pin some dependencies
+indefinitely — or if you want some environments (dev) where you have more control
+over dependencies to use one set of modules and another (prod) to use
+whatever's already agreed upon for that environment.
+
+2. Makes experimenting with perl code from GitHub easy
+
+Recent versions of
+L<cpanm|https://metacpan.org/pod/release/MIYAGAWA/App-cpanminus-1.7001/bin/cpanm>
+support parsing and installing the dependencies given in a CPANfile
+format. That makes cloning the code found in a gist and installing its
+dependencies a snap, instead of guessing at a dependency chain.
+
+3. Sometimes code isn't worth the time to "CPAN-ize"
+
+If you've written some scripts to help you get stuff done, and they're
+somewhat specific to your task at hand, it might not be worth the time
+effort to write tests, good docs or package something for release to CPAN.
+
+In those situations, you should still share the code (it will eventually get
+indexed by some search engine) but you can include a CPANfile to make some
+future user (maybe even yourself) completely understand the dependencies for
+a given project.
+
+=end :list
+
+=head1 Yeah, but isn't it hard?
+
+Not at all.  If you're used to writing MakeMaker-style build scripts,
+learning CPANfile is a snap.  Here's a sample CPANfile from a recent code
+project I did which converted WordPress style XML exports into Markdown
+formatted flatfiles.  It's called
+C<< L<wp2md|https://github.com/mrallen1/wp2md> >>.
+
+  #!perl
+  requires 'perl', '5.014';
+
+  requires 'Path::Tiny';
+  requires 'HTML::FormatMarkdown';
+  requires 'XML::Feed';
+  requires 'TOML';
+
+Notice the only specific version that's called out is the version of perl
+itself.  Since I didn't use any explicit operators, these all mean the
+same as if you'd put them into MakeMaker as a C<0> version dependency —
+which is to say, the latest version available unless you have a version
+installed locally.
+
+A more complicated example would be something like:
+
+  #!perl
+  requires 'Catalyst', '5.8000'; # 5.8000 or newer
+  requires 'Catalyst::View::JSON', '>= 0.30, < 0.40';
+
+  recommends 'JSON::XS', '2.0';
+  conflicts 'JSON', '< 1.0';
+
+  on 'test' => sub {
+    requires 'Test::More', '>= 0.96, < 2.0';
+    recommends 'Test::TCP', '1.12';
+  };
+
+  on 'develop' => sub {
+    recommends 'Devel::NYTProf';
+  };
+
+  feature 'sqlite', 'SQLite support' => sub {
+    recommends 'DBD::SQLite';
+  };
+
+And there you have it — some simple keywords like C<requires>,
+C<recommends>, C<conflicts>, and C<on>.  The version operators do what
+it says on the tin like the keywords. You can see how in this line
+
+    #!perl
+    requires 'Test::More', '>= 0.96, < 2.0';
+
+they can even be combined into an AND evaluation.
+
+=head1 See Also
+
+=for :list
+* L<CPANfile presentation from LPW 2011|https://speakerdeck.com/miyagawa/cpanfile>
+* L<cpanm>
+* L<carton>

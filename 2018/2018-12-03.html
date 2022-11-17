@@ -1,0 +1,209 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2018 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2018.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2018 - 
+REST API and the Baby
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2018</a></h1>
+        </div>
+
+        <p id="tagline">2018 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>REST API and the Baby</h1>
+<div class='subtitle'>Cpanel::JSON::XS::Type - 2018-12-03</div>
+
+<div class='pod'><p>How does Santa manage to deliver all the presents to all the children on one day? The answer is simple: He doesn&#39;t. In many countries, there are different creatures responsible for the job (if you&#39;re curious, consult the <a href="https://en.wikipedia.org/wiki/List_of_Christmas_and_winter_gift-bringers_by_country">List of Christmas and winter gift bringers</a> for details).</p>
+
+<p>We live in a global world. People often work for foreign companies and sometimes move abroad. In order to satisfy even their children, the gift bringers had to start cooperating. At the beginning, they used <a href="https://metacpan.org/pod/Convert::ASN1">ASN.1</a> to exchange the data, then switched to <a href="https://metacpan.org/pod/XML::Compile::SOAP">XML</a> at the beginning of the current century, to enter the Twenty-tens using <a href="https://metacpan.org/pod/JSON">JSON</a>.</p>
+
+<h3 id="Baby-Jesus-on-Red-Hat-Enterprise-Linux">Baby Jesus on Red Hat Enterprise Linux</h3>
+
+<p>Let&#39;s look at Baby Jesus, responsible for the central part of Europe and Latin America. The author of this article is interested in him for two reasons: Baby Jesus brings the Christmas gifts to his children, and the Baby&#39;s business runs on Perl.</p>
+
+<p>Until the end of the previous year, Baby Jesus had used Red Hat Enterprise Linux 6. It featured Perl version 5.10.1, and the web service used <a href="https://metacpan.org/pod/JSON::XS">JSON::XS</a> version 2.27 provided by the vendor. When the Christmas 2017 was over, Kris Kringle decided to upgrade the system to RHEL7, which included Perl upgrade to 5.16.3 and JSON::XS to 3.01. Surprisingly, this wasn&#39;t smooth at all.</p>
+
+<p>After the upgrade, JSON data were different. Some numbers that were previously not quoted started to appear in double quotes, while others originally quoted lost their quotes sometimes. Perl powered gift bringers didn&#39;t have to worry as Perl doesn&#39;t care, but there were Java businesses that required the format to stay stable. BJ couldn&#39;t but accept their argument that the data should roundtrip: when you POST a JSON, you expect to GET the same JSON back.</p>
+
+<h3 id="System-Perl">System Perl</h3>
+
+<p>The investigation carried out showed two causes of the problem: Perl&#39;s internal flags had changed across the versions, as well as the heuristics used by the JSON::XS module to guess whether a number should be quoted or not.</p>
+
+<p>&quot;We told you not to use the system Perl!&quot; shouted other programmers in the office.</p>
+
+<p>&quot;Good advice,&quot; replied Baby Jesus, &quot;but it wouldn&#39;t have helped us. We&#39;d have probably only discovered the problem earlier when upgrading Perl or the library.&quot;</p>
+
+<h3 id="Alternatives">Alternatives</h3>
+
+<p>There are several JSON encoding/decoding modules in the wild. Each of them has its own peculiarities. Baby Jesus compared the behaviour of <a href="https://metacpan.org/pod/JSON::PP">JSON::PP</a>, <a href="https://metacpan.org/pod/Cpanel::JSON::XS">Cpanel::JSON::XS</a>, and <a href="https://metacpan.org/pod/JSON::XS">JSON::XS</a>, the latter under Perls 5.10.1 and 5.16.3.</p>
+
+<h4 id="Bah-Humbug">Bah Humbug!</h4>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">encode_json</span><span class="structure">([</span><span class="magic">$$</span><span class="operator">,</span> <span class="double">&quot;&quot;</span> <span class="operator">.</span> <span class="magic">$$</span><span class="structure">])</span></code><br />&nbsp;</td></table>
+
+<p>JSON::XS in 5.10.1 returns <code>[&quot;213&quot;,&quot;213&quot;]</code>, but <code>[213,&quot;213&quot;]</code> in 5.16.3 (the behaviour of JSON::PP and Cpanel::JSON::XS).</p>
+
+<h4 id="Dag-Gubmit">Dag Gubmit!</h4>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$x</span> <span class="operator">=</span> <span class="number">12</span><span class="structure">;</span> <span class="word">utf8::decode</span><span class="structure">(</span><span class="symbol">$x</span><span class="structure">);</span> <span class="word">encode_json</span><span class="structure">([</span><span class="symbol">$x</span><span class="structure">])</span></code><br />&nbsp;</td></table>
+
+<p>JSON::XS in 5.10.1 returns <code>[12]</code> in 5.10.1, but <code>[&quot;12&quot;]</code> in 5.16.3 (the behaviour of JSON::PP and Cpanel::JSON::XS).</p>
+
+<h4 id="Oh-Chestnuts">Oh Chestnuts!</h4>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$x</span> <span class="operator">=</span> <span class="single">'19a'</span><span class="structure">;</span> <span class="symbol">$x</span> <span class="operator">+=</span> <span class="number">0</span><span class="structure">;</span> <span class="word">encode_json</span><span class="structure">([</span><span class="symbol">$x</span><span class="structure">])</span></code><br />&nbsp;</td></table>
+
+<p>Here, Cpanel::JSON::XS is the one that differs; it returns <code>[19.0]</code>, while all the others return <code>[19]</code>.</p>
+
+<h4 id="Baubles">Baubles!</h4>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Data::Dumper</span><span class="structure">;</span> <span class="word">Dumper</span><span class="structure">(</span><span class="word">decode_json</span><span class="structure">(</span><span class="single">'[1e4]'</span><span class="structure">))</span></code><br />&nbsp;</td></table>
+
+<p>This time, it&#39;s JSON::PP who begs to differ, returning <code>[10000]</code> without quotes. All other libraries return the number quoted.</p>
+
+<h4 id="Gift-Wrapped">Gift Wrapped!</h4>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$x</span> <span class="operator">=</span> <span class="number">1844674407370955161</span><span class="structure">;</span> <span class="word">encode_json</span><span class="structure">([</span><span class="symbol">$x</span><span class="operator">,</span> <span class="symbol">$x</span> <span class="operator">/</span> <span class="number">10</span><span class="structure">])</span></code><br />&nbsp;</td></table>
+
+<p>Another example of JSON::PP being not only slow but also inconsistent with the other libraries. It returns <code>[1844674407370955161,1.84467440737096e+17]</code> contrary to <code>[1.84467440737096e+18,1.84467440737096e+17]</code>.</p>
+
+<h4 id="Ah-Tinsel">Ah Tinsel!</h4>
+
+<p>Tied variables are handled differently in JSON::XS. Consider this snippet:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#! /usr/bin/perl<br /></span><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><br /><span class="structure">{</span>   <span class="keyword">package</span> <span class="word">MyIncrementer</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">use</span> <span class="word">Tie::Scalar</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">use</span> <span class="pragma">parent</span> <span class="word">-norequire</span> <span class="operator">=&gt;</span> <span class="single">'Tie::StdScalar'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">TIESCALAR</span> <span class="structure">{</span> <span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$class</span><span class="operator">,</span> <span class="symbol">$val</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span> <span class="word">bless</span> <span class="cast">\</span><span class="symbol">$val</span><span class="operator">,</span> <span class="symbol">$class</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">FETCH</span> <span class="structure">{</span> <span class="keyword">my</span> <span class="symbol">$s</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span> <span class="cast">$</span><span class="symbol">$s</span><span class="operator">++</span> <span class="structure">}</span><br /><span class="structure">}</span><br /><br /><span class="keyword">use</span> <span class="word">JSON::XS</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$json</span> <span class="operator">=</span> <span class="single">'JSON::XS'</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">-&gt;</span><span class="word">allow_nonref</span><span class="structure">;</span><br /><br /><span class="word">tie</span> <span class="word">my</span> <span class="symbol">$x</span><span class="operator">,</span> <span class="single">'MyIncrementer'</span><span class="operator">,</span> <span class="single">'Xa'</span><span class="structure">;</span><br /><span class="word">print</span> <span class="symbol">$json</span><span class="operator">-&gt;</span><span class="word">encode</span><span class="structure">(</span><span class="symbol">$x</span><span class="structure">)</span> <span class="word">for</span> <span class="number">1</span> <span class="operator">..</span> <span class="number">4</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>JSON::XS returns <code>&quot;Xb&quot;&quot;Xd&quot;&quot;Xf&quot;&quot;Xh&quot;</code> regardless of the Perl version, both other libraries return <code>&quot;Xa&quot;&quot;Xb&quot;&quot;Xc&quot;&quot;Xd&quot;</code>. So it seems JSON::XS calls the <code>FETCH</code> method twice when encoding a value to JSON.</p>
+
+<h4 id="For-My-Sake">For My Sake!</h4>
+
+<p>The behaviour of JSON::XS has changed across Perl versions, too.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$j</span> <span class="operator">=</span> <span class="single">'JSON::XS'</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">-&gt;</span><span class="word">allow_nonref</span><span class="structure">;</span><br /><span class="symbol">$x</span> <span class="operator">=</span> <span class="number">12</span><span class="structure">;</span><br /><span class="word">print</span> <span class="symbol">$j</span><span class="operator">-&gt;</span><span class="word">decode</span><span class="structure">(</span><span class="symbol">$x</span><span class="structure">)</span><span class="operator">,</span> <span class="symbol">$j</span><span class="operator">-&gt;</span><span class="word">encode</span><span class="structure">(</span><span class="symbol">$x</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>In Perl 5.10.1, JSON::XS version 2.27 returns <code>12&quot;12&quot;</code>, while 3.01 returns <code>1212</code>, which is consistent with the other libraries.</p>
+
+<h3 id="Quick-Solution">Quick Solution</h3>
+
+<p>&quot;Let&#39;s just quickly fix the data before serialisation,&quot; was the initial idea of BJ&#39;s team. They wanted to call <code>int</code> on integers, concatenate strings to the empty string, and add floats to zero:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#! /usr/bin/perl<br /></span><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">JSON::XS</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$integer</span> <span class="operator">=</span> <span class="double">&quot;12&quot;</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$string</span>  <span class="operator">=</span> <span class="number">42</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$float</span>   <span class="operator">=</span> <span class="double">&quot;122e-1&quot;</span><span class="structure">;</span><br /><br /><span class="word">print</span> <span class="word">encode_json</span><span class="structure">([</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">int</span> <span class="symbol">$integer</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;&quot;</span> <span class="operator">.</span> <span class="symbol">$string</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="number">0</span> <span class="operator">+</span> <span class="symbol">$float</span><br /><span class="structure">]);</span></code><br />&nbsp;</td></table>
+
+<p>But when they started changing the code, they realised it wasn&#39;t so easy. Nested structures turned out to be hard to track, as they were usually built in steps in different parts of the code. Unintentionally inspecting a value could lead to an encoding error, and there was no easy way how to mark a value as &quot;ready for serialisation&quot;. Moreover, the whole endeavour was confusing for non-Perl teams who needed to touch the code occasionally.</p>
+
+<p>Furthermore, a formal API description already existed, so adding the same information to the code felt redundant.</p>
+
+<h3 id="Proper-Solution">Proper Solution</h3>
+
+<p>The final decision was to enforce the types in exactly one place, right before the serialisation. Fortunately, a company located in Christkind&#39;s territory of activity also needed to solve the same problem, and they were able to convince Reini Urban, the maintainer of Cpanel::JSON::XS, to include their solution to his distribution.</p>
+
+<p>Both the methods <code>encode</code> and <code>decode</code> now took an optional argument that described the types of the encoded or decoded structure. When encoding, the programmer had to provide the types, when decoding, the second argument had to be writable and would be populated by a structure describing the types.</p>
+
+<p>For example:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#! /usr/bin/perl<br /></span><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Cpanel::JSON::XS</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Cpanel::JSON::XS::Type</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$type</span> <span class="operator">=</span> <span class="structure">{</span><span class="word">count</span>      <span class="operator">=&gt;</span> <span class="word">JSON_TYPE_INT</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">average</span>    <span class="operator">=&gt;</span> <span class="word">JSON_TYPE_FLOAT</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">name</span>       <span class="operator">=&gt;</span> <span class="word">JSON_TYPE_STRING</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is_enabled</span> <span class="operator">=&gt;</span> <span class="word">JSON_TYPE_BOOL</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">orders</span>     <span class="operator">=&gt;</span> <span class="word">json_type_arrayof</span><span class="structure">(</span><span class="word">JSON_TYPE_INT</span><span class="structure">)};</span><br /><br /><span class="word">print</span> <span class="single">'Cpanel::JSON::XS'</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">-&gt;</span><span class="word">pretty</span><span class="operator">-&gt;</span><span class="word">canonical</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">-&gt;</span><span class="word">encode</span><span class="structure">({</span><span class="word">count</span>      <span class="operator">=&gt;</span> <span class="single">'12'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">average</span>    <span class="operator">=&gt;</span> <span class="single">'11.2'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">name</span>       <span class="operator">=&gt;</span> <span class="number">100</span> <span class="operator">/</span> <span class="number">3</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is_enabled</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">orders</span>     <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="number">1</span> <span class="operator">..</span> <span class="number">10</span> <span class="structure">]</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span> <span class="symbol">$type</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Which returns</p>
+
+<pre><code>    {
+       &quot;average&quot; : 11.2,
+       &quot;count&quot; : 12,
+       &quot;is_enabled&quot; : true,
+       &quot;name&quot; : &quot;33.3333333333333&quot;,
+       &quot;orders&quot; : [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+       ]
+    }</code></pre>
+
+<p>The module <a href="https://metacpan.org/pod/Cpanel::JSON::XS::Type">Cpanel::JSON::XS::Type</a> exported the constants <code>JSON_TYPE_INT</code>, <code>JSON_TYPE_STRING</code> and similar, as well as functions like <code>json_type_arrayof</code> to declare types of nested structures.</p>
+
+<p>The decoder worked in the same fashion:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#! /usr/bin/perl<br /></span><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Cpanel::JSON::XS</span><span class="structure">;</span> <span class="keyword">use</span> <span class="word">Cpanel::JSON::XS::Type</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$struct</span> <span class="operator">=</span> <span class="single">'Cpanel::JSON::XS'</span><span class="operator">-&gt;</span><span class="word">new</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">-&gt;</span><span class="word">decode</span><span class="structure">(</span><span class="single">'[null,1,1.1,&quot;1&quot;,[0],true]'</span><span class="operator">,</span> <span class="word">my</span> <span class="symbol">$type</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>And the variables then contained</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$struct</span> <span class="operator">=</span> <span class="structure">[</span> <span class="core">undef</span><span class="operator">,</span> <span class="number">1</span><span class="operator">,</span> <span class="single">'1.1'</span><span class="operator">,</span> <span class="single">'1'</span><span class="operator">,</span> <span class="structure">[</span><span class="number">0</span><span class="structure">]</span><span class="operator">,</span> <span class="number">1</span> <span class="structure">];</span><br /><span class="symbol">$type</span>   <span class="operator">=</span> <span class="structure">[</span>   <span class="number">256</span><span class="operator">,</span> <span class="number">2</span><span class="operator">,</span>     <span class="number">3</span><span class="operator">,</span>   <span class="number">4</span><span class="operator">,</span> <span class="structure">[</span><span class="number">2</span><span class="structure">]</span><span class="operator">,</span> <span class="number">1</span> <span class="structure">];</span></code><br />&nbsp;</td></table>
+
+<p>where the meanings of the constants could be found in the source code of the XS file (they should be exported by an independent module so other JSON libraries could use them, too):</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synComment">/* types */</span><br /><span class="synPreProc">#define JSON_TYPE_SCALAR      </span><span class="synConstant">0x0000</span><br /><span class="synPreProc">#define JSON_TYPE_BOOL        </span><span class="synConstant">0x0001</span><br /><span class="synPreProc">#define JSON_TYPE_INT         </span><span class="synConstant">0x0002</span><br /><span class="synPreProc">#define JSON_TYPE_FLOAT       </span><span class="synConstant">0x0003</span><br /><span class="synPreProc">#define JSON_TYPE_STRING      </span><span class="synConstant">0x0004</span><br /><span class="synComment">/* flags */</span><br /><span class="synPreProc">#define JSON_TYPE_CAN_BE_NULL </span><span class="synConstant">0x0100</span><br /><span class="synComment">/* null type */</span><br /><span class="synPreProc">#define JSON_TYPE_NULL        JSON_TYPE_CAN_BE_NULL</span></code><br />&nbsp;</td></table>
+
+<p>When modelling family relations, Je&#x17E;&iacute;&scaron;ek used trees. The description of a tree structure is tricky, though, as it leads to a cyclic reference in its type specification (there are no cycles in a tree, but a child of a node is again a node), which causes a memory leak:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Cpanel::JSON::XS</span><span class="structure">;</span> <span class="keyword">use</span> <span class="word">Cpanel::JSON::XS::Type</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$node</span> <span class="operator">=</span> <span class="structure">{</span><span class="word">value</span> <span class="operator">=&gt;</span> <span class="word">JSON_TYPE_STRING</span><span class="structure">};</span><br /><span class="symbol">$node</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">children</span><span class="structure">}</span> <span class="operator">=</span> <span class="word">json_type_arrayof</span><span class="structure">(</span><span class="symbol">$node</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The proper way to describe a recursive structure is to use the <code>json_type_weaken</code> function:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$node</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">children</span><span class="structure">}</span> <span class="operator">=</span> <span class="word">json_type_arrayof</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">json_type_weaken</span><span class="structure">(</span><span class="symbol">$node</span><span class="structure">)</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h3 id="Similar-Stories">Similar Stories</h3>
+
+<p>El Ni&ntilde;o Dios wasn&#39;t the only one to encounter the problem. See for example <a href="https://www.perlmonks.org/?node_id=1210167">Did the JSON module change?</a> on PerlMonks.</p>
+
+<p>Moreover, the problem isn&#39;t particular to JSON. Whenever Perl needs to talk to a system with different type system, you might get fall into the same trap. See for example <a href="https://stackoverflow.com/questions/40800205/why-does-dbi-implicitly-change-integers-to-strings">Why does DBI implicitly change integers to strings</a> on StackOverflow.</p>
+
+<p>In Perl, the internal type of a value shouldn&#39;t be important. The only exception to this were the bitwise operators, but the introduction of the <code>bitwise</code> feature in 5.22 fixed it, so you can now always specify the type explicitly by using the appropriate operator. Cpanel::JSON::Type follows the same philosophy.</p>
+
+<h3 id="Thanks">Thanks</h3>
+
+<p>The Baby Jesus would like to thank <a href="https://metacpan.org/author/PALI">Pali</a> for implementing the features, <a href="https://metacpan.org/author/RURBAN">Reini Urban</a> for releasing them, and <a href="https://gooddata.com/">GoodData</a> for supporting contribution to open source.</p>
+
+<h3 id="Notes">Notes</h3>
+
+<p>Based on the <a href="http://act.perlconference.org/tpc-2018-glasgow/talk/7340">talk</a> presented at The Perl Conference in Glasgow 2018 (<a href="https://youtu.be/E70b73KlP6E">video</a>, <a href="http://choroba.matfyz.cz/18-yapc">slides</a>).</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/402dc655e9e05755692fd3ab5bb27d4c?r=g&s=80&d=retro />
+This article contributed by: E. Choroba &lt;choroba@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Perl in the Browser" href="2018-12-02.html">Previous</a></li>
+
+    <li class="next"><a title="Christmas Quoting" href="2018-12-04.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

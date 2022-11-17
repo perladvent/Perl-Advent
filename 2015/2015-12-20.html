@@ -1,0 +1,171 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2015 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2015.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2015 - 
+Perl and Redis
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2015</a></h1>
+        </div>
+
+        <p id="tagline">2015 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Perl and Redis</h1>
+<div class='subtitle'>Redis::* - 2015-12-20</div>
+
+<div class='pod'><p>Redis is high performance in memory key-value-store and data structure server. It runs as a simple daemon alongside your Perl code that you can talk to over the network sending data back and forward for it to persist between invocations and between processes.</p>
+
+<p>We find that it has affinity with the way we write our application code: We can use Redis variables and data structures as <i>super global variables</i> that are not only accessible from everywhere in a Perl script but from every process on every server in our infrastructure every time they run. It is very useful and powerful (and dangerous :p).</p>
+
+<p>These global variables have lots of use, from a simple shared cache, to things like global work queues, process synchronization, or shared leader boards.</p>
+
+<pre><code>    shell$ redis-cli ping
+    PONG
+    shell$ redis-cli set snowman frosty
+    OK
+    shell$ redis-cli get snowman
+    &quot;frosty&quot;
+    shell$ redis-cli lpush gifts gold
+    (integer) 1
+    shell$ redis-cli lpush gifts frankincense
+    (integer) 2
+    shell$ redis-cli lpush gifts myrrh
+    (integer) 3
+    shell$ redis-cli lpop gifts
+    &quot;myrrh&quot;
+    shell$ redis-cli lpop gifts
+    &quot;frankincense&quot;
+    shell$ redis-cli lpop gifts
+    &quot;gold&quot;
+    shell$ redis-cli lpop gifts
+    (nil)
+    shell$</code></pre>
+
+<p><a href="http://redis.io/documentation">Redis&#39;s documentation</a> is very full and we can try the commands in <a href="http://redis.io/commands">interactive console</a> in a web browser!</p>
+
+<p>Let&#39;s introduce the CPAN modules around Redis.</p>
+
+<h3 id="Redis"><a href="https://metacpan.org/module/Redis">Redis</a></h3>
+
+<p>The original Redis module is a Perl interface to talk to a Redis server:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$redis</span> <span class="operator">=</span> <span class="word">Redis</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="symbol">$redis</span><span class="operator">-&gt;</span><span class="word">incr</span><span class="structure">(</span><span class="single">'blah'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Redis.pm is pure Perl implementation so, stable and easy to understand, but a little bit slow, especially for caching where you don&#39;t want a lot of overhead.</p>
+
+<h3 id="Redis::Fast"><a href="https://metacpan.org/module/Redis::Fast">Redis::Fast</a></h3>
+
+<p><a href="https://metacpan.org/module/Redis::Fast">Redis::Fast</a> is an alternative faster client module for Redis. It has the same Redis.pm interfaces built using XS, so &quot;Fast&quot;. You can use Redis::Fast instead of Redis.pm without making any code changes other than initially instantiating a different object.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$redis</span> <span class="operator">=</span> <span class="word">Redis::Fast</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="symbol">$redis</span><span class="operator">-&gt;</span><span class="word">incr</span><span class="structure">(</span><span class="single">'blah'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>In my work (online games, SNS and so on), Redis::Fast is also stable and very fast.</p>
+
+<h3 id="Cache::Redis"><a href="https://metacpan.org/module/Cache::Redis">Cache::Redis</a></h3>
+
+<p><a href="https://metacpan.org/module/Cache::Cache">Cache::Cache</a> is a standard caching interface while allows you to easily swap out backend caching technologies - in memory stores, on disk files, memcache, etc - without making changes to your code.</p>
+
+<p>I wanted to use Redis as caching storage so I wrote a <a href="https://metacpan.org/module/Cache::Cache">Cache::Cache</a> compatible interface client library for Redis called Cache::Redis:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$redis</span> <span class="operator">=</span> <span class="word">Redis::Fast</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span> <span class="comment"># you can use Redis.pm too.</span><br /><span class="keyword">my</span> <span class="symbol">$cache</span> <span class="operator">=</span> <span class="word">Cache::Redis</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="word">redis</span> <span class="operator">=&gt;</span> <span class="symbol">$redis</span><span class="structure">);</span><br /><span class="symbol">$cache</span><span class="operator">-&gt;</span><span class="word">set</span><span class="structure">(</span><span class="word">blah</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="structure">);</span><br /><span class="word">say</span> <span class="symbol">$cache</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">(</span><span class="single">'blah'</span><span class="structure">);</span> <span class="comment"># 1</span></code><br />&nbsp;</td></table>
+
+<p>Redis also has an interface, <a href="https://metacpan.org/module/CHI::Driver::Redis">CHI::Driver::Redis</a>, to the <a href="https://metacpan.org/module/CHI">CHI</a> caching framework.</p>
+
+<h3 id="Redis::LeaderBoard"><a href="https://metacpan.org/module/Redis::LeaderBoard">Redis::LeaderBoard</a></h3>
+
+<p>Redis not only allows you to store simple key/value pairs on the server, but has a rich API that allows you to manipulate more complex data structures that it can store.</p>
+
+<p>Redis&#39;s &quot;sorted set&quot; is very useful for creating leaderboards but, which don&#39;t return &quot;unique&quot; rank (cf. <a href="https://github.com/antirez/redis/issues/943">https://github.com/antirez/redis/issues/943</a>&gt;). So I wrote the ranking module using Redis which takes care of &quot;unique&quot; rank.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Redis::Fast</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Redis::LeaderBoard</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$redis</span> <span class="operator">=</span> <span class="word">Redis::Fast</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$lb</span> <span class="operator">=</span> <span class="word">Redis::LeaderBoard</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">redis</span> <span class="operator">=&gt;</span> <span class="symbol">$redis</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">key</span>   <span class="operator">=&gt;</span> <span class="single">'leader_board:1'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">order</span> <span class="operator">=&gt;</span> <span class="single">'asc'</span><span class="operator">,</span> <span class="comment"># asc/desc, desc as default</span><br /><span class="structure">);</span><br /><span class="symbol">$lb</span><span class="operator">-&gt;</span><span class="word">set_score</span><span class="structure">(</span><span class="word">one</span> <span class="operator">=&gt;</span> <span class="number">100</span><span class="structure">);</span><br /><span class="symbol">$lb</span><span class="operator">-&gt;</span><span class="word">set_score</span><span class="structure">(</span><span class="word">two</span> <span class="operator">=&gt;</span>  <span class="number">50</span><span class="structure">);</span><br /><span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$rank</span><span class="operator">,</span> <span class="symbol">$score</span><span class="structure">)</span> <span class="operator">=</span> <span class="symbol">$lb</span><span class="operator">-&gt;</span><span class="word">get_rank_with_score</span><span class="structure">(</span><span class="single">'one'</span><span class="structure">);</span> <span class="comment">#=&gt; (1, 100)</span></code><br />&nbsp;</td></table>
+
+<p>I introduce a technique. That is &quot;using epoch as score&quot;.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$lb</span> <span class="operator">=</span> <span class="word">Redis::LeaderBoard</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">redis</span> <span class="operator">=&gt;</span> <span class="symbol">$redis</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">key</span>   <span class="operator">=&gt;</span> <span class="single">'recent_post'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">limit</span> <span class="operator">=&gt;</span> <span class="number">20</span><span class="operator">,</span><br /><span class="structure">);</span><br /><span class="symbol">$lb</span><span class="operator">-&gt;</span><span class="word">set_score</span><span class="structure">(</span><span class="symbol">$url</span><span class="operator">,</span> <span class="symbol">$updated</span><span class="operator">-&gt;</span><span class="word">epoch</span><span class="structure">);</span><br /><span class="operator">...</span><br /><span class="comment"># you can get recent posts up to 20 entries<br /></span><span class="word">my</span> <span class="symbol">$recent_posts</span> <span class="operator">=</span> <span class="symbol">$lb</span><span class="operator">-&gt;</span><span class="word">rankings</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<h3 id="Redis::Namespace"><a href="https://metacpan.org/module/Redis::Namespace">Redis::Namespace</a></h3>
+
+<p>Generally, key management of a key-value-store is very difficult and confusing (easy to conflict with existing keys used elsewhere in code or other applications using the same Redis server, typo and so on). Key-value-store is very cool, but with this &quot;super global variables store&quot; we must appropriately manage the keys.</p>
+
+<p>We can use Redis::Namespace for better key name management.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$redis</span> <span class="operator">=</span> <span class="word">Redis::Fast</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$ns</span> <span class="operator">=</span> <span class="word">Redis::Namespace</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="word">redis</span> <span class="operator">=&gt;</span> <span class="symbol">$redis</span><span class="operator">,</span> <span class="word">namespace</span> <span class="operator">=&gt;</span> <span class="single">'ranking'</span><span class="structure">);</span><br /><span class="symbol">$ns</span><span class="operator">-&gt;</span><span class="word">set</span><span class="structure">(</span><span class="word">foo</span> <span class="operator">=&gt;</span> <span class="single">'bar'</span><span class="structure">);</span>    <span class="comment"># will call $redis-&gt;set('fugu:foo', 'bar');</span><br /><span class="keyword">my</span> <span class="symbol">$foo</span> <span class="operator">=</span> <span class="symbol">$ns</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">(</span><span class="single">'foo'</span><span class="structure">);</span> <span class="comment"># will call $redis-&gt;get('fugu:foo');</span></code><br />&nbsp;</td></table>
+
+<p>The object of Redis::Namespace is to fill up the prefix namespace automatically. I recommend the all Redis objects are wrapped by Redis::Namespace.</p>
+
+<h3 id="Conclusion">Conclusion</h3>
+
+<p>CPAN&#39;s Redis modules allow you to quickly, easily, and safely leverage the power of Redis from Perl.</p>
+
+<h2 id="SEE-ALSO">SEE ALSO</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Redis">Redis</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Redis::Fast">Redis::Fast</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/CHI::Driver::Redis">CHI::Driver::Redis</a> and <a href="https://metacpan.org/module/CHI">CHI</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Cache::Redis">Cache::Redis</a> an <a href="https://metacpan.org/module/Cache::Cache">Cache::Cache</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Redis::LeaderBoard">Redis::LeaderBoard</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Redis::Namespace">Redis::Namespace</a></p>
+
+</li>
+<li><p><a href="http://redis.io/documentation">Redis&#39;s documentation</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5117f5b45fcd8d60cc5f7aa497c87120?r=g&s=80&d=retro />
+This article contributed by: Masayuki Matsuki &lt;songmu@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Santa Sorts By Example" href="2015-12-19.html">Previous</a></li>
+
+    <li class="next"><a title="The Perl of Christmas Future " href="2015-12-21.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

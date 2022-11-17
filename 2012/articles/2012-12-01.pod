@@ -1,0 +1,120 @@
+Title: Sweet Path::Class is Coming to Town
+Topic: Path::Class
+Author: Yanick Champoux <yanick@cpan.org>
+
+File and directory paths. They start off so simple, but then depending on which
+system the script runs on, they might use slashes or backslashes. And then
+there are spaces that come to mess everything up. And then there are those
+systems that use drive letters and volume names. And so on, and so forth.
+
+You know what? Give yourself the gift of simplicity these holidays, and begin
+to use L<Path::Class>.
+
+Path::Class wraps all those file and directory operations in object-oriented
+goodness that will warm your DWIM-hungry little heart.
+
+To begin with, creating the objects is pretty straight-forward:
+
+  #!perl
+  use Path::Class qw/ file dir /;
+
+  my $dir = dir(qw/ home santa children naughty / );
+
+  # could also have done
+  # my $dir = dir( '/home/santa/children/naughty' );
+  # and Path::Class would have understood
+
+  my $entry = file(qw/ home santa children naughty yanick /);
+
+  # or simply
+  #my $entry = $dir->file('yanick');
+
+And because the C<dir> and C<file> objects auto-stringify to their representing
+strings, it means that you can use them just like any regular path strings:
+
+  #!perl
+  say "Uh oh" if -f $entry;
+
+  opendir my $dh, $dir;
+  printf "there are %d naughty children in this directory\n",
+      scalar grep { /^\.\.$/ } readdir $dh;
+
+But as soon you discover the methods those objects have, you'll I<soooo>
+not want to do that. Traveling up and down directory structures will
+now be a joy:
+
+  #!perl
+  # down
+  my $subdir = $dir->subdir('really_naughty');
+
+  # up and down
+  my $good_ones = $dir->parent->subdir('nice');
+
+  say "by the by, it's a relative path" if $dir->is_relative;
+
+Cleaning up complicated paths? A wonder:
+
+  #!perl
+  say dir( '/home/santa/../santa////children/.//nice' )->resolve;
+  # yes, prints '/home/santa/children/nice'
+
+Utilities and shortcuts to create tempfiles, iterate through the directory
+entries or traverse the directory structure? All there:
+
+  #!perl
+  # create a temporary file
+  my ( $wishlist_fh, $wishlist_filename ) = $dir->tempfile;
+
+  say { $wishlist_fh } "I want a $_" for @gift_ideas;
+
+  # read the directory
+  while ( my $naughty_child = $naughty_dir->next ) {
+      $naughty_child->remove if $naughty_child =~ /yanick|rjbs/;
+  }
+
+  # go gift hunting
+  my @hidden = dir(qw/ dev rooms /)->traverse(sub {
+      my( $entry, $cont ) = @_;
+      # grab any gift file
+      return $cont->(), ($entry) x ( -f $entry and $entry =~ /\.gift$/; );
+  });
+
+Regular file operations are likewise simplified via nifty methods:
+
+  #!perl
+  my $list = file(qw/ home yanick xmas list /);
+
+  # read the whole file, split it in lines
+  my @wishlist = $list->slurp;
+
+  s/$/ pretty please/ for @wishlist;  # doesn't hurt to be polite
+
+  # and write back to the file
+  $list->spew(@wishlist);
+
+  # if one wants a filehandle...
+  my $fh = $list->openr;  # open for reading
+  while(my $wish = <$fh>){
+      say "I want a $wish";
+  }
+
+  # want to touch a file?
+  file('/home/santa/helpers/glug')->touch;
+
+  # or remove one?
+  file('/home/santa/helpers/Belsnickel')->remove;
+
+Trust me, once you begin using them, there'll be no going back. In fact, you'll
+probably wish they were also available as L<Moose> types to use them everywhere
+natively.
+
+And then you'll discover L<MooseX::Types::Path::Class>, and the
+Christmas bells will be forevermore ringing.
+
+=head1 See Also
+
+=for :list
+* L<Path::Class>
+* L<MooseX::Types::Path::Class>
+* L<File::Spec>
+* L<File::Path>

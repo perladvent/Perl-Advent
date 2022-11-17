@@ -1,0 +1,215 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: URI::Find</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 1st day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">URI::Find</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="/2001/25th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../2nd/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><b>URI::Find</b> is a module that is able to find URLs contained within
+normal text.  It's the module that can recognise the
+http://use.perl.org/ or (with the <b>URI::Find::Schemeless</b> extension) the
+www.perl.com URL contained in your plain text email for you.  It can
+be used for equally well for compiling lists of urls or altering the
+string to markup the urls - for example wrapping them in 
+<code>&lt;a href="..."&gt; ... &lt;/a&gt; &gt; tags.</code></p>
+<p>It's always tempting to use a simple regular expression to do this
+kind of thing yourself, but more often than not you'll miss a few
+cases (like implicit URLs starting with "ftp." for example) and before
+you know it what was a simple task will turn into an hour or twos work
+trying to fix one little problem after another.  It's much better to
+use some code some other poor individual's had to slave over and deal
+with the countless bug reports than worrying about the little things
+yourself.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?URI::Find">[Read the documentation for URI::Find on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>The most simple way to use <b>URI::Find</b> is to simply use it to
+count urls:</p>
+<pre>  use URI::Find;</pre>
+
+<pre>  # create a new finder object that we'll use to find urls
+  my $finder = URI::Find::Schemeless-&gt;new();</pre>
+
+<pre>  # find urls in $text
+  my $matches = $finder-&gt;find(\$text);  </pre>
+
+<p>This is all very well and good, but knowing how many URLs are in
+a page isn't actually that useful.  What we really want to do is
+wrap them in some links.</p>
+<p>To do more complicated things than just count urls, <b>URI::Find</b> uses
+what is known as a 'callback system'.  Each separate <b>URI::Find</b>
+object you create can be set up with it's own subroutine reference -
+it's own "lump of code" - that Perl should call every time that
+<b>URI::Find</b> object finds a URL so that lump of code can do something
+useful with that URL.</p>
+<p>This can look as simple as passing a reference to an existing
+subroutine like so:</p>
+<pre>  # call "found_url" whenever you find a url
+  my $finder = URI::Find::Schemeless-&gt;new(\&amp;found_url);</pre>
+
+<pre>  sub found_url
+  {
+    ...
+  }</pre>
+
+<pre>  # search $text with that finder
+  $finder-&gt;find(\$text);</pre>
+
+<p>Or alternatively, you can use Perl's anonymous subroutine system to
+create a one off subroutine there and then that just does what you
+want to do:</p>
+<pre>  # run this code whenever you find a url
+  my $finder = URI::Find::Schemeless-&gt;new(sub { ... });</pre>
+
+<pre>  # search $text with that finder
+  $finder-&gt;find(\$text);</pre>
+
+<p>So, looking at this, let's create something that wraps all our urls in
+<code>&lt;a href="..."&gt; ... &lt;/a&gt;</code> tags.  The subroutine called by
+<b>URI::Find</b> gets called with a <b>URI::URL</b> object (an object
+representing a url) and the original text as it's arguments, and it
+should return the text that replaces the existing text.</p>
+<pre>  my $finder = URI::Find::Schemeless-&gt;new( sub {</pre>
+
+<pre>    my $uri    = shift;  # object representing the url
+    my $string = shift;  # text that was in the url</pre>
+
+<pre>    # return the replacement text, i.e. the same text
+    # wrapped in &lt;a href="..."&gt; ... &lt;/a&gt;
+    return '&lt;a href="'.
+	   $uri-&gt;abs.  # get the absolute address
+           '"&gt;'.
+           $string.    # keep the original text
+           '&lt;/a&gt;';
+  });</pre>
+
+<pre>  # and process the text through that finder
+  $finder-&gt;find(\$text);</pre>
+
+<p>Note how we use the absolute address from the <b>URI::URL</b> object
+rather than just using $text.  This is because if the text is
+"www.perlmonks.org" without a preceding "http://" then the browser
+would treat it as a relative url...which is not what we want so we ask
+the url object for the full url to include each time.</p>
+<p>We have seen how we can replace the text with other text, allowing us
+to markup URLs.  But what if we want to create a list of urls in the
+document or something similar?  How would we go about collecting the
+URLs?</p>
+<p>The answer is to use Perl's "closure" system, which in this case is
+nothing more complicated than knowing that the anonymous subroutine
+can see variables that we've created outside of the subroutine too.</p>
+<pre>  # a list of the urls
+  my @urls;</pre>
+
+<pre>  my $finder = URI::Find::Schemeless-&gt;new(sub {</pre>
+
+<pre>    my $uri    = shift;  # object representing the url
+    my $string = shift;  # text that was in the url</pre>
+
+<pre>    # remember the $uri's address by adding it to @urls which
+    # we can see from within this sub
+    push @urls, $uri-&gt;abs;</pre>
+
+<pre>    # return the original text back to leave the text
+    # we were searching unaltered
+    return $string;</pre>
+
+<pre>  });</pre>
+
+<pre>  # and process the text through that finder
+  $finder-&gt;find(\$text);</pre>
+
+<pre>  # and create a web page of those links (for example)
+  print "&lt;html&gt;&lt;body&gt;URLs were:&lt;ul&gt;";
+  foreach my $url (@urls)
+  {
+    print qq{&lt;li&gt;&lt;a href="$url"&gt;$url&lt;/a&gt;&lt;/li&gt;};
+  }
+  print "&lt;/ul&gt;&lt;/body&gt;&lt;/html&gt;";</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/author/ROSCH/URI-Find/lib/URI/Find/Schemeless.pm">URI::Find::Schemeless</a></li>
+<li><a href="http://search.cpan.org/author/RSE/lcwa/lib/lwp/lib/URI/URL.pm">URI::URL</a></li>
+<li><a href="http://www.ietf.org/rfc/rfc2396.txt">RFC 2396</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:51 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

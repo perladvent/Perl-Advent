@@ -1,0 +1,136 @@
+Title: Swarm your webserver
+Topic: App::Legion
+Author: Arthur Axel "fREW" Schmidt <frew@cpan.org>
+
+=encoding utf8
+
+"My name is Legion, for we are many."¹
+
+App::Legion is a tool for loading up your server(s) and seeing how well the
+load is handled.  It is specifically written for static content served to many
+clients.  Obviously you I<could> use it for dynamic content, and if you are pro
+enough to serve dynamic content to thousands of concurrent requests I tip my
+hat to you.
+
+The special feature that Legion brings to the table is that it can use
+multiple computers as clients concurrently.  If you have F<ssh> access to a
+unix machine it is likely that it can work as a Legion client with little work
+on your end.  There are three things that are required for Legion to use a
+server as a client:
+
+=for :list
+= ssh access
+ssh is how Legion connects to clients and ships code and data over the wire
+= perl
+Perl must be installed on the unix machine that is slated to be a client for
+Legion to run
+= ab
+This is probably the only requirement that a typical unix box doesn't already
+meet.  F<ab> is the "apache bench" tool that comes from the F<apache2-utils>
+package in debian based systems.  (Eventually I'd like to support F<wrk>, but
+I'd like to wait until it is prepackaged for major distributions before
+supporting it.)
+
+=head2 Example
+
+  #!perl
+  use App::Legion;
+  use Devel::Dwarn;
+
+  my $stats = App::Legion->new(
+     server_host  => 'test-server-1',
+     client_hosts => ['frew@client1', 'frew@client2'],
+     concurrency  => 100,
+     requests     => 5_000,
+     urls         => [qw(
+        /css.css
+        /js.js
+        /sound/cache/123.wav
+        /static/cache/123.html
+     )],
+  )->run;
+
+  DwarnF { "rps per url: $_[0]" } $stats->requests_per_second_by_url;
+
+The above will fire up clients on the hosts client1 and client2, hit four
+distinct urls at a concurrency of 100 I<each>, totalling to a concurrency of
+about 800 against the server.  Obviously numbers need to be tweaked for your
+usecase.
+
+The object returned from C<run> contains all of the information measured by
+each C<ab> instance.  There are a few methods that you can use to query it, but
+as I suspect that I don't know what all people want to know, I decided to just
+store the information in a SQLite database that can easily be queried against
+to do more complicated reporting.  If you are a fan of L<DBIx::Class> you can
+use that to query the db:
+
+  #!perl
+  +{
+     map { $_->{url} => $_->{tpr} }
+     $self->_schema->resultset('Measurement')->search(undef, {
+        columns => {
+           tpr => { avg => 'time_per_request' },
+           url => 'url.url',
+        },
+        join => [qw(url)],
+        group_by => [qw(url.url)],
+        result_class => 'DBIx::Class::ResultClass::HashRefInflator',
+     })->all
+  }
+
+or if you prefer to just use raw sql, that's obviously fine too:
+
+  #!perl
+  $stats->dbh->selectrow_hashref(<<'SQL')
+
+  FROM "measurements" "me"
+  JOIN "urls" "url" ON "me"."url_id" = "url"."id"
+  GROUP BY "url"."url"
+  SQL
+
+The structure of the schema can be seen L<here|App::Legion::Schema>.
+
+=head2 Guts
+
+I think that how Legion works is pretty interesting.  Basically it's just the
+glue between two technologies: C<ab> and L<Object::Remote>.  C<ab> is not super
+exciting but it certainly can hit servers harder than I could with pure Perl.
+L<Object::Remote>, on the other hand, is a much more interesting beast.
+
+L<Object::Remote> is a tool that allows you to write Perl (explicitly pure Perl,
+which means Moose, DBI, and many other cpan modules are not allowed) objects and
+run them elsewhere.  It's not quite bulletproof yet, but for the most part it
+has worked for me.
+
+It has a fairly in depth logging system; the ability to run remote code (what
+this module uses), local code (forks instead of remote connections), and local
+superuser code.  It could use more documentation, but I'm sure the authors
+would be willing to take patches for that.
+
+=head2 Next Steps
+
+Because L<Object::Remote> gives us this incredibly useful ability to run code on
+servers with basically no configuration (everything has ssh and perl, right?)
+there are some really handy ideas that can come in the future.  I would like to
+refactor Legion to be a wrapper around a generic
+L<MapReduce|http://research.google.com/archive/mapreduce.html> library.
+
+=head2 A Warning
+
+Due to the nature of what Legion is and the tools it leverages, it is far from
+perfect.  It is perfectly suited to loading up a web server and seeing how the
+web server holds up.  On the other hand, if you were to use it as some kind of
+core tech in your application I would say you should either hold off and wait or
+work with L<Shadowcat|http://shadow.cat/> to improve L<Object::Remote>.  On top
+of that, C<ab> sometimes gives up and crashes earlier than I'd rather, but
+there is little I can do about that aside from increasing timeouts and whatnot.
+
+=head1 Footnotes
+
+=for :list
+1 Bible quotes are Christmassy, right? — Ed.
+
+=head1 See Also
+
+=for :list
+* L<Object::Remote>

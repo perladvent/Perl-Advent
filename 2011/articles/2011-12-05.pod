@@ -1,0 +1,141 @@
+Title: Stupid Command Line Tricks
+Topic: the -M switch
+Author: Ricardo Signes <rjbs@cpan.org>
+
+=encoding utf8
+
+=head1 The Basics of C<-M>
+
+C<perl> understands a bunch of command line switches.  Some of them, like
+C<-f>, you will probably never use.  Others, like C<-e> and C<-d>, you might
+use all the time.  The C<-M> switch is somewhere in between.  You might use it
+in the most trivial case, but it can probably do a lot more than you know it
+can.
+
+The general use case is this:
+
+  #!code
+  perl -MCarp::Always::Color some-script.pl
+
+The general effect is that "C<use Carp::Always::Color;>" is injected at the
+beginning of the program to be run, as if it had been in the source itself.
+It's great for things that affect the global execution environment, like
+L<Carp::Always|http://perladvent.org/2011/2011-12-04.html>, but it's got a
+bunch of other little uses.
+
+=head2 Importing
+
+If you want to write a one-liner that needs an import, for example, you can use
+the equals sign:
+
+  #!code
+  perl -MList::Util=first -E 'say first { /rjbs/ } @INC'
+
+The string after the C<=> is passed to List::Util's C<import> routine.  If it
+has commas, the string is split on commas and the result is passed in.
+
+This is how L<local::lib|http://perladvent.org/2011/2011-12-01.html>'s
+one-liner form works!  local::lib has a tricky C<import> routine, and you pass
+it a path name by using C<-M…=…>
+
+  #!code
+  perl -Mlocal::lib=~/local/testing
+
+By default, C<import> is called with no arguments, because libraries given to
+the C<-M> switch are loaded with C<use Module;>.  You can skip the imports by
+using C<-m> instead.  C<-mMODULE> becomes C<use Module ();>.
+
+=head2 Version Checks
+
+Usually, if I want to know what version(s) of a module I have installed, I run
+L<which_pm>, but when I don't have it – or more likely, when giving advice to
+someone on IRC, I can use C<-M>.  If I think someone's seeing a bug because
+they've got an old version of Sub::Exporter, I can tell them to run:
+
+  #!code
+  ~$ perl -MSub::Exporter\ 999
+  Sub::Exporter version 999 required--this is only version 0.982.
+  BEGIN failed--compilation aborted.
+
+=head2 C<no MODULE>
+
+Most of the time, we load libraries with C<use>, but C<L<no|perlfunc/no>> is
+useful, too.  (Instead of calling C<import>, it calls C<unimport>.)  Mostly,
+C<no> is used by libraries that are loaded to forbid undesirable behavior.
+L<indirect> lets you ban indirect method invocation.  L<circular::require> lets
+you ban circular module loading.
+
+In your source for F<Foo.pm>, you might write:
+
+  #!perl
+  use strict;
+  use warnings;
+  no circular::require;
+
+  use Bar; # if Bar tries to "use Foo", we'll die because of no circular::require
+
+...but circular::require affects the global behavior of C<require>.  You
+probably don't want to always load it everywhere.  You just want to use it
+sometimes when testing.  You can't say C<-Mcircular::require>, because that
+would use C<use> instead of C<no>.  To get C<no>, just throw in another dash:
+
+  #!code
+  ~$ perl -M-circular::require -MFoo -e0
+
+The code above will be silent if Foo has no circular requirements, and emit a
+string of warnings of it has them.
+
+=head1 Further Madness
+
+So, for testing versions, I showed:
+
+  #!code
+  ~$ perl -MString::Truncate\ 999
+
+For importing, I showed:
+
+  #!code
+  ~$ perl -MString::Truncate=trunc,elide -e '...'
+
+What if we want to combine these?  They're not really compatible.  What if we
+want to pass something more complex than a list of strings?  The bits after the
+equals sign aren't C<eval>ed, so they can't be complex.
+
+The secret lies in understanding how that version-testing code worked.
+The space after "String::Truncate" and everything following that is just tacked
+into the template C<use MODULE REST ;>
+
+This means you can put I<almost anything> there.  Do you want to import a
+renamed version of C<trunc>, but only if you have a recent version?
+
+  #!code
+  ~$ perl -M'String::Truncate 1.100000 trunc => { -as => "truncate" }' -e ...
+
+Your program will be run with the following line of code prepended:
+
+  #!perl
+  use String::Truncate 1.1000 trunc =>{ -as => "truncate" };
+
+This is where it gets a little nutty:  C<perl> doesn't care whether you give it
+more than one statement.  You can put all kinds of stuff in C<-M>'s argument.
+In fact, if the stuff you want to put in is important, but the module isn't,
+you can just use something meaningless like C<5>:
+
+  #!code
+  ~$ perl -M'5; warn "pid: $$\n"' your-actual-program.pl
+
+The C<use 5> just ensures that you're under Perl 5 or later, and then the code
+you actually wanted to inject is added.
+
+C<-M> is a powerful tool for all kinds of code injection when you don't want to
+actually start editing the code you're running.  Even better, once you've
+finished working with it, you can just delete your shell history file, and
+nobody will know the kind of horrible things you did with it.
+
+=head1 See Also
+
+=for :list
+* L<perlrun>
+* C<L<use|perlfunc/use>>
+* C<L<no|perlfunc/no>>
+* L<Module::Which>

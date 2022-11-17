@@ -1,0 +1,151 @@
+Title: Handling complex data structures
+Topic: Hash::Flatten
+Author: Tony Edwardson <tony@edwardson.co.uk>
+
+One of the challenging aspects of the Wise Old Elf's tasks is dealing with all
+of the various lists of presents requested by all of the children. These arrive
+in a variety of formats with different structures and these need to be all
+displayed on a webpage so each can be checked and validated.
+
+This causes a problem displaying unstructured data on a web page.
+
+Luckily there is a module which helps here - the L<Hash::Flatten> module takes an
+arbitrary data structure and converts it into a simple hash with the key to each
+element being a Template Toolkit style token refering to the element in the data
+structure.
+
+For example, given a deep data structure such as this:
+    
+    #!perl
+    my $data = {
+      'England' => { 
+        'Bucks' => {
+          'Milton Keynes' => {
+            'Some Road' => { 
+              4 => {
+                'Bloggs' => {
+                  'Fred' => 'Fire Engine'
+                },
+              },
+            },
+          },
+        },
+      },
+      'USA' => {
+        'Maine' => {
+          'York' => {
+            'Main Road' => { 
+              'White House' => { 
+                'Naughty Child' => 'Ipad',
+              },
+            },
+          },
+        },
+      },
+    };
+
+This would be awkward to display on a web page but using the C<flatten> function of
+Hash::Flatten you can convert it into a simple flat hash which can then be displayed
+as a simple table. i.e.
+
+    #!perl
+    use Hash::Flatten qw/ flatten /;
+    my $flathash = flatten( $data );
+
+The variable C<$flathash> will then contain:
+
+    #!perl
+    $flathash = {
+      'England.Bucks.Milton Keynes.Some Road.4.Bloggs.Fred' => 'Fire Engine',
+      'USA.Maine.York.Main Road.White House.Naughty Child'  => 'Ipad',
+    };
+
+You can now easily present this in a table:
+
+    #!perl
+    use HTML::Entities qw(encode_entities);
+    print "<table>";
+    while (my @kv = each $flathash->%*) {
+        print "<tr>";
+        print "<td>", encode_entities($_), "</td>"
+            for @kv;
+        print "</tr>";
+    }
+    print "</table>";
+
+=for html
+  <table border="1">
+    <tr>
+      <td>England.Bucks.Milton Keynes.Some Road.4.Bloggs.Fred</td>
+      <td>Fire Engine</td>
+    </tr>
+    <tr>
+      <td>USA.Maine.York.Main Road.White House.Naughty Child</td>
+      <td>Ipad</td>
+    </tr>
+  </table>
+
+Or store it in a flat DBM File or process it in any number of ways! You can even
+go the other way too by using the B<unflatten> function to turn the flattened
+data structure back into a nested data structure:
+
+    #!perl
+    use Hash::Flatten qw( unflatten );
+
+    my $data = {
+      'food.reindeer'    => 'carrots',
+      'food.santa.pie'   => 'mince',
+      'food.santa.drink' => 'sherry',
+    };
+    
+    use Data::Dumper;
+    print Dumper unflatten($data);
+
+Which prints out:
+
+    #!perl
+    $VAR1 = {
+      'food' => {
+        'reindeer' => 'carrots',
+        'santa' => {
+          'pie' => 'mince',
+          'drink' => 'sherry'
+        }
+      }
+    };
+
+The elves actually use Hash::Flatten for a lot of things in various contexts.
+Through passing a second argument (or using the OO-interface) it's possible
+to control what deliminator are used to join / split the parts of hash
+and arrays. 
+
+   #!perl
+   my $data = {
+      'Beano' => {
+        'Denis'  => [ 'Catapult','Dog Treats'],
+        'Minnie' => [ 'Tricks', 'Hair Bows' ],
+        'Roger'  => [ 'Gadgets' ],
+      },
+      'Archie' => {
+        'Josie'   => [ 'Guitar', 'Cat Ears' ],
+        'Sabrina' => [ 'Spellbook' ],
+      },
+    };
+
+    my $flathash = flatten( $data, {
+      HashDelimiter => ' -> ', 
+      ArrayDelimiter => ', ',
+    });
+
+And now the flattened hash looks like this:
+
+    #!perl
+    $flathash = {
+      'Beano -> Denis' => 'Catapult, Dog Treats',
+      'Beano -> Minnie' => 'Tricks, Hair Bows',
+      'Beano -> Rodger' => 'Gadgets',
+      'Archie -> Josie' => 'Guitar, Cat Ears',
+      'Archie -> Sabrina' => 'Spellbook',
+    }
+
+Happy data munging!

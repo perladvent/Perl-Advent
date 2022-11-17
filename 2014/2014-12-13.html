@@ -1,0 +1,200 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+Now I Have Better Options
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Now I Have Better Options</h1>
+<div class='subtitle'>MooX::Options - 2014-12-13</div>
+
+<div class='pod'><p>Today we&#39;re looking at MooX::Options, a better way to parse command line options when you&#39;re using a Moo class for the basis of a script. Through MooX::Options we&#39;re able to leverage the power of building reusable parts of our scripts with roles and have those roles handle parsing and documenting their own command line arguments.</p>
+
+<h3 id="Ye-Olde-Getopt::Long">Ye Olde Getopt::Long</h3>
+
+<p>For a long time I considered command line argument parsing a solved problem within Perl. Perl shipped with Getopt::Long module with the very first version of Perl 5, and I&#39;ve admired it&#39;s simplicity and power ever since... in fact I recommended it back in the first Perl Advent Calendar fourteen years ago.</p>
+
+<p>GetOpt::Long uses a simple function interface into which you pass command line option specifications and references to variables you want to populate:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Getopt::Long</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$filename</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$verbose</span><span class="structure">;</span><br /><br /><span class="word">GetOptions</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="double">&quot;filename=s&quot;</span> <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">$filename</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="double">&quot;verbose&quot;</span>    <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">$verbose</span><span class="operator">,</span><br /><span class="structure">)</span> <span class="operator">or</span> <span class="word">die</span><span class="structure">(</span><span class="double">&quot;Error in command line argument&quot;</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h3 id="Modern-Perl-Scripts">Modern Perl Scripts</h3>
+
+<p>However, somewhere in the last fourteen years the way I write scripts has changed significantly. Where I used to write all my code in one file, I gradually moved more and more code into separate modules until I reached the natural conclusion: The whole code of the script is actually in a module and the script is nothing more than a shim to load the module, instantiate an object, and call the <code>run</code> method on it.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br />&nbsp;<br /><span class="comment"># include the &quot;lib&quot; directory in the same directory as the<br /># script in our module path<br /></span><span class="keyword">use</span> <span class="word">FindBin</span> <span class="words">qw($FindBin::Bin)</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">File::Spec::Functions</span> <span class="words">qw(catdir)</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">lib</span> <span class="word">catdir</span><span class="structure">(</span><span class="symbol">$FindBin::Bin</span><span class="operator">,</span> <span class="double">&quot;lib&quot;</span><span class="structure">);</span><br /><br /><span class="keyword">use</span> <span class="word">MyScriptModule</span><span class="structure">;</span><br /><span class="word">print</span> <span class="word">MyScriptModule</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">-&gt;</span><span class="word">run</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>This has several advantages from code reuse (several scripts can use the same module but instantiate it with different options) through to ease of testing (we can instantiate our object directly in our test scripts and test that rather than having to execute a new Perl process to run the script.)</p>
+
+<p>The pertinent question seems to be: How do we handle command line options in this situation?</p>
+
+<p>One really basic tactic is to parse the options as before with Getopt::Long and then pass the options through to the object in the constructor:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="comment"># include the &quot;lib&quot; directory in the same directory as the<br /># script in our module path<br /></span><span class="keyword">use</span> <span class="word">FindBin</span> <span class="words">qw($FindBin::Bin)</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">File::Spec::Functions</span> <span class="words">qw(catdir)</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">lib</span> <span class="word">catdir</span><span class="structure">(</span><span class="symbol">$FindBin::Bin</span><span class="operator">,</span> <span class="double">&quot;lib&quot;</span><span class="structure">);</span><br /><br /><span class="keyword">use</span> <span class="word">Getopt::Long</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$filename</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$verbose</span><span class="structure">;</span><br /><br /><span class="word">GetOptions</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="double">&quot;filename=s&quot;</span> <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">$filename</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="double">&quot;verbose&quot;</span>    <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">$verbose</span><span class="operator">,</span><br /><span class="structure">)</span> <span class="operator">or</span> <span class="word">die</span><span class="structure">(</span><span class="double">&quot;Error in command line argument&quot;</span><span class="structure">);</span><br /><br /><span class="keyword">use</span> <span class="word">MyScriptModule</span><span class="structure">;</span><br /><span class="word">print</span> <span class="word">MyScriptModule</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">verbose</span> <span class="operator">=&gt;</span> <span class="symbol">$verbose</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">filename</span> <span class="operator">=&gt;</span> <span class="symbol">$filename</span><span class="operator">,</span><br /><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">run</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>The problem you can see here is this supposed shim script is getting very long and has a lot of logic in it. Logic that can&#39;t be now reused between scripts. Logic that has no easy way to be tested.</p>
+
+<p>A slightly better tactic might be to move the parsing code inside a special constructor in the MyScriptModule class:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="comment"># include the &quot;lib&quot; directory in the same directory as the<br /># script in our module path<br /></span><span class="keyword">use</span> <span class="word">FindBin</span> <span class="words">qw($FindBin::Bin)</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">File::Spec::Functions</span> <span class="words">qw(catdir)</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">lib</span> <span class="word">catdir</span><span class="structure">(</span><span class="symbol">$FindBin::Bin</span><span class="operator">,</span> <span class="double">&quot;lib&quot;</span><span class="structure">);</span><br /><br /><span class="keyword">use</span> <span class="word">MyScriptModule</span><span class="structure">;</span><br /><span class="word">print</span> <span class="word">MyScriptModule</span><span class="operator">-&gt;</span><span class="word">new_with_options</span><span class="operator">-&gt;</span><span class="word">run</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Now it&#39;s a simple matter of programming to write the <code>new_with_options</code> method...or is it? A naive implementation might look something like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">new_with_options</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$class</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$filename</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$verbose</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">GetOptions</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;filename=s&quot;</span> <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">$filename</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;verbose&quot;</span>    <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">$verbose</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">)</span> <span class="operator">or</span> <span class="word">die</span><span class="structure">(</span><span class="double">&quot;Error in command line argument&quot;</span><span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$class</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">verbose</span> <span class="operator">=&gt;</span> <span class="symbol">$verbose</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">filename</span> <span class="operator">=&gt;</span> <span class="symbol">$filename</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>That&#39;s great until you want to do something like subclassing MyModuleScript to add a new option. How do you do that without having to copy and paste the existing logic that&#39;s in <code>new_with_options</code>? So in actuality the whole logic is much harder to write, you need some sort of overridable method that gathers parameters to pass to <code>GetOptions</code>, then you need some logic to pass that to the existing constructor.</p>
+
+<p>This all sounds like a lot of work to do to when writing a simple script. What we need is a module like MooX::Options to help us out.</p>
+
+<h3 id="Introducing-MooX::Options">Introducing MooX::Options</h3>
+
+<p>Let&#39;s take a step back for a minute and re-evaluate what we&#39;re actually trying to do. Chances are if we&#39;ve got a Moo object then our <code>verbose</code> attribute looks something like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Types::Standard</span> <span class="word">-all</span><span class="structure">;</span><br /><br /><span class="word">has</span> <span class="word">verbose</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Bool</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>What we really need is some way to have that attribute gather its own command line arguments. Let&#39;s let MooX::Options do that for us:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Types::Standard</span> <span class="word">-all</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">MooX::Options</span><span class="structure">;</span><br /><br /><span class="word">option</span> <span class="word">verbose</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Bool</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">doc</span> <span class="operator">=&gt;</span> <span class="single">'Flag to enable verbose output'</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>We&#39;ve replaced the <code>has</code> keyword with <code>option</code>. This is essentially identical to the normal attribute except when we construct our Moo class in our script via the <code>new_with_options</code> constructor (which is now provided for us by MooX::Options):</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">MyScriptModule</span><span class="structure">;</span><br /><span class="word">print</span> <span class="word">MyScriptModule</span><span class="operator">-&gt;</span><span class="word">new_with_options</span><span class="operator">-&gt;</span><span class="word">run</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>We can now set that <i>option</i> attribute from the command line:</p>
+
+<pre><code>   bash$ myscript --verbose</code></pre>
+
+<p>We can control the type of argument we accept with <code>format</code>.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">option</span> <span class="word">filename</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Str</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">format</span> <span class="operator">=&gt;</span> <span class="single">'s'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">doc</span> <span class="operator">=&gt;</span> <span class="single">'The input filename'</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>This is the same format string used by Getopt::Long. The <code>--filename</code> option now can have a string value set at the command line:</p>
+
+<pre><code>    bash$ myscript --verbose --filename=/path/to/my/file</code></pre>
+
+<p>It may seem redundant to have to specify both a type of <code>Str</code> and a format of <code>s</code>, but it&#39;s worth thinking that the latter is just a way of telling the command line parser what to do and is unrelated to what the type of the variable actually is. Expecting Moo to work out the command line option type from a type (given subclassing, coercion and other complexity of Type::Tiny types) would just be too clever a feature and probably result in gotchas and unexpected behavior in certain situations. It&#39;s best to just be explicit.</p>
+
+<p>Along with the command line options you specify MooX::Options also provides options for outputting documentation (which you&#39;ve been providing via the <code>doc</code> parameter to <code>option</code>) for each command line option.</p>
+
+<pre><code>    bash$ myscript --help
+    USAGE: myscript [-h] [long options...]
+
+        --filename: String
+            The input filename
+
+        --verbose:
+            Flag to enable verbose output
+
+        --usage:
+            show a short help message
+
+        -h --help:
+            show a help message
+
+        --man:
+            show the manual</code></pre>
+
+<p>Why it&#39;s important to have this documentation programmatically compiled like this rather than specified in any one module&#39;s pod will become clear shortly.</p>
+
+<h3 id="The-Role-Advantage">The Role Advantage</h3>
+
+<p>The reason I really love MooX::Options is not that it just makes mapping command line options to attributes easy, it&#39;s that it lets me do that no matter where the attributes are defined. One of the key places that these attributes are often defined are inside of roles.</p>
+
+<p>To give you an idea of the power of this I present my <i>verbose</i> role that I consume in pretty much every script module:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">MyScriptClass::Role::Verbose</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Moo::Role</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">MooX::Options</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Types::Standard</span> <span class="word">-all</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">autodie</span><span class="structure">;</span><br /><br /><span class="keyword">our</span> <span class="symbol">$VERSION</span> <span class="operator">=</span> <span class="number">1</span><span class="structure">;</span><br /><br /><span class="word">option</span> <span class="word">verbose</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Bool</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">doc</span> <span class="operator">=&gt;</span> <span class="single">'If we should be verbose or not (default false)'</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="word">has</span> <span class="word">logging_fh</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">FileHandle</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">default</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="keyword">return</span> <span class="cast">\</span><span class="symbol">*STDERR</span> <span class="structure">}</span><br /><span class="structure">);</span><br /><br /><span class="keyword">sub</span> <span class="word">note</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$self</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="word">unless</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">verbose</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">print</span> <span class="structure">{</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">logging_fh</span> <span class="structure">}</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="number">1</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>This role gives my class a <code>verbose</code> attribute (which can be set from the command line), and a <code>note</code> method that logs out output if and only if verbose has been set.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">MyScriptClass::SplineReticulator</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Moo</span><span class="structure">;</span><br /><span class="word">with</span><span class="structure">(</span><span class="single">'MyScriptModule::Role::Verbose'</span><span class="structure">);</span><br /><br /><span class="keyword">sub</span> <span class="word">run</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$self</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">note</span><span class="structure">(</span><span class="double">&quot;reticulating splines&quot;</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Everything about the <code>verbose</code> command line option acts exactly the same as if it had been declared in the consuming class itself - the command line parsing is identical, and it&#39;s even included in the auto-generated documentation the same.</p>
+
+<h3 id="Making-Things-Testable">Making Things Testable</h3>
+
+<p>One of the handy things about tightly binding the command line options to attributes in this way is that it makes testing a breeze.</p>
+
+<p>Here&#39;s another one of my handy standard roles:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">MyScriptClass::Role::Filename</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Moo::Role</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">MooX::Options</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Types::Standard</span> <span class="word">-all</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">autodie</span><span class="structure">;</span><br /><br /><span class="keyword">our</span> <span class="symbol">$VERSION</span> <span class="operator">=</span> <span class="number">1</span><span class="structure">;</span><br />&nbsp;<br /><span class="word">option</span> <span class="word">filename</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Str</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">format</span> <span class="operator">=&gt;</span> <span class="single">'s'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">doc</span> <span class="operator">=&gt;</span> <span class="single">'The input filename'</span><br /><span class="structure">);</span><br /><br /><span class="word">has</span> <span class="word">fh</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'lazy'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">FileHandle</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">sub</span> <span class="word">_build_fh</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$self</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> <span class="structure">(</span><span class="core">defined</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">filename</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">open</span> <span class="word">my</span> <span class="symbol">$fh</span><span class="operator">,</span> <span class="double">&quot;&lt;&quot;</span><span class="operator">,</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">filename</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$fh</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="cast">\</span><span class="symbol">*STDIN</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>The point in this role is to provide a <code>fh</code> attribute which contains an open filehandle to read input from. MooX::Options allows the class to take a filename to process in the <code>--filename</code> option which will then be automatically opened in the lazy builder for <code>fh</code>.</p>
+
+<p>Using this role is pretty straight forward - you just assume you&#39;ve got a <code>fh</code> attribute now:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">MyScriptClass::ReverseLine</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Moo</span><span class="structure">;</span><br /><span class="word">with</span><span class="structure">(</span><span class="single">'MyScriptModule::Role::Filename'</span><span class="structure">);</span><br /><br /><span class="keyword">sub</span> <span class="word">run</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$self</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$fh</span> <span class="operator">=</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">fh</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$output</span> <span class="operator">=</span> <span class="double">&quot;&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="keyword">while</span> <span class="structure">(</span><span class="readline">&lt;$fh&gt;</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">chomp</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$output</span> <span class="operator">.=</span> <span class="word">reverse</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$output</span> <span class="operator">.=</span> <span class="double">&quot;\n&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$output</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Because we can set the <code>--filename</code> option from the constructor rather than from the actual command line we can test this with a test script easily:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">is</span> <span class="word">MyScriptClass::ReverseLine</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">filename</span> <span class="operator">=&gt;</span> <span class="double">&quot;test.txt&quot;</span><br /><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">run</span><span class="operator">,</span> <span class="heredoc">&lt;&lt;'ENDOFEXAMPLEOUTPUT'</span><span class="structure">;</span><br /><span class="heredoc_content">elpmaxe hcae fo liated yreve ni detseretni taht er'uoy fi ,yeH   <br />?radnelac s'raey txen rof elcitra na gnitirw gniredisnoc tuoba woh   <br />.pleh nac uoy woh rof 52-21-4102 rof yrtne eht eeS<br /></span><span class="heredoc_terminator">ENDOFEXAMPLEOUTPUT<br /></span></code><br />&nbsp;</td></table>
+
+<p>(Of course, the smart thing to do would be to bypass the need for an external file entirely)</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">is</span> <span class="word">MyScriptClass::ReverseLine</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span> <span class="word">fh</span> <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">*DATA</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="word">run</span><span class="operator">,</span> <span class="heredoc">&lt;&lt;'ENDOFEXAMPLEOUTPUT'</span><span class="structure">;</span><br /><span class="heredoc_content">too many secrets<br /></span><span class="heredoc_terminator">ENDOFEXAMPLEOUTPUT<br /></span><span class="separator">__DATA__</span><br /><span class="data">sterces ynam oot</span></code><br />&nbsp;</td></table>
+
+<h3 id="Conclusion">Conclusion</h3>
+
+<p>Where Getopt::Long used to be my go-to module for command line parsing. The abilities of MooX::Options to distribute parsing options between the attributes specified in the roles that make up my class has now means that, sadly for one of my favorite modules of fourteen years, Getopt::Long has been supplanted by MooX::Options on all my new projects.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/MooX::Options">MooX::Options</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Getopt::Long">Getopt::Long</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="If if, use use if" href="2014-12-12.html">Previous</a></li>
+
+    <li class="next"><a title="All I want for Christmas is less boilerplate" href="2014-12-14.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

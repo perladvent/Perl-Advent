@@ -1,0 +1,296 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Sys::Hostname</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 21st day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Sys::Hostname</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../20th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="disablednav">[next]</div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Many of the modules I've talked about in the advent calendar are about
+doing quite complex things in Perl.  They're about creating objects,
+creating we pages and managing databases, or even writing full blown
+applications.  Let us not forget that Perl is used extensively for
+system administration tasks too. It's not the most glamorous of roles
+- being the duct tape that holds your system together - but it is a
+vitally important one.</p>
+<p>If like me you carry a bunch of configuration files around with you
+between computers, you'll often find yourself inserting big chunks of
+Perl code in your .bashrc (or other shell config) or .emacs file (or
+other editor config) to do complex stuff.  Often in these cases you'll
+want to do subtly different things depending on what host you're on.
+This is where <b>Sys::Hostname</b> comes in.  With it you can determine what
+host you're on (no matter how weird the system you're running on)
+and then take the right steps</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Sys::Hostname">[Read the documentation for Sys::Hostname on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p><b>Sys::Hostname</b> is really easy to use:</p>
+<pre>  use Sys::Hostname;
+  print hostname(), "\n";</pre>
+
+<p>On my Mac Powerbook this prints the name of the bad guy from Blake's 7
+that it's named after.</p>
+<pre>  travis</pre>
+
+<p>On the perladvent.org Linux server the very same code prints out the
+name of the gentle giant from the same series that it's named after:</p>
+<pre>   gan</pre>
+
+<p>The actual complexities of what's required to work out the hostname on
+the various systems that Perl can run on (the manual states it tries
+<code>gethostname()</code>, <code>`$Config{aphostname}`</code>, <code>uname</code>,
+<code>syscall(SYS_gethostname)</code>, <code>`hostname`</code>, <code>`uname -n`</code>, and the file
+<code>/com/host</code>.</p>
+<h2>Using this in config files</h2>
+<p>I have bound to a key in emacs a command that pops open a terminal in
+the directory I'm currently editing in.  On my Mac the code that we
+place in the <code>.emacs</code> configuration directory is very familiar.</p>
+<pre>  (defun terminal-here ()
+   "load a terminal"
+   (interactive)
+   (call-process "perl" nil t nil "-e" "
+ 
+     # get the terminal
+     use Mac::Glue;
+     my $term = Mac::Glue-&gt;new('Terminal');</pre>
+
+<pre>     # work out where we're going
+     use String::ShellQuote;
+     my $path = shell_quote($ARGV[0]);</pre>
+
+<pre>     # go there
+     $term-&gt;do_script(qq{cd $path; clear});
+     $term-&gt;activate;
+ 
+  "
+   (file-name-directory (buffer-file-name))
+  ))
+  (global-set-key [?\A-t] 'terminal-here)  ; command-T = terminal</pre>
+
+<p>When the user hits command-T we shell out to Perl and use the by now
+familiar <b>Mac::Glue</b> to open a new terminal window in the correct
+place for us.  The problem with this is that this won't work at all
+well on the remote server - there's no copy of <code>Terminal</code> running on
+that machine, it's a Linux box.  We need to open a xterm in the
+correct place instead.  The command for that is</p>
+<pre>   xterm -e 'cd /my/path &amp;&amp; exec bash'</pre>
+
+<p>We can thus modify the above script to detect that we're on gan
+and fire a different command:</p>
+<pre>  (defun terminal-here ()
+   "load a terminal"
+   (interactive)
+   (call-process "perl" nil t nil "-e" "</pre>
+
+<pre>     # work out where we're going
+     use String::ShellQuote;
+     my $path = shell_quote($ARGV[0]);</pre>
+
+<pre>     # if we're on gan, run the xterm in the background instead
+     use Sys::Hostname;
+     if (hostname eq 'gan')
+     {
+        use Proc::Daemon;
+        Proc::Daemon::Init;
+        exec(qq{xterm -e 'cd $path &amp;&amp; exec bash'});
+     }
+ 
+     # on one of my mac clients, use Terminal.app</pre>
+
+<pre>     # get the terminal
+     use Mac::Glue;
+     my $term = Mac::Glue-&gt;new('Terminal');</pre>
+
+<pre>     # go there
+     $term-&gt;do_script(qq{cd $path; clear});
+     $term-&gt;activate;
+ 
+  "
+   (file-name-directory (buffer-file-name))
+  ))
+  (global-set-key [?\A-t] 'terminal-here)  ; command-T = terminal</pre>
+
+<p>If we realise we're running on gan we fork into the background using
+<b>Proc::Daemon</b> and then execute the xterm with the <code>exec</code> command
+instead of running the <b>Mac::Glue</b> code.  Because the <code>exec</code> command
+replaces the perl process with the loaded xterm completely the <code>exec</code>
+command never returns and the code below it is never executed.</p>
+<p>I can now have one <code>.emacs</code> file that runs on all my machines.  This
+means that I can check it into subversion and I only have to worry
+about maintaining one file, rather than propagating changes between
+the different files I have on the different machines - I can do it all
+with <code>svn up</code>.</p>
+<h2>Testing modules more on my machine</h2>
+<p>One of the other uses for using <b>Sys::Hostname</b> is writing extra
+tests for your code that are only run on your local machine.  For
+example, the <b>Test::DatabaseRow</b> test suite can't run all the tests
+it has on the user's machine because it makes use of the quite
+extensive mysql database I have on my local computer that doesn't ship
+with the module and no other user has.  A similar situation that often
+crops up is that I need a vast collection of modules (including my own
+closed source modules that might not be on CPAN) to test properly and
+I can't expect someone who's installing my module to have installed
+them all.</p>
+<p>This problem can be addressed by making the test skip on all machines
+that aren't my own.  I implement this as a simple <code>hostname</code> check at
+the top of my script that prints out the skip message and ends if I'm
+not on the right machine.</p>
+<pre>  #!/usr/bin/perl -w</pre>
+
+<pre>  # turn on the safety features
+  use strict;</pre>
+
+<pre>  # check that this is running on my laptop and nowhere else</pre>
+
+<pre>  BEGIN
+  {
+    my $skiptext = "1..0 # Skipped: these tests run on authors pc only\n";</pre>
+
+<pre>    eval
+    {
+      # check the hostname is right
+      require Sys::Hostname;
+      Sys::Hostname-&gt;import;</pre>
+
+<pre>      unless (hostname() eq "uk-wrk-0017")
+      {
+        print $skiptext;
+        exit;
+      }</pre>
+
+<pre>      # even if that's the same, better check I'm in /etc/passwd
+      # open it read only to be on the safe side!</pre>
+
+<pre>      require Tie::File;
+      require Fcntl;
+      tie my @array, 'Tie::File', "/etc/passwd", mode =&gt; Fcntl::O_RDONLY(),
+        or die "Can't open file!: $!";</pre>
+
+<pre>      unless (grep { /Mark Fowler/ } @array)
+      {
+        print $skiptext;
+        exit;
+      }
+    };</pre>
+
+<pre>    # problems loading any of those modules?  Not my machine.
+    if ($@)
+    {
+      print $skiptext;
+      exit;
+    }
+  }</pre>
+
+<pre>  use Test::More tests =&gt; 9;
+  # the rest of the tests</pre>
+
+<p>Because the whole code is running in a <code>BEGIN</code> block all the code is
+executed before an of the rest of the code below it is even parsed.
+This means even things like <code>use SomeObscureModule</code> down the bottom
+of the code (where the obscure module is only installed on my machine)
+won't cause it to fail, as for anyone else by the time that line is
+parsed the script will have exited like so:</p>
+<pre>  bash$ perl -Ilib t/04local.t 
+  1..0 # Skipped: these tests run on authors pc only</pre>
+
+<p>If you run this script under <b>Test::Harness</b> with <code>make test</code> or
+<code>build test</code> then the harness will recognise this valid skip and note
+it duely:</p>
+<pre>  t/00myfakedbi....ok                                                          
+  t/01basic........ok                                                          
+  t/02throws.......ok                                                          
+  t/03tests........ok                                                          
+  t/04local........skipped
+          all skipped: these tests run on authors pc only
+  t/05warn.........skipped
+          all skipped: no Test::Warn
+  t/06multiple.....ok                                                          
+  t/07results......ok                                                          
+  t/08utf8.........ok               </pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.delorie.com/gnu/docs/elisp-manual-21/elisp_toc.html">GNU Emacs Lisp Manual</a></li>
+<li><a href="http://search.cpan.org/?perldoc?Proc::Daemon">Proc::Daemon</a></li>
+<li><a href="http://search.cpan.org/?perldoc?Mac::Glue">Mac::Glue</a></li>
+<li><a href="http://search.cpan.org/?perldoc?Test::Harness">Test::Harness</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:59 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

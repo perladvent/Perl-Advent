@@ -1,0 +1,255 @@
+Title: Going for Perl
+Topic: FFI::Platypus and Go
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=head2 Go On
+
+Many people thought that Wise Old Elf, being, well, old, wouldn't be
+much for these brand new programming languages.  But, they forget...
+the Wise Old Elf isn't just Old, he is Wise too.  So he knew that
+you have to use the best tool for the job.
+
+More recently the Wise Old Elf had been running a small team of
+elves that had been experimenting with writing some
+of their more speed critical code in Go.  Previously at the North
+Pole they'd resorted to using C code - often called via Inline::C
+- when their beloved Perl just wasn't fast enough.  But they'd
+had a lot of problems with that - dealing with memory management,
+having to often delve into the dark arts of XS coding, so
+the Wise Old Elf had started his experiment with something
+a little more I<modern>.
+
+And thus the Wise Old Elf suddenly found himself with a bunch
+of Go code that he would love the main North Pole codebase
+to be able to make use of without having to rewrite any of
+their battle-tested Perl code in Go.  What he really needed
+was a way to call the new Go code from within Perl.
+
+=head2 Shared Library Time
+
+The Wise Old Elf decided he should have an experiment
+of his own.  So he set himself a challenge: Write some
+trivial Go code and get it executed from within Perl.
+
+Go is perfectly capable of producing a shared library.
+Here's a "Hello, World" type example for this time of the
+year.
+
+    #!vim golang
+    package main
+
+    import "fmt"
+
+    func main() {
+        WishMerryChristmas()
+    }
+
+    func WishMerryChristmas() {
+        fmt.Println("We wish you a Merry Christmas");
+    }
+
+To make this into a shared library we need to make a few
+scant changes.
+
+=for :html
+  <li>Add an <code>import "C"</code> statement</li>
+  <li>Empty out the <code>main()</code> func</li>
+  <li>Add <code>//export</code> decorators on what we want to export</li>
+
+Even with these changes the code looks mostly the same:
+
+    #!vim golang
+    package main
+
+    import "C"
+
+    import "fmt"
+
+    func main() {}
+
+    //export WishMerryChristmas
+    func WishMerryChristmas() {
+        fmt.Println("We wish you a Merry Christmas");
+    }
+
+We can now compile this on the command line
+
+    $ go build -o merrychristmas.so -buildmode=c-shared
+    $ ls merrychristmas*
+    -rw-r--r-- 1 wiseold wiseold 1.3K Nov 19 00:27 merrychristmas.h
+    -rw-r--r-- 1 wiseold wiseold 2.0M Nov 19 00:27 merrychristmas.so
+
+We've got two new files, the header file (the C<merrychristmas.h>)
+and the shared object file (the C<merrychristmas.so> file.) We can
+safely discard the header file since we're not going to use the
+traditional C linking route here - we're going to use one of Perl's
+excellent Foreign Function Interface libraries to access the shared
+object instead.
+
+As an aside you'll notice that  C<merrychristmas.so> is huge for
+a library that has a single function that prints a simple string
+in it.  That's because it's not just that - it also contains all
+of the Go runtime and packages also!  We're able to distribute
+that shared object along with our Perl code without any
+other Go scaffolding or support files.
+
+=head2 Bring On The Platypus
+
+So, now we have a shared object from our Go code, how can
+we access it from Perl?  With L<FFI::Platypus> of course!
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    # load our chosen FFI interface module
+    use FFI::Platypus;
+
+    # configure it to talk to our shared object library
+    my $ffi = FFI::Platypus->new( api => 1 );
+    $ffi->lib( './merrychristmas.so' );
+
+    # bind the exported "WishMerryChristmas" to the
+    # "WishMerryChristmas" function in Perl space, and
+    # declare that it takes no args and returns nothing
+    $ffi->attach(WishMerryChristmas => []);
+
+    # call it!
+    WishMerryChristmas();
+
+And does it work?
+
+    $ perl merry.pl 
+    We Wish You a Merry Christmas
+
+It's a Christmas miracle!
+
+=head2 In, Out, Shake It All About
+
+Okay, so how about something more complicated.  Let's modify the 
+go function to print out the message a number of times:
+
+    #!vim golang
+    //export WishMerryChristmas
+    func WishMerryChristmas(n int) {
+        for i := 0; i < n; i++ {
+            fmt.Println("We wish you a Merry Christmas");
+	    }
+    }
+
+Now in our Perl script we can modify it to specify that
+we can pass in an argument:
+
+    #!perl
+    $ffi->attach(MerryChristmas => ['long']);
+    WishMerryChristmas(3);
+    print "And a Happy New Year\n";
+
+And that works:
+
+    $ perl merry.pl
+    We wish you a Merry Christmas
+    We wish you a Merry Christmas
+    We wish you a Merry Christmas
+    And a Happy New Year
+
+But hang on, why did we specify C<long> when we declared
+C<WhichMerryChristmas> to take an C<int>?  That's because
+we're not specifying the B<Go> type to FFI::Platypus, but
+the C<C> type.  And a Go C<int> is represented by a C C<long>.
+
+We can make this a whole lot clearer if we teach FFI::Platypus
+about a I<type alias> for Go ints:
+
+    #!perl
+    # declare a type alias
+    $ffi->type( long => 'go_int' );
+
+    # then make use of it idiomatically when we attach
+    $ffi->attach(MerryChristmas => ['go_int']);
+
+This mismatch between C types and Go types becomes even clearer
+if we change our function to take a string:
+
+    #!vim golang
+    //export WishMerryChristmas
+    func WishMerryChristmas(who string) {
+        fmt.Printf("We wish you a Merry Christmas, %s\n", who);
+    }
+
+And then naively call it from Perl:
+
+    #!perl
+    # this code is wrong...
+    $ffi->attach(WishMerryChristmas => ['string']);
+    WishMerryChristmas('Santa');
+
+We get junk out:
+
+    $ perl merry.pl 
+    We wish you a Merry Christmas, SantapV
+
+That's because we're calling the Go code with a C string
+(i.e. a null terminated array of bytes) rather than
+the Go string structure it expects which should look
+somewhat like this in C space:
+
+    #!vim c
+    typedef struct{const char *p; go_int len;} go_str;
+
+=head2 A Record Solution
+
+There's several approaches we can take to help cross
+the divide.  The simplest solution is to define in
+Perl space a wrapper for the struct we need to pass in
+
+    #!perl
+    package GoString;
+    use FFI::Platypus::Record;
+
+    # this is the same as
+    # typedef struct{const char *p; go_int len;} go_str;
+    record_layout_1(
+        'string rw' => 'p',
+        'long'      => 'len',
+    );
+
+ 
+ And now with a suitable argument declaration we can call it from Perl
+
+    #!perl
+    $ffi->attach(WishMerryChristmas => ['record(GoString)']);
+    my $stirng = 'Santa';
+    my $go_string = GoString->new(
+        p => $string,
+        len => length($string),
+    );
+    WishMerryChristmas($go_string);
+
+We finally get the output we wanted all along:
+
+    $ perl merry.pl 
+    We wish you a Merry Christmas, Santa
+
+We can further simplify this by passing the C<attach> method
+a I<wrapper function> that does the conversion for us:
+
+    #!perl
+    $ffi->attach( WishMerryChristmas => ['record(GoString)'] => 'void', sub {
+        my $real_function = shift;
+        my $string = shift;
+
+        $real_function->(
+            GoString->new(
+                p => $string,
+                len => length($string),
+            )
+        )
+    });
+
+    WishMerryChristmas('Santa');
+
+So a Merry Christmas to you too - from multiple programming
+languages!

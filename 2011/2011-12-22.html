@@ -1,0 +1,172 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2011 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2011.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2011 - 
+Less Tedium, More Transactions
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2011</a></h1>
+        </div>
+
+        <p id="tagline">2011 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Less Tedium, More Transactions</h1>
+<div class='subtitle'>DBIx::Connector - 2011-12-22</div>
+
+<div class='pod'><p>A frequent pattern when writing database-backed applications with the <a href="https://metacpan.org/module/DBI">DBI</a> is to connect to the database and cache the database handle somewhere. A simplified example:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">MyApp::DB</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">DBI</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$DBH</span> <span class="operator">=</span> <span class="word">DBI</span><span class="operator">-&gt;</span><span class="word">connect</span><span class="structure">(</span><span class="single">'DBI:SQLite:dbname=myapp.db'</span><span class="operator">,</span> <span class="single">''</span><span class="operator">,</span> <span class="single">''</span><span class="operator">,</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">PrintError</span>     <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">RaiseError</span>     <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">AutoCommit</span>     <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">sqlite_unicode</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">});</span><br /><br /><span class="keyword">sub</span> <span class="word">dbh</span> <span class="structure">{</span> <span class="symbol">$DBH</span> <span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Just load MyApp::DB anywhere in your app and, whenever you want to use the database, grab the handle from <code>MyApp::DB-&gt;dbh</code>.</p>
+
+<p>This pattern is common enough that <a href="https://metacpan.org/module/Apache::DBI">Apache::DBI</a> was created to magically do it for you on mod_perl, and the DBI added <a href="https://metacpan.org/module/DBI#connect_cached"><code>connect_cached()</code></a> so that it could cache connections itself. However, each of these solutions has some issues:</p>
+
+<ul>
+
+<li><p>What happens when your program forks? Apache::DBI handles this condition, but neither the home-grown solution nor <code>connect_cached()</code> does, and identifying a forked database handle as the source of a crash is notoriously unintuitive.</p>
+
+</li>
+<li><p>What happens when your program spawns a new thread? Sure, some DBI drivers might still work, but others might not. Best to treat new threads the same as new processes and reconnect to the database. Neither Apache::DBI nor <code>connect_cached()</code> deal with threading issues, and of course neither does the custom solution.</p>
+
+</li>
+<li><p>Apache::DBI is magical and mysterious; but the magic comes with serious side-effects. Apache::DBI plugs itself right into the DBI itself, replacing its connection methods (which is why load ordering is so important to use it properly). Knowledge of Apache::DBI is actually built right into the DBI itself, meaning that the magic runs deep and both ways. These are pretty serious violations of encapsulation in both directions.</p>
+
+</li>
+<li><p><code>connect_cached()</code> has a bit of its own unfortunate magic. Every call to <code>connect_cached()</code> resets the connection attributes. So if you have code in one place that starts a transaction, and code elsewhere but executed in the same scope that also fetches a <code>connect_cached()</code> handle, the transaction will be committed then and there, even though the code that started it might not be done with it. One can <a href="http://justatheory.com/computers/programming/perl/dbi-connect-cached-hack.html">work around this issue via callbacks</a>, but it&#39;s a bit of a hack.</p>
+
+</li>
+</ul>
+
+<p>Using a custom caching solution avoids the magic, but getting fork- and thread-safety right is surprisingly non-trivial, in the same way that <a href="http://perladvent.org/2011/2011-12-17.html">doing your own exception-handling is surprisingly non-trivial</a>.</p>
+
+<p>Enter <a href="https://metacpan.org/module/DBIx::Connector">DBIx::Connector</a>, a module that efficiently manages your database connections in a thread- and fork-safe manner so that you don&#39;t have to. If you already have a custom solution, switching to DBIx::Connector is easy. Here&#39;s a revision of MyApp::DB that uses it:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">MyApp::DB</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">DBIx::Connector</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$CONN</span> <span class="operator">=</span> <span class="word">DBIx::Connector</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="single">'DBI:SQLite:dbname=myapp.db'</span><span class="operator">,</span> <span class="single">''</span><span class="operator">,</span> <span class="single">''</span><span class="operator">,</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">PrintError</span>     <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">RaiseError</span>     <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">AutoCommit</span>     <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">sqlite_unicode</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">});</span><br /><br /><span class="keyword">sub</span> <span class="word">conn</span> <span class="structure">{</span> <span class="symbol">$CONN</span> <span class="structure">}</span><br /><span class="keyword">sub</span> <span class="word">dbh</span>  <span class="structure">{</span> <span class="symbol">$CONN</span><span class="operator">-&gt;</span><span class="word">dbh</span> <span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Simple, right? You pass exactly the same parameters to <code>DBIx::Connector-&gt;new</code> that you passed to <code>DBI-&gt;connect</code>. The DBIx::Connector object simply proxies the DBI. You want the database handle itself, just call <code>dbh()</code> and proceed as usual, confident that if your app forks or spawns new threads, your database handle will be safe. Why? Because DBIx::Connector detects such changes, and re-connects to the database, being sure to properly dispose of the original connection. But really, you don&#39;t have to worry about that, because DBIx::Connector does the worrying for you.</p>
+
+<h4 id="Execution-Methods">Execution Methods</h4>
+
+<p>DBIx::Connector is very good at eliminating the <a href="http://www.modernperlbooks.com/mt/2011/11/on-technical-friction.html">technical friction</a> of process and thread management. But that&#39;s not all there is to it.</p>
+
+<p>Although you can just fetch the DBI handle from your DBIx::Connector object and go, a better approach is to use its execution methods. These methods scope execution to a code block. Here&#39;s an example using <a href="https://metacpan.org/module/DBIx::Connector#run"><code>run()</code></a>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$conn</span><span class="operator">-&gt;</span><span class="word">run</span><span class="structure">(</span><span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="core">shift</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="symbol">$query</span><span class="structure">);</span><br /><span class="structure">});</span></code><br />&nbsp;</td></table>
+
+<p>That may not seem so useful, and is more to type, but the real power comes from the <a href="https://metacpan.org/module/DBIx::Connector#txn"><code>txn()</code></a> method. <code>txn()</code> executes the code block within the scope of a transaction. So where you normally would write something like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Try::Tiny</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">MyApp::DBH</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$dbh</span> <span class="operator">=</span> <span class="word">MyApp::DBH</span><span class="operator">-&gt;</span><span class="word">dbh</span><span class="structure">;</span><br /><span class="word">try</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$dbh</span><span class="operator">-&gt;</span><span class="word">begin_work</span><span class="structure">;</span><br /><span class="comment">    # do stuff...<br /></span>    <span class="symbol">$dbh</span><span class="operator">-&gt;</span><span class="word">commit</span><span class="structure">;</span><br /><span class="structure">}</span> <span class="word">catch</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$dbh</span><span class="operator">-&gt;</span><span class="word">rollback</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">die</span> <span class="magic">$_</span><span class="structure">;</span><br /><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>The <code>try()</code> method scopes the transaction for you, so that you can just focus on the work to be done and transaction management:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Try::Tiny</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">MyApp::DBH</span><span class="structure">;</span><br /><br /><span class="word">try</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">MyApp::DBH</span><span class="operator">-&gt;</span><span class="word">conn</span><span class="operator">-&gt;</span><span class="word">txn</span><span class="structure">(</span><span class="keyword">sub</span> <span class="structure">{</span><br /><span class="comment">        # do stuff...<br /></span>    <span class="structure">}</span><br /><span class="structure">}</span> <span class="word">catch</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">die</span> <span class="magic">$_</span><span class="structure">;</span><br /><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>There&#39;s no need to call <code>begin_work</code>, <code>commit</code>, or <code>rollback</code>, as <code>txn()</code> does all that for you. Furthermore, it improves the maintainability of your code, as the scope of the transaction is much more clearly defined as the scope of the code block. Additional calls to <code>txn()</code> or <code>run()</code> within that block are harmless, and just become part of the same transaction:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">MyApp::DBH</span><span class="operator">-&gt;</span><span class="word">conn</span><span class="operator">-&gt;</span><span class="word">txn</span><span class="structure">(</span><span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$dbh</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$dbh</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="magic">$_</span><span class="structure">)</span> <span class="word">for</span> <span class="symbol">@queries</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$conn</span><span class="operator">-&gt;</span><span class="word">run</span><span class="structure">(</span><span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="core">shift</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="symbol">$expensive_query</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$conn</span><span class="operator">-&gt;</span><span class="word">txn</span><span class="structure">(</span><span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="core">shift</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="symbol">$another_expensive_query</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">});</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">});</span><br /><span class="structure">});</span></code><br />&nbsp;</td></table>
+
+<p>Even cooler is the <a href="https://metacpan.org/module/DBIx::Connector#svp"><code>svp()</code></a> method, which scopes execution of a code block to a savepoint, or subtransaction, if your database supports it (all of the drivers currently supported by DBIx::Connector do). For example, this transaction will commit the insertion of values 1 and 3, but not 2:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">MyApp::DBH</span><span class="operator">-&gt;</span><span class="word">conn</span><span class="operator">-&gt;</span><span class="word">txn</span><span class="structure">(</span><span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$dbh</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$dbh</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="single">'INSERT INTO table1 VALUES (1)'</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">try</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$conn</span><span class="operator">-&gt;</span><span class="word">svp</span><span class="structure">(</span><span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="core">shift</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="single">'INSERT INTO table1 VALUES (2)'</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">die</span> <span class="single">'OMGWTF?'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">});</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span> <span class="word">catch</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">warn</span> <span class="double">&quot;Savepoint failed: $_\n&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$dbh</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="single">'INSERT INTO table1 VALUES (3)'</span><span class="structure">);</span><br /><span class="structure">});</span></code><br />&nbsp;</td></table>
+
+<h4 id="Connection-Management">Connection Management</h4>
+
+<p>The recommended pattern for using a cached DBI handle is to call <a href="https://metacpan.org/module/DBI#ping"><code>ping()</code></a> when you fetch it from the cache, and reconnect if it returns false. Apache::DBI and <code>connect_cached()</code> do this for you, and so does DBIx::Connector. However, in a busy application <code>ping()</code> can get called <i>a lot</i>. <a href="http://pgexperts.com/">We</a> recently did some query analysis for a client, and found that 1% of the database execution time was taken up with <code>ping()</code> calls. That may not sound like a lot, but looking at the numbers, it amounted to 100K pings <i>per hour</i>. For something that just returns true 99.9*% of the time, it seems a bit silly.</p>
+
+<p>Enter DBIx::Connector <a href="https://metacpan.org/module/DBIx::Connector#Connection-Modes">connection modes</a>. The default mode is &quot;ping&quot;, as that&#39;s what most installations are accustomed to. A second mode is &quot;no_ping&quot;, which simply disables pings. I don&#39;t recommend that.</p>
+
+<p>A better solution is to use &quot;fixup&quot; mode. This mode doesn&#39;t normally call <code>ping()</code> either. However, if a code block passed to <code>run()</code> or <code>txn()</code> throws an exception, <i>then</i> DBIx::Connector will call <code>ping()</code>. If it returns false, DBIx::Connector reconnects to the database and executes the code block again. This configuration should handle some common situations, such as idle timeouts, without bothering you about it.</p>
+
+<p>Specify &quot;fixup&quot; mode whenever you call an execution method, like so:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$conn</span><span class="operator">-&gt;</span><span class="word">txn</span><span class="structure">(</span><span class="word">fixup</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">});</span></code><br />&nbsp;</td></table>
+
+<p>You can also specify that your connection always use &quot;fixup&quot; via the <a href="https://metacpan.org/module/DBIx::Connector#fixup"><code>fixup()</code></a> accessor. Modify the caching library like so (line 8 is new):</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$CONN</span> <span class="operator">=</span> <span class="word">DBIx::Connector</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="single">'DBI:SQLite:dbname=myapp.db'</span><span class="operator">,</span> <span class="single">''</span><span class="operator">,</span> <span class="single">''</span><span class="operator">,</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">PrintError</span>     <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">RaiseError</span>     <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">AutoCommit</span>     <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">sqlite_unicode</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">});</span><br /><br /><span class="symbol">$CONN</span><span class="operator">-&gt;</span><span class="word">mode</span><span class="structure">(</span><span class="single">'fixup'</span><span class="structure">);</span> <span class="comment"># ⬅ ⬅ ⬅  enter fixup mode!</span><br /><br /><span class="keyword">sub</span> <span class="word">conn</span> <span class="structure">{</span> <span class="symbol">$CONN</span> <span class="structure">}</span><br /><span class="keyword">sub</span> <span class="word">dbh</span>  <span class="structure">{</span> <span class="symbol">$CONN</span><span class="operator">-&gt;</span><span class="word">dbh</span> <span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>However, you must be more careful with fixup mode than with ping mode, because a code block can be executed twice. So you must be sure to write it such that there are no side effects to multiple executions. Don&#39;t do this, for example:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$count</span> <span class="operator">=</span> <span class="number">0</span><span class="structure">;</span><br /><span class="symbol">$conn</span><span class="operator">-&gt;</span><span class="word">txn</span><span class="structure">(</span><span class="word">fixup</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="core">shift</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="single">'INSERT INTO foo (count) VALUES(?)'</span><span class="operator">,</span> <span class="core">undef</span><span class="operator">,</span> <span class="operator">++</span><span class="symbol">$count</span><span class="structure">);</span><br /><span class="structure">});</span><br /><span class="word">say</span> <span class="symbol">$count</span><span class="structure">;</span> <span class="comment"># may be 1 or 2</span></code><br />&nbsp;</td></table>
+
+<p>Will it insert a value of <code>1</code> or <code>2</code>? It&#39;s much safer to remove non-transactional code from the block, like so:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$count</span> <span class="operator">=</span> <span class="number">0</span><span class="structure">;</span><br /><span class="operator">++</span><span class="symbol">$count</span><span class="structure">;</span><br /><span class="symbol">$conn</span><span class="operator">-&gt;</span><span class="word">txn</span><span class="structure">(</span><span class="word">fixup</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="core">shift</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="single">'INSERT INTO foo (count) VALUES(?)'</span><span class="operator">,</span> <span class="core">undef</span><span class="operator">,</span> <span class="symbol">$count</span><span class="structure">);</span><br /><span class="structure">});</span><br /><span class="word">say</span> <span class="symbol">$count</span><span class="structure">;</span> <span class="comment"># can only be 1</span></code><br />&nbsp;</td></table>
+
+<p>An even trickier pattern to watch out for is something like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$user</span> <span class="operator">=</span> <span class="single">'rjbs'</span><span class="structure">;</span><br /><span class="symbol">$conn</span><span class="operator">-&gt;</span><span class="word">run</span><span class="structure">(</span><span class="word">fixup</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$dbh</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$dbh</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="single">'INSERT INTO users (nick) VALUES (?)'</span><span class="operator">,</span> <span class="core">undef</span><span class="operator">,</span> <span class="symbol">$user</span><span class="structure">);</span><br /><br /><span class="comment">    # Do some other stuff...<br /></span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$dbh</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="single">'INSERT INTO log (msg) VALUES (?)'</span><span class="operator">,</span> <span class="core">undef</span><span class="operator">,</span> <span class="single">'Created user'</span><span class="structure">);</span><br /><span class="structure">});</span></code><br />&nbsp;</td></table>
+
+<p>If the database disconnects between the first and second calls to <code>do</code>, and DBIx::Connector manages to re-connect and run the block again, you might get a unique key violation on the first call to <code>do</code>. This is because we&#39;ve used the <code>run()</code> method. In the fist execution of the block, user &quot;rjbs&quot; was inserted and autocommitted. On the second call, user &quot;rjbs&quot; is already there, and because it&#39;s a username, we get a unique key violation.</p>
+
+<p>The rule of thumb here is to use <code>run()</code> only for database reads, and to use <code>txn()</code> (and <code>svp()</code>) for writes. <code>txn()</code> will ensure that the transaction is rolled back, so the second execution of the code block will be side-effect-free.</p>
+
+<h4 id="Pedigree">Pedigree</h4>
+
+<p>DBIx::Connector is derived from patterns originally implemented for <a href="https://metacpan.org/module/DBIx::Class">DBIx::Class</a>, though it&#39;s nearly all original code. The upside for those of us who don&#39;t use ORMs is that we get this independent piece of ORM-like behavior without its ORMishness. So if you&#39;re a database geek like me, DBIx::Connector is a great way to reduce <a href="http://www.modernperlbooks.com/mt/2011/11/on-technical-friction.html">technical friction</a> without buying into the whole idea of an ORM.</p>
+
+<p>As it turns out, <a href="https://metacpan.org/module/DBIx::Connector">DBIx::Connector</a> is good not just for straight-to-database users, but also for ORMs. Both <a href="https://metacpan.org/module/DBIx::Class">DBIx::Class</a> and <a href="https://metacpan.org/module/Rose::DB">Rose::DB</a> have plans to replace their own caching and transaction-handling implementations with DBIx::Connector under the hood. That will be great for everyone, as the problems will all be solved in this one place.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/DBIx::Connector">DBIx::Connector</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/DBI">DBI</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/DBIx::Class">DBIx::Class</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Rose::DB">Rose::DB</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/397f829eea921e02e35c37c22f9e6d3b?r=g&s=80&d=retro />
+This article contributed by: David Wheeler &lt;david@justatheory.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="A Shortcut to Unicode" href="2011-12-21.html">Previous</a></li>
+
+    <li class="next"><a title="It Boiled Plate So You Don&#39;t Have To!" href="2011-12-23.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

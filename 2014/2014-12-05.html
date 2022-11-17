@@ -1,0 +1,141 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+A Subroutine By Any Other Name
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>A Subroutine By Any Other Name</h1>
+<div class='subtitle'>Sub::Util - 2014-12-05</div>
+
+<div class='pod'><p>Perl&#39;s function prototypes can be used in clever ways to create new syntax, but abusing anonymous subroutines in this fashion can often result in hard to read stacktraces which make your code hard to debug. One simple solution is to manually name all your anonymous subroutines using the handy Sub::Util module</p>
+
+<h3 id="Creating-New-Syntax-With-Perl">Creating New Syntax With Perl</h3>
+
+<p>Often I find myself having to sort a list by some property of the item I&#39;m sorting, for example the number of bytes the strings would take to encode in utf-8.</p>
+
+<p>This is easy enough, if you&#39;re prepared to be inefficent:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Encode</span> <span class="words">qw(encode_utf8)</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">@sorted</span> <span class="operator">=</span> <span class="word">sort</span> <span class="structure">{</span> <br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">length</span> <span class="word">encode_utf8</span> <span class="symbol">$a</span> <span class="operator">&lt;=&gt;</span> <span class="word">length</span> <span class="word">encode_utf8</span> <span class="symbol">$b</span><br /><span class="structure">}</span> <span class="symbol">@strings</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>The problem with this is that Perl has to recalcuate the utf-8 encoding of the string multiple times: Every time it wants to compare the length of a string against another string (which it has to do multiple times as it&#39;s sorting.) There&#39;s a standard trick that you can do in Perl to avoid this called a Schwartzian transform:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@sorted</span> <span class="operator">=</span> <br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">map</span>  <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">0</span><span class="structure">]</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">sort</span> <span class="structure">{</span> <span class="symbol">$a</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">1</span><span class="structure">]</span> <span class="operator">&lt;=&gt;</span> <span class="symbol">$b</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">1</span><span class="structure">]</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">map</span>  <span class="structure">{</span> <span class="structure">[</span><span class="magic">$_</span><span class="operator">,</span> <span class="word">length</span> <span class="word">encode_utf8</span> <span class="magic">$_</span> <span class="structure">]</span> <span class="structure">}</span> <span class="magic">@_</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>This rather ugly syntax was created by Randal Schwartz to build a data structure on the fly that contains the weighting value, sort that, then extract the original (now sorted) values out again. Easy to understand, right? No? Maybe we could abstract that away in a subroutine call?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">weighted_sort</span> <span class="structure">{</span><br /><span class="comment">    # the anonymous subroutine that calculates a weighting for whatever is<br />&nbsp;&nbsp;&nbsp;&nbsp;# in $_<br /></span>    <span class="keyword">my</span> <span class="symbol">$weighter</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">map</span>  <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">0</span><span class="structure">]</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">sort</span> <span class="structure">{</span> <span class="symbol">$a</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">1</span><span class="structure">]</span> <span class="operator">&lt;=&gt;</span> <span class="symbol">$b</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">1</span><span class="structure">]</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">map</span>  <span class="structure">{</span> <span class="structure">[</span><span class="magic">$_</span><span class="operator">,</span> <span class="symbol">$weighter</span><span class="operator">-&gt;</span><span class="structure">()</span> <span class="structure">]</span> <span class="structure">}</span> <span class="magic">@_</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>This can then be used like so:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@sorted</span> <span class="operator">=</span> <span class="word">weighted_sort</span><span class="structure">(</span><span class="keyword">sub</span> <span class="structure">{</span> <span class="word">length</span> <span class="word">encode_utf8</span> <span class="magic">$_</span> <span class="structure">}</span><span class="operator">,</span> <span class="symbol">@strings</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>It&#39;s not the most pretty of syntax but it sure beats the confusing Schwartzian transform we had in the middle of our code before. However, The anonymous subroutine is jarring, and there&#39;s lots of extra brackets. Ideally we&#39;d like to be able to call it like map where the subroutine looks just like a block of code in the middle of our statement:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@sorted</span> <span class="operator">=</span> <span class="word">weighted_sort</span> <span class="structure">{</span> <span class="word">length</span> <span class="word">encode_utf8</span> <span class="magic">$_</span> <span class="structure">}</span> <span class="symbol">@strings</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Which isn&#39;t that hard to do. If we specify a prototype for our subroutine where the first argument is an anonymous subroutine (i.e. the <code>&amp;</code> prototype) and the remaining arguments are a list (i.e. the <code>@</code> prototype) like so:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">weighted_sort</span><span class="prototype">(&amp;@)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Then Perl is smart enough to let us remove the surrounding <code>()</code> and leave out the <code>sub</code> before and <code>,</code> after the anonymous subroutine. And then we have what amounts to new syntax. Wonderful!</p>
+
+<h3 id="The-Debug-Problem-With-New-Syntax">The Debug Problem With New Syntax</h3>
+
+<p>The major problem with using anonymous subroutines to synthesize new syntax is that they remain anonymous when we really need to know what they are - in stack traces!</p>
+
+<p>For example:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@sorted</span> <span class="operator">=</span> <span class="word">weighted_sort</span> <span class="structure">{</span> <span class="word">karma_rating</span><span class="structure">(</span><span class="magic">$_</span><span class="operator">,</span> <span class="number">2</span> <span class="structure">)</span> <span class="structure">}</span> <span class="symbol">@stuff</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">nautghtyness_rating</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">print</span> <span class="word">STDERR</span> <span class="word">Devel::StackTrace</span><span class="operator">-&gt;</span><span class="word">new</span> <span class="word">if</span> <span class="symbol">$DEBUG_NAUGHTYNESS</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>This prints out:</p>
+
+<pre><code>  Trace begun at karma.pl line 22
+  main::karma_rating(&#39;1,2,3,4&#39;, 2) called at karma.pl line 19
+  main::__ANON__ at karma.pl line 16
+  main::weighted_sort(&#39;CODE(0x7fd91b02a240)&#39;, &#39;a&#39;, &#39;b&#39;, &#39;c&#39;, &#39;d&#39;) called at karma.pl line 19
+  ...</code></pre>
+
+<p>Wait, that makes no sense. What&#39;s this <code>__ANON__</code> in the middle of our code? Oh, right, that&#39;s the <code>{ karma_rating($_, 2 ) }</code> subroutine. Wouldn&#39;t it be nice if this had a name?</p>
+
+<h3 id="Sub::Util-to-the-rescue">Sub::Util to the rescue.</h3>
+
+<p>This is where Sub::Util steps in, allowing us to name the subroutine anything we want:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Sub::Util</span> <span class="words">qw(set_subname)</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">weighted_sort</span><span class="prototype">(&amp;@)</span> <span class="structure">{</span><br /><span class="comment">    # the anonymous subroutine that calculates a weighting for whatever is<br />&nbsp;&nbsp;&nbsp;&nbsp;# in $_<br /></span>    <span class="keyword">my</span> <span class="symbol">$weighter</span> <span class="operator">=</span> <span class="word">set_subname</span><span class="structure">(</span><span class="double">&quot;weighted_sort_weighting_block&quot;</span><span class="operator">,</span> <span class="core">shift</span><span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">map</span>  <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">0</span><span class="structure">]</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">sort</span> <span class="structure">{</span> <span class="symbol">$a</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">1</span><span class="structure">]</span> <span class="operator">&lt;=&gt;</span> <span class="symbol">$b</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">1</span><span class="structure">]</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">map</span>  <span class="structure">{</span> <span class="structure">[</span><span class="magic">$_</span><span class="operator">,</span> <span class="symbol">$weighter</span><span class="operator">-&gt;</span><span class="structure">()</span> <span class="structure">]</span> <span class="structure">}</span> <span class="magic">@_</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>And now when we run our code we get this:</p>
+
+<pre><code>    Trace begun at karma.pl line 22
+    main::karma_rating(&#39;a&#39;, 2) called at karma.pl line 19
+    main::weighted_sort_weighting_block at karma.pl line 16
+    main::weighted_sort(&#39;CODE(0x7f926b02f9b0)&#39;, &#39;a&#39;, &#39;b&#39;, &#39;c&#39;, &#39;d&#39;) called at karma.pl line 19
+    ...</code></pre>
+
+<p>Which makes our stack traces that little bit more readable!</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Sub::Util">Sub::Util</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Sub::Name">Sub::Name</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/List::UtilsBy">List::UtilsBy</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="PSGI, Enabling Modern Web Technology in Perl" href="2014-12-04.html">Previous</a></li>
+
+    <li class="next"><a title="Testing The Naughty Or Nice Database" href="2014-12-06.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

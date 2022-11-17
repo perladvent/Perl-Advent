@@ -1,0 +1,153 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+Async PostgreSQL with Mojo::Pg
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Async PostgreSQL with Mojo::Pg</h1>
+<div class='subtitle'>Mojo::Pg - 2014-12-09</div>
+
+<div class='pod'><p>Over the years, I have worked with many variants of the ORM concept in various libraries and languages. However in the end, I find they often get in the way of writing clear and simple SQL powered web applications more than they are helping. After all, SQL is designed to extract sets of data across tables, not to just be mapped to objects representing rows.</p>
+
+<p>However DBI, the standard Perl database library for executing staight SQL, is rather old and archaic. It is not a very inviting interface to use directly. I have experimented with various wrappers, but never really found one I liked...until now.</p>
+
+<p>This fall, the Mojolicious project launched a new sub-project for accessing PostgreSQL databases: Mojo::Pg. It has powerful features like migrations and Async, but first lets look at the simple case:</p>
+
+<h3 id="Simple-SQL-Simply">Simple SQL Simply</h3>
+
+<p>With Mojo::Pg database connections are handled with URLs:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$pg</span> <span class="operator">=</span> <span class="word">Mojo::Pg</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="single">'postgresql://partridge'</span><span class="structure">)</span></code><br />&nbsp;</td></table>
+
+<p>This simple format still fully supports the configuration of the underlying DBD::Pg driver:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># connect as user 'two' with password 'turtle' to the 'partridge'<br /># database running on port 5432 on the 'dove' server<br /></span><span class="keyword">my</span> <span class="symbol">$pg2</span> <span class="operator">=</span> <span class="word">Mojo::Pg</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="single">'postgresql://two:turtle@doves:5432/partridge?RaiseError=0&amp;PrintError=1'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The URL format has the advantage of being simple to define in an <code>%ENV</code> variable for PaaS deployment. In fact it is already supported by Heroku addons.</p>
+
+<p>Mojo::Pg also provides a succinct wrapper around the Statement object for getting data out. You can use the DBI iterator, or you can wrap the entire result into a Mojo::Collection object.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># Get the db<br /></span><span class="keyword">my</span> <span class="symbol">$db</span> <span class="operator">=</span> <span class="symbol">$pg</span><span class="operator">-&gt;</span><span class="word">db</span><span class="structure">;</span><br /><br /><span class="comment"># Using results as an iterator<br /></span><span class="keyword">my</span> <span class="symbol">$res</span> <span class="operator">=</span> <span class="symbol">$db</span><span class="operator">-&gt;</span><span class="word">query</span><span class="structure">(</span><span class="single">'SELECT day, gift FROM twelvedays ORDER BY day'</span><span class="structure">);</span><br /><span class="keyword">while</span> <span class="structure">(</span><span class="keyword">my</span> <span class="symbol">$row</span> <span class="operator">=</span> <span class="symbol">$res</span><span class="operator">-&gt;</span><span class="word">hash</span><span class="structure">)</span> <span class="structure">{</span> <span class="word">say</span> <span class="double">&quot;$row-&gt;{day}: $row-&gt;{gift}&quot;</span> <span class="structure">}</span><br /><br /><span class="comment"># Using a collection as an array of hashes<br /></span><span class="keyword">my</span> <span class="symbol">$res</span> <span class="operator">=</span> <span class="symbol">$db</span><span class="operator">-&gt;</span><span class="word">query</span><span class="structure">(</span><span class="single">'SELECT day, gift FROM twelvedays ORDER BY day'</span><span class="structure">);</span><br /><span class="keyword">foreach</span> <span class="keyword">my</span> <span class="symbol">$row</span> <span class="structure">(</span><span class="symbol">$res</span><span class="operator">-&gt;</span><span class="word">hashes</span><span class="structure">)</span> <span class="structure">{</span> <span class="word">say</span> <span class="double">&quot;$row-&gt;{day}: $row-&gt;{gift}&quot;</span> <span class="structure">}</span><br /><br /><span class="comment"># Using a collection as an object<br /></span><span class="keyword">my</span> <span class="symbol">$res</span> <span class="operator">=</span> <span class="symbol">$db</span><span class="operator">-&gt;</span><span class="word">query</span><span class="structure">(</span><span class="single">'SELECT day, gift FROM twelvedays ORDER BY day'</span><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$hashes</span> <span class="operator">=</span> <span class="symbol">$res</span><span class="operator">-&gt;</span><span class="word">hashes</span><span class="structure">;</span><br /><span class="word">say</span> <span class="double">&quot;First gift was: &quot;</span> <span class="operator">.</span> <span class="symbol">$hashes</span><span class="operator">-&gt;</span><span class="word">first</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">gift</span><span class="structure">};</span><br /><span class="word">say</span> <span class="double">&quot;Last gift was: &quot;</span> <span class="operator">.</span> <span class="symbol">$hashes</span><span class="operator">-&gt;</span><span class="word">last</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">gift</span><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>The ability for Mojo::Pg::Result to return the data structure in collections of whatever you want - hashes, arrays, etc - and Mojo::Collection to allow you to access the data either using standard Perl array operations or via expressive method calls makes writing what would otherwise very tricky with plain old DBI simple with Mojo::Pg.</p>
+
+<h3 id="Transactions">Transactions</h3>
+
+<p>Mojo::Pg also provides a simple scope guard for transactions, so that if your guard variable goes out of scope before commit is called on it the transaction will automatically be rolled back.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$tx</span> <span class="operator">=</span> <span class="symbol">$db</span><span class="operator">-&gt;</span><span class="word">begin</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="symbol">$db</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="single">'UPDATE birds SET bird_count = bird_count + 4'</span><span class="structure">);</span><br /><br /><span class="comment">  # return if invoidce_true_love_for_calling_birds returned false, which<br />&nbsp;&nbsp;# means the transaction will automatically be rolled back<br /></span>  <span class="word">invoice_true_love_for_calling_birds</span><span class="structure">()</span> <span class="operator">or</span> <span class="keyword">return</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;<span class="symbol">$tx</span><span class="operator">-&gt;</span><span class="word">commit</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>This also comes in very handy in async transactions, as you can very easily handle failure by rolling back.</p>
+
+<h3 id="Migrations">Migrations</h3>
+
+<p>Keeping databases in sync is always a problem when developing databases. Mojo::Pg has a very straightforward solution. You define migrations in pure SQL, either in the DATA section of your file for simple apps, or a separate file, with each level of migrations separated by an SQL comment. Here is a simple illustration:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synComment">-- 1 up</span><br /><span class="synStatement">create</span> <span class="synSpecial">table</span> rings (<span class="synSpecial">type</span> <span class="synType">varchar</span>(<span class="synConstant">255</span>));<br /><span class="synStatement">insert</span> <span class="synSpecial">into</span> rings <span class="synSpecial">values</span> (â~@~XGoldâ~@~Y);<br /><span class="synComment">-- 1 down</span><br /><span class="synStatement">drop</span> <span class="synSpecial">table</span> rings;</code><br />&nbsp;</td></table>
+
+<p>This retains all the benefits of systems like DBIx::DeploymentHandler and Rails migrations without any of the complexity.</p>
+
+<p>Bringing your database up to the latest schema version is a single straight forward command:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$db</span><span class="operator">-&gt;</span><span class="word">migrations</span><span class="operator">-&gt;</span><span class="word">from_file</span><span class="structure">(</span><span class="single">'migrations.sql'</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">migrate</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>This will cause Mojo::Pg to examine the <code>mojo_migrations</code> table (creating it if needed) to work out what version the target database is currently running and then to execute all the statements needed to bring it up to the latest version</p>
+
+<h3 id="ASync">ASync</h3>
+
+<p>Finally, Mojo::Pg allows you to perform async/long poll operations against a PostgreSQL database meaning that your code can do other things while waiting for the database to return instead of blocking.</p>
+
+<p>This works just as you would expect, by passing a callback as the last argument to query. Typically we combine this with Mojo::Delay, to allow better callback control:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>Mojo::IOLoop-&gt;delay(<br />&nbsp;&nbsp;<span class="synStatement">sub </span>{<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synStatement">my</span> <span class="synIdentifier">$delay</span> = <span class="synStatement">shift</span>;<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">$db-&gt;query</span>(<span class="synConstant">'select laying from goose'</span> =&gt; <span class="synIdentifier">$delay-&gt;begin</span>);<br />&nbsp;&nbsp;},<br />&nbsp;&nbsp;<span class="synStatement">sub </span>{<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synStatement">my</span> (<span class="synIdentifier">$delay</span>, <span class="synIdentifier">$err</span>, <span class="synIdentifier">$results</span>) = <span class="synIdentifier">@_</span>;<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">$results-&gt;arrays</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-&gt;<span class="synStatement">map</span>(<span class="synStatement">sub </span>{ [ <span class="synIdentifier">$aâ</span>~@~T&gt;{<span class="synConstant">0</span>} + <span class="synIdentifier">$b-&gt;[</span><span class="synConstant">0</span><span class="synIdentifier">]</span> ] })-&gt;<span class="synStatement">say</span>;<br />&nbsp;&nbsp;}<br />)-&gt;<span class="synStatement">wait</span>;</code><br />&nbsp;</td></table>
+
+<p>The async support uses Mojo::IOLoop under the hood, but Mojo::IOLoop can also interact with AnyEvent through the EV compatibility layer.</p>
+
+<p>Mojo::Pg also supports async waiting for notifications. This is a common pattern for web sockets.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$db</span><span class="operator">-&gt;</span><span class="word">on</span><span class="structure">(</span><span class="word">notification</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$db</span><span class="operator">,</span> <span class="symbol">$bird</span><span class="operator">,</span> <span class="symbol">$pid</span><span class="operator">,</span> <span class="symbol">$arg</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="symbol">$response</span><span class="operator">-&gt;</span><span class="word">write</span><span class="structure">(</span><span class="double">&quot;&lt;div class='swan-update' data-id='$arg'/&gt;’)<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if $bird eq ‘swans’;<br />});<br />$db-&gt;listen(‘swans’);<br />Mojo::IOLoop-&gt;start unless Mojo::IOLoop-&gt;is_running;</span></code><br />&nbsp;</td></table>
+
+<p>The notification can either be triggered manually from another process also connected to the PostgreSQL database:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$db</span><span class="operator">-&gt;</span><span class="word">notify</span><span class="structure">(</span><span class="single">'swans'</span><span class="operator">,</span><span class="single">'11'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Or the notification could be fired by a database trigger (meaning, for example, that Perl code can get an async notification whenever a table is updated.)</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synStatement">CREATE</span> <span class="synStatement">OR</span> <span class="synIdentifier">REPLACE</span> <span class="synSpecial">FUNCTION</span> swans_notify() RETURNS <span class="synSpecial">trigger</span> <span class="synSpecial">AS</span> $$<br /><span class="synSpecial">BEGIN</span><br />&nbsp;&nbsp;PERFORM pg_notify(<span class="synSpecial">'</span><span class="synConstant">swans</span><span class="synSpecial">'</span>,<span class="synIdentifier">to_char</span>(NEW.id,<span class="synSpecial">'</span><span class="synConstant">9999999999</span><span class="synSpecial">'</span>));<br />&nbsp;&nbsp;<span class="synSpecial">RETURN</span> <span class="synSpecial">NULL</span>;<br /><span class="synSpecial">END</span><br />$$ LANGUAGE plpgsql;<br /><br /><span class="synStatement">CREATE</span> <span class="synSpecial">TRIGGER</span> notify_about_swan_changes_trigger<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;AFTER <span class="synStatement">INSERT</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synStatement">OR</span> <span class="synStatement">UPDATE</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">ON</span> swans<br /><span class="synSpecial">FOR</span> EACH <span class="synSpecial">ROW</span> <span class="synStatement">EXECUTE</span> <span class="synSpecial">PROCEDURE</span> swans_notify();</code><br />&nbsp;</td></table>
+
+<p>I hope this has got you excited about the possibilities of Mojo::Pg. It&#39;s still early days for this library, but it has already got a rather unique feature set.</p>
+
+<p>If you want to learn more about the Mojolicious stack, stay tuned for an exciting announcement coming soon from the Mojolicious team.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Mojo::Pg">Mojo::Pg</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Mojo::Pg::Database">Mojo::Pg::Database</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Mojo::Pg::Results">Mojo::Pg::Results</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Mojo::Pg::Migrations">Mojo::Pg::Migrations</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Mojo::Collection">Mojo::Collection</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/25484352cbd4cd37598a3b5d96b87d91?r=g&s=80&d=retro />
+This article contributed by: Marcus Ramberg &lt;marcus@nordaaker.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="The Complexity of Perl" href="2014-12-08.html">Previous</a></li>
+
+    <li class="next"><a title="Foreign Function Interface and Perl" href="2014-12-10.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,109 @@
+Title: Have Elf Been Pwned?
+Topic: WebService::HIBP
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=head2 Mess with the Best...
+
+Butters Jollycane silently cursed.  The piles of presents from yesterday were back.
+Each of the hackers had, if anything, larger piles of gifts waiting to go out
+than they'd had the day before - even though they were meant to be on the
+naughty list.
+
+This could only mean one thing: Somehow that Dade Murphy kid had got back into the system despite
+Jollycane's efforts yesterday to make sure everyone was now using sufficiently
+strong passwords hasn't been enough.
+
+He checked the logs.  Yep, they'd got in using Pepper's account again.
+
+=head2 ...Get Hacked Like The Rest
+
+"I don't understand it", Pepper explained, "that zxcvbn doohicky you made
+yesterday said the password was fine"
+
+"Okay, okay...let's see the new Post-it note."
+
+"Oh I didn't write it down this time", Pepper beamed, "I can remember it!
+After all it's one of the passwords I've been using for years!"
+
+"Wait, you use the same password on other sites?"
+
+"Oh yes.  Very secure it is.  I've never had a problem with it...I use
+it for all my accounts"
+
+Jollycane inwardly sighed.  
+
+=head2 Have I Been Pwned?
+
+Credential reuse on websites is a real problem.  No matter how secure
+you make your website, if an elf reuses a username or password that
+they've used on another website and that website gets hacked, it
+can spell doom and gloom for your security.  People who are most
+definitely on Santa's naughty list regularly distribute lists of
+these stolen credentials.  All Dade Murphy had to do was download
+a copy of these lists and see if the same compromised username and password
+that Pepper had used on Elf Single Mingles would allow him to login
+to Santa's workshop using Pepper's account.
+
+Jollycane quickly pulled up the L<Have I Been Pwned?|https://haveibeenpwned.com/>
+website and tapped in Pepper's account details.
+
+=for :html
+  <center><img src="hibp.jpg" width="630" height="951" alt="HIBP Website"></center>
+
+Have I Been Pwned keeps a copy of all of the well known lists of
+stolen credentials and allows people to check if their credentials
+have been exposed (if you haven't done
+so recently you might want to check out I<your> email address
+on there right now!) Looking at the screen Jollycane could see
+numerous places where Pepper's account had been broken into on
+other sites.
+
+=head2 Password Reuse Avoidance?
+
+Jollycane would send out an all workshop email instructing everyone
+to not reuse their passwords on any other websites.  But how could
+he enforce that?
+
+Believe it or not, Have I Been Pwned? has an API for that, or rather
+they have an API that'll let you work out if a password has been
+included anywhere in any of the well known published password breaches.
+
+Using the API is slightly more complicated than a normal REST API
+but L<WebService::HIBP> abstracts away the details:
+
+    #!perl
+    my $hibp = WebService::HIBP->new();
+    for my $password (
+        'santa',
+        'Merry Christmas',
+        'All I want For Christmas is Yoooooooooou',
+    ) {
+        say "$password was breached ",
+            $hibp->password( $password ),
+            " times";
+    }
+
+Which shows us just how bad the elves choices are:
+
+    santa was breached 10898 times
+    Merry Christmas was breached 7 times
+    All I want For Christmas is Yoooooooooou was breached 0 times
+
+But wait, how does it do that without sending HIBP the passwords to
+check?  It obviously doesn't download the terabytes of exposed data
+each time it checks.
+
+In a word: Hashing.  The module creates a one-way hash of the password
+and then sends just the first few characters of the hash to HIBP
+via the API (you wouldn't want to send the whole hash because
+that means HIBP could theoretically brute force the password.)
+HIBP returns a list of hashes of all compromised passwords that
+hashes also start with those same characters.  The module can then
+check if the hash of the original password is contained in that list,
+and if it is, then blammo - the password was compromised.
+
+=head2 Another Day
+
+With Website::HIBP Jollycane had plugged another hole.  But he was worried.
+He thought he was done yesterday...but he had a sneaking suspicion that he
+wasn't quite done with his battle with these particular brats.

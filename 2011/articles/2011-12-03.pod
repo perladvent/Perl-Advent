@@ -1,0 +1,170 @@
+Title: Keep it Clean
+Topic: namespace::autoclean
+Author: Ricardo Signes <rjbs@cpan.org>
+
+=encoding utf8
+
+=head1 The Big Mess
+
+Perl object orientation is a nice¹ simple toolkit.  You just put some
+subroutines into a package and they become methods:
+
+  #!perl
+  package MyClass;
+
+  sub do_stuff {
+    my ($self, $argument) = @_;
+
+    say "$self method 'do_stuff' received argument $argument";
+  }
+
+The problem is, we're adding subroutines to packages all the time that probably
+shouldn't be methods:
+
+  #!perl
+  package MyClass;
+
+  use File::ShareDir qw(dist_dir);
+  use String::Truncate qw(trunc);
+
+  sub do_stuff { ... }
+
+...and then much later...
+
+  #!perl
+
+  MyClass->new->trunc(5); # equivalent to trunc( MyClass->new, 5 );
+
+See, the problem is that when you import subroutines into your class, they
+become methods.  The ones above might not seem too bad, but quite often these
+non-method imports can lead to confusion:
+
+  #!perl
+  package Date;
+  use Moose;
+
+  sub comes_before {
+    my ($self, $other_date) = @_;
+    # returns true if the date $self comes before $other_date on the calendar
+  }
+
+...but later, someone misremembers the name of C<comes_before> and writes this:
+
+  #!perl
+  if ($date->before( $other_date )) {
+    ...
+  }
+
+This does something bizarre, because C<before> ends up referring to Moose's
+C<before>, used to apply method modifiers to a method.
+
+To avoid these kinds of mistakes, one policy – and one to which I often adhere
+– is to not import anything.  So, don't write this:
+
+  #!perl
+  use String::Truncate qw(trunc);
+  trunc($str, 5);
+
+Instead, write:
+
+  #!perl
+  use String::Truncate (); # don't even call ->import
+  String::Truncate::trunc($str, 5);
+
+This makes it very clear where the routines live, but it's also a real drag to
+type, especially if you're going to use C<trunc> over and over.  Another
+solution is to use
+L<Sub::Exporter|http://advent.rjbs.manxome.org/2009/2009-12-01.html> or, if the
+module you're importing from uses Exporter, to use
+L<Sub::Import|http://advent.rjbs.manxome.org/2010/2010-12-02.html>.  Then you
+could say something like this:
+
+  #!perl
+  use String::Truncate trunc => { -as => '_trunc' };
+  _trunc($str, 5);
+
+With this formula, C<< $obj->_trunc >> will still work as a method call, but at
+least you can blame the programmer who tried calling a private method on your
+object... but remember that it might be you.
+
+=head1 Cleaning Up
+
+Rather than just never import, though, you can take an alternate route: you can
+delete the imported subroutines from the symbol table after you've bound to
+them.  In other words:
+
+  #!perl
+  package MyClass;
+
+  use String::Truncate qw(trunc);
+
+  delete $MyClass::{trunc}; # or one of many other ways to do it
+
+  sub real_method {
+    my ($self, @arg) = @_;
+
+    # ...
+
+    $str = trunc($str, 10);
+
+    # ...
+  }
+
+If you do this, then later, C<< $obj->trunc >> will fail, finding no method.
+The call to C<trunc> inside C<real_method> still works, though, because the
+symbol C<trunc> (at line 12) is bound to the installed routine at I<compile>
+time, but the C<delete> (at line 5) is not executed until I<run time>.  This is
+a big drag, though, because you have to account for all the stuff you imported
+and delete it all again.
+
+That's why we have L<namespace::clean>.  We could replace the delete in the
+code above with C<< use namespace::clean >>.  It would make a note that once
+the compile phase was over, all the subroutines defined before the C<use> would
+get deleted.  That means that if you put all your subroutine-importing C<use>
+statements above namespace::clean, they'd all be purged and wouldn't be
+callable as methods.
+
+Unfortunately, you might be importing some stuff that I<should> be a method.
+Going back to Moose, for example, you don't want the C<meta> method that you
+get from C<< use Moose >> to get cleaned up.  It would break... well, pretty
+much everything.  Further, if you're going to have to purge more than one hunk
+of imports, you have to start doing some annoying accounting and use of C<no
+namespace::clean>.  See the L<namespace::clean
+synopsis|namespace::clean/SYNOPSIS> for a short example.
+
+So, the next upgrade from namespace::clean is L<namespace::autoclean>.  Once
+you use it anywhere in your program, it will wait around until the compile
+phase is over, and will then look at I<all> the subroutines in the package.  It
+decides² which ones are methods and which ones are not, and then purges all the
+non-methods.  This makes it much better at just doing the right thing without
+making you think about it.  It won't purge C<meta>, it won't get confused
+because you accidentally move one of your subroutine-importing C<use>
+statements below it.  The down side is that because it uses Class::MOP, it's
+got a decent-sized memory and compile-speed overhead.  I'm almost always using
+Moose, though, so the cost is tiny compared to the sanity it provides.
+
+=head1 Importing Methods
+
+Finally, I should note that sometimes you I<do> want to import something so
+that it can be called as a method.  Maybe you're using a library that exports
+subroutines that expect to be methods – L<Data::Section>, for example.  In
+these cases, if you're using namespace::autoclean, you'll need to make sure the
+subroutines get installed properly so that they won't be purged.
+L<Sub::Exporter::ForMethods> exists for just this reason:
+
+  #!perl
+  use Sub::Exporter::ForMethods qw( method_installer );
+  use Data::Section { installer => method_installer }, -setup;
+
+=head2 Footnotes
+
+=for :list
+1. Well, not everyone agrees it's nice.
+2. It uses the logic in L<Class::MOP::Mixin::HasMethods>'s C<_code_is_mine>, if you want to start seeing how it works – but that's a private method and might move around or change.
+
+=head1 See Also
+
+=for :list
+* L<namespace::autoclean>
+* L<namespace::clean>
+

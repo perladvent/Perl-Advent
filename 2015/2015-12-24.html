@@ -1,0 +1,124 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2015 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2015.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2015 - 
+The Perl Powered Christmas Tree
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2015</a></h1>
+        </div>
+
+        <p id="tagline">2015 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>The Perl Powered Christmas Tree</h1>
+<div class='subtitle'>Device::Chip::Adapter - 2015-12-24</div>
+
+<div class='pod'><p>So, you want to run some Christmas tree lights. Not just any lights, but flashy blinky ones. And while you&#39;re at it, give them some nice pretty patterns using a few separate chains of lamps. Maybe Perl can help run those patterns?</p>
+
+<h3 id="The-Software">The Software</h3>
+
+<p>It&#39;s simple enough of course to define some blinky patterns, perhaps by naming the light chains A to D, and using a sequence of strings to define the patterns of which ones should be on or off:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@patterns</span> <span class="operator">=</span> <span class="words">qw(<br />&nbsp;&nbsp;&nbsp;AB CD AB CD AB CD AC BD AC BD AC BD BC AD BC AD BC AD ...<br />)</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>We could then use this string of patterns to drive the lights in some manner. For example, we could do something simple:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Time::HiRes</span> <span class="single">'sleep'</span><span class="structure">;</span><br /><br /><span class="keyword">while</span><span class="structure">(</span><span class="number">1</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="keyword">foreach</span> <span class="keyword">my</span> <span class="symbol">$pattern</span> <span class="structure">(</span> <span class="symbol">@patterns</span> <span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">set_lights</span><span class="structure">(</span> <span class="symbol">$pattern</span> <span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">sleep</span> <span class="float">0.5</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Here we&#39;ve got a nice simple repeating pattern that just runs all day long. But how might we implement this <code>set_lights()</code> function? We&#39;ll have to actually communicate with the outside world somehow; some actual piece of hardware.</p>
+
+<p>Two specific pieces of hardware that could be useful here are the FTDI FT232H (most conveniently on a breakout board, such as the <a href="https://www.adafruit.com/products/2264">one made by Adafruit</a>) and the Bus Pirate Made by <a href="http://dangerousprototypes.com/docs/Bus_Pirate">Dangerous Prototypes</a>, available from several places</p>
+
+<p>These two devices are somewhat different in many respects, but both of them may be described as a USB-attached board which has several digital logic IO pins on board. They each support a mode of operation whereby several pins on the board (16 in the FTDI&#39;s case, 5 in the Bus Pirate) can be controlled directly by the computer, setting them directly high or low as required by the program. In our case we only need 4 for the light patterns described above so either would be sufficient for our purposes.</p>
+
+<p>The <a href="https://metacpan.org/module/Device::Chip">Device::Chip</a> module on CPAN describes an abstraction layer around various mechanisms that might be employed to talk to real hardware. It&#39;s still in its early phases yet so it doesn&#39;t have too many actual implementations, but it does support these two hardware boards. It exposes in each case an interface called a GPIO adapter (a &quot;General Purpose Input/Output&quot; - the most basic form of digital IO pin control), which allows us to directly control the high or low state of these pins.</p>
+
+<p>Using this module we can obtain a object that represents the GPIO ability of the hardware and use the <code>write_gpios()</code> method on it to set the state of each GPIO pin. As a little technicality, because the <code>Device::Chip</code> distribution uses <a href="https://metacpan.org/module/Future">Future</a> to make it possible to use asynchronously we&#39;ll just have to call the <code>get()</code> method on the Future returned by <code>write_gpios()</code> to actually force it to run. We&#39;ll also have to make sure to use names of the GPIO pins that the particular device will recognise.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># Convert names of our strings of lights to GPIO pin names on<br /># the adapter<br /></span><span class="keyword">my</span> <span class="symbol">%CHAIN_TO_GPIO</span> <span class="operator">=</span> <span class="structure">(</span><br /><span class="comment">   # If we're using the FT232H<br /></span>   <span class="word">A</span> <span class="operator">=&gt;</span> <span class="double">&quot;D0&quot;</span><span class="operator">,</span> <span class="word">B</span> <span class="operator">=&gt;</span> <span class="double">&quot;D1&quot;</span><span class="operator">,</span> <span class="word">C</span> <span class="operator">=&gt;</span> <span class="double">&quot;D2&quot;</span><span class="operator">,</span> <span class="word">D</span> <span class="operator">=&gt;</span> <span class="double">&quot;D3&quot;</span><span class="operator">,</span><br /><br /><span class="comment">   # If we're using the Bus Pirate<br /></span>   <span class="word">A</span> <span class="operator">=&gt;</span> <span class="double">&quot;MISO&quot;</span><span class="operator">,</span> <span class="word">B</span> <span class="operator">=&gt;</span> <span class="double">&quot;CS&quot;</span><span class="operator">,</span> <span class="word">C</span> <span class="operator">=&gt;</span> <span class="double">&quot;MOSI&quot;</span><span class="operator">,</span> <span class="word">D</span> <span class="operator">=&gt;</span> <span class="double">&quot;CLK&quot;</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">sub</span> <span class="word">set_lights</span><br /><span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span> <span class="symbol">$pattern</span> <span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br /><span class="comment">   # $pattern says what light chains to turn on; we'll also<br />&nbsp;&nbsp;&nbsp;# have to turn the others off<br /></span><br />&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">%want_chains</span> <span class="operator">=</span> <span class="word">map</span> <span class="structure">{</span> <span class="magic">$_</span> <span class="operator">=&gt;</span> <span class="number">0</span> <span class="structure">}</span> <span class="words">qw( A B C D )</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;<span class="symbol">$want_chains</span><span class="structure">{</span><span class="magic">$_</span><span class="structure">}</span> <span class="operator">=</span> <span class="number">1</span> <span class="word">for</span> <span class="word">split</span> <span class="match">//</span><span class="operator">,</span> <span class="symbol">$pattern</span><span class="structure">;</span><br /><br /><span class="comment">   # Now convert to the pin names required by Device::Chip<br /></span>   <span class="keyword">my</span> <span class="symbol">%gpios</span> <span class="operator">=</span> <span class="word">map</span> <span class="structure">{</span> <span class="symbol">$CHAIN_TO_GPIO</span><span class="structure">{</span><span class="magic">$_</span><span class="structure">}</span> <span class="operator">=&gt;</span> <span class="symbol">$want_chains</span><span class="structure">{</span><span class="magic">$_</span><span class="structure">}</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">keys</span> <span class="symbol">%want_chains</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;<span class="symbol">$gpio</span><span class="operator">-&gt;</span><span class="word">write_gpios</span><span class="structure">(</span> <span class="cast">\</span><span class="symbol">%gpios</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>All we need now to make our program complete is to initialise this <code>$gpio</code> object at the beginning by opening the actual hardware object. This too comes from <code>Device::Chip</code> using the handy utility constructor on the <a href="https://metacpan.org/module/Device::Chip::Adapter">Device::Chip::Adapter</a> class called <code>new_from_description()</code> to first obtain an object representing the hardware adapter itself, and then calling its <code>make_protocol()</code> method to switch it into GPIO mode and obtain an object specifically representing that.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Device::Chip::Adapter</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$adapter</span> <span class="operator">=</span> <span class="word">Device::Chip::Adapter</span><span class="operator">-&gt;</span><span class="word">new_from_description</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="double">&quot;FTDI&quot;</span><span class="operator">,</span>  <span class="comment"># Or BusPirate, or whatever...</span><br /><span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">$gpio</span> <span class="operator">=</span> <span class="symbol">$adapter</span><span class="operator">-&gt;</span><span class="word">make_protocol</span><span class="structure">(</span> <span class="double">&quot;GPIO&quot;</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<h3 id="The-Hardware">The Hardware</h3>
+
+<p>Now we&#39;ve got a method of controlling these digital IO lines from perl we can now consider how to actually attach to the actual light chains to it. These IO lines are only capable of controlling 3.3V or 5V up to about 20mA or so; nowhere near enough for some lights. &quot;Low voltage&quot; lights are likely 12 or 24V, and mains ones will run at either 230V or 110V, depending on local supply.</p>
+
+<p>To do this we&#39;ll need some kind of adapting interface between the digital IO line and the light chain. For a low voltage chain of moderate current (such as a string of LEDs) we can probably use a single NPN transistor along with current-limiting resistor on the base:</p>
+
+<center><img src="advent-f1.png" width="284" height="331"/></center>
+
+<p>When the digital IO line is high it drives a current through the transistor (Q1) to ground which allows the transistor to conduct a larger current through the lamp chain, making it light up. When the line is low the base current stops and so the lamp chain goes off.</p>
+
+<p>There&#39;s a limit to how much current we can switch using this arrangement though - any transistor acts much like a current multiplier; allowing a collector-emitter current to flow that is some multiple of the base-emitter current (usually of the order of 50 times as much). Because the digital IO line on our controller is probably only capable of 20mA or so, that limits our ability to switch lamps up to about 1A.</p>
+
+<p>To achieve a higher current (perhaps because we have low-voltage incandescent bulbes) we&#39;d likely want to use a pair of transistors in a Darlington arrangement. This arrangement has the effect of multiplying the current up twice - once through each transistor - meaning we could switch a much larger current; maybe up to 10A or so. This should be adequate most low-voltage lamps.</p>
+
+<center><img src="advent-f2.png" width="356" height="347"/></center>
+
+<p>These solutions will only work for low-voltage DC switching, not mains power. For mains-power switching you might consider using a relay, though they tend not to cope so well with faster switching such as required by these kinds of lights. The easiest and safest way to switch a mains-voltage but fairly low-current load is to use an opto-isolated triac. A full discussion of those is probably beyond the scope of this little article, but if you want to read more about that I&#39;d suggest looking up &quot;Arduino isolated triac&quot;, or other variants on that theme. Any sort of Arduino-related article is likely to be fairly relevant, being just digital IO switching at 3.3V or 5V; much as you&#39;d get from these control boards presented above.</p>
+
+<h2 id="SEE-ALSO">SEE ALSO</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Device::Chip">Device::Chip</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Device::Chip::Adapter">Device::Chip::Adapter</a></p>
+
+</li>
+<li><p><a href="https://www.adafruit.com/products/2264">FT232H on AdaFruit</a></p>
+
+</li>
+<li><p><a href="http://dangerousprototypes.com/docs/Bus_Pirate">The Bus Pirate</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/2cbbae354bb4f5f320b93ab3ad4b0fa1?r=g&s=80&d=retro />
+This article contributed by: Paul &quot;LeoNerd&quot; Evans &lt;leonerd@leonerd.org.uk&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Escaping the Basement For Christmas" href="2015-12-23.html">Previous</a></li>
+
+    <li class="next"><a title="One More Thing" href="2015-12-25.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

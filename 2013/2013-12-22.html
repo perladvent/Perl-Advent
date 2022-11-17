@@ -1,0 +1,127 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2013 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2013.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2013 - 
+Throw Now, Describe Later
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2013</a></h1>
+        </div>
+
+        <p id="tagline">2013 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Throw Now, Describe Later</h1>
+<div class='subtitle'>String::Errf - 2013-12-22</div>
+
+<div class='pod'><p>A few years ago, I <a href="http://advent.rjbs.manxome.org/2010/2010-12-03.html">wrote about Throwable::X</a>, a set of tools for making exceptions easier to work with. Part of the goal was to make it easy for catching code to identify the exception. That meant that rather than saying:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">die</span> <span class="double">&quot;you can't set $attr to $value prior to $ready_date&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>You say:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">OurException</span><span class="operator">-&gt;</span><span class="word">throw</span><span class="structure">(</span><span class="word">ident</span> <span class="operator">=&gt;</span> <span class="double">&quot;tried to set attribute before ready&quot;</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The big deal is that later, your code can be clearer about identifying the exception. Instead of saying:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$error</span> <span class="operator">=~</span> <span class="match">/you can't set \S+ to \S+ prior to \S+/</span><span class="structure">)</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>You can say:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$error</span><span class="operator">-&gt;</span><span class="symbol">$_isa</span><span class="structure">(</span><span class="single">'OurException'</span><span class="structure">)</span> <span class="operator">&amp;&amp;</span> <span class="symbol">$error</span><span class="operator">-&gt;</span><span class="word">ident</span> <span class="operator">eq</span> <span class="single">'tried to set attr before ready'</span><span class="structure">)</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>&hellip;or if you&#39;re thinking ahead&hellip;</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$error</span><span class="operator">-&gt;</span><span class="symbol">$_is_err</span><span class="structure">(</span><span class="single">'tried to set attr before ready'</span><span class="structure">))</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>This works because we give each kind of exception a unique enough name. There&#39;s an obvious cost, though. The exception, when a string, contained three useful pieces of information that are now lost. We had to ditch them to make the string unique, no matter when it happened. The article on Throwable::X glossed over the solution. The idea is that in addition to an unchanging <code>ident</code>, the exception has a <code>payload</code> and maybe a <code>message</code>.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">OurException</span><span class="operator">-&gt;</span><span class="word">throw</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">ident</span>   <span class="operator">=&gt;</span> <span class="double">&quot;tried to set attribute before ready&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">message</span> <span class="operator">=&gt;</span> <span class="double">&quot;you can't set %{attr}s to %{value}i before %{ready_date}t&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">payload</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">attr</span> <span class="operator">=&gt;</span> <span class="symbol">$attr</span><span class="operator">,</span> <span class="word">value</span> <span class="operator">=&gt;</span> <span class="symbol">$value</span><span class="operator">,</span> <span class="word">ready_date</span> <span class="operator">=&gt;</span> <span class="symbol">$ready_date</span> <span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The new parameters let us get the same data into the printed form of the exception that we had originally, without compromising its identifiability. What&#39;s up with that <code>message</code> string, though?</p>
+
+<h2 id="Errf">Errf!</h2>
+
+<p>That string is an <code>errf</code> string. It&#39;s like the kind of thing you pass to <code>sprintf</code>, but different. It&#39;s meant to be simple to implement and to cover just the basic data you might need to stick in an error description.</p>
+
+<p>Like Python&#39;s <code>%</code> operator, it can format based on a set of named parameters. It takes a totally different set of parameters, though. Above you see a demonstration of <code>%s</code>, for strings, <code>%i</code>, for integers, and <code>%t</code> for timestamps.</p>
+
+<p>There are other codes, of course, each with its own options. There&#39;s <code>%f</code> for floats:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">errf</span> <span class="double">&quot;%{x;prefix=+;precision=.2}f&quot;</span><span class="operator">,</span> <span class="structure">{</span> <span class="word">x</span> <span class="operator">=&gt;</span> <span class="float">10.1234</span> <span class="structure">};</span> <span class="comment"># returns &quot;+10.12&quot;;</span></code><br />&nbsp;</td></table>
+
+<p>&hellip;and there are a number of useful options not seen for <code>%t</code>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$t</span> <span class="operator">=</span> <span class="number">1280530906</span><span class="structure">;</span><br /><span class="word">errf</span> <span class="double">&quot;%{x}t&quot;</span><span class="operator">,</span>               <span class="structure">{</span> <span class="word">x</span> <span class="operator">=&gt;</span> <span class="symbol">$t</span> <span class="structure">};</span> <span class="comment"># &quot;2010-07-30 19:01:46&quot;</span><br /><span class="word">errf</span> <span class="double">&quot;%{x;type=date}t&quot;</span><span class="operator">,</span>     <span class="structure">{</span> <span class="word">x</span> <span class="operator">=&gt;</span> <span class="symbol">$t</span> <span class="structure">};</span> <span class="comment"># &quot;2010-07-30&quot;</span><br /><span class="word">errf</span> <span class="double">&quot;%{x;type=time}t&quot;</span><span class="operator">,</span>     <span class="structure">{</span> <span class="word">x</span> <span class="operator">=&gt;</span> <span class="symbol">$t</span> <span class="structure">};</span> <span class="comment"># &quot;19:01:46&quot;</span><br /><span class="word">errf</span> <span class="double">&quot;%{x;type=datetime}t&quot;</span><span class="operator">,</span> <span class="structure">{</span> <span class="word">x</span> <span class="operator">=&gt;</span> <span class="symbol">$t</span> <span class="structure">};</span> <span class="comment"># &quot;2010-07-30 19:01:46&quot;</span><br /><br /><span class="word">errf</span> <span class="double">&quot;%{x;tz=UTC}t&quot;</span><span class="operator">,</span>               <span class="structure">{</span> <span class="word">x</span> <span class="operator">=&gt;</span> <span class="symbol">$t</span> <span class="structure">};</span> <span class="comment"># &quot;2010-07-30 23:01:46 UTC&quot;</span><br /><span class="word">errf</span> <span class="double">&quot;%{x;tz=UTC;type=date}t&quot;</span><span class="operator">,</span>     <span class="structure">{</span> <span class="word">x</span> <span class="operator">=&gt;</span> <span class="symbol">$t</span> <span class="structure">};</span> <span class="comment"># &quot;2010-07-30 UTC&quot;</span><br /><span class="word">errf</span> <span class="double">&quot;%{x;tz=UTC;type=time}t&quot;</span><span class="operator">,</span>     <span class="structure">{</span> <span class="word">x</span> <span class="operator">=&gt;</span> <span class="symbol">$t</span> <span class="structure">};</span> <span class="comment"># &quot;23:01:46 UTC&quot;</span><br /><span class="word">errf</span> <span class="double">&quot;%{x;tz=UTC;type=datetime}t&quot;</span><span class="operator">,</span> <span class="structure">{</span> <span class="word">x</span> <span class="operator">=&gt;</span> <span class="symbol">$t</span> <span class="structure">};</span> <span class="comment"># &quot;2010-07-30 23:01:46 UTC&quot;</span></code><br />&nbsp;</td></table>
+
+<p>The goal of errf strings isn&#39;t just to allow exceptions to be self-describing when caught and displayed, but to make their description easy to change in the presentation layer of code, which might not be handled by exactly the same team as the business logic. Presentation layer here might sound ominous, like these strings might be getting used to give reports to users &mdash; and they are! Many of our exceptions are flagged as user visible, and we show their description right to the user. That means it needs to be possible to make them look&hellip; well, not stupid.</p>
+
+<pre><code>  You can&#39;t add a new account.  You have 1 accounts already.</code></pre>
+
+<p>Ugh! Nobody likes an inflection bug. String::Errf has a fix for that:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">errf</span> <span class="double">&quot;You can't add a new account.  You have %{count;singular=account}n already.&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">{</span> <span class="word">count</span> <span class="operator">=&gt;</span> <span class="number">1</span> <span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>The <code>%n</code> code will let you inflect words based on a count, including the count. <code>%N</code> is the same, but omits the number.</p>
+
+<p>A secondary goal of String::Errf was to produce a format simple enough that it could be implemented in other languages, especially JavaScript, so that API errors could be provided with errf-format errors, then formated at the client side. So far this hasn&#39;t been done, but possibly soon&hellip;</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/String::Errf">String::Errf</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Role::HasPayload::Merged">Role::HasPayload::Merged</a></p>
+
+</li>
+<li><p><a href="http://advent.rjbs.manxome.org/2010/2010-12-03.html">RJBS Advent Article on Throwable-X</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/cec6b9b88295ead26c65f8747a76561b?r=g&s=80&d=retro />
+This article contributed by: Ricardo Signes &lt;rjbs@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Bashing Perl5" href="2013-12-21.html">Previous</a></li>
+
+    <li class="next"><a title="DateTimes" href="2013-12-23.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

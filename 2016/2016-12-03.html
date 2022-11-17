@@ -1,0 +1,234 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2016 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2016.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2016 - 
+Benchmarking with Bencher
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2016</a></h1>
+        </div>
+
+        <p id="tagline">2016 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Benchmarking with Bencher</h1>
+<div class='subtitle'>Bencher - 2016-12-03</div>
+
+<div class='pod'><p>Santa had a problem. Due to increased use of machine transcription, his list of children&#39;s names contained far more misspellings than previously, and really had to be checked twice. Santa ordered one of the elves to write a Perl script for this task, but there was a catch - with more than a billion names on the list, the script needed to be fast.</p>
+
+<p>The elf started off by evaluating several modules on CPAN that calculate <a href="https://en.wikipedia.org/wiki/Levenshtein_distance">Levenshtein edit distance</a> (among others: <a href="https://metacpan.org/module/Text::Levenshtein">Text::Levenshtein</a>, <a href="https://metacpan.org/module/Text::Levenshtein::XS">Text::Levenshtein::XS</a>, <a href="https://metacpan.org/module/Text::Levenshtein::Flexible">Text::Levenshtein::Flexible</a>, <a href="https://metacpan.org/module/Text::LevenshteinXS">Text::LevenshteinXS</a>) and trying to pick one to use for his script, preferably the fastest one.</p>
+
+<p>&quot;I&#39;ll simply write a benchmark script to find out which one is the fastest,&quot; he thought to himself. Normally, that script would have used the built-in <a href="https://metacpan.org/module/Benchmark">Benchmark</a> module, like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Benchmark</span> <span class="single">'cmpthese'</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Text::Levenshtein</span> <span class="structure">();</span><br /><span class="keyword">use</span> <span class="word">Text::Levenshtein::XS</span> <span class="structure">();</span><br /><span class="keyword">use</span> <span class="word">Text::Levenshtein::Flexible</span> <span class="structure">();</span><br /><span class="keyword">use</span> <span class="word">Text::LevenshteinXS</span> <span class="structure">();</span><br /><br /><span class="word">cmpthese</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="number">100_000</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'Text::Levenshtein'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="word">Text::Levenshtein::fastdistance</span><span class="structure">(</span><span class="double">&quot;foo&quot;</span><span class="operator">,</span> <span class="double">&quot;bar&quot;</span><span class="structure">)</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'Text::Levenshtein::XS'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="word">Text::Levenshtein::XS::distance</span><span class="structure">(</span><span class="double">&quot;foo&quot;</span><span class="operator">,</span> <span class="double">&quot;bar&quot;</span><span class="structure">)</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'Text::Levenshtein::Flexible'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="word">Text::Levenshtein::Flexible::levenshtein</span><span class="structure">(</span><span class="double">&quot;foo&quot;</span><span class="operator">,</span> <span class="double">&quot;bar&quot;</span><span class="structure">)</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'Text::LevenshteinXS'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="word">Text::LevenshteinXS::distance</span><span class="structure">(</span><span class="double">&quot;foo&quot;</span><span class="operator">,</span> <span class="double">&quot;bar&quot;</span><span class="structure">)</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>but I tricked him into, er, suggested, trying the <a href="https://metacpan.org/module/Bencher">Bencher</a> framework for a change. So here&#39;s what he wrote instead:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># lib/Bencher/Scenario/Levenshtein.pm<br /></span><span class="keyword">package</span> <span class="word">Bencher::Scenario::Levenshtein</span><span class="structure">;</span><br /><span class="keyword">our</span> <span class="symbol">$scenario</span> <span class="operator">=</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">summary</span> <span class="operator">=&gt;</span> <span class="single">'Benchmark modules that calculate Levenshtein edit distance'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">participants</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span><span class="word">fcall_template</span> <span class="operator">=&gt;</span> <span class="double">&quot;Text::Levenshtein::fastdistance(&lt;word1&gt;, &lt;word2&gt;)&quot;</span><span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span><span class="word">fcall_template</span> <span class="operator">=&gt;</span> <span class="double">&quot;Text::Levenshtein::XS::distance(&lt;word1&gt;, &lt;word2&gt;)&quot;</span><span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span><span class="word">fcall_template</span> <span class="operator">=&gt;</span> <span class="double">&quot;Text::Levenshtein::Flexible::levenshtein(&lt;word1&gt;, &lt;word2&gt;)&quot;</span><span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span><span class="word">fcall_template</span> <span class="operator">=&gt;</span> <span class="double">&quot;Text::LevenshteinXS::distance(&lt;word1&gt;, &lt;word2&gt;)&quot;</span><span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">datasets</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="word">name</span> <span class="operator">=&gt;</span> <span class="double">&quot;foo&quot;</span><span class="operator">,</span> <span class="word">args</span> <span class="operator">=&gt;</span> <span class="structure">{</span><span class="word">word1</span><span class="operator">=&gt;</span><span class="double">&quot;foo&quot;</span><span class="operator">,</span> <span class="word">word2</span><span class="operator">=&gt;</span><span class="double">&quot;bar&quot;</span><span class="structure">}</span><span class="operator">,</span> <span class="word">result</span> <span class="operator">=&gt;</span> <span class="number">3</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">]</span><span class="operator">,</span><br /><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>What&#39;s different between the two? First of all, the script is turned into a module containing a data structure called <i>scenario</i>. The code snippets, called <i>participants</i>, are turned into code templates with variables written inside angle brackets like this: <code>&lt;name&gt;</code>. The variable values are put in the <i>datasets</i> key.</p>
+
+<p>How do we run this scenario module? Install the <a href="https://metacpan.org/module/bencher-tiny">bencher-tiny</a> script from the <a href="https://metacpan.org/release/Bencher-Tiny">Bencher-Tiny</a> distribution:</p>
+
+<pre><code>   % cpanm -n Bencher::Tiny</code></pre>
+
+<p>then run:</p>
+
+<pre><code>   % PERL5OPT=-Ilib bencher-tiny -c 100000 Levenshtein</code></pre>
+
+<p>The output will be identical to the output of the first script we saw, because <code>bencher-tiny</code> also uses <a href="https://metacpan.org/module/Benchmark">Benchmark</a> to benchmark the code:</p>
+
+<pre><code>               (warning: too few iterations for a reliable count)
+               (warning: too few iterations for a reliable count)
+               (warning: too few iterations for a reliable count)
+                                                 Rate Text::Levenshtein::fastdistance Text::Levenshtein::XS::distance Text::LevenshteinXS::distance Text::Levenshtein::Flexible::levenshtein
+   Text::Levenshtein::fastdistance            52083/s                              --                            -92%                          -99%                                     -99%
+   Text::Levenshtein::XS::distance           666667/s                           1180%                              --                          -87%                                     -87%
+   Text::LevenshteinXS::distance            5000000/s                           9500%                            650%                            --                                      -0%
+   Text::Levenshtein::Flexible::levenshtein 5000000/s                           9500%                            650%                            0%                                       --</code></pre>
+
+<p>However, turning our benchmark script into a scenario module means we can do a lot more things with it. First of all, let&#39;s use the full-featured CLI <a href="https://metacpan.org/module/bencher">bencher</a> (from the <a href="https://metacpan.org/release/Bencher">Bencher</a> distribution) instead of <code>bencher-tiny</code>. Install it from CPAN (this might take a while, as it has quite a lot of dependencies):</p>
+
+<pre><code>   % cpanm -n Bencher</code></pre>
+
+<p>then run:</p>
+
+<pre><code>   % bencher -Ilib -m Levenshtein
+   +------------------------------------------+-----------+-----------+------------+---------+---------+
+   | participant                              | rate (/s) | time (us) | vs_slowest |  errors | samples |
+   +------------------------------------------+-----------+-----------+------------+---------+---------+
+   | Text::Levenshtein::fastdistance          |     51000 |    20     |        1   | 3.3e-08 |      20 |
+   | Text::Levenshtein::XS::distance          |    757000 |     1.32  |       14.8 | 1.8e-10 |      20 |
+   | Text::LevenshteinXS::distance            |   8500000 |     0.12  |      170   | 2.4e-10 |      20 |
+   | Text::Levenshtein::Flexible::levenshtein |   8850000 |     0.113 |      173   | 1.1e-10 |      20 |
+   +------------------------------------------+-----------+-----------+------------+---------+---------+</code></pre>
+
+<p>You&#39;ll notice several things are different. Instead of <a href="https://metacpan.org/module/Benchmark">Benchmark</a>, the <code>bencher</code> CLI by default uses <a href="https://metacpan.org/module/Dumbbench">Dumbbench</a> to benchmark the code. It then presents the results as a table.</p>
+
+<p>You&#39;ll also notice that the script returns <i>much</i> more quickly, and the result is more accurate for the faster participants. Recall that <a href="https://metacpan.org/module/Benchmark">Benchmark</a> complained above that we didn&#39;t use enough iterations for a reliable count. To avoid this warning, we would need to set count to something like 3_000_000 - but imagine how long it would take for the benchmark to run in this case (~1 minute, because <a href="https://metacpan.org/module/Text::Levenshtein">Text::Levenshtein</a> can only perform ~50k calculations per second). By contrast, if you look at the <code>samples</code> result field, you&#39;ll see that <a href="https://metacpan.org/module/Dumbbench">Dumbbench</a> only needs about 20 runs for each participant. You don&#39;t actually even need to set the <code>count</code> parameter, because it will figure out the minimum sufficient number of runs.</p>
+
+<p>Aside from this difference in output, there are quite a number of other things we can do.</p>
+
+<h3 id="Adding-more-datasets">Adding more datasets</h3>
+
+<p>Remember how we split the code and data when we constructed the scenario? The benefit of doing this is that we can easily add more data. Let&#39;s say we want to measure performance for some longer word. We&#39;ll just add this to our <code>datasets</code>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="structure">{</span> <span class="word">name</span> <span class="operator">=&gt;</span> <span class="double">&quot;program&quot;</span><span class="operator">,</span> <span class="word">args</span> <span class="operator">=&gt;</span> <span class="structure">{</span><span class="word">word1</span><span class="operator">=&gt;</span><span class="double">&quot;program&quot;</span><span class="operator">,</span> <span class="word">word2</span><span class="operator">=&gt;</span><span class="double">&quot;porgram&quot;</span><span class="structure">}</span><span class="operator">,</span> <span class="word">result</span> <span class="operator">=&gt;</span> <span class="number">2</span> <span class="structure">}</span><span class="operator">,</span></code><br />&nbsp;</td></table>
+
+<p>then run:</p>
+
+<pre><code>   % bencher -Ilib -m Levenshtein
+   +------------------------------------------+---------+-----------+-----------+------------+---------+---------+
+   | participant                              | dataset | rate (/s) | time (us) | vs_slowest |  errors | samples |
+   +------------------------------------------+---------+-----------+-----------+------------+---------+---------+
+   | Text::Levenshtein::fastdistance          | program |     11000 |    89     |        1   | 1.1e-07 |      20 |
+   | Text::Levenshtein::fastdistance          | foo     |     52000 |    19     |        4.7 | 3.3e-08 |      20 |
+   | Text::Levenshtein::XS::distance          | program |    480000 |     2.1   |       43   | 3.3e-09 |      20 |
+   | Text::Levenshtein::XS::distance          | foo     |    738000 |     1.36  |       65.7 | 4.2e-10 |      20 |
+   | Text::LevenshteinXS::distance            | program |   3180000 |     0.314 |      284   | 9.7e-11 |      28 |
+   | Text::Levenshtein::Flexible::levenshtein | program |   4170000 |     0.24  |      371   | 1.7e-10 |      25 |
+   | Text::LevenshteinXS::distance            | foo     |   7300000 |     0.137 |      650   | 4.5e-11 |      20 |
+   | Text::Levenshtein::Flexible::levenshtein | foo     |   7660000 |     0.131 |      682   | 4.6e-11 |      20 |
+   +------------------------------------------+---------+-----------+-----------+------------+---------+---------+</code></pre>
+
+<p>There&#39;s now a <code>dataset</code> result field, since we are running with multiple datasets.</p>
+
+<h3 id="Filtering-datasets-participants-modules-etc">Filtering datasets, participants, modules, etc</h3>
+
+<p>To use only one specific dataset:</p>
+
+<pre><code>   % bencher -Ilib -m Levenshtein --include-dataset program</code></pre>
+
+<p>There are similar options to include only certain participants: <code>--include-participant</code>, <code>--exclude-participant</code>, <code>--include-participant-pattern</code>, and so on. We can also include/exclude certain modules. For example, let&#39;s just exclude all the pure-Perl modules because they have no hope of competing with XS:</p>
+
+<pre><code>   % bencher -Ilib -m Levenshtein --include-dataset program --nopp
+   +------------------------------------------+-----------+-----------+------------+---------+---------+
+   | participant                              | rate (/s) | time (us) | vs_slowest |  errors | samples |
+   +------------------------------------------+-----------+-----------+------------+---------+---------+
+   | Text::Levenshtein::XS::distance          |    410000 |     2.5   |        1   | 3.3e-09 |      20 |
+   | Text::LevenshteinXS::distance            |   2800000 |     0.357 |        6.9 | 3.3e-10 |      20 |
+   | Text::Levenshtein::Flexible::levenshtein |   3600000 |     0.28  |        8.9 | 4.3e-10 |      24 |
+   +------------------------------------------+-----------+-----------+------------+---------+---------+</code></pre>
+
+<p>There are other kinds of filtering available, for example by tags, sequence, and so on.</p>
+
+<p>Instead of running the benchmark, you can also verify or inspect the participants (<code>--list-participants</code>) and datasets (<code>--list-datasets</code>), or just run the code once and display the result (<code>--show-items-results</code>):</p>
+
+<pre><code>   % bencher -Ilib -m Levenshtein --nopp --show-items-results
+   #0 (dataset=foo participant=Text::Levenshtein::XS::distance):
+   3
+
+   #1 (dataset=program participant=Text::Levenshtein::XS::distance):
+   2
+
+   #2 (dataset=foo participant=Text::Levenshtein::Flexible::levenshtein):
+   3
+
+   #3 (dataset=program participant=Text::Levenshtein::Flexible::levenshtein):
+   2
+
+   #4 (dataset=foo participant=Text::LevenshteinXS::distance):
+   3
+
+   #5 (dataset=program participant=Text::LevenshteinXS::distance):
+   2</code></pre>
+
+<h3 id="Checking-the-results-first">Checking the results first</h3>
+
+<p>Notice that in each dataset, we added this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">result</span> <span class="operator">=&gt;</span> <span class="number">2</span></code><br />&nbsp;</td></table>
+
+<p>or:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">result</span> <span class="operator">=&gt;</span> <span class="number">3</span></code><br />&nbsp;</td></table>
+
+<p>This parameter is optional, but if we specify a value here then <code>bencher</code> will first compare it to the results of running the code, to make sure that the code we are benchmarking returns the correct result. Fast but wrong code is useless, after all.</p>
+
+<h2 id="More-features">More features</h2>
+
+<p><a href="https://metacpan.org/module/Bencher">Bencher</a> can do plenty of other things, for example:</p>
+
+<ul>
+
+<li><p>Benchmark module startup overhead</p>
+
+</li>
+<li><p>Benchmark against multiple perls</p>
+
+</li>
+<li><p>Benchmark against multiple module versions</p>
+
+</li>
+<li><p>Show data structure size and memory usage</p>
+
+</li>
+<li><p>Present the results as a chart or graph</p>
+
+</li>
+<li><p>Include CPU/other system information</p>
+
+</li>
+<li><p>Return raw structured data (<code>--json</code>) for easy manipulation or transport to servers</p>
+
+</li>
+</ul>
+
+<p>I&#39;ve also written plugins for <a href="https://metacpan.org/module/Dist::Zilla">Dist::Zilla</a> and other CLI tools related to Bencher. For one-off benchmarking this might not mean much, but if you regularly use benchmarking when developing (for example to watch out for performance regression), <a href="https://metacpan.org/module/Bencher">Bencher</a> can be a useful addition to your toolbox.</p>
+
+<h2 id="SEE-ALSO">SEE ALSO</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Bencher">Bencher</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Bencher::Scenario::LevenshteinModules">Bencher::Scenario::LevenshteinModules</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/c66c9e215cc2342796cd87ca82d044a8?r=g&s=80&d=retro />
+This article contributed by: perlancar &lt;perlancar@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Jingle Refs, Jingle Refs, Jingle all the way" href="2016-12-02.html">Previous</a></li>
+
+    <li class="next"><a title="Yuletide Logging" href="2016-12-04.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,232 @@
+Title: Legacy code strikes again
+Topic: Context::Singleton
+Author: Branislav Zahradník <barney@cpan.org>
+
+It's 3 o'clock in the morning. Our poor programmer is finally asleep.
+It's the run up to Christmas and work has been hectic with the increased
+website traffic.  But all is good.  All is well.  And finally the
+programmer can dream of a life where...
+
+I<ding ding, ding ding>
+
+"Our databases are stuck AGAIN, we are NOT delivering, do something! NOW!"
+
+Bleary eyed our protagonist rolls out of bed and logs into the production
+systems. Our programmer-soon-hero-again has discovered that
+database servers are overloaded with unused connections.
+
+=head2 Code architecture
+
+In order to process every gift delivery the code has to access several
+databases:
+
+=for :html
+<ul>
+<li>The delivery queue database</li>
+<li>The accounting department database</li>
+<li>The legal department database</li>
+<li>The compliance database</li>
+</ul>
+
+The location of every database for every gift's delivery region is
+located in the central key-value storage, which at least is holding
+up under the increased website traffic.
+
+The problem is that gift processing opens all four connections
+when it first it starts up keeping the connections open idle between
+gift processing.   With the increased workload during the run up to
+Christmas there's too many processes with open database connections!
+
+=head2 Refactoring
+
+If our programmer is ever going to get a full night's sleep, he has
+to refactor the code quickly.
+
+The solution is "easy".  Do lazy connections!  While the code
+is off doing other things that don't involve accessing the
+database there's no reason it should have the connections open.
+
+=head3 Naive solution
+
+The naive solution would be to connect only when needed - making
+a new connection in each function that needs to access the
+database.
+
+    #!perl 
+    sub foo {
+        my $delivery_queue_db = delivery_queue_connect( @_ );
+        ...
+    }
+
+    sub bar {
+        if (my $delivery_queue_db = delivery_queue_connect( @_ )) {
+            ...
+        }
+    }
+
+Unfortunately that makes the performance even worse! The same connection
+is required by many independent parts of the code and reconnecting
+in every single function overloads the database server even more!
+
+=head3 OOP refactoring
+
+In an ideal world our programmer would refactor the code to work in
+an object orientated fashion so that each database connection is available
+from an object accessor only where it was needed.
+
+Unfortunately that is going to be a B<huge> amount of work.  The
+programmer did a bit of estimating, and figured out he could get
+it all done by the end of March...and he's like to sleep sometime
+before then.
+
+=head3 Legacy solution
+
+One solution is to make use of global variables, and I<localize> them
+so they're automatically cleared up as execution leaves scope (and the
+database connections will automatically be dropped)
+
+For example.
+
+    #!perl
+    # our global package variables
+    our ($delivery_queue_db, $accounting_db, ...);
+
+    # do the bit of code that needs the same database connections
+    sub handle_gift {
+        # localize the connections so when we leave scope they'll
+        # be automatically cleared up
+        local ($delivery_queue_db, $accounting_db, ...);
+
+        # use functions that connect to the various databases
+        # the first time a connection to the database is needed
+        record_shipping_timeline(...);
+        update_stock_count(...);
+        ...
+    }
+
+    # some code that is eventually called by something
+    # record_shipping_timeline eventually calls
+    sub calculate_shipping_method {
+        # in each function that needs a connection to the
+        # database we connect if we need to if the global variable
+        # doesn't already have a connection
+        $delivery_queue_db //= delivery_queue_connect( @_ );
+
+        ...
+    }
+
+It's a lot better. Now the database connections aren't created until
+the very point they're about to be used.  But it's still a lot of
+additional code to maintain, and the programmer will have well over
+100 such parameters.
+
+And now he will also have to extend every function with connectivity information,
+or make that yet another global variable too.
+
+Trembling between 100 variables, 10_000 functions and who knows how many lines of code
+our programmer suddenly hears something start to whisper.  Has the sleep deprivation
+finally sent him over the edge?
+
+... "Use me, search me, use me, search me"
+
+"Is it you, Almighty CPAN? Do you have solution for me?"
+
+"Take a look at Context::Singleton"
+
+=head3 Curiosity driven development solution
+
+L<Context::Singleton> is a way of handling shared state in a
+much more controlled and organized fashion.  It handles the
+localization and allows a centralized place for declaring
+a I<recipe> for deducing shared state when it's first needed.
+
+    #!perl
+    # define a recipe for deducing the delivery_queue_db
+    # whenever we need it
+    contrive 'delivery_queue_db' => (
+        dep => [qw[ gift ... ]],
+        as => sub { my ($gift, ...) = @_; ... },
+    );
+
+    sub foo {
+        # get the delivery_queue_db for the current frame
+        # calling the logic in contrive to create a new
+        # connection if that hasn't already happened this frame
+        my $delivery_queue_db = deduce 'delivery_queue_db';
+        ...
+    }
+
+    sub bar {
+        # this is the same thing as in foo above - getting
+        # the delivery_queue_db for the current frame and
+        # using the logic in contrive to do create a new
+        # connection if delivery_queue_db doesn't exist in
+        # the current frame, but here we're also using
+        # try_deduce to see if we have all the dependencies
+        # to do that first
+        if (try_deduce 'delivery_queue_db') {
+            my $delivery_queue_db = deduce 'delivery_queue_db';
+            ...
+        }
+    }
+
+    sub handle_gift {
+        # start a new context.  Things that we deduce will be
+        # cleared up when execution leaves the frame
+        frame {
+            # declare the gift in our current frame.  Now
+            # we don't have to pass it around to the functions
+            # that we call from within the frame since they
+            # can access it via the context singleton keywords
+            proclaim 'gift' => $gift;
+
+            ...;
+        }
+    }
+
+By using Context::Singleton our programmer has removed four arguments from every
+important function - resulting largest code reducing commit in the project
+history!
+
+Each connection is now created first time it is needed and persisted till end
+of the frame.  The programmer's system finally works again, and
+gifts are being delivered.
+
+This approach even allowed a long desired optimization (previously not
+implemented due to "argument hell") so now it's most likely system will handle
+even next Christmas' load ...
+
+=head2 How it works
+
+L<Context::Singleton> offers data control mechanism similar to C<my> variable
+within code blocks, but independent of code architecture and execution flow.
+Things within the frame will always exist just until the end of the frame
+so will be cleared up automatically avoiding globals existing throughout
+the entire codebase.
+
+It affords reasonable caching as well - derived properties are stored
+in same C<frame> as their requirements.  In our case, C<delivery_queue_db>
+will always be populated in same frame as C<gift> value was set.
+
+It provides multiple ways how to populate variables based on availability
+of other variables.  The simple C<contrive> example above is just one
+simple implementation - Context::Singleton also allows you to specify recipies
+where you can specify class names, builder methods to be called, or defaults
+and values.
+
+It handles a lot of the complex stuff hand rolling a simple solution with
+a combination of the C<local> keyword and accessor subroutines can't
+handle alone:  It gives immutability on scope, and can build values based
+on dependencies.  With dependency tracking it can rebuild them in inner
+scope when their dependencies have been modified!  And it is able to handle
+cyclic dependencies as well.
+
+One way to think about it is that it acts like C<$_> providing "default object"
+where every deducible property acts like method (with some kind of multi-dispatch)
+though you can compose specific classes as you need using / providing different
+C<contrive> recipes.
+
+See
+L<TPC in Amsterdam presentation|https://www.youtube.com/watch?v=KBQ0prTu5ys>
+(L<slides|https://rawgit.com/happy-barney/slides/master/2017-08-09%20-%20TPCiA%20-%20Context%20Singleton/src/tpcia-2017-08-09-context-singleton.html>)
+for more.

@@ -1,0 +1,115 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2020 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2020.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2020 - 
+Devel::Size
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2020</a></h1>
+        </div>
+
+        <p id="tagline">2020 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Devel::Size</h1>
+<div class='subtitle'>Devel::Size - 2020-12-05</div>
+
+<div class='pod'><p><div class="bestof"> 2020 has been time consuming - a global pandemic, giant fires, horrific floods and political unrest - which has left us little time for side projects. This year we're looking back to happier times into the 20+ year archive with the Best of the Perl Advent Calendar. </div>
+
+</p>
+
+
+
+<p>Have you ever wondered exactly how much memory your data structure are taking up? Normally this isn&#39;t the kind of thing that you need to worry about in Perl (Perl is optimised to use more memory so that it can use less CPU time where possible) and Perl handles all the nastiness of allocating and using memory but occasionally, just occasionally, you find yourself in a situation where you need to know this kind of thing.</p>
+
+<p>The thing about memory is that when you run out, well, you run out. As soon as you start having to swap to disk with virtual memory, everything gets extremely slow. Even before you get to this point, it&#39;s worth noting the less memory your code has to deal with that for many subtle reasons the faster your code will run.</p>
+
+<p>One situation that&#39;s really critical to keep track of memory usage is when you&#39;re using mod_perl. mod_perl, the system of embedding perl directly into a webserver, speeds things up a lot by amongst other things keeping a copy of global variables between requests for pages. This means that your scripts don&#39;t have to start from scratch each time at the cost of more memory usage. One of the major drawbacks is that if you&#39;re not careful then this memory usage can be multiplied over each separate Apache process - typically thirty-fold or so. <b>Devel::Size</b> can help identify situations where this might be a problem, and where you should take steps to ensure this data is placed in memory shared between the processes.</p>
+
+<h3 id="Introducing-Devel::Size">Introducing Devel::Size</h3>
+
+<p>Okay, as an example, let&#39;s have a look at some data structures and see how much space they take up. Bear in mind that these figures are valid for my machine only (Debian Linux i386 unstable, with Debian&#39;s 5.8.0 threaded perl built with gcc 2.95.4) and the results will vary with your hardware and architecture.</p>
+
+<p>Okay, let&#39;s get a list of all the files in the current directory and store it in a data structure:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="comment"># turn on perl's safety features<br /></span><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="comment"># use Devel::Size, and import the total_size function<br /></span><span class="keyword">use</span> <span class="word">Devel::Size</span> <span class="words">qw(total_size)</span><span class="structure">;</span><br /><br /><span class="comment"># use the cwd function to get the current working directory<br /></span><span class="keyword">use</span> <span class="word">Cwd</span><span class="structure">;</span><br /><br /><span class="comment"># open the current directory list<br /></span><span class="word">opendir</span> <span class="word">DIR</span><span class="operator">,</span> <span class="word">cwd</span><br />&nbsp;&nbsp;&nbsp;<span class="operator">or</span> <span class="word">die</span> <span class="double">&quot;Couldn't open the current directory&quot;</span><span class="structure">;</span><br /><br /><span class="comment"># get all the files<br /></span><span class="keyword">my</span> <span class="symbol">@files</span><span class="structure">;</span><br /><span class="word">push</span> <span class="symbol">@files</span><span class="operator">,</span> <span class="magic">$_</span> <span class="word">while</span> <span class="structure">(</span><span class="word">readdir</span> <span class="word">DIR</span><span class="structure">);</span><br /><span class="word">closedir</span> <span class="word">DIR</span><span class="structure">;</span><br /><br /><span class="word">print</span> <span class="double">&quot;There are &quot;</span><span class="operator">.</span><span class="symbol">@files</span><span class="operator">.</span><span class="double">&quot; files in your current dir\n&quot;</span><span class="structure">;</span><br /><span class="word">print</span> <span class="double">&quot;Storing this array took up &quot;</span><span class="operator">.</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">total_size</span><span class="structure">(</span><span class="cast">\</span><span class="symbol">@files</span><span class="structure">)</span><span class="operator">.</span><span class="double">&quot; bytes\n&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>If I run this script from within my <code>/etc</code> dir I get the following printed out on screen.</p>
+
+<pre><code>  There are 240 files in your current dir
+  Storing this array took up 9055 bytes</code></pre>
+
+<p>Let&#39;s try storing some information on the data. Let&#39;s pretend I want to know the modification time, the size and the filemode of each of these files.</p>
+
+<p>One approach, the first that comes to mind, is to create a big hash that contains for each file in the directory a smaller hash that has the keys &quot;mtime&quot;, &quot;size&quot; and &quot;mode&quot; which have the values for the modification time, size and filemode of the file stored in the values respectively.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># load File::stat so that 'stat()' will now return a &quot;File::stat&quot;<br /># object that methods like '$st-&gt;mode' can be called on<br /></span><span class="keyword">use</span> <span class="word">File::stat</span><span class="structure">;</span><br /><br /><span class="comment"># build a big hash that is keyed by the name of the file and in<br /># which each entry points to another hash that has the size, mtime<br /># and mode stored in it<br /></span><br /><span class="keyword">my</span> <span class="symbol">%stats</span><span class="structure">;</span><br /><span class="keyword">foreach</span> <span class="keyword">my</span> <span class="symbol">$file</span> <span class="structure">(</span><span class="symbol">@files</span><span class="structure">)</span><br /><span class="structure">{</span><br /><span class="comment">  # stat the file working out when it was last modified, etc<br /></span>  <span class="keyword">my</span> <span class="symbol">$stat</span> <span class="operator">=</span> <span class="word">stat</span><span class="structure">(</span><span class="symbol">$file</span><span class="structure">);</span><br /><br /><span class="comment">  # store the mode, modification time and size of the file<br />&nbsp;&nbsp;# in a hash so we can access it later<br /></span>  <span class="symbol">$stats</span><span class="structure">{</span> <span class="symbol">$file</span> <span class="structure">}{</span><span class="word">size</span><span class="structure">}</span>  <span class="operator">=</span> <span class="symbol">$stat</span><span class="operator">-&gt;</span><span class="word">size</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="symbol">$stats</span><span class="structure">{</span> <span class="symbol">$file</span> <span class="structure">}{</span><span class="word">mtime</span><span class="structure">}</span> <span class="operator">=</span> <span class="symbol">$stat</span><span class="operator">-&gt;</span><span class="word">mtime</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="symbol">$stats</span><span class="structure">{</span> <span class="symbol">$file</span> <span class="structure">}{</span><span class="word">mode</span><span class="structure">}</span>  <span class="operator">=</span> <span class="symbol">$stat</span><span class="operator">-&gt;</span><span class="word">mtime</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="word">print</span> <span class="double">&quot;Storing the the hash takes &quot;</span><span class="operator">.</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">total_size</span><span class="structure">(</span><span class="cast">\</span><span class="symbol">%stats</span><span class="structure">)</span><span class="operator">.</span><span class="double">&quot; bytes\n&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Which then prints</p>
+
+<pre><code>  Storing the the hash takes 66679 bytes</code></pre>
+
+<p>Wow! That&#39;s 65KB. Now that doesn&#39;t actually sound like a lot, but if I do that kind of thing in each of my mod_perl children after they&#39;ve forked, and I&#39;m running twenty servers, then that memory usage is potentially multiplied twenty-fold. that&#39;s over a megabyte of memory right there. Let&#39;s have a look at storing it in another format...How about if I use a small array for each file instead of each of the small hashes?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># define constants that refer to the index the elements<br /># are in the array<br /></span><span class="keyword">use</span> <span class="pragma">constant</span> <span class="word">FILE_SIZE</span>  <span class="operator">=&gt;</span> <span class="number">0</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">constant</span> <span class="word">FILE_MTIME</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">constant</span> <span class="word">FILE_MODE</span>  <span class="operator">=&gt;</span> <span class="number">2</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">%stats2</span><span class="structure">;</span><br /><span class="keyword">foreach</span> <span class="keyword">my</span> <span class="symbol">$file</span> <span class="structure">(</span><span class="symbol">@files</span><span class="structure">)</span><br /><span class="structure">{</span><br /><span class="comment">  # stat the file working out when it was last modified, etc<br /></span>  <span class="keyword">my</span> <span class="symbol">$stat</span> <span class="operator">=</span> <span class="word">stat</span><span class="structure">(</span><span class="symbol">$file</span><span class="structure">);</span><br /><br /><span class="comment">  # store the mode, modification time and size of the file<br />&nbsp;&nbsp;# in an array so we can access it later<br /></span>  <span class="symbol">$stats2</span><span class="structure">{</span> <span class="symbol">$file</span> <span class="structure">}[</span><span class="word">FILE_SIZE</span><span class="structure">]</span>  <span class="operator">=</span> <span class="symbol">$stat</span><span class="operator">-&gt;</span><span class="word">size</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="symbol">$stats2</span><span class="structure">{</span> <span class="symbol">$file</span> <span class="structure">}[</span><span class="word">FILE_MTIME</span><span class="structure">]</span> <span class="operator">=</span> <span class="symbol">$stat</span><span class="operator">-&gt;</span><span class="word">mtime</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="symbol">$stats2</span><span class="structure">{</span> <span class="symbol">$file</span> <span class="structure">}[</span><span class="word">FILE_MODE</span><span class="structure">]</span>  <span class="operator">=</span> <span class="symbol">$stat</span><span class="operator">-&gt;</span><span class="word">mtime</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="word">print</span> <span class="double">&quot;Storing the the hash takes &quot;</span><span class="operator">.</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">total_size</span><span class="structure">(</span><span class="cast">\</span><span class="symbol">%stats2</span><span class="structure">)</span><span class="operator">.</span><span class="double">&quot; bytes\n&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Which on my system now prints out:</p>
+
+<pre><code>  Storing the the hash takes 41239 bytes</code></pre>
+
+<p>Which is a lot better. How about if instead of a hash of lists I use a list of hashes?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@stats3</span><span class="structure">;</span><br /><span class="keyword">foreach</span> <span class="keyword">my</span> <span class="symbol">$file</span> <span class="structure">(</span><span class="symbol">@files</span><span class="structure">)</span><br /><span class="structure">{</span><br /><span class="comment">  # stat the file working out when it was last modified, etc<br /></span>  <span class="keyword">my</span> <span class="symbol">$stat</span> <span class="operator">=</span> <span class="word">stat</span><span class="structure">(</span><span class="symbol">$file</span><span class="structure">);</span><br /><br /><span class="comment">  # store the mode, modification time and size of the file<br />&nbsp;&nbsp;# in an array so we can access it later<br /></span>  <span class="symbol">$stats3</span><span class="structure">[</span><span class="word">FILE_SIZE</span><span class="structure">]{</span> <span class="symbol">$file</span> <span class="structure">}</span>  <span class="operator">=</span> <span class="symbol">$stat</span><span class="operator">-&gt;</span><span class="word">size</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="symbol">$stats3</span><span class="structure">[</span><span class="word">FILE_MTIME</span><span class="structure">]{</span> <span class="symbol">$file</span> <span class="structure">}</span> <span class="operator">=</span> <span class="symbol">$stat</span><span class="operator">-&gt;</span><span class="word">mtime</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="symbol">$stats3</span><span class="structure">[</span><span class="word">FILE_MODE</span><span class="structure">]{</span> <span class="symbol">$file</span> <span class="structure">}</span>  <span class="operator">=</span> <span class="symbol">$stat</span><span class="operator">-&gt;</span><span class="word">mtime</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="word">print</span> <span class="double">&quot;Storing the the array takes &quot;</span><span class="operator">.</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">total_size</span><span class="structure">(</span><span class="cast">\</span><span class="symbol">@stats3</span><span class="structure">)</span><span class="operator">.</span><span class="double">&quot; bytes\n&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Which now prints:</p>
+
+<pre><code>  Storing the the array takes 38393 bytes</code></pre>
+
+<p>What&#39;s interesting here is essentially as we&#39;re saving more and more memory we&#39;re making our code less and less readable (and hence, less and less maintainable,) or to put it another way <b>The more we try to save memory the less maintainable our code becomes</b> in this example.</p>
+
+<p>So we see we can play games with Perl data structures which reduces our overall memory usage, but to do so we have to sacrifice something else - programmer time - by producing less maintainable code. Which is more important in any particular example is a hard choice to make, but one you can make from a much more informed position with <b>Devel::Size</b> to help you.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Building Santa&#39;s Naughty and Nice List with Stepford" href="2020-12-04.html">Previous</a></li>
+
+    <li class="next"><a title="Jingle Refs, Jingle Refs, Jingle all the way" href="2020-12-06.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

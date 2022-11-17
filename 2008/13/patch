@@ -1,0 +1,130 @@
+diff --git a/lib/Text/SpellChecker.pm b/lib/Text/SpellChecker.pm
+index 631a635..332bda2 100644
+--- a/lib/Text/SpellChecker.pm
++++ b/lib/Text/SpellChecker.pm
+@@ -71,9 +71,10 @@ text.
+
+  =over 4
+
+-=item $checker = Text::SpellChecker->new(text => $text, from_frozen => 
+$serialized_data)
++=item $checker = Text::SpellChecker->new(text => $text, from_frozen => 
+$serialized_data, lang => $lang)
+
+-Send either the text or a serialized object to the constructor.
++Send either the text or a serialized object to the constructor.
++Optionally, the language of the text can also be passed.
+
+  =item $checker = new_from_frozen($serialized_data)
+
+@@ -111,7 +112,8 @@ Replace all subsequent occurences of the current 
+word with a new word.
+  =item $checker->suggestions
+
+  Returns a reference to a list of alternatives to the
+-current word.
++current word in a scalar context, or the list directly
++in a list context.
+
+  =item $checker->text
+
+@@ -165,6 +167,7 @@ sub new {
+      bless {
+              text => $args{text},
+              ignore_list => {},    # keys of this hash are words to be 
+ignored
++            ( lang => $args{lang} ) x !!$args{lang},
+      }, $class;
+  }
+
+@@ -219,7 +222,7 @@ sub next_word {
+      my $self = shift;
+      pos $self->{text} = $self->{position};
+      my $word;
+-    my $sp = Text::Aspell->new;
++    my $sp = $self->_aspell;
+      while ($self->{text} =~ m/([a-zA-Z]+(?:'[a-zA-Z]+)?)/g) {
+          $word = $1;
+          next if $self->{ignore_list}{$word};
+@@ -235,6 +238,21 @@ sub next_word {
+  }
+
+  #
++# Private method returning a Text::Aspell object
++#
++sub _aspell {
++    my $self = shift;
++
++    unless ( $self->{aspell} ) {
++        $self->{aspell} = Text::Aspell->new;
++        $self->{aspell}->set_option( lang => $self->{lang} )
++                if $self->{lang};
++    }
++
++    return $self->{aspell};
++}
++
++#
+  # replace - replace the current word with a new one.
+  #
+  # parameters :
+@@ -266,7 +284,12 @@ sub highlighted_text {
+  # Some accessors
+  #
+  sub text         { return $_[0]->{text}; }
+-sub suggestions  { return $_[0]->{suggestions};  }
++sub suggestions  {
++    return wantarray
++                ? @{$_[0]->{suggestions}}
++                :   $_[0]->{suggestions}
++                ;
++}
+  sub current_word { return $_[0]->{current_word};  }
+
+  #
+@@ -274,7 +297,12 @@ sub current_word { return $_[0]->{current_word};  }
+  #
+  sub serialize {
+     my $self = shift;
+-   return encode_base64 freeze $self;
++
++   # remove mention of Aspell object, if any
++   my %copy = %$self;
++   delete $copy{aspell};
++
++   return encode_base64 freeze \%copy;
+  }
+
+
+diff --git a/t/Text-SpellChecker.t b/t/Text-SpellChecker.t
+index 5334b53..6a6047b 100644
+--- a/t/Text-SpellChecker.t
++++ b/t/Text-SpellChecker.t
+@@ -1,6 +1,6 @@
+  #########################
+
+-use Test::More tests => 6;
++use Test::More tests => 7;
+  BEGIN { use_ok('Text::SpellChecker') };
+
+  #########################
+@@ -15,11 +15,18 @@ ok($checker->next_word eq 'Foor', 'Catching English 
+word');
+
+  ok($checker->next_word eq 'seevn', 'Iterator');
+
++# we can call it two different ways
++my @suggestions = $checker->suggestions;
++my $suggestions = $checker->suggestions;
++ok( eq_array( \@suggestions, $suggestions), 'suggestions' );
++
+  $checker->replace(new_word => 'seven');
+
+  ok($checker->text =~ /score and seven/, 'replacement');
+
+  my $original = Text::SpellChecker->new(from_frozen => 
+$checker->serialize);
+
++delete $checker->{aspell};  # 'cause the freezing don't carry over
++                            # the Text::Aspell object
+  ok(eq_hash($original,$checker),'freezing, thawing');

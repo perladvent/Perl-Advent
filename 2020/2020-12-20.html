@@ -1,0 +1,210 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2020 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2020.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2020 - 
+Help! Rudolf&#39;s Nose Won&#39;t Light Up!
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2020</a></h1>
+        </div>
+
+        <p id="tagline">2020 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Help! Rudolf&#39;s Nose Won&#39;t Light Up!</h1>
+<div class='subtitle'>Devel::Hide - 2020-12-20</div>
+
+<div class='pod'><p><div class="bestof"> 2020 has been time consuming - a global pandemic, giant fires, horrific floods and political unrest - which has left us little time for side projects. This year we're looking back to happier times into the 20+ year archive with the Best of the Perl Advent Calendar. </div>
+
+</p>
+
+
+
+<p>Often we find ourselves writing code that copes with <i>optional</i> dependencies; Code that will use a module to do amazing things if it&#39;s installed, but will muddle through with some lesser code path if that dependency is missing or unavailable on the system. When developing this code we need to test how the code works in both situations, preferably without breaking parts of our system setup just to check that the alternative code paths still work!</p>
+
+<p>How can we do this? Gather round, I have a story to tell...</p>
+
+<h3 id="A-Christmas-Tale">A Christmas Tale</h3>
+
+<p>At the north pole Cyber-Santa was in a bit of a pickle because he&#39;d forgotten to charge the batteries for his new Robo-Reindeer&#39;s light-up nose! How would he be able to find his way through the dark and deliver techno-toys to all the good programmers and sysadmins?</p>
+
+<p>Cyber-Santa was stressing out and whining on Twitter when one of his older elves reminded him that cost over-runs on the Reindeer Upgrade Project meant that he was still using the old sleigh, and that still had mounting brackets for old oil lamps.</p>
+
+<p>&quot;But do we know that those lamps still work? Are they bright enough?&quot;, Cyber-Santa asked</p>
+
+<p>&quot;Oh yes&quot;, replied the elf. &quot;Don&#39;t you remember, last Christmas we weren&#39;t sure whether all the new Robo-Reindeer would be ready in time, so we did our <a href="https://en.wikipedia.org/wiki/Sinterklaas">test run</a> both with and without cybernetic cervids, and everything worked just fine.&quot;</p>
+
+<p>&quot;Let me show you how we tested this&quot;, said the elf elaborated, &quot;I&#39;ll take you step by step through what we normally do. First, we dig the sleigh out from under that snowdrift. Would you mind doing it, only my poor old back is giving me gyp right now....and then could you fetch the reindeer and attach them to the sleigh?&quot;,</p>
+
+<p>So Santa dug out the sleigh, fetched the reindeer, got kicked by the reindeer, harnessed them and <i>finally</i> climbed up into the driver&#39;s seat, all sweaty and bruised and smelling of reindeer.</p>
+
+<p>&quot;So at this point, we&#39;re ready to go, right?&quot; asked the elf.</p>
+
+<p>&quot;Yes!&quot;, said Cyber-Santa.</p>
+
+<p>&quot;Wrong!&quot;, replied the elf, &quot;We&#39;re not yet ready. If you turn to page two of your Sleigh Operations Manual you&#39;ll see the pre-flight checklist. The ninety fourth item on the list (after &#39;are the presents tied down?&#39; and &#39;do you have <a href="https://en.wikipedia.org/wiki/A_Twisted_Christmas">banging choonz</a> queued up on your iPod?&#39;) is &#39;is the robot providing sufficient lighting to navigate by?&#39;&quot;.</p>
+
+<p>And so Santa checked, and the glowing Robo-NoZe&trade; wasn&#39;t working because of that flat battery.</p>
+
+<p>&quot;And after checklist item ninety four it tells you that if it isn&#39;t working you should use an oil lamp, doesn&#39;t it&quot;, scolded the elf.</p>
+
+<p>Santa looked a bit sheepish and apologised, muttering something about being too eager to get his deliveries done so he could relax with a pint and some pork scratchings.</p>
+
+<p>&quot;I&#39;ll let you off this time&quot;, scolded the elf, &quot;but don&#39;t do it again.&quot;</p>
+
+<p>&quot;But ... but ...&quot; Santa said hesitantly &quot;how do we know it will work?&quot;</p>
+
+<p>&quot;Oh, right, I was going to show you how we tested this wasn&#39;t I. Sorry, I&#39;m getting forgetful in my old age. Let&#39;s go indoors and simulate it on your laptop where it&#39;ll be nice and warm&quot; smirked the elf, who really preferred the previous Santa, because the elf&#39;s children got to play with left over toys and far preferred traditional wooden blocks and balls and things instead of the modern nonsense that Cyber-Santa was obsessed with.</p>
+
+<h3 id="Modeling-With-Perl">Modeling With Perl</h3>
+
+<p>&quot;First let&#39;s simulate what you just did&quot;, said the elf. &quot;We&#39;ll create a sleigh object, and a factory class to simulate the field that the reindeer come from.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$sleigh</span>   <span class="operator">=</span> <span class="word">Sleigh</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">();</span><br /><span class="keyword">my</span> <span class="symbol">@reindeer</span> <span class="operator">=</span> <span class="word">ReindeerFactory</span><span class="operator">-&gt;</span><span class="word">fetch</span><span class="structure">(</span><span class="number">9</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>&quot;Then we&#39;ll harness the reindeer to the sleigh and have the sleigh run through the pre-flight checks because you&#39;re so forgetful. Then, once the pre-flight checks are complete we can get going:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$sleigh</span><span class="operator">-&gt;</span><span class="word">harness</span><span class="structure">(</span><span class="symbol">@reindeer</span><span class="structure">);</span><br /><span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$sleigh</span><span class="operator">-&gt;</span><span class="word">pre_flight</span><span class="structure">())</span> <span class="structure">{</span><br /><span class="comment">  # FIXME, deliver presents here<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>&quot;So far, so simple. Now, consider that right now your pasture contains Robo-Reindeer, but previously it contained normal reindeer. So the ReindeerFactory has to look something like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">ReindeerFactory</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$reindeer_class</span> <span class="operator">=</span> <span class="word">eval</span> <span class="double">&quot;use RoboReindeer&quot;</span> <span class="operator">?</span> <span class="double">&quot;RoboReindeer&quot;</span> <span class="operator">:</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">eval</span> <span class="double">&quot;use BioReindeer&quot;</span>  <span class="operator">?</span> <span class="double">&quot;BioReindeer&quot;</span>  <span class="operator">:</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">die</span><span class="structure">(</span><span class="double">&quot;No reindeer found\n&quot;</span><span class="structure">);</span><br /><br /><span class="keyword">sub</span> <span class="word">fetch</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$number_wanted</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">((</span><span class="symbol">$reindeer_class</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">())</span> <span class="operator">x</span> <span class="symbol">$number_wanted</span><span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>&quot;I see&quot;, said Santa, &quot;so if the RoboReindeer module is installed (or if in real life I&#39;ve got RoboReindeer in the pasture) then the factory will give me those, otherwise it&#39;ll give me BioReindeer. Very clever. That looks like a pain to test though.&quot;</p>
+
+<p>&quot;Yes, unfortunately it is&quot; admitted the elf. &quot;We had to run through the whole damned process twice, once for Robo-Reindeer, once for normal ones, being very careful to keep the two completely separate.&quot;</p>
+
+<p>Santa was very thankful that he had elves to do that sort of hard work for him, but thought that it looked like a jolly useful technique for some of his hobby projects. &quot;If only I could automate that in Perl...&quot; mused Santa. But he put that aside, because he had a busy two days ahead of him.</p>
+
+<h3 id="Magic-in-INC">Magic in @INC</h3>
+
+<p>After he&#39;d done his two days work for the whole year, and was stretched out on the sofa with a glass of brandy and some mince pies, Santa was still wondering how to automate that. Obviously he could wrap all his tests in a shell script that would install/uninstall modules as appropriate, but that seemed terribly inelegant. But then it dawned on him - all he needed to do was interfere with how Perl loaded modules.</p>
+
+<p>Normally the <code>@INC</code> array is just a list of directories in which perl will look, one directory after another, for modules that you try to <code>use</code>. But you can also put code-refs in it. For example:</p>
+
+<pre><code>  $ perl -E &#39;
+    BEGIN { unshift @INC, sub { say &quot;Hello World&quot; } }
+    use Foo;
+  &#39;
+  Hello World
+  [loud complaining from perl]</code></pre>
+
+<p>(NB the BEGIN block is required so that we get to diddle <code>@INC</code> at compile- time. The complaining from perl is because <code>say</code> returns something that perl doesn&#39;t know what to do with)</p>
+
+<p>When Perl finds a code-ref in <code>@INC</code> it passes the desired module to the code- ref, with its name reformatted from something like <code>Foo::Bar</code> to a filename like <code>Foo/Bar.pm</code>. Your code-ref can then decide not to do anything, thus making perl look in the next place listed in <code>@INC</code>, or it can return the source code for a module:</p>
+
+<p>To have your sub-routine do nothing and have Perl carry on to the next entry in <code>@INC</code> have it return <code>undef</code>:</p>
+
+<pre><code>  $ perl -E &#39;
+    BEGIN { unshift @INC, sub { return undef } }
+    use File::Temp;
+  &#39;</code></pre>
+
+<p>That code-ref has absolutely no effect - when Perl tries to <code>use File::Temp</code> it first executes our subroutine, which returns <code>undef</code>, so Perl then tries to load it from the directories that make up the rest of the list, and eventually succeeds.</p>
+
+<p>So what if we want to prevent <code>File::Temp</code> from loading? Our <code>@INC</code> hook has to return an open filehandle which Perl can read the module code from, and the code we return (which Perl will then read and execute as if it were the <code>File::Temp</code> module) should just die instead:</p>
+
+<pre><code>  $ perl -E &#39;
+    BEGIN { unshift @INC, sub {
+      # is this what we&#39;re hiding?  return an alternative file-handle
+      if ($_[1] eq &quot;File/Temp.pm&quot;) {
+        open my $fh, &quot;&lt;&quot;, \&quot;die(qq{$_[1] is hidden})&quot;;
+        return $fh;
+      }
+
+      # not something we&#39;re hiding, return undef so Perl will continue as normal
+      return undef;
+    } }
+    use File::Temp;
+  &#39;
+  File/Temp.pm is hidden at /loader/0x7ffe498186e8/File/Temp.pm line 1.
+  Compilation failed in require at -e line 8.
+  BEGIN failed--compilation aborted at -e line 8.</code></pre>
+
+<h3 id="PERL5OPT-and--M">PERL5OPT and -M</h3>
+
+<p>Santa was very happy and wrapped this up in a module:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Without</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">import</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="core">shift</span><span class="structure">;</span><br /><span class="comment">  # translate a list of modules to a list of filenames<br /></span>  <span class="keyword">my</span> <span class="symbol">@hidden</span> <span class="operator">=</span> <span class="word">map</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="substitute">s!::!/!g</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;$_.pm&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="structure">}</span> <span class="magic">@_</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;<span class="word">unshift</span> <span class="symbol">@INC</span><span class="operator">,</span> <span class="keyword">sub</span> <span class="structure">{</span><br /><span class="comment">    # $_[0] is this sub-routine itself.<br /></span>    <span class="keyword">my</span> <span class="symbol">$wanted</span> <span class="operator">=</span> <span class="magic">$_</span><span class="structure">[</span><span class="number">1</span><span class="structure">];</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span><span class="structure">(</span><span class="word">grep</span> <span class="structure">{</span> <span class="symbol">$wanted</span> <span class="operator">eq</span> <span class="magic">$_</span> <span class="structure">}</span> <span class="symbol">@hidden</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">open</span> <span class="word">my</span> <span class="symbol">$fh</span><span class="operator">,</span> <span class="double">&quot;&lt;&quot;</span><span class="operator">,</span> <span class="cast">\</span><span class="double">&quot;die(qq{$wanted is hidden})&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$fh</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="core">undef</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span><br /><br /><span class="number">1</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>So that he could invoke like this to test his code with both RoboReindeer and BioReindeer, with one but not the other, and even without both:</p>
+
+<pre><code>  make test &amp;&amp;
+  PERL5OPT=-MWithout=RoboReindeer             make test &amp;&amp;
+  PERL5OPT=-MWithout=BioReindeer              make test &amp;&amp;
+  PERL5OPT=-MWithout=RoboReindeer,BioReindeer make test</code></pre>
+
+<p>PERL5OPT is an environment variable that contains extra command line arguments that will be passed to any Perl process. -M is used to load a module on the command line, but using it to pass arguments to the module&#39;s <code>import()</code>method is less well known.</p>
+
+<h3 id="A-few-days-later">A few days later</h3>
+
+<p>Santa was very pleased with himself and later that week he went to his local Perl Mongers meeting, with his laptop, so that he could show everyone his nifty new trick.</p>
+
+<p>&quot;Oh, you wanted <a href="https://metacpan.org/module/Devel::Hide">Devel::Hide</a>&quot;, they told him, adding that <code>PERL5OPT</code> isn&#39;t used in taint-mode and that the trick of using open to turn a scalar into a filehandle didn&#39;t work in some really old perls.</p>
+
+<p>&quot;Bother&quot;, said Santa, as he deleted his code and installed Devel::Hide from the CPAN. &quot;Ah well, it was fun anyway.&quot;</p>
+
+<pre><code>  make test &amp;&amp;
+  PERL5OPT=-MDevel::Hide=RoboReindeer             make test &amp;&amp;
+  PERL5OPT=-MDevel::Hide=BioReindeer              make test &amp;&amp;
+  PERL5OPT=-MDevel::Hide=RoboReindeer,BioReindeer make test</code></pre>
+
+<h3 id="SEE-ALSO">SEE ALSO</h3>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Devel::Hide">Devel::Hide</a></p>
+
+</li>
+<li><p>For details on <code>PERL5OPT</code> and <code>-M</code>, see <a href="https://metacpan.org/module/perlrun">perlrun</a>.</p>
+
+</li>
+<li><p>For details on magical @INC, see <a href="https://metacpan.org/module/perlfunc#require">&quot;require&quot; in perlfunc</a>.</p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/7718c473801541072186c8caaaa510d0?r=g&s=80&d=retro />
+This article contributed by: David Cantrell &lt;david@cantrell.org.uk&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Gathering all the Presents" href="2020-12-19.html">Previous</a></li>
+
+    <li class="next"><a title="Gift Exchanges as a Practical Example of Cyclic Directional Graphs" href="2020-12-21.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

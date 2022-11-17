@@ -1,0 +1,144 @@
+use v5.10;
+use strict;
+
+use File::Spec::Functions;
+use File::Path qw(make_path);
+
+=head1 NAME
+
+script/new_article - start a new Advent calendar article
+
+=head1 SYNOPSIS
+
+	% perl script/new_article
+	Article title > Another article
+	Article topic > Some stuff about something
+	Author (Your Name) > brian d foy <bdfoy@cpan.org>
+	Saved the starter article in 2022/incoming/another-article.pod
+
+Then edit your article and check it:
+
+	% perl t/article_pod.t 2022/incoming/another-article.pod
+
+=cut
+
+my( $title, $topic, $author ) = get_metadata();
+my $starter_text = cook_template( $title, $topic, $author );
+
+my $year = (localtime)[5] + 1900;
+
+my( $dir ) = catfile( $year, 'incoming' );
+make_path $dir;
+
+( my $slug = lc($title) ) =~ s/\W+/-/g;
+my $path = catfile( $dir, "$slug.pod" );
+save_file( $starter_text, $path );
+say "Saved the starter article in $path";
+
+sub cook_template {
+	my( $title, $topic, $author ) = @_;
+	my $template = do { local $/; <DATA> };
+
+	$template =~ s/%%TITLE%%/$title/g;
+	$template =~ s/%%TOPIC%%/$topic/g;
+	$template =~ s/%%AUTHOR%%/$author/g;
+
+	$template;
+	}
+
+sub get_metadata {
+	my $title  = prompt( 'Article title' ) // 'Some title';
+	my $topic  = prompt( 'Article topic' ) // 'Some topic';
+	my $author = prompt( 'Author (Your Name <your_email@example.com>)' ) // '';
+	( $title, $topic, $author );
+	}
+
+sub prompt {
+	my($message) = @_;
+	print "$message > " if -t STDIN;
+	chomp( my $answer = scalar <STDIN> );
+	return $answer;
+	}
+
+sub save_file {
+	my( $text, $filename ) = @_;
+
+	open my $fh, '>:encoding(UTF-8)', $filename
+		or die "Could not open <$filename>: $!";
+	print {$fh} $text;
+	close $fh;
+	}
+
+__END__
+Author: %%AUTHOR%%
+Title: %%TITLE%%
+Topic: %%TOPIC%%
+
+=encoding utf8
+
+=head1 %%TITLE%%
+
+=head2 Making links
+
+Your article here goes here. Make links with
+L<anchor text|http://example.com>. For module links, merely specify the
+module, like L<Pod::Simple>.
+
+=head2 Inline code
+
+Make literal code text like this: C<$x>. If the code has angle brackets,
+double up the angle brackets with extra space before and after, like this
+C<< $obj->method >>..
+
+=head2 Block code
+
+There are regular Pod code verbatim text, which are indented lines:
+
+	my $x = 1_00_000 ** $::xyzzy;
+
+A C<perl> section can do syntax highlighting
+
+=begin perl
+
+    # inside "perl" blocks, make syntax-highlighted code
+    # with Pod::Elemental::Transformer::SynHi
+	my $x = 1_00_000 ** $::xyzzy;
+
+=end perl
+
+A C<code> section can syntax-highlight non-Perl too:
+
+=begin code
+
+  # inside "code" blocks, make syntax-highlighted code
+  # with Pod::Elemental::Transformer::Codebox
+
+=end code
+
+=head2 Raw HTML
+
+Include some raw HTML. A blank line breaks the spell:
+
+=for :html
+<p>Some para</p>
+
+This is back to Pod. For big blocks of HTML, including blank lines,
+use C<=begin html>.
+
+=begin html
+
+<p>Some para</p>
+
+<p>Another para</p>
+
+=end html
+
+=head2 Lists
+
+=for :list
+* short list syntax from Pod::Elemental::Transformer::List
+* duck
+* duck
+* goose
+
+=cut

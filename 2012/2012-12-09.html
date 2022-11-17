@@ -1,0 +1,123 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Fixing the regexep code block facility
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Fixing the regexep code block facility</h1>
+<div class='subtitle'>(?{}) - 2012-12-09</div>
+
+<div class='pod'><p>The <code>/(?{})/</code> code-execution facility was added to regular expressions back in 1998, in the 5.005 release. Since then it&#39;s been sitting there, marked experimental, until in 2012, the implementation was completely re-written for the 5.17.1 release.</p>
+
+<p>The way it originally worked was that during regex compilation, if an opening <code>(?{</code> was seen, the balancing <code>}</code> was found, and the text between the braces was passed to perl&#39;s internal eval mechanism. But after compiling the code, the execution was skipped, and instead the optree and pad of the compiled eval were saved and attached to the regexp object. Later when the regexp was being executed, the current pad would be set to the saved pad, and the ops in the optree called.</p>
+
+<p>So, what&#39;s wrong with that?</p>
+
+<p>Well, everything really.</p>
+
+<p>First, at the most trivial level, the code isn&#39;t properly parsed, so something like <code>/(?{ $x = &#39;{&#39; })/</code> is an error, due the simplistic counting of balancing braces. This is in contrast to something like <code>&quot;foo$hash{ $x ? &#39;{&#39; : &#39;[&#39; }bar&quot;</code>, where the expression for the hash index doesn&#39;t require balanced braces.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="match">/(?{ $x = '{' })/</span> <span class="comment"># &lt;-- was an error</span><br /><br /><span class="double">&quot;foo$hash{ $x ? '{' : '[' }bar&quot;</span> <span class="comment"># &lt;-- not an error</span></code><br />&nbsp;</td></table>
+
+<p>So the first change was to integrate the parsing of the code blocks with the parsing of the surrounding Perl code, at least for literal regexes.</p>
+
+<p>The second big issue was that by just saving the <a href="https://metacpan.org/module/perlglossary#scratchpad">pad</a> and resurrecting it from time to time, lexicals at best did the wrong thing, and at worst caused segfaults. In particular, the behaviour of closures didn&#39;t match reasonable expectations. For example, this code:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$i</span> <span class="structure">(</span><span class="number">0</span><span class="operator">..</span><span class="number">2</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">push</span> <span class="symbol">@r</span><span class="operator">,</span> <span class="regexp">qr/^(??{$i})$/</span><span class="structure">;</span><br /><span class="structure">}</span><br /><span class="word">print</span> <span class="double">&quot;ok 0\n&quot;</span> <span class="word">if</span> <span class="double">&quot;0&quot;</span> <span class="operator">=~</span> <span class="symbol">$r</span><span class="structure">[</span><span class="number">0</span><span class="structure">];</span><br /><span class="word">print</span> <span class="double">&quot;ok 1\n&quot;</span> <span class="word">if</span> <span class="double">&quot;1&quot;</span> <span class="operator">=~</span> <span class="symbol">$r</span><span class="structure">[</span><span class="number">1</span><span class="structure">];</span><br /><span class="word">print</span> <span class="double">&quot;ok 2\n&quot;</span> <span class="word">if</span> <span class="double">&quot;2&quot;</span> <span class="operator">=~</span> <span class="symbol">$r</span><span class="structure">[</span><span class="number">2</span><span class="structure">];</span></code><br />&nbsp;</td></table>
+
+<p>prints out three ok&#39;s now, but formerly printed nothing. It works because in terms of pads, closures, etc, these:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="match">/A(?{B})C/</span><span class="structure">;</span><br /><span class="symbol">$r</span> <span class="operator">=</span> <span class="regexp">qr/A(?{B})C/</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>(where B is a block of code) are now parsed (in terms of lexicals) roughly as:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="match">/A/</span> <span class="operator">&amp;&amp;</span> <span class="word">do</span> <span class="structure">{</span><span class="word">B</span><span class="structure">}</span> <span class="operator">&amp;&amp;</span> <span class="match">/C/</span><span class="structure">;</span><br /><span class="symbol">$r</span> <span class="operator">=</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="match">/A/</span> <span class="operator">&amp;&amp;</span> <span class="word">do</span> <span class="structure">{</span><span class="word">B</span><span class="structure">}</span> <span class="operator">&amp;&amp;</span> <span class="match">/C/</span> <span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>That is, in the first line, the code block shares the same pad as the surrounding code, while in the second example it uses the pad of a hidden anonymous sub, which is cloned anew on each call to <code>qr//</code>. This makes it all Just Do the Right Thing. <code>qr//</code> constructs that contain arbitrary code now act like closures.</p>
+
+<p>However, Perl also supports patterns that are determined at runtime, or which contain a mixture of compile- and runtime patterns, such as</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$pat</span> <span class="operator">=</span> <span class="single">'C(?{D})'</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">re</span> <span class="single">'eval'</span><span class="structure">;</span><br /><span class="match">/A(?{B})-$pat/</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Formerly, as the run-time pattern was being assembled, any bits of literal code (such as the <code>B</code> above) would be recompiled, destroying any closure information. Now, such code snippets are preserved, and only the non-literal bits are compiled. Similarly where regexp objects are included within a larger pattern:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$re</span> <span class="operator">=</span> <span class="regexp">qr/C(?{D})/</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">re</span> <span class="single">'eval'</span><span class="structure">;</span><br /><span class="match">/A(??{B})-$re/</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Although the text of the <code>$re</code> pattern is interpolated and recompiled, any code blocks within <code>$re</code> are <i>not</i> recompiled.</p>
+
+<p>Finally, because pads are handled properly now, things don&#39;t go awry during recursion:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># test-recurse-regex.pl<br /></span><span class="keyword">sub</span> <span class="word">recurse</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$n</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="word">if</span> <span class="symbol">$n</span> <span class="operator">&gt;</span> <span class="number">2</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">print</span> <span class="double">&quot;ok\n&quot;</span> <span class="word">if</span> <span class="double">&quot;A$n&quot;</span> <span class="operator">=~</span> <span class="match">/^A(??{$n})$/</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">recurse</span><span class="structure">(</span><span class="symbol">$n</span><span class="operator">+</span><span class="number">1</span><span class="structure">);</span><br /><span class="structure">}</span><br /><span class="word">recurse</span><span class="structure">(</span><span class="number">0</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>&hellip;and then&hellip;</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>$ perl test-recurse-regex.pl<br />ok<br />ok<br />ok</code><br />&nbsp;</td></table>
+
+<p>There were lots of other subtleties involved, but those are the ones I can think of off the top my head. These bugs made the entire <code>(?{})</code> and <code>(??{})</code> features unreliable in earlier perls, but with the upcoming perl 5.18 release, it should work sanely and predictably!</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/perlre#code">code in regex</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/perlre#code-1">postponed regex</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/re#eval-mode">regex &#39;eval&#39; mode</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/117e4e783a387307e1bb7ce9bd32cf6a?r=g&s=80&d=retro />
+This article contributed by: Dave Mitchell &lt;davem@iabyn.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Atomic Gift Wrapping" href="2012-12-08.html">Previous</a></li>
+
+    <li class="next"><a title="The Greatest Tradition of All" href="2012-12-10.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,147 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2013 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2013.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2013 - 
+The PAUSE Permissions Model
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2013</a></h1>
+        </div>
+
+        <p id="tagline">2013 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>The PAUSE Permissions Model</h1>
+<div class='subtitle'>App::PAUSE::CheckPerms - 2013-12-08</div>
+
+<div class='pod'><p>PAUSE has a permissions model that is defined in terms of <i>modules</i> and not <i>distributions</i>. It controls who can release what modules onto CPAN. Actually, that&#39;s not quite true, but it&#39;s a good enough approximation to get started with.</p>
+
+<h3 id="Uploading-a-new-module">Uploading a new module</h3>
+
+<p>If you upload a new module to CPAN, you become the <i>owner</i> of that module. From that point forward only you can upload that module, unless you give someone co-maint permissions for your module.</p>
+
+<p>If you upload a new dist that contains multiple new modules, then you&#39;re given ownership for each module.</p>
+
+<p>When you upload a dist to PAUSE, you get two emails back. The first tells you whether the dist was successfully uploaded to your author&#39;s directory. PAUSE then checks whether you have upload permissions for every module. If you don&#39;t, the second email will identify the offending modules, and the dist won&#39;t be <i>indexed</i>. <a href="http://search.cpan.org">search.cpan.org</a> flags such uploads as an <b>** UNAUTHORIZED RELEASE **</b>.</p>
+
+<h3 id="perms.txt"><i>06perms.txt</i></h3>
+
+<p>PAUSE holds all information about users, modules, releases, permissions, and more, in a database. Some of this information is dumped into text files by hourly cronjobs; these files are distributed on CPAN.</p>
+
+<p>The permissions data is written to <a href="http://www.cpan.org/modules/06perms.txt">06perms.txt</a>. The body of this file is a CSV, with triples that give module name, PAUSE id, and permission.</p>
+
+<pre><code> % grep Module::Path, 06perms.txt
+ Module::Path,NEILB,f</code></pre>
+
+<p>The &#39;<b>f</b>&#39; permission (&#39;first come&#39;) says that I was the first person to upload the module, so I&#39;m the owner.</p>
+
+<p>I recently took over maintenance of <a href="https://metacpan.org/module/enum">enum</a> from ZENIN, and was granted co-maintenance by the PAUSE admins (with ZENIN&#39;s blessing):</p>
+
+<pre><code> % grep ^enum, 06perms.txt
+ enum,NEILB,c
+ enum,ZENIN,m</code></pre>
+
+<p>The &#39;<b>m</b>&#39; permission against ZENIN says that he registered it on the module list. Within PAUSE, ZENIN also has the &#39;f&#39; permission, but &#39;m&#39; takes precedence, so that&#39;s what&#39;s listed.</p>
+
+<p><a href="https://metacpan.org/module/PAUSE::Permissions">PAUSE::Permissions</a> gives a simple interface to <code>06perms.txt</code>, letting you iterate over it either line-by-line, or by module.</p>
+
+<h3 id="Co-maint">Co-maint</h3>
+
+<p>If you have co-maint permissions for a module, you can upload a new version onto CPAN, but you can&#39;t grant co-maint permissions to anyone else. Only the owner can do that.</p>
+
+<p>In <i>06perms.txt</i>, co-maint is indicated with a &#39;c&#39;. There are a small number of modules that have both &#39;m&#39; and &#39;f&#39; permissions, for different users. As noted above, the &#39;m&#39; takes precedence, and the user with &#39;f&#39; is treated as a co-maint.</p>
+
+<h3 id="Deleting-dists">Deleting dists</h3>
+
+<p>You can only delete dists that you uploaded. Even if you&#39;re the owner, you can&#39;t delete dists uploaded by someone with co-maint permission(s) (remember: the permissions model relates to modules, not dists).</p>
+
+<p>If you upload a dist containing one new module, and later delete the dist (via PAUSE), then the module won&#39;t exist on CPAN, but you&#39;ll have an &#39;f&#39; permission, and no-one will be able to use that namespace. This can be an issue if you refactor a dist, and change some class names.</p>
+
+<p>You can release the permissions via the PAUSE web interface (&quot;Change Permissions&quot;), either by transferring them to another PAUSE user, or relinquishing them, which means anyone could then use that module name.</p>
+
+<h3 id="Watch-out-for-inconsistent-permissions">Watch out for inconsistent permissions</h3>
+
+<p>Let&#39;s say you upload a dist containing a number of modules. You&#39;ll be owner (&#39;f&#39; permission) for all modules. Later, you grant co-maint permissions to a couple of friends, giving them &#39;c&#39; permissions for all modules. You take it in turns to do releases, using a shared GitHub repo.</p>
+
+<p>If one of your friends adds a new module, (s)he will be given ownership of that module (&#39;f&#39;irst come), and the rest of you won&#39;t have permissions. If you subsequently try to release a version of the dist, it will fail the indexing stage, because you don&#39;t have permission for one of the modules in the dist. When someone adds a new class, they need to remember to give co-maint permissions to everyone else (using the PAUSE web interface).</p>
+
+<h3 id="Check-your-dists">Check your dists!</h3>
+
+<p>If you install <a href="https://metacpan.org/module/App::PAUSE::CheckPerms">App::PAUSE::CheckPerms</a>, you&#39;ll get a script which will check the permissions consistency of all your dists. For example, if you run:</p>
+
+<pre><code> % pause-checkperms --user DOY</code></pre>
+
+<p>you&#39;ll see a number of dists listed, including:</p>
+
+<pre><code> Resource-Pack
+   Resource::Pack              | doy STEVAN
+   Resource::Pack::Dir         | doy STEVAN
+   Resource::Pack::File        | doy STEVAN
+   Resource::Pack::FromFile    | DOY
+   Resource::Pack::Installable | DOY
+   Resource::Pack::Resource    | DOY
+   Resource::Pack::URL         | doy STEVAN</code></pre>
+
+<p>The owner of a module is indicated by an UPPER CASE pause id. A lower-case pause id signifies co-maint. In this example, STEVAN couldn&#39;t release the dist, and neither DOY nor STEVAN could grant co-maint to a third party on their own.</p>
+
+<p>The <a href="https://metacpan.org/module/comaint">comaint</a> script that comes with <a href="https://metacpan.org/module/App::PAUSE::Comaint">App::PAUSE::Comaint</a> can be used to give co-maint permissions on the command-line.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/App::PAUSE::CheckPerms">App::PAUSE::CheckPerms</a></p>
+
+</li>
+<li><p><a href="https://github.com/andk/pause">the PAUSE source code</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/App::PAUSE::Comaint">App::PAUSE::Comaint</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/b2283ad5d3aa7531e014ea9994d2fc15?r=g&s=80&d=retro />
+This article contributed by: Neil Bowers &lt;neil@bowers.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Web done better!" href="2013-12-07.html">Previous</a></li>
+
+    <li class="next"><a title="Localize Your Perl Apps with this One Weird Trick" href="2013-12-09.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,271 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Object::Realize::Later</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 12th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Object::Realize::Later</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../11th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../13th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Have you ever written an object that has to do something really quite
+intensive whenever it's created - process some data, load something
+across a network - and thought to yourself "do I really need to do
+this?  Will this actually be used?  Or will the program just check
+some simple attribute and discard the object, and I'll have wasted
+all that processing power?</p>
+<p>Often you need to create objects that will never be used.  For
+example, imagine the situation where you have a routine that returns
+a array of objects that represent all the image files in a directory.
+Now, actually loading the images from these files is quite a slow
+task, relatively speaking, and we'd rather not do it if we didn't have
+to.  If we load each image as we create the object it'll take a few
+seconds on a big directory just to return the array.  The trouble is
+that we have no idea which images the person's just going to be just
+checking the filename of, and which one he's going to need to get at
+the actual image data for.</p>
+<p>When it comes down to it it's often a lot easier to code your objects
+to initialise themselves properly at load time than having each and
+every method check if some data has loaded already and load it if it
+hasn't.  And as easier often translates as "faster to code" that's
+often what people do.</p>
+<p>What we really need is some kind of mechanism that allows us to
+automatically do tasks the first time someone tries to do something
+complicated with the object.  A system that allows us to transform
+our simple object into a fully realised one that has all it's data
+in place.  What we need is <b>Object::Realize::Later</b></p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Object::Realize::Later">[Read the documentation for Object::Realize::Later on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>So, for once my foreword contains a useful example that I'll hope to
+illustrate further in this section.  Let's write a really simple example
+of an object that represents an image file.</p>
+<pre>  package MyImage;</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load the GD image handling library
+  use GD;</pre>
+
+<pre>  # constructor, takes an file name as an argument 
+  # and loads the image
+  sub new
+  {
+    my $class = shift;     # the class name
+    my $filename = shift;  # the image filename</pre>
+
+<pre>    # create the object
+    my $self = bless {}, $class;</pre>
+
+<pre>    # load the image
+    $self-&gt;{image} = GD::Image-&gt;new($filename)
+      or die "Cannot load image";</pre>
+
+<pre>    # store the filename
+    $self-&gt;{filename} = $filename;</pre>
+
+<pre>    # return the object
+    return $self;
+  }</pre>
+
+<pre>  # return the image filename
+  sub filename
+  {
+    my $self = shift;
+    return $self-&gt;{filename};
+  }</pre>
+
+<pre>  # return the size of the image
+  sub size 
+  {
+    my $self = shift;
+    return ($self-&gt;{image}-&gt;getBounds());
+  }</pre>
+
+<pre>  # the image as a png
+  sub png
+  {
+   my $self = shift;
+   return $self-&gt;{image}-&gt;png
+  }</pre>
+
+<pre>  # the image as a jpeg
+  sub jpeg
+  {
+   my $self = shift;
+   return $self-&gt;{image}-&gt;jpeg
+  }</pre>
+
+<pre>  1;</pre>
+
+<p>The way this is coded, it loads the image data from disk as soon as
+the object is created.  This is wasteful if we're only interested in
+retrieving the filename at a later date.  The solution is to create a
+'proxy' class that only will store and return the filename.  Any other
+calls on it will cause it to automatically upgrade itself to a real
+<b>MyImage</b> object.</p>
+<pre>  package MyImage::Proxy;</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  # when any method that isn't defined for this object is called
+  # 'realise' it by calling 'load' to turn it into a 'MyImage'
+  use Object::Realize::Later
+            becomes =&gt; 'MyImage',   # class it'll become
+            realize =&gt; 'load';      # method that'll do it</pre>
+
+<pre>  # the constructor.  It's exactly the same as before,
+  # just without the image being loaded.
+  sub new
+  {
+    my $class = shift;
+    my $self = bless {}, $class;</pre>
+
+<pre>    # store the filename
+    $self-&gt;{filename} = shift;</pre>
+
+<pre>    return $self;
+  }</pre>
+
+<pre>  # define the filename method.  As this method is defined,
+  # calling it won't cause the object to be realised.
+  sub filename
+  {
+    my $self = shift;
+    return $self-&gt;{filename};
+  }</pre>
+
+<pre>  # The method that defines how we should turn this 
+  # "MyImage::Proxy" into a "MyImage"
+  sub load
+  {
+    my $self = shift;
+    
+    # change the class by reblessing it into the new class
+    bless $self, "MyImage";</pre>
+
+<pre>    # load the data that's missing
+    $self-&gt;{image} = GD::Image-&gt;new($self-&gt;{filename})
+        or die "Cannot load image";</pre>
+
+<pre>    # return it
+    return $self;
+  }</pre>
+
+<pre>  1;</pre>
+
+<p>So, let's run though a typical example of using this code.  Let's
+create a new image object and check what class it is</p>
+<pre>  # create an image
+  my $image = MyImage::Proxy-&gt;new("camel.jpg");
+  print $image-&gt;filename, " = ", ref($image), "\n";
+  
+This, as we expect, prints out </pre>
+
+<pre>  camel.jpg = MyImage::Proxy</pre>
+
+<p>Now let's try saving the image as a PNG file.</p>
+<pre>  use IO::File;
+  my $fh = IO::File-&gt;new("camel.png","&gt;")
+    or die "Can't open camel.png: $!";
+  binmode $fh;
+  print {$fh} $image-&gt;png;</pre>
+
+<p>Which works, even though <b>MyImage::Proxy</b> doesn't have a <code>png</code>
+method.  As soon as an unknown method was called on <code>$image</code> the
+<code>load</code> method was called.  This converts the object into an instance
+of <b>MyImage</b> by reblessing it into that class and loading the missing
+data.  Now when <code>png</code> is automatically called again on the object by
+<b>Object::Realize::Later</b> it will be successful - as a now the object 
+is a <b>MyImage</b> it does have a <code>png</code> method.  We can confirm all
+of this by printing out the class again:</p>
+<pre>  print $image-&gt;filename, " = ", ref($image), "\n";</pre>
+
+<p>Which this time now prints out the new class of</p>
+<pre>  camel.jpg = MyImage</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.perldoc.com/perl5.8.0/pod/perltoot.html#AUTOLOAD--Proxy-Methods">perltoot on AUTOLOADing</a></li>
+<li><a href="http://search.cpan.org/author/GAAS/Image-Info/Info.pm.tmpl">Image::Info</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:53 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

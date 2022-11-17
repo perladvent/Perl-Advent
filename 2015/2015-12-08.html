@@ -1,0 +1,262 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2015 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2015.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2015 - 
+Live programming perl with Reply
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2015</a></h1>
+        </div>
+
+        <p id="tagline">2015 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Live programming perl with Reply</h1>
+<div class='subtitle'>Reply - 2015-12-08</div>
+
+<div class='pod'><p>Of all the things Perl is and is not, it is most definitely a dynamic language. We don&#39;t run Perl through a compiler and then run the resulting executable, we just give perl some code and it runs it. In a language like C or Java, we&#39;d have to rebuild every time we wanted to run a test, but Perl allows me to hit &#39;save&#39; in my editor, alt-tab to my terminal and hit <code>&lt;up&gt;&lt;enter&gt;</code> to rerun my test.</p>
+
+<p>Obviously this helps speed up my test workflow enormously, but we can still do better. What if we could edit our application while it was running? This is the promise of a REPL (Read Eval Print Loop). In this article we&#39;ll be exploring a new REPL for Perl called <code>Reply</code> to do some live-coding.</p>
+
+<p>You&#39;ll need a recent-ish perl installed as well as git if you&#39;re going to follow along</p>
+
+<h3 id="Installation">Installation</h3>
+
+<p>Let&#39;s try installing Reply through cpanminus with the <code>cpanm</code> utility (my prompt is the simple <code>%</code>):</p>
+
+<pre><code>    % cpanm Reply Term::ReadLine::Gnu Proc::InvokeEditor
+    --&gt; Working on Reply
+    Fetching http://www.cpan.org/authors/id/D/DO/DOY/Reply-0.37.tar.gz ... OK
+    Configuring Reply-0.37 ... OK
+    ==&gt; Found dependencies: Config::INI::Reader::Ordered
+    --&gt; Working on Config::INI::Reader::Ordered
+    Fetching http://www.cpan.org/authors/id/R/RJ/RJBS/Config-INI-Reader-Ordered-0.020.tar.gz ... OK
+    Configuring Config-INI-Reader-Ordered-0.020 ... OK
+    Building and testing Config-INI-Reader-Ordered-0.020 ... OK
+    Successfully installed Config-INI-Reader-Ordered-0.020
+    Building and testing Reply-0.37 ... OK
+    Successfully installed Reply-0.37
+    2 distributions installed</code></pre>
+
+<p>Don&#39;t worry if your output looks different, so long as the modules installed successfully, you&#39;re good to go! We&#39;re also installing a bunch of other modules that are required for some of the plugins we&#39;ll try later to work.</p>
+
+<h3 id="Getting-Started">Getting Started</h3>
+
+<p>Let&#39;s open a repl with the <code>reply</code> command:</p>
+
+<pre><code>    % reply
+    /Users/user/.replyrc not found. Generating a default...
+    0&gt;</code></pre>
+
+<p>Okay, looks good so far. Let&#39;s try running some basic Perl:</p>
+
+<pre><code>    0&gt;  $i = &quot;foo&quot;
+    Global symbol &quot;$i&quot; requires explicit package name at reply input line 1.
+    BEGIN not safe after errors--compilation aborted at reply input line 7.</code></pre>
+
+<p>Okay, so we&#39;re running under <i>strict</i>. Excellent! I also notice that readline bindings work, so you can use the arrow keys and standard readline shortcuts easily to edit your input. Autocomplete &#39;just works&#39;(tm) as well (it&#39;s on the <code>TAB</code> key)</p>
+
+<pre><code>    1&gt; my $i = &quot;foo&quot;
+    $res[0] = &#39;foo&#39;</code></pre>
+
+<p>Okay, the basics work. Note also that we don&#39;t need to put a semicolon at the end of a line. When you hit enter, it will treat it as a complete statement. That&#39;s an important limitation that&#39;s worth mentioning.</p>
+
+<p>Let&#39;s see if we can load it into an existing project. Quit reply with <code>Ctrl-c</code> and find some code.</p>
+
+<pre><code>    % cd ~/code/asset-pack # my local copy of https://github.com/jjl/asset-pack.git
+    % reply -Ilib # -Ilib = add &#39;lib&#39; to @INC so we can see those perl modules
+    0&gt; use Asset::Pack;
+    1&gt; </code></pre>
+
+<p>Hurray, that worked. Sadly Asset::Pack isn&#39;t useful unless you want to package an asset as a Perl file, so let&#39;s use the repl to explore <code>List::Util</code>:</p>
+
+<pre><code>    1&gt; use List::Util qw(first);
+    2&gt; first {/abc/} &quot;def&quot;, &quot;hij&quot;
+    $res[0] = undef
+    3&gt; first {/abc/} &quot;abc&quot;, &quot;def&quot;
+    $res[1] = &#39;abc&#39;</code></pre>
+
+<p>These two simple examples show off &#39;first&#39;, which takes a block. Let&#39;s look at its prototype:</p>
+
+<pre><code>    4&gt; prototype(\&amp;first)
+    $res[2] = &#39;&amp;@&#39;</code></pre>
+
+<h3 id="Plugins-Intro">Plugins Intro</h3>
+
+<p>At this point you can already do a fair amount. Now let&#39;s look at that <code>.replyrc</code> file that reply said it wrote earlier:</p>
+
+<pre><code>    # less ~/.replyrc
+    script_line1 = use strict
+    script_line2 = use warnings
+    script_line3 = use 5.020001
+    
+    [Interrupt]
+    [FancyPrompt]
+    [DataDumper]
+    [Colors]
+    [ReadLine]
+    [Hints]
+    [Packages]
+    [LexicalPersistence]
+    [ResultCache]
+    [Autocomplete::Packages]
+    [Autocomplete::Lexicals]
+    [Autocomplete::Functions]
+    [Autocomplete::Globals]
+    [Autocomplete::Methods]
+    [Autocomplete::Commands]</code></pre>
+
+<p>Wow, that&#39;s quite a lot. Comparing against <a href="https://metacpan.org/release/Reply">https://metacpan.org/release/Reply</a>, I see that&#39;s most of the plugins that ship in the core distribution!</p>
+
+<p>Here&#39;s what these plugins do (and what you&#39;re getting out of the box!)</p>
+
+<table class="pretty-table">
+
+<thead>
+<tr>
+<td>Name</td>
+<td>Purpose</td>
+</tr>
+</thead>
+
+<tbody>
+<tr class="alt">
+<td>Interrupt</td>
+<td>Stop long-running code with <code>ctrl-c</code></td>
+</tr>
+
+<tr>
+<td>FancyPrompt</td>
+<td>Adds a line counter to the prompt</td>
+</tr>
+
+<tr class="alt">
+<td>DataDumper</td>
+<td>Formats results with <code>Data::Dumper</code></td>
+</tr>
+
+<tr>
+<td>Colors</td>
+<td>Colors results</td>
+</tr>
+
+<tr class="alt">
+<td>ReadLine</td>
+<td>Enables ReadLine input method (keybindings)</td>
+</tr>
+
+<tr>
+<td>Hints</td>
+<td>Enables <code>strict</code> to work, among others (persists hints)</td>
+</tr>
+
+<tr class="alt">
+<td>Packages</td>
+<td>Makes <code>package</code> declarations work</td>
+</tr>
+
+<tr>
+<td>LexicalPersistence</td>
+<td>Makes <code>my</code> declarations work</td>
+</tr>
+
+<tr class="alt">
+<td>ResultCache</td>
+<td>Results are put into <code>@res</code> for later use</td>
+</tr>
+
+<tr>
+<td>Autocomplete::*</td>
+<td>Autocompletion of various types</td>
+</tr>
+
+</tbody>
+</table>
+
+<p>If you don&#39;t want some of those, simply delete those lines from your config file and they won&#39;t be loaded next time you start a repl.</p>
+
+<p>Take a look at <a href="https://metacpan.org/release/Reply">https://metacpan.org/release/Reply</a> to see all the basic plugins.</p>
+
+<h3 id="Editing-multiple-lines">Editing multiple lines</h3>
+
+<p>One of the handier plugins is <a href="https://metacpan.org/module/Reply::Plugin::Editor">Reply::Plugin::Editor</a>, which allows you to edit multiple lines in your text editor of choice. Add this to the bottom of your <code>.replyrc</code>:</p>
+
+<pre><code>    [Editor]
+    editor=emacs # or vim, nano etc...</code></pre>
+
+<p>Now when you&#39;re in reply and you type <code>#e</code>, your editor will open. When you save the file and quit your editor, the code will be evaluated all at once. This allows you to define subroutines more easily because now you can split statements over multiple lines.</p>
+
+<pre><code>    0&gt; #e
+    &lt;editor opens&gt;
+    sub hello {
+      &quot;Hello, @{[shift]}.&quot;;
+    }
+    &lt;save and close&gt;
+    1&gt; hello(&quot;world&quot;)
+    $res[0]=&quot;Hello, world.&quot;</code></pre>
+
+<h3 id="SEE-ALSO">SEE ALSO</h3>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Reply">Reply</a> - Reply documentation</p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Reply::Plugin::AutoRefresh">Reply::Plugin::AutoRefresh</a> - Automatic code reloading when files change</p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Reply::Plugin::CollapseStack">Reply::Plugin::CollapseStack</a> - Truncate stack traces by default</p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Reply::Plugin::CarpReply">Reply::Plugin::CarpReply</a> - Get a repl on uncaught exception</p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Reply::Plugin">Reply::Plugin</a> - Base class for Reply plugins (develop your own!)</p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/f357466ed335948a574ddc01da869cdd?r=g&s=80&d=retro />
+This article contributed by: James Laver &lt;james.laver@gmail.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Sharing templates will get you on the nice list" href="2015-12-07.html">Previous</a></li>
+
+    <li class="next"><a title="Scrape the Halls" href="2015-12-09.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

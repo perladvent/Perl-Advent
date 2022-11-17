@@ -1,0 +1,316 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Devel::DProf</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 25th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Devel::DProf</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../24th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="/2003/1st/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>When I write Perl code, I write it to be maintainable and easily
+understood (or at least I try, those of you that have been following
+the Calendar may well disagree.)  The speed it executes at isn't
+really my main concern - it's the speed I can write it and make sure
+it does what it's supposed to that's important.</p>
+<p>Of course, there are times where how quickly your code runs does
+matter.  Santa would not be happy if his program took more than one
+evening to calculate where the next present he should deliver.  Of
+course, you could counter that by saying that he wouldn't be happy if
+elves hadn't completed the changes to the program by Christmas Eve.</p>
+<p>When it comes down to it we can spend forever and a day tweaking code
+making that little bit faster, but none of us actually have time to do
+that.  What we need to do is tweak the right bit of the code that
+makes the most significant change to the speed of the program.  If
+we're not careful we can spend weeks tweaking the wrong bit and get
+only miniscule speed increase.</p>
+<p>This is where I find <b>Devel::DProf</b> comes in.  It can profile our
+code and tell us how long we're taking running various sections of code
+and then armed with this information we can (hopefully) tweak the
+section of code we spend the most time in.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Devel::DProf">[Read the documentation for Devel::DProf on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>So, I'm sitting here on Christmas Eve considering the fact that if I
+don't write all you good people a nice Advent Calendar for tomorrow
+then Santa won't bring me any presents.</p>
+<p>Hmm, better look into my home directory and dig up some code...ah, the
+Expert Perl Quiz of the Week Number 4.  Does anyone remember this?  It
+was a simple quiz where you had to write a function that given two
+anagrams would decide how few chunks the first would have to be split
+up into so that when they would rearranged they would form the anagram.</p>
+<p>So, what did I end up writing...something like this:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on Perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  use Algorithm::Permute;</pre>
+
+<pre>  # subroutine to work out the minimum number of chunks one word
+  # has to be broken into to be rearranged into another
+  sub min_chunks
+  {
+    # get the word
+    my $word = shift;
+    my $target = shift;</pre>
+
+<pre>    # okay, try breaking it into 1 bit, 2 bits, 3 bits, etc..
+    foreach my $bits (1..length($word))
+    {
+      # get the list of possible ways this can be broken up
+      # into this many bits
+      foreach my $result (divide($word, $bits))
+      {
+        # see if any permutation of those bits match the target
+        my $p = Algorithm::Permute-&gt;new($result);
+        while (my @res = $p-&gt;next)
+        {
+          # we got a match?  Wonderful!  Return the number of bits
+  	  return $bits if (join '', @res) eq $target;
+        }
+      }
+    }</pre>
+
+<pre>    # no match? return undef;
+    return undef;
+  }</pre>
+
+<pre>  # routine that returns all the possible ways a word can
+  # be broken up into the passed number of bits.  Returns
+  # a list of array refs that contain bits
+  sub divide
+  {
+    my $string    = shift;
+    my $divisions = shift;</pre>
+
+<pre>    # base case, one string, not divided
+    return [$string] if $divisions == 1;</pre>
+
+<pre>    # recursive case...for every possible bit at the start
+    my @result;
+    for my $place (1..( length($string)-$divisions+1 ))
+    {
+      # get the front of the string
+      my $head = substr($string,0,$place);</pre>
+
+<pre>      # and combine it with every possible tail
+      foreach my $tail ( divide(substr($string,$place),$divisions-1) )
+      {
+        # store this possible combination and move on
+        push @result, [ $head, @{ $tail } ]
+      }
+    }</pre>
+
+<pre>    # and return it
+    return @result;
+  }</pre>
+
+<pre>  # test data
+  print min_chunks("addresser","readdress");
+  print min_chunks("foobarbob","fobbarobo");
+  print min_chunks("abcdefgh","hgfedcba");
+  print min_chunks("aaaaaaab","baaaaaaa");
+  print min_chunks("fishfosha","afishfosh");
+  print min_chunks("eetr","tree");</pre>
+
+<p>Great!  But it runs <i>so</i> slowly.  It takes a few seconds on my
+machine and it's not even accessing the disk, database, or even
+printing anything out.  Can we make it go faster?  Well, we need to
+run it with <b>Devel::DProf</b> to find out what it's spending all it's
+time doing.  <b>Devel::DProf</b> interfaces with perl by hooking into the
+debugger code.  In order to profile a code you need to run it with the
+<code>-d</code> flag to specify <b>Devel::DProf</b> as the debugger.</p>
+<pre>  [mark@gan] perl -d:DProf perms.pl </pre>
+
+<p>This runs the code as normal (but a bit slower) but what it also does
+is create a <code>tmon.out</code> file in the current directory.  You can open
+this file up with your favourite editor and have a look at the
+unintelligible shorthand it's stored in here for everything your script
+did.  What you really want to do is convert that file into something
+more meaningful.  The <code>dprofpp</code> program can read in the file and will
+print out the 15 top called subroutine.</p>
+<pre>  [mark@gan] dprofpp
+  Total Elapsed Time = 2.407621 Seconds
+    User+System Time = 2.367621 Seconds
+  Exclusive Times
+  %Time ExclSec CumulS #Calls sec/call Csec/c  Name
+   78.3   1.856  2.924      6   0.3094 0.4873  main::min_chunks
+   55.7   1.319  1.038  62769   0.0000 0.0000  Algorithm::Permute::next
+   0.84   0.020  0.019    321   0.0001 0.0001  Algorithm::Permute::DESTROY
+   0.84   0.020  0.013    581   0.0000 0.0000  main::divide
+   0.42   0.010  0.010      1   0.0100 0.0099  DynaLoader::bootstrap
+   0.00   0.000  0.010      3   0.0000 0.0033  main::BEGIN
+   0.00   0.000 -0.000      2   0.0000      -  strict::import
+   0.00   0.000 -0.000      2   0.0000      -  strict::bits
+   0.00   0.000 -0.000      1   0.0000      -  warnings::import
+   0.00   0.000 -0.000      2   0.0000      -  Algorithm::Permute::BEGIN
+   0.00   0.000 -0.000      1   0.0000      -  vars::import
+   0.00   0.000 -0.000      1   0.0000      -  DynaLoader::dl_load_flags
+   0.00   0.000 -0.000      1   0.0000      -  DynaLoader::dl_load_file
+   0.00   0.000 -0.000      1   0.0000      -  DynaLoader::dl_undef_symbols
+   0.00   0.000 -0.000      1   0.0000      -  DynaLoader::dl_find_symbol</pre>
+
+<p>Ah, so we see that over 78% of our time is being spent in the
+<code>min_chunks</code> routine.  We can see that with our test data almost no
+of the execution time is being spent in the <b>divide</b> routine.
+Optimising that would just be pointless, even though it's using a
+technique called 'tail recursion' which is notoriously slow; It would
+seem it's taking up so little time it's almost not worth bothering
+altering it.</p>
+<p>So, we look at <code>min_chunks</code> and we realise that there's obvious way
+to make it faster.  So, let's have a look at the next thing down on
+our hitlist.  Gadzooks, <code>Algorithm::Permute::next</code> is taking up at
+least 55% of the execution time just on it's own.  We look at the
+documentation for this module and find that there's a callback
+interface that's quicker.  Let's use that.  Now before we change any
+code we <b>backup our script</b> (so when we make a mistake we can
+revert.)  I can't emphasise this enough (speaking from experience.)  So
+let's change the code from the object interface to the functional
+interface and see if it goes any faster.  Firstly we need to import
+the function from the <b>Algorithm::Permute</b> module, so we change</p>
+<pre>   use Algorithm::Permute;</pre>
+
+<p>To:</p>
+<pre>   use Algorithm::Permute qw(permute);</pre>
+
+<p>And then we rewrite the major chunk where we use <b>Algorithm::Permute</b>
+as an object like so:
+  
+       my $p = Algorithm::Permute-&gt;new($result);
+       while (my @res = $p-&gt;next)
+       {
+  	return $bits if (join '', @res) eq $target;
+       }</p>
+<p>To use it with the functional interface like so:</p>
+<pre>      # get the possibilities
+      my @data = @{ $result };</pre>
+
+<pre>      # see if any permutation of those bits match the target
+      my $foo;
+      permute { $foo = $bits if (join('', @data) eq $target) }
+              @data;
+      return $foo if $foo;</pre>
+
+<p>Note that now we're running more code than we actually need to now -
+no longer are we short circuiting the permutations as soon as we find
+a match.  However, Perl's odd like that - sometimes what you might
+expect to take longer sometimes doesn't.  To be truthful the only
+way we're going to see if our code is faster is to profile it again</p>
+<pre>  [mark@gan] perl -d:DProf perms.pl  
+  358222</pre>
+
+<pre>  [mark@gan] bash-2.05b$ dprofpp 
+  Total Elapsed Time = 0.722584 Seconds
+    User+System Time = 0.583314 Seconds
+  Exclusive Times
+  %Time ExclSec CumulS #Calls sec/call Csec/c  Name
+   82.2   0.480  0.479    321   0.0015 0.0015  Algorithm::Permute::permute
+   6.86   0.040  0.073    581   0.0001 0.0001  main::divide
+   6.69   0.039  0.552      6   0.0064 0.0920  main::min_chunks
+   0.00   0.000 -0.000      3   0.0000      -  main::BEGIN
+   0.00   0.000 -0.000      2   0.0000      -  strict::import
+   0.00   0.000 -0.000      2   0.0000      -  strict::bits
+   0.00   0.000 -0.000      1   0.0000      -  warnings::import
+   0.00   0.000 -0.000      2   0.0000      -  Algorithm::Permute::BEGIN
+   0.00   0.000 -0.000      1   0.0000      -  vars::import
+   0.00   0.000 -0.000      1   0.0000      -  DynaLoader::bootstrap
+   0.00   0.000 -0.000      1   0.0000      -  DynaLoader::dl_load_flags
+   0.00   0.000 -0.000      1   0.0000      -  DynaLoader::dl_load_file
+   0.00   0.000 -0.000      1   0.0000      -  DynaLoader::dl_undef_symbols
+   0.00   0.000 -0.000      1   0.0000      -  DynaLoader::dl_find_symbol
+   0.00   0.000 -0.000      1   0.0000      -  DynaLoader::dl_install_xsub</pre>
+
+<p>Not only have we cut out the expensive time for the <code>next</code> routine,
+but we've also greatly reduced the time the <code>min_chunks</code> had to run -
+I guess all that loop operation at setting up and destroying objects
+took its toll.  It turns out that the functional interface is
+sufficiently faster for our test data that although it tries more
+permutations, in the end overall it's quicker.  To be honest I'd have
+never guessed that.  Which just goes to show how useful Devel::DProf
+is...</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.ccl4.org/~nick/P/Fast_Enough/">When Perl is Not Fast Enough (YAPC::Europe talk by Nicholas Clark)</a></li>
+<li><a href="http://www.perladvent.org/2002/6th/">Benchmark</a></li>
+<li><a href="http://perl.plover.com/qotw/">Perl Quiz Of The Week</a></li>
+<li><a href="http://perl.plover.com/~alias/list.cgi?mss:21:200211:jnohcfmlpgajmfjcgonk">Perl Quiz Of The Week 4</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:54 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

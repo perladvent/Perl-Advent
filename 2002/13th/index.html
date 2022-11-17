@@ -1,0 +1,261 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Benchmark</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 13th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Benchmark</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../12th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../14th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>The thing about writing Perl, is that often there's more than one way
+to do it - a particular task, a way of coding.  Perl's a very
+adaptable programming language that lends itself to many different
+programming styles.  There's more than one way to do it because
+Perl allows you to be expressive in the style that most makes sense
+to you - whither it be functional, procedural, object-oriented or
+declarative.</p>
+<p>The thing about all of these is that someone will always try to tell
+you that you should be doing another way to what you're currently
+doing.  Of course, most of the time you should be doing it in the way
+that makes the most sense to you, and makes the code the most
+readable and maintainable.  After all, it's your time (and that of any
+other people that have to look at your code) that's probably your most 
+important asset.</p>
+<p>But then again, there are what's known as <i>hot</i> sections of code.
+Sections of code that run over and over again in the middle of a
+loop.  While it's really not worth worrying about how fast a bit
+of code is that runs once or twice, the bit of code that you run
+a million or so times over might just be worth optimising a little.</p>
+<p>So you can go and optimise your code following all the guidelines.
+This is a great idea, until you realise that you really don't have
+any idea how much of a difference you're making.  It's probably not
+worth spending a week getting some code to run 10% faster if you're
+only going to be running it for a couple of days.  So how do you
+find out if your code <i>actually</i> is faster than that other code?
+Why you benchmark it!</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Benchmark">[Read the documentation for Benchmark on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Benchmark's really simple to use, and instantly gives you the idea how
+much quicker on bit of code runs than the other.  Let's try running
+two subroutines that sort different lists and see which one's quicker.</p>
+<pre>  #!/usr/bin/perl
+  use Benchmark qw(:all);</pre>
+
+<pre>  # turn on perl's safety functions
+  use strict;
+  use warnings;</pre>
+
+<pre>  # places to store the results
+  my (@foo, @bar);</pre>
+
+<pre>  # lists to sort
+  my @normal   = (1..100_000);
+  my @reverse  = reverse @normal;</pre>
+
+<pre>  # run each sorting operation a hundred times and time how long
+  # it takes to run
+  timethese(100,{
+   'normal'  =&gt; sub { @foo = sort @normal   },
+   'reverse' =&gt; sub { @bar = sort @reverse  },
+  });</pre>
+
+<p>This tells us exactly how long each took to run.  From this we can see
+that quicksort fairs slightly better with a already ordered list compared
+to a reverse ordered list.</p>
+<pre>  Benchmark: timing 100 iterations of normal, reverse...
+      normal: 69 wallclock secs
+              (45.43 usr +  0.22 sys = 45.65 CPU) @  2.19/s (n=100)
+     reverse: 72 wallclock secs
+              (46.52 usr +  0.26 sys = 46.78 CPU) @  2.14/s (n=100)</pre>
+
+<p>If you're not familiar with what the various figures mean, then you
+might be deceived by the wallclock figures.  Don't - that's just how
+long the task was running for not how long it took.  For some of those
+wallclocks seconds my single processor computer was off doing other
+things - letting me type this tutorial into my editor, running irc in
+the background and decoding an mp3 - each of which may unfairly slow
+down the wallclock seconds figure.  What you need to be concerned
+about is the usr and sys times.  These are the amount of time your
+process was running on the processor and the amount of time the
+operating system was doing stuff on behalf of your program (memory
+operations mainly) respectively.  These are the figures that count.</p>
+<p>Of course, when it comes down to it we don't normally care how long it
+took something to run, after all the number of times we run each set
+of code is up to us, and it's purely an arbitrary decision.  What we
+really care is how much faster one runs than the other.  To do that
+we can use the <code>cmpthese</code> function instead.</p>
+<pre>  #!/usr/bin/perl
+  use Benchmark qw(:all);</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  my (@foo, @bar);</pre>
+
+<pre>  my @normal   = (1..100_000);
+  my @reverse  = reverse @normal;</pre>
+
+<pre>  cmpthese(100,{
+   'normal'  =&gt; sub { @foo = sort @normal   },
+   'reverse' =&gt; sub { @bar = sort @reverse  },
+  });</pre>
+
+<p>Which prints out the following results</p>
+<pre>  Benchmark: timing 100 iterations of normal, reverse...
+      normal: 70 wallclock secs
+              (45.48 usr +  0.24 sys = 45.72 CPU) @  2.19/s (n=100)
+     reverse: 70 wallclock secs
+              (46.35 usr +  0.23 sys = 46.58 CPU) @  2.15/s (n=100)
+            Rate reverse  normal
+  reverse 2.15/s      --     -2%
+  normal  2.19/s      2%      --</pre>
+
+<p>So we can see from that that reverse is 2% slower than normal, or
+normal is 2% faster than reverse, depending on how you look at it.
+This can be confusing sometimes, so let's look at a made up more 
+extreme example</p>
+<pre>            Rate    fred  barney
+  fred    4.02/s      --    -25%
+  barney  3.01/s     34%      --</pre>
+
+<p>In this case fred is 25% <i>slower</i> than barney, or barney is 34%
+<i>faster</i> than fred (again depending on how you look at it.)</p>
+<p>One thing it's possible to do with benchmarking if you're not careful
+is have the Perl interpreter do an optimisation that wouldn't happen
+in your actual code.  For example, if we remove the <code>@foo</code> and <code>@bar</code>
+arrays like so:</p>
+<pre>  #!/usr/bin/perl
+  use Benchmark qw(:all);</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  my @normal   = (1..100_000);
+  my @reverse  = reverse @normal;</pre>
+
+<pre>  timethese(100,{
+   'normal'  =&gt; sub { sort @normal   },
+   'reverse' =&gt; sub { sort @reverse  },
+  });</pre>
+
+<p>Then we get the rather odd output of:</p>
+<pre>  Benchmark: timing 100 iterations of normal, reverse...
+    normal:  1 wallclock secs 
+             ( 0.31 usr +  0.00 sys =  0.36 CPU) @ 322.58/s (n=100)
+             (warning: too few iterations for a reliable count)
+   reverse:  0 wallclock secs
+             ( 0.32 usr +  0.00 sys =  0.32 CPU) @ 312.50/s (n=100)
+             (warning: too few iterations for a reliable count)</pre>
+
+<p>As the Perl interpreter will assume that since the sort isn't being
+assigned to anything then it can optimise the whole sorting code away.
+So the code runs very very quickly - but totally negates the whole point
+of the test.</p>
+<p>Another really silly thing that you can do (and I must admit I wrote
+out myself before I started was paying attention) is to add spurious
+extra code into the subroutine we're timing.  Imagine that we don't
+bother defining the arrays before we start and define them inline</p>
+<pre>  #!/usr/bin/perl
+  use Benchmark qw(:all);</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  my (@foo, @bar);</pre>
+
+<pre>  timethese(100,{
+   'normal'  =&gt; sub { @foo = sort (1..100_000)         },
+   'reverse' =&gt; sub { @bar = sort reverse (1..100_000)  },
+  });</pre>
+
+<p>What's wrong here?  Well, we're reversing the list <i>inside the timed
+section</i>.  This means that the second subroutine times not only what
+we want to time, but the time it takes the time it takes to reverse
+a list too, which is totally spurious to our results.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/author/ANDREWHO/Benchmark-Timer/Timer.pm">Benchmark::Timer</a></li>
+<li><a href="http://search.cpan.org/author/DNEIL/Benchmark-Timer-Class/Class.pm">Benchmark::Timer::Class</a></li></p>
+<pre> 
+</pre>
+
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:53 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

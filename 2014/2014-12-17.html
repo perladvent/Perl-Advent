@@ -1,0 +1,171 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+Optional tests for optional requirements
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Optional tests for optional requirements</h1>
+<div class='subtitle'>Test::Requires - 2014-12-17</div>
+
+<div class='pod'><p>There are some modules on CPAN that provide optional features, where the availability of the feature is dependent on one or more other modules. One common example is optional support for export of data as an SQLite database, which is only supported if <a href="https://metacpan.org/module/DBD::SQLite">DBD::SQLite</a> is installed.</p>
+
+<p>Of course you want tests for all features of your module, and that means you need an optional test for your optional feature. And that&#39;s where <a href="https://metacpan.org/module/Test::Requires">Test::Requires</a> comes in.</p>
+
+<p>Let&#39;s say you&#39;ve got some module that builds up information from the net, then can export it in a number of formats. There might be some core formats, like JSON and XML, but there might be some optional ones, such as SQLite. So in your test directory, you might have a file `export-as-sqlite.t`, which would start with:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Test::Requires</span> <span class="words">qw/ DBD::SQLite /</span><span class="structure">;</span><br /><span class="comment"># write test that can safely assume that DBD::SQLite is available</span></code><br />&nbsp;</td></table>
+
+<p>If <a href="https://metacpan.org/module/DBD::SQLite">DBD::SQLite</a> isn&#39;t available, then the entire test-suite will be skipped. Unless you&#39;re running release tests (for example when running `dzil release`), in which case the test-suite will bail out.</p>
+
+<p>You can also use <a href="https://metacpan.org/module/Test::Requires">Test::Requires</a> to require a particular version of Perl for a specific test-suite:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Test::Requires</span> <span class="single">'5.010'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<h2 id="How-do-people-use-it-in-real-life">How do people use it in real life?</h2>
+
+<p>Sometimes you discover a new module that seems pretty groovy, but you can&#39;t imagine a use case where <i>you</i> might actually use it. A handy tip for such situations: use <a href="http://grep.cpan.me">grep.cpan.me</a> to find out how other people use the module. In the search box just enter:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Test::Requires</span></code><br />&nbsp;</td></table>
+
+<p>And you&#39;ll get a paged list of <a href="http://grep.cpan.me/?q=use+Test%3A%3ARequires">how existing modules use Test::Requires</a>. Let&#39;s look at some real-life examples for <a href="https://metacpan.org/module/Test::Requires">Test::Requires</a>!</p>
+
+<h3 id="BPM::Engine">BPM::Engine</h3>
+
+<p><a href="https://metacpan.org/module/BPM::Engine">BPM::Engine</a> is a &quot;Business Process Execution Engine&quot;, which can use various database back-ends. It has a class <code>t::TestUtils</code> used by all of the tests, and in there you&#39;ll see the line:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Test::Requires</span> <span class="single">'DBD::SQLite'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>There&#39;s an additional small point illustrated here. To run this test you also need <a href="https://metacpan.org/module/DBI">DBI</a> installed, but given that <a href="https://metacpan.org/module/DBD::SQLite">DBD::SQLite</a> depends on <a href="https://metacpan.org/module/DBI">DBI</a>, you are essentially covering both with the above statement. In general, if there&#39;s a chain of dependencies, you only need to specify the last module in the chain.</p>
+
+<h3 id="namespace::autoclean">namespace::autoclean</h3>
+
+<p><a href="https://metacpan.org/module/namespace::autoclean">namespace::autoclean</a> is used to ensure that symbols imported into your module don&#39;t pollute your namespace. It has a test file <a href="https://metacpan.org/source/ETHER/namespace-autoclean-0.22/t/moo.t">moo.t</a>, which tests usage of <a href="https://metacpan.org/module/namespace::autoclean">namespace::autoclean</a> with <a href="https://metacpan.org/module/Moo">Moo</a>. At the start of this file you&#39;ll see the following, which means that <a href="https://metacpan.org/module/Moo">Moo</a> isn&#39;t required to install <a href="https://metacpan.org/module/namespace::autoclean">namespace::autoclean</a></p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Test::More</span> <span class="float">0.88</span><span class="structure">;</span><br /><span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">package</span> <span class="word">Temp1</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="keyword">use</span> <span class="word">Test::Requires</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'Moo'</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">};</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Why this funny-looking construct? Unfortunately <code>use Test::Requires &#39;Foo::Bar&#39;</code> ends up running <code>eval &quot;use Foo::Bar&quot;</code>, which means that if <code>Foo::Bar</code> exports any symbols by default, then they&#39;ll end up in your namespace. Putting this in a sacrificial namespace avoids that problem.</p>
+
+<h3 id="Kavorka">Kavorka</h3>
+
+<p><a href="https://metacpan.org/author/TOBYINK">Toby Inkster</a>&#39;s <a href="https://metacpan.org/module/Kavorka">Kavorka</a> provides function and method declaration keywords that support signatures. Typically for Toby, he&#39;s made sure it plays nicely with <a href="https://metacpan.org/module/Moose">Moose</a>, <a href="https://metacpan.org/module/Mouse">Mouse</a>, and <a href="https://metacpan.org/module/Moo">Moo</a>. So in the test-suite <a href="https://metacpan.org/source/TOBYINK/Kavorka-0.036/t/21modifiers-moose.t#L1">21modifiers-moose.t</a> you&#39;ll see:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>&nbsp;<span class="keyword">use</span> <span class="word">Test::Requires</span> <span class="structure">{</span> <span class="single">'Moose'</span> <span class="operator">=&gt;</span> <span class="single">'2.0000'</span> <span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>This shows the syntax for specifying a minimum required version of the module.</p>
+
+<h3 id="ZeroMQ">ZeroMQ</h3>
+
+<p>Above I said that you only need to use <code>Test::Requires</code> on the last module in a dependency chain. But sometimes a test might require two independent modules. For example, <a href="https://metacpan.org/module/ZeroMQ">ZeroMQ</a>&#39;s <a href="https://metacpan.org/source/DMAKI/ZeroMQ-0.23/t/006_anyevent.t">006_anyevent.t</a> has the line:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Test::Requires</span> <span class="words">qw( Test::TCP AnyEvent )</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Which means the test will be skipped unless both modules are installed.</p>
+
+<h3 id="Tiffany">Tiffany</h3>
+
+<p><a href="https://metacpan.org/author/TOKUHIROM">TOKUHIROM</a>&#39;s <a href="https://metacpan.org/module/Tiffany">Tiffany</a> provides a generic interface to multiple templating engines. So by now you shouldn&#39;t be surprised to see the following line in a test:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Test::Requires</span> <span class="single">'Text::Xslate'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<h3 id="Text::Xslate">Text::Xslate</h3>
+
+<p>You really don&#39;t want memory leaks in your templating system, but not everyone will have modules like <a href="https://metacpan.org/module/Test::LeakTrace">Test::LeakTrace</a> installed. So <a href="https://metacpan.org/module/Text::Xslate">Text::Xslate</a>&#39;s test file <a href="https://metacpan.org/source/SYOHEX/Text-Xslate-3.3.3/t/010_internals/200_leaktrace.t">200_leaktrace.t</a> has:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Test::Requires</span> <span class="structure">{</span> <span class="single">'Test::LeakTrace'</span> <span class="operator">=&gt;</span> <span class="float">0.13</span> <span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>Similarly other modules have optional tests using <a href="https://metacpan.org/module/Devel::Monitor">Devel::Monitor</a>.</p>
+
+<h2 id="Summary">Summary</h2>
+
+<p><a href="https://metacpan.org/module/Test::Requires">Test::Requires</a> is handy when writing tests for a distribution that provides optional features based on modules in other CPAN distributions. Some common examples are:</p>
+
+<ul>
+
+<li><p>Supporting multiple database engines.</p>
+
+</li>
+<li><p>Supporting multiple template engines.</p>
+
+</li>
+<li><p>Where some things are only accessible via https, so you need <a href="https://metacpan.org/module/IO::Socket::SSL">IO::Socket::SSL</a>.</p>
+
+</li>
+<li><p>Supporting multiple serialisation modules, such as <a href="https://metacpan.org/module/Storable">Storable</a>, <a href="https://metacpan.org/module/Sereal">Sereal</a>, or even <a href="https://metacpan.org/module/DBD::SQLite">SQLite</a>.</p>
+
+</li>
+<li><p>Supporting multiple formats like YAML, JSON, XML.</p>
+
+</li>
+<li><p>Supporting multiple HTTP request user agents, such as <a href="https://metacpan.org/module/HTTP::Tiny">HTTP::Tiny</a>, <a href="https://metacpan.org/module/LWP">LWP</a>, <a href="https://metacpan.org/module/WWW::Mechanize">WWW::Mechanize</a>.</p>
+
+</li>
+<li><p>Running some tests only if certain <code>Devel::</code> modules are installed.</p>
+
+</li>
+</ul>
+
+<p>One thing to be aware of: <code>Test::Requires</code> ends up <code>use</code>&#39;ing the target modules.</p>
+
+<h3 id="See-Also">See Also</h3>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Test::RequiresInternet">Test::RequiresInternet</a> - skip test if we can&#39;t access the interwebs</p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Test::Requires::Env">Test::Requires::Env</a> - skip tests if certain environment variables aren&#39;t set (optionally requiring specific values).</p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/b2283ad5d3aa7531e014ea9994d2fc15?r=g&s=80&d=retro />
+This article contributed by: Neil Bowers &lt;neil@bowers.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="How Santa&#39;s Elves Keep their Workshop Tidy" href="2014-12-16.html">Previous</a></li>
+
+    <li class="next"><a title="Christmas Timekeeping" href="2014-12-18.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

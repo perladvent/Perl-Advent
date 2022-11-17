@@ -1,0 +1,147 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2016 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2016.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2016 - 
+Making Perl Functional
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2016</a></h1>
+        </div>
+
+        <p id="tagline">2016 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Making Perl Functional</h1>
+<div class='subtitle'>List::Util - 2016-12-15</div>
+
+<div class='pod'><p>&quot;So you see, I simply have too many nice children to sort from the naughty ones. There&#39;s only a few days until its time to take presents to only the nice ones,&quot; Santa said sadly. &quot;To make things worse, our database provider got DDoS&#39;d by the naughty children&#39;s botnets, and all I have is this CSV backup!&quot;</p>
+
+<p>&quot;Santa! Don&#39;t worry!&quot; said Isabella the elf cheerily. &quot;I think I have a solution to your problem!&quot;</p>
+
+<p>Santa looked at Isabella with keen interest. &quot;Well, what&#39;s that then?&quot; he asked curiously.</p>
+
+<h3 id="Using-functional-techniques-on-Perl-lists">Using functional techniques on Perl lists</h3>
+
+<p>Perl is not often thought of as a functional programming language, but it has the key list evaluation primitives of <code>filter</code> known as <code>grep</code> in Perl, <code>map</code>, and <code>reduce</code> (sometimes called <code>fold</code> in other languages.)</p>
+
+<p>Perl also supports functions as first-class variables, so it has all of the necessary ingredients to be a fruitful functional programming environment. (If this idea intrigues you, I very highly recommend Mark Jason Dominus&#39; excellent book <a href="http://hop.perl.plover.com/book/">Higher Order Perl</a> which you may read and download for free from his website.)</p>
+
+<p><code>grep</code> takes a list and applies a &quot;predicate&quot; - a code block that returns a true or false value. If the predicate returns true, the list item is passed into a new list. If the predicate returns false, the list item is discarded.</p>
+
+<p>Here&#39;s part of Santa&#39;s CSV file:</p>
+
+<pre><code>    id, name, nice, siblings, present
+    1, Hermione, 1, 0, Wand
+    2, Delores, 0, 1, Coal
+    3, Draco, 0, 0, Dirty sock
+    4, Ronald, 1, 6, Scarf</code></pre>
+
+<h3 id="Using-grep">Using grep</h3>
+
+<p>Our task here is to filter the naughty names from the nice ones. We&#39;re going to use <a href="https://metacpan.org/module/Text::CSV">Text::CSV</a> to parse the data, because friends don&#39;t let friends parse CSV using <code>split</code>.</p>
+
+<p>In this particular case, our predicate is very simple. We can check to see if the <code>nice</code> field contains a 1 or a 0. If it has a 1, we add the child to our list of nice children.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="float">5.014</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Text::CSV</span><span class="structure">;</span> <span class="comment"># could use Text::CSV_XS instead</span><br /><span class="keyword">use</span> <span class="word">IO::String</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$data</span> <span class="operator">=</span> <span class="heredoc">&lt;&lt;'DATA'</span><span class="structure">;</span><br /><span class="heredoc_content">id, name, nice, siblings, present<br />1, Hermione, 1, 0, Wand<br />2, Delores, 0, 1, Coal<br />3, Draco, 0, 0, Dirty sock<br />4, Ronald, 1, 6, Scarf<br /></span><span class="heredoc_terminator">DATA<br /></span><br /><span class="keyword">my</span> <span class="symbol">$fh</span> <span class="operator">=</span> <span class="word">IO::String</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="symbol">$data</span><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$csv</span> <span class="operator">=</span> <span class="word">Text::CSV</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span> <span class="structure">{</span> <span class="word">allow_whitespace</span> <span class="operator">=&gt;</span> <span class="number">1</span> <span class="structure">}</span> <span class="structure">);</span><br /><br /><span class="symbol">$csv</span><span class="operator">-&gt;</span><span class="word">column_names</span><span class="structure">(</span> <span class="symbol">$csv</span><span class="operator">-&gt;</span><span class="word">getline</span><span class="structure">(</span><span class="symbol">$fh</span><span class="structure">)</span> <span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">@nice</span> <span class="operator">=</span> <span class="word">grep</span> <span class="structure">{;</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">nice</span><span class="structure">}</span> <span class="structure">}</span> <span class="cast">@</span><span class="structure">{</span> <span class="symbol">$csv</span><span class="operator">-&gt;</span><span class="word">getline_hr_all</span><span class="structure">(</span><span class="symbol">$fh</span><span class="structure">)</span> <span class="structure">};</span><br /><span class="word">close</span> <span class="symbol">$fh</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<h3 id="Why-do-I-use-as-the-first-character-in-my-code-block">Why do I use <code>;</code> as the first character in my code block?</h3>
+
+<p>I want to make it abundantly clear to Perl that I am using a code block. There are various ways to ensure that curly braces are interpreted as a code block but I never remember them. Using a semi-colon (<code>;</code>) as the very first token in my block ensures that Perl knows that whatever follows should be considered a code block (and not, for example a hash operation.)</p>
+
+<h3 id="Using-map">Using map</h3>
+
+<p>Santa has a database with latitude and longitude for each child&#39;s home. We need to add this information to each nice child entry.</p>
+
+<p>To do this we can use a <code>map</code> function. A map takes each element of a list and applies a function to it, and returns the transformed item in a new list.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">%locations</span> <span class="operator">=</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'Wrigley Field'</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="float">41.94757</span><span class="operator">,</span> <span class="float">-87.6562</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'The Getty'</span>     <span class="operator">=&gt;</span> <span class="structure">[</span><span class="float">34.07905</span><span class="operator">,</span> <span class="float">-118.4744</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'Austin'</span>        <span class="operator">=&gt;</span> <span class="structure">[</span><span class="float">30.26759</span><span class="operator">,</span> <span class="float">-97.74299</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'Honolulu'</span>      <span class="operator">=&gt;</span> <span class="structure">[</span><span class="float">21.30485</span><span class="operator">,</span> <span class="float">-157.8578</span><span class="structure">]</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>We also need to do some calculations of how much distance Santa expects to cover when he&#39;s delivering the gifts, so instead of just using the latitude and longitude as given in the database, we&#39;re going to represent these points using <a href="https://metacpan.org/module/Geo::Calc::XS">Geo::Calc::XS</a></p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Geo::Calc::XS</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">@locations</span> <span class="operator">=</span> <span class="word">map</span> <span class="structure">{;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$loc</span> <span class="operator">=</span> <span class="symbol">$locations</span><span class="structure">{</span><span class="magic">$_</span><span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Geo::Calc::XS</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lat</span>  <span class="operator">=&gt;</span> <span class="symbol">$loc</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">0</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lon</span>  <span class="operator">=&gt;</span> <span class="symbol">$loc</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">1</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">units</span> <span class="operator">=&gt;</span> <span class="single">'mi'</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">)</span><br /><span class="structure">}</span> <span class="symbol">@nice</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<h3 id="Using-reduce">Using reduce</h3>
+
+<p>Now we can compute the total distance traveled between each location using a reduction. This is a list operation that performs a function on each list element and adds its results into an accumulator variable. When the list is exhausted, the function returns the accumulator&#39;s value.</p>
+
+<p>In Perl, <code>reduce</code> is found in <a href="https://metacpan.org/module/List::Util">List::Util</a> and has been in core since 5.7.3, so it should (almost) always be available, the same as <code>map</code> and <code>grep</code>.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">List::Util</span> <span class="words">qw(reduce)</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$miles_traveled</span> <span class="operator">=</span> <span class="word">reduce</span> <span class="structure">{;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$a</span><span class="operator">-&gt;</span><span class="word">distance_to</span><span class="structure">(</span> <span class="symbol">$b</span> <span class="structure">)</span><br /><span class="structure">}</span> <span class="symbol">@deliveries</span><span class="structure">;</span><br /><br /><span class="word">say</span> <span class="symbol">$miles_traveled</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>I hope Santa gets plenty of cocoa and cookies for that long trip.</p>
+
+<h3 id="Pipelines">Pipelines</h3>
+
+<p>A really powerful technique is to build a pipeline of successive map and grep operations.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$miles_traveled</span> <span class="operator">=</span> <span class="word">reduce</span> <span class="structure">{;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$a</span><span class="operator">-&gt;</span><span class="word">distance_to</span><span class="structure">(</span> <span class="symbol">$b</span> <span class="structure">)</span><br /><span class="structure">}</span> <span class="word">map</span> <span class="structure">{;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$loc</span> <span class="operator">=</span> <span class="symbol">$locations</span><span class="structure">{</span><span class="magic">$_</span><span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Geo::Calc::XS</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lat</span>  <span class="operator">=&gt;</span> <span class="symbol">$loc</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">0</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lon</span>  <span class="operator">=&gt;</span> <span class="symbol">$loc</span><span class="operator">-&gt;</span><span class="structure">[</span><span class="number">1</span><span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">units</span> <span class="operator">=&gt;</span> <span class="single">'mi'</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">)</span><br /><span class="structure">}</span>  <span class="word">grep</span> <span class="structure">{;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="magic">$_</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">nice</span><span class="structure">}</span><br /><span class="structure">}</span> <span class="cast">@</span><span class="structure">{</span> <span class="symbol">$csv</span><span class="operator">-&gt;</span><span class="word">getline_hr_all</span><span class="structure">(</span><span class="symbol">$fh</span><span class="structure">)</span> <span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>This is a compact and expressive way to signal your intention of how to modify data which comes in a list form. Some areas where this is especially useful Perl programmers are likely to encounter in everyday use are DBI results and JSON input and/or transformation.</p>
+
+<p>I hope you enjoyed this exploration of <code>grep</code>, <code>map</code>, and <code>reduce</code>. I find them tremendously useful and I use them frequently instead of foreach or while or other such loops.</p>
+
+<h3 id="SEE-ALSO">SEE ALSO</h3>
+
+<ul>
+
+<li><p><code>perldoc -f grep</code></p>
+
+</li>
+<li><p><code>perldoc -f map</code></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/List::Util">List::Util</a></p>
+
+</li>
+<li><p><a href="http://hop.perl.plover.com/book/">Higher Order Perl</a></p>
+
+</li>
+<li><p><a href="https://gist.github.com/mrallen1/f95cfc7ae9fc89020e574fc979faad05">Complete code listing and cpanfile</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/f7ce14107e8dcea364041684f457be26?r=g&s=80&d=retro />
+This article contributed by: Mark Allen &lt;mrallen1@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Using PPI for static analysis" href="2016-12-14.html">Previous</a></li>
+
+    <li class="next"><a title="A Geo Parser for vast amounts of Text " href="2016-12-16.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

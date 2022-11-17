@@ -1,0 +1,358 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: DateTime</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 1st day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">DateTime</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="/2003/25th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../2nd/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><b>DateTime</b> has over the last few years become <i>the</i> module for
+dealing with dates and times.  It was designed as a common object that
+could be used by a wide range of modules to represent a date and time,
+allowing many different date manipulation libraries to work together.</p>
+<p><b>DateTime</b> has matured to have a wonderfully straight forward logical
+interface that allows you do manipulate the <b>DateTime</b> object with
+simple method calls rather than forcing you do complex maths.  Using
+it is so simple that it's a real pain to go back</p>
+<p>With this interface has come a fanatical zeal for correctness. As an
+example, with <b>DateTime</b> it's possible to easily work out the time a
+day before, even in the edge cases like when your day doesn't have
+twenty four hours in it (as happens twice a year during daylight
+saving changes) without having to worry about these little details.
+All this is handled pretty much automatically, squashing numerous bugs
+that might otherwise sat in your code for a year waiting to rear their
+ugly head at a non-existent 1.30am in the morning.</p>
+<p>Easy to use, correct, and very expandable.  Just what a module should
+be.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?DateTime">[Read the documentation for DateTime on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>DateTime objects can be created in a number of simple ways.  Perhaps
+the simplest way is to specify all the values by hand.  Unspecified
+values (here I've not bothered to list <code>nanoseconds</code>) are assumed to
+be zero (or one, in the case of things like months that don't
+start at zero)</p>
+<pre>  my $happy_time = DateTime-&gt;new(
+    year   =&gt; 2004,
+    month  =&gt; 12,
+    day    =&gt; 1,
+    hour   =&gt; 8,
+    minute =&gt; 50,
+    second =&gt; 0,
+    time_zone =&gt; "Europe/London",
+  );</pre>
+
+<p>Alternatively, if the time period can be represented on your system as
+seconds from midnight on the 1st of Jan 1970 GMT, you can create a
+time from an epoch:</p>
+<pre>  my $dt = DateTime-&gt;from_epoch( epoch =&gt; 1101852490 );</pre>
+
+<p>Or simply, if we want to create a DateTime that represents
+the current time:</p>
+<pre>  my $dt = DateTime-&gt;now;</pre>
+
+<p>Many, many modules exist on the CPAN for parsing (and creating)
+strings in the common formats that times are recorded in that create
+or work from <b>DateTime</b> objects.  For example, to parse a time-string
+from a HTTP header we can use the <b>DateTime::Format::HTTP</b> module.</p>
+<pre>  # standard HTTP format
+  my $string = "Wed, 09 Feb 1994 22:23:32 GMT";
+  my $dt = DateTime::Format::HTTP
+               -&gt;parse_datetime($string);</pre>
+
+<p>This is the true strength of <b>DateTime</b>; So many other modules exist
+on The CPAN that extend it's functionality that can be used seamlessly
+with it.</p>
+<h2>Sane Accessor Methods</h2>
+<p>One of the things you've got to love about <b>DateTime</b> is the sane
+accessor methods.  For example, if I want to know the year a date time
+object is in, I call <code>year</code> on it and it simply returns it:</p>
+<pre>  # what year are we in?
+  my $year = DateTime-&gt;now-&gt;year;</pre>
+
+<p>Alternatively, when we try this with epoch seconds and Perl's built in
+functions, our lives are made unessesarily complex:</p>
+<pre>  # get a time in epoch seconds
+  my $time = time;</pre>
+
+<pre>  # break it into years, months, days, hours, etc
+  # remembering to use either 'gmtime' or 'localtime'
+  # depending on what we want since epochs don't record
+  # what timezone they're in
+  my @values = localtime($time);</pre>
+
+<pre>  # now get the year out of that array, looking up with
+  # "perldoc -f gmtime" each time to work out what index
+  # the year is at.
+  my $year = $values[5]</pre>
+
+<pre>  # now for no good reason add 1900 onto the year
+  $year += 1900;</pre>
+
+<p>Jeepers!  That's a lot of work.  I'm glad we've got sane accessor
+methods.  All of the standard accessor methods (year, day, month,
+hour, minute, second, nanosecond) are present and are sane (for
+example, months start at "1" not "0".)  You can also use accessors
+to set new values without having to do any complex maths:</p>
+<pre>  my $dt = DateTime-&gt;now();
+  $dt-&gt;set( hour =&gt; 0, minute =&gt; 0,
+            second =&gt; 0, nanosecond =&gt; 0 );
+  print $dt-&gt;epoch;</pre>
+
+<h2>Getting Common Values Out</h2>
+<p>It's trivial to get ISO standard dates and times out of an object.
+The ymd method can give us the standard unambiguous dates format that
+can be string sorted correctly:</p>
+<pre>  # 4th March 1978
+  my $birthday = DateTime-&gt;new(
+    day   =&gt; 4,
+    month =&gt; 3,
+    year  =&gt; 1978,
+  );</pre>
+
+<pre>  print $birthday-&gt;ymd;</pre>
+
+<p>Prints out:</p>
+<pre>  1978-03-04</pre>
+
+<p>It's also possible to get UK or US style dates out, using
+whatever separator we want:</p>
+<pre>  print $birthday-&gt;dmy('/'), "\n";  # UK style dates
+  print $birthday-&gt;mdy('/'), "\n";  # US style dates</pre>
+
+<p>Which prints what we expect:</p>
+<pre>  04/03/1978
+  03/04/1978</pre>
+
+<p>We can get time out in the same way:</p>
+<pre>  # in this case print "00:00:00" - not very interesting
+  print $birthday-&gt;hms;</pre>
+
+<p>And these can be combined to give us a ISO standard date and time:</p>
+<pre>  print "My birthday starts at ", $birthday-&gt;iso8601, "\n";</pre>
+
+<p>Which prints:</p>
+<pre>  My birthday starts at 1978-03-04T00:00:00</pre>
+
+<p>Since <b>DateTime</b> overloads stringification so that whenever
+you treat a <b>DateTime</b> object as a string it renders into a
+ISO datetime, that can be more simply written as:</p>
+<pre>  print "My birthday starts at $birthday\n";</pre>
+
+<h2>TimeZones</h2>
+<p>One of the most confusing things with computers is working out the
+timezone changes between places.</p>
+<pre>  # create a time in UTC (GMT)
+  my $dt = DateTime-&gt;now;
+  print $dt-&gt;hms,"\n";</pre>
+
+<pre>  # adjust the time zone to NYC
+  $dt-&gt;set_time_zone("America/New_York");
+  print $dt-&gt;hms, "\n";</pre>
+
+<p>This prints out what we might expect...first the time in GMT, then
+the time in NYC</p>
+<pre>  22:37:44
+  17:37:44</pre>
+
+<p>There - as easy as can be.  The only complication is where you
+create a time and don't specify the time_zone:</p>
+<pre>  my $social = DateTime-&gt;new(
+    year   =&gt; 2004,
+    month  =&gt; 12,
+    day    =&gt; 25,
+    hour   =&gt; 7,
+    minute =&gt; 0,
+  );</pre>
+
+<p>The trouble is that <b>DateTime</b> doesn't know what time zone to
+put this in.  Which 7pm do I mean?  The one in London? The one in New
+York? The one in Zanzibar?  <b>DateTime</b> puts this in the "floating"
+timezone.  This means the first time I call <code>set_time_zone</code> on it
+no changes to the hour or day are made - since none can be computed.</p>
+<h2>Maths</h2>
+<p>There's lots of clever maths that you can do with DateTime objects.
+For example, you can easily work out the same time the previous day:</p>
+<pre>  my $same_time_tomorrow = $dt-&gt;clone;
+  $same_time_tomorrow-&gt;add( days =&gt; 1 );</pre>
+
+<pre>  my $same_time_yesterday = $dt-&gt;clone;
+  $same_time_yesterday-&gt;subtract( days =&gt; 1 );</pre>
+
+<p>Note that this doesn't mean I'm taking away twenty four hours, it
+means that I'm taking away a day.  For example:</p>
+<pre>  my $dt = DateTime-&gt;new(
+    year      =&gt; 2004,
+    month     =&gt; 10,
+    day       =&gt; 31,
+    hour      =&gt; 9,
+    time_zone =&gt; "Europe/London",
+  );
+  print "$dt\n";  # prints '2004-10-31T09:00:00'
+  $dt-&gt;subtract( days =&gt; 1 );
+  print "$dt\n";  # prints '2004-10-30T09:00:00'
+  $dt-&gt;add( hours =&gt; 24 );
+  print "$dt\n";  # prints '2004-10-31T08:00:00'</pre>
+
+<p>Because of daylight saving, the effect of adding days and hours is
+different, since the 31st October this year in London was twenty five
+hours long (we gained an hour.)  This means we can't easily switch
+between days and hours.  For a similar reason, we can't switch between
+minutes and seconds, since every so often we have a leap second that
+makes some minutes 61 seconds long.</p>
+<p>This makes doing mathematics between DateTime objects hard, but it's
+not something that we can ignore.  To make our lives easier, maths
+operations are handily overridden.  This means we can do things like
+this:</p>
+<pre>  my $dt = DateTime-&gt;now-&gt;add( seconds =&gt; 5);
+  sleep(1) while DateTime-&gt;now &lt; $dt;</pre>
+
+<p>Subtraction and addition work too:</p>
+<pre>  my $dt = DateTime-&gt;now;
+  my $future = $dt-&gt;clone-&gt;add( days =&gt; 1 );
+  my $duration = $future - $dt;</pre>
+
+<p>Duration is a <b>DateTime::Duration</b> object.  We can scale it,
+add it onto times, etc:</p>
+<pre>  # make dt two days later
+  $dt += 2 * $duration;</pre>
+
+<p><b>DateTime::Duration</b> objects can be interigated to find out
+how long they are in any particular units of time:</p>
+<pre>  my $duration = DateTime::Duration-&gt;new( years =&gt; 1 );
+  print $duration-&gt;in_units('months'), "\n";  # prints 12</pre>
+
+<p>However, when we do this we have to remember we can't ask it to
+convert units it can't compare, like days into hours (since it doesn't
+necessarly know how long days are):</p>
+<pre>  my $duration = DateTime::Duration-&gt;new( days =&gt; 1 );
+  print $duration-&gt;in_units('hours'), "\n";   # prints 0</pre>
+
+<p>One thing we can do if we want to use "idealised" days of twenty four
+hours and minutes of sixty seconds is to use the absolute methods when
+comparing datetimes:</p>
+<pre>  my $duration = $dt-&gt;subtract_datetime_absolute( $dt2 );</pre>
+
+<p>This gives us a <b>DateTime::Duration</b> where the whole duration is
+represented by seconds and nanoseconds, allowing us to do what
+manipulation on it we want. Then we can take the duration and use the
+the <b>DateTime::Format::Duration</b> module from CPAN to render it.</p>
+<pre>  my $formatter =  DateTime::Format::Duration-&gt;new(
+     pattern =&gt; '%e days, %H hours, %M minutes, %S seconds'
+  );
+  $formatter-&gt;set_normalising(1);</pre>
+
+<pre>  print $formatter-&gt;format_duration($duration);</pre>
+
+<p>This creates a string where none of the units are larger than their
+normal values (so if the duration contains more than fifty nine
+seconds then the extra time will be converted into minutes, and
+minutes to hours, and so on.)</p>
+<p><b>DateTime::Format::Duration</b> is also capable of doing conversion
+between abstract units and actual duration if we give it a base to
+work from.  For example:</p>
+<pre>  my $formatter =  DateTime::Format::Duration-&gt;new(
+     pattern =&gt; '%e days, %H hours, %M minutes, %S seconds'
+  );
+  $formatter-&gt;set_normalising(1);
+  $formatter-&gt;set_base( DateTime-&gt;new(
+    year      =&gt; 2004,
+    month     =&gt; 10,
+    day       =&gt; 30,
+    hour      =&gt; 9,
+    time_zone =&gt; "Europe/London",
+  ));</pre>
+
+<pre>  # one day
+  my $duration = DateTime::Duration-&gt;new( hours =&gt; 25 );
+ 
+  # prints "1 days, 00 hours, 00 minutes, 00 seconds"
+  # due to daylight saving
+  print $formatter-&gt;format_duration($duration);</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://datetime.perl.org/">datetime.perl.org</a></li>
+<li><a href="http://search.cpan.org/perldoc?DateTime::Duration">DateTime::Duration</a></li>
+<li><a href="http://search.cpan.org/perldoc?DateTime::Format::Duration">DateTime::Format::Duration</a></li>
+<li><a href="http://search.cpan.org/perldoc?DateTime::Format::HTTP">DateTime::Format::HTTP</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:57 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

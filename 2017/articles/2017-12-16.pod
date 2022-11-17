@@ -1,0 +1,172 @@
+Title: For Elves, Shorter is Better
+Topic: MooseX::AttributeShortcuts
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+One of the problems in being the Wise Old Elf was, well, the I<old> part. The
+Wise Old Elf had been typing for so many years - rushing every Christmas - that
+he'd developed a case of RSI that flared up at the most inconvenient times.
+
+As such, he was always looking for ways to avoid typing so much, and this
+Christmas, he thought he'd found one.
+
+=head2 Verbose. Verbosity. So long winded. On and On.
+
+One of the problems with Moose in its default configuration is that it can be,
+well, a little wordy...
+
+  #!perl
+  has lead_reindeer => (
+    is      => 'ro',
+    isa     => class_type('SantasReindeer'),
+    lazy    => 1,
+    builder => '_build_lead_reindeer',
+  );
+
+  has second_reindeer => (
+    is      => 'ro',
+    isa     => class_type('SantasReindeer'),
+    lazy    => 1,
+    builder => '_build_second_reindeer',
+  );
+
+  has third_reindeer => (
+    is      => 'ro',
+    isa     => class_type('SantasReindeer'),
+    lazy    => 1,
+    builder => '_build_third_reindeer',
+  );
+
+  has forth_reindeer => (
+    is      => 'ro',
+    isa     => class_type('SantasReindeer'),
+    lazy    => 1,
+    builder => '_build_forth_reindeer',
+  );
+
+  ...;  # and on and on for another five reindeer!
+
+Putting aside the fact that this is probably better written using some sort of
+array data structure (which is literally an article for another day) what can
+be done to make this less verbose?
+
+=head2 Enter MooseX::AttributeShortcuts
+
+Why, yes, we can make this much shorter, with the help of the
+L<MooseX::AttributeShortcuts> CPAN module:
+
+  #!perl
+  use MooseX::AttributeShortcuts;
+
+  has [qw(
+    lead_reindeer second_reindeer third_reindeer forth_reindeer
+    fifth_reindeer sixth_reindeer seveth_reindeer eighth_reindeer
+  )] => (
+    is              => 'ro',
+    isa_instance_of => 'SantasReindeer',
+    lazy            => 1,
+    builder         => 1,
+  );
+
+Loading MooseX::AttributeShortcuts into your Moose class enables a whole bunch
+of extra parameter handing for C<has> that provides shortcuts to make writing
+attribute code simpler.  In the above example we see two such shortcuts: The
+first shortcut, writing C<< isa_instance_of => 'SantasReindeer' >> instead of
+C<< isa => class_type('SantasReindeer') >> provides us a little win, the biggest
+reduction in code comes from C<< builder => 1 >>.  By setting the builder to a
+plain old C<1> we're letting MooseX::AttributeShortcuts tell Moose that we want
+to use the default name for our builder - whatever the accessor is called with
+C<_build_> prepended to it.  And because now we don't need a custom builder
+parameter for each attribute, we can declare all nine in a single C<has>
+declaration!
+
+Can we make this shorter still?  Yep!  We can just say, like with L<Moo>, that
+this is C<lazy>.
+
+    #!perl
+    has [qw(
+      lead_reindeer second_reindeer third_reindeer forth_reindeer
+      fifth_reindeer sixth_reindeer seveth_reindeer eighth_reindeer
+    )] => (
+      is              => 'lazy',
+      isa_instance_of => 'SantasReindeer',
+    );
+
+That shortcut create a read only accessor that is lazy and uses the default
+Moose accessor.
+
+In addition to C<lazy>, MooseX::AttributeShortcuts also accepts
+C<< is => 'rwp' >>. C<rwp> creates a public reader accessor of the form C<foo>
+and a private writer accessor of the form C<_set_foo> (since by convention
+in Perl methods starting with an underscore are private and shouldn't be called
+from outside of the class.)
+
+=head2 Custom Anonymous Types
+
+It would be nice to make sure that the lead reindeer has a glowing nose, but
+that would probably involve a custom type class to check the value's
+C<glowing_nose> attribute:
+
+    #!perl
+    package NorthPole::Types;
+
+    use MooseX::Types -declare => [
+        qw(
+            SantasReindeerWithAGlowingNose
+        )
+    ];
+
+    subtype(
+        SantasReindeerWithAGlowingNose,
+        as class_type('SantasReindeer'),
+        where {},
+        inline_as {
+            $_[0]->parent()->_inline_check( $_[1] ) . " && $_[1]->glowing_nose";
+        }
+    );
+
+And then use that new type:
+
+    #!perl
+    use NorthPole::Types qw( SantasReindeerWithAGlowingNose );
+
+    has lead_reindeer => (
+      is  => 'lazy',
+      isa => SantasReindeerWithAGlowingNose,
+    );
+
+That is a B<lot> of typing if you're only going to use it in one place.  How
+about we use another shortcut?
+
+    #!perl
+    has lead_reindeer => (
+      is  => 'lazy',
+      isa => sub {
+         die unless blessed && $_->isa('SantasReindeer') && $_->glowing_nose;
+      },
+    );
+
+Here we're quickly defining a new one off type I<inline>!  It's not the most
+readable thing in the world though, is it?  MooseX::AttributeShortcuts allows us
+to specify this in a more straight forward manner by allowing an inline
+I<constraint>, which is an additional condition that will be checked for
+truthfulness after the C<isa> / C<isa_instance_of> check has occurred.
+
+    #!perl
+    has lead_reindeer => (
+      is              => 'lazy',
+      isa_instance_of => 'SantasReindeer',
+      constraint      => sub { $_->glowing_nose },
+    );
+
+As an added benefit writing a C<constraint> / C<isa> pair is that this subtypes
+the original type, meaning that coercions associated with the original type will
+just work!
+
+=head2 Much much more
+
+The Wise Old Elf continued to read the documentation for
+MooseX::AttributeShortcuts finding out about all sorts of things, from easy
+trigger, clearer and predicate declaration through quickly defining inline
+coercions and builder methods.  He, like you should, was going to spend a good
+afternoon playing with this module - not only to avoid so much typing, but also
+to avoid writing so much boilerplate code and reduce the potential for bugs.

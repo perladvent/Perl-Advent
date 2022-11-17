@@ -1,0 +1,141 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Santa Has Dependencies Too
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Santa Has Dependencies Too</h1>
+<div class='subtitle'>Pinto - 2012-12-17</div>
+
+<div class='pod'><p>In the old days, Santa&#39;s elves would build every toy from scratch, but now he outsources most of the parts for the toys. Naturally, he has created a sophisticated supply-chain management system to ensure that each toy is consistently built from the same parts.</p>
+
+<p>The same is true for software development. These days, our applications depend on lots of frameworks and libraries. So we also need to manage the supply of those dependencies to ensure that every build has the same &quot;parts.&quot;</p>
+
+<p><a href="https://metacpan.org/module/Pinto">Pinto</a> helps you manage your supply of dependencies by creating a custom repository of Perl modules. The repository is fully compatible with CPAN installers (e.g. <code>cpan</code>, <code>cpanm</code>, <code>cpanp</code>), but unlike the public CPAN, the modules in your Pinto repository only change when you want to change them. You&#39;ll get the exact same result each and every time you build.</p>
+
+<p>The <code>pinto</code> command line utility does all the work of creating the repository, and provides some helpful tools for managing change as your dependencies evolve over time. Let&#39;s take a look at some of the things you can do...</p>
+
+<p>First, let&#39;s create a repository. All you need is a directory where the repository will live (we&#39;ll use <i>~/my_repo</i> here) and the name of the stack (we&#39;ll use <code>prod</code> here). A stack is just a named subset of modules in your repository (more on that later). Here&#39;s what the command would look like:</p>
+
+<pre><code>  $ pinto -r ~/my_repo init --stack=prod</code></pre>
+
+<p>Suppose we want to use <a href="https://metacpan.org/module/Catalyst">Catalyst</a> for a new application. Let&#39;s get it from the CPAN and put it in our Pinto repository. This command will put the latest (at this moment) version of Catalyst and all of its dependencies into our Pinto repository:</p>
+
+<pre><code>  $ pinto -r ~/my_repo pull Catalyst</code></pre>
+
+<p>To install Catalyst, we just point <code>cpanm</code> (or <code>cpan</code> or <code>cpanp</code>) at the stack inside the repository. Every time we do this, we&#39;ll get exactly the same version of Catalyst and its dependencies, even if newer versions have been released to the public CPAN:</p>
+
+<pre><code>  $ cpanm --mirror=file:///home/jeff/my_repo/prod --mirror-only Catalyst</code></pre>
+
+<p>From time to time, Santa decides to upgrade the parts used to build a toy, or even switch to a new parts supplier entirely. To ensure quality, Santa always sets up a separate assembly line for the elves to test the new parts before committing them to mass production.</p>
+
+<p>With Pinto, you can do the same thing. Suppose that Catalyst 4.0 is released to the CPAN and we want to try upgrading our application, which now has several other dependencies of its own. We can make an experimental duplicate of those dependencies by copying the stack like this:</p>
+
+<pre><code>  $ pinto -r ~/my_repo copy prod catalyst-upgrade</code></pre>
+
+<p>Any changes we make to the &quot;catalyst-upgrade&quot; stack are completely separate from the &quot;prod&quot; stack. So we can now go ahead and upgrade Catalyst (and whatever new modules it may require) like this:</p>
+
+<pre><code>  $ pinto -r ~/my_repo pull --stack=catalyst-upgrade Catalyst~4.0</code></pre>
+
+<p>To test our upgraded application dependencies, we just make a new build by pointing cpanm at the &quot;catalyst-upgrade&quot; stack inside the repository:</p>
+
+<pre><code>  $ cpanm --mirror=file:///home/jeff/my_repo/catalyst-upgrade --mirror-only Catalyst</code></pre>
+
+<p>If our application (and all of its dependencies) build cleanly then we can just merge two stacks together and throw away the experimental stack:</p>
+
+<pre><code>  $ pinto -r ~/my_repo merge catalyst-upgrade prod
+  $ pinto -r ~/my_repo delete catalyst-upgrade</code></pre>
+
+<p>Occasionally, Santa&#39;s elves find that a new version of a part is flawed or just not compatible with current their line of toys. Since the workshop is pretty big, it can be hard to ensure that every elf foreman doesn&#39;t mistakenly order the new (flawed) part for his assembly line. So Santa keeps a real-time blacklist of all the part numbers that are not allowed in the workshop.</p>
+
+<p>This happens all the time in software development, so Pinto allows you to &quot;pin&quot; the modules in your repository, which prevents them from being upgraded. Suppose we already have Plack 2.0 in our Pinto repository and we learn that Plack 3.0 is not compatible with our application. So we can pin Plack to let everyone know that it can&#39;t be upgraded yet:</p>
+
+<pre><code>  $ pinto -r ~/my_repo pin Plack</code></pre>
+
+<p>If anyone tries to upgrade Plack directly or to satisfy the prerequisites for some other module, then Pinto will refuse to comply. Once you&#39;ve resolved the problem, then you can unpin Plack and upgrade it as needed.</p>
+
+<p>Keeping lists of all the naughty and nice children is huge task, so Santa has become very good at record keeping. He also keeps excellent records of everything that happens in the workshop. This helps him to identify the critical links in his supply chain or reward deserving elves.</p>
+
+<p>Pinto keeps records too, so you can see what&#39;s in the repository right now and how it has changed over time. Here are some of the things you can do:</p>
+
+<pre><code>  # Show all the modules in the stack right now:
+  $ pinto -r ~/my_repo list</code></pre>
+
+<p></p>
+
+<pre><code>  # Show who&#39;s responsible for the current modules in the stack:
+  $ pinto -r ~/my_repo blame</code></pre>
+
+<p></p>
+
+<pre><code>  # Show how and why the stack has changed over time:
+  $ pinto -r ~/my_repo log --detailed</code></pre>
+
+<p>As you can imagine, Santa Claus has pretty much perfected the science of supply-chain management, so when it comes to managing our supply of module dependencies, we software developers could probably learn a lot from him. Perhaps Pinto should have been called &quot;Donner&quot; or &quot;Vixen.&quot;</p>
+
+<h2 id="SEE-ALSO">SEE ALSO</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Pinto">Pinto on CPAN</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Pinto::Manual">Pinto::Manual on CPAN</a></p>
+
+</li>
+<li><p><a href="http://www.youtube.com/watch?v=oaBBVZFhJUk">Pinto presentation at YAPC</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/e53c81431e32f1d8432bb81da39cbeb6?r=g&s=80&d=retro />
+This article contributed by: Jeffrey Ryan Thalhammer &lt;jeff@imaginative-software.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Creating Your Own Perl" href="2012-12-16.html">Previous</a></li>
+
+    <li class="next"><a title="Synchronous Operations are So Outdated" href="2012-12-18.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

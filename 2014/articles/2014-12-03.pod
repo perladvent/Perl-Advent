@@ -1,0 +1,234 @@
+Title: Attention Seeking Behavior
+Topic: HTTP::Tiny
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Since perl 5.14, Perl has shipped with HTTP::Tiny and JSON:PP which
+allows accessing a large collection of web services without
+installing any additional modules trivial.  I have a set of scripts
+that can be put on any server on the Internet with a modern Perl
+installed that can send me notifications.
+
+=head2 Distractions are....oooh, shiny!
+
+Ever get bored waiting for a script to complete on a remote server?  Happens
+to me all the time.  Then next thing I know I realize I've been reading
+the Perl Weekly for half an hour and the remote command completed twenty
+five minutes ago.
+
+Ooops.
+
+What I need is some way to notify me that we're done now.  In my ideal world,
+I'd have a script that I could call like this 
+
+   bash$ perl something_really_long.pl; notify "done with really long task"
+
+How could I go about writing that?
+
+=head2 Drop me an email
+
+The simplest solution would be to send me an email, with a command
+that looks like:
+
+    bash$ perl something_really_long.pl; emailnotify "done with really long task"
+
+Traditionally we'd do this by initializing a SMTP connection from the
+notifying machine itself;  This is impractical these days for several reasons
+including modern SPAM filtering not trusting connections from random servers,
+and, of course, talking SMTP is non-trivial without several non-core modules
+from the CPAN.
+
+Luckily in our modern cloud like infrastructure email-as-a-service is a real
+thing.  Several providers allow you to request an email send with nothing more
+than a HTTP request.  One such provider is Mandrill, who currently offer a
+large number of free emails on their trial account.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    use HTTP::Tiny;
+    use JSON::PP qw(encode_json);
+
+    my $text = join " ", @ARGV;
+
+    my $API_KEY = '<redacted>';
+    my $FROM    = 'mark@example.com';
+    my $TO      = 'mark@example.com';
+
+    HTTP::Tiny->new()->post(
+        'https://mandrillapp.com/api/1.0/messages/send.json', {
+            content => encode_json({
+                key => $API_KEY,
+                message => {
+                    text => $text,
+                    subject => "Email notification",
+                    from_name => "Email notifier",
+                    from_email => $FROM,
+                    to => [ { email => $TO } ],
+                }
+            }),
+        }
+    );
+
+=head2 Cut me some Slack
+
+Okay, I admit it.  I never check my email in a timely fashion these days.  If
+I dropped everything to check my email each time a new message arrived, I'd
+spend my entire day being interrupted by the latest breaking Buffy The Vampire
+Slayer news from London.pm rather than getting work done.
+
+Anyway, all the cool kids are moving onto next generation communication
+systems like Slack.  Often described as "Modern IRC", Slack is a web chat
+system that can also run in desktop clients and on mobile devices.  Slack
+has a range of notification systems built in, from using modern HTML5
+browser notifications into sending push notifications to the iOS devices
+that pretty much never leaves my side.
+
+By leveraging this notification system on top of a free account I can
+send messages to my cell phone.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    use HTTP::Tiny;
+    use JSON::PP qw(encode_json);
+
+    my $text = join " ", @ARGV;
+
+    my $SECRET_URL = 'https://hooks.slack.com/services/<redacted>';
+
+    HTTP::Tiny->new()->post_form(
+        $SECRET_URL,
+        {
+            payload => encode_json({
+                channel => "#test",
+                text => $text,
+            })
+        }
+    );
+
+=head2 Last ditch: all going to POTS
+
+Sometimes I'm away from my computer (shocking I know) and my cell phone
+is plugged in upstairs charging.  What could we do to notify me in this
+situation?  As a last ditch I guess we could call my house landline phone
+and hope that whoever answers it can track me down.
+
+Twillo offers a service where it can phone you up and use text-to-speech to
+read you your message.  A free trial account will be able to call the number
+that you verified the account from (with a disclaimer played before your
+message is read to remind you that this is just a trial account.)
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    use HTTP::Tiny;
+
+    my $ACCOUNT_SID = '<redacted>';
+    my $API_TOKEN   = '<redacted>';
+    my $FROM        = '+15185551234';
+    my $TO          = '+15185555678';
+
+    # get the message
+    my $text = join " ", @ARGV;
+
+    # escape it to stick it in the xml
+    $text =~ s/</&lt;/g;
+    $text =~ s/&/&amp;/g;
+
+    # Create the Twillo XML containg what should be contained in the call
+    my $xml = "<Response><Say>$text</Say></Response>";
+
+    # Twillo needs a URL to fetch XML that contains what should be said in the
+    # call.  This url just will contain whatever we send in it in the Twiml
+    # parameter
+    $xml =~ s/([^A-Za-z0-9])/"%".uc(sprintf("%2.2x",ord($1)))/eg;
+    my $url = "http://twimlets.com/echo?Twiml=".$xml;
+
+    # make the call
+    HTTP::Tiny->new()->post_form(
+        "https://$ACCOUNT_SID:$API_TOKEN\@api.twilio.com/2010-04-01/Accounts/$ACCOUNT_SID/Calls.json", {
+            Url => $url,
+            To => $TO,
+            From => $FROM,
+        }
+    );
+
+=head2 Installing the utilities on the remote server.
+
+Now I have these handy notification tools, how do I ship the scripts to the
+boxes I want to use them on?  Ideally I'd use some sort of version control
+system like git, but not all the boxes have that installed.  They all do have
+Perl however, so how can we leverage that to do our installation in pain
+free way?
+
+First I need to run some code locally to package up my scripts into one
+single installer script:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use 5.012;
+    use warnings;
+    use autodie;
+
+    my @filenames = qw(
+        emailnotify
+        slacknotify
+        phonenotify
+    );
+
+    print <<'ENDOFHEADER';
+    use autodie;
+    chdir($ENV{HOME});
+    mkdir("bin") unless -d "bin";
+    chdir("bin");
+    ENDOFHEADER
+
+    foreach my $filename (@filenames) {
+        say "{";
+        say q!open my $fh, ">", "!.$filename.'";';
+        say q!print $fh <<'ENDOFSCRIPT';!;
+        open my $fh, "<", $filename;
+        while (<$fh>) { print }
+        say "";
+        say q!ENDOFSCRIPT!;
+        say qq!chmod(0775,"$filename");!;    
+        say "}";
+    }
+
+The output of this script itself is a Perl script, one that I can store on a
+secret gist from gist.github.com, and access again using the raw URL link from
+anywhere that is connected to the Internet.
+
+So, on any server I want to install my commands on now I can issue a simple
+curl command to download and immediately execute the Perl script from its
+secret location.
+
+  bash$ curl https://gist.githubusercontent.com/2shortplanks/<redacted>/gistfile1.txt | perl
+
+The downloaded Perl script reconstitutes the original scripts that were found
+on my local machine on the remote server that's executing the command.
+
+=head2 Always on
+
+So, now computers all over the Internet can reach me day or night.  If you'll
+excuse me, I'm just off to shop online for some earplugs...
+
+=head1 See Also
+
+=for :list
+* L<HTTP::Tiny>
+* L<JSON:PP>
+* L<https://mandrillapp.com/api/docs/messages.JSON.html>
+* L<http://slack.com/>
+* L<https://www.twilio.com/docs/api/rest/making-calls>
+

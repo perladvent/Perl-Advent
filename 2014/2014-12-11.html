@@ -1,0 +1,243 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+A Tiny But Powerful Type System
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>A Tiny But Powerful Type System</h1>
+<div class='subtitle'>Type::Tiny - 2014-12-11</div>
+
+<div class='pod'><p>Perl doesn&#39;t (yet) have a native type system built into it, but as is often the case, powerful solutions can be found on the CPAN. <a href="https://metacpan.org/module/Type::Tiny">Type::Tiny</a> is a small, lightweight type system for Perl that is compatible with <a href="https://metacpan.org/module/Moose">Moose</a>, <a href="https://metacpan.org/module/Moo">Moo</a> and <a href="https://metacpan.org/module/Mouse">Mouse</a>. It ships with a useful set of standard types, and the underpinnings you need to quickly define type libraries of your own.</p>
+
+<h3 id="A-Moo-Constraints-Recap">A Moo Constraints Recap</h3>
+
+<p>Let&#39;s write a very simple <a href="https://metacpan.org/module/Moo">Moo</a>-based object representing what we&#39;ll be leaving out for jolly old St Nick this Christmas.</p>
+
+<p>Accessors in <a href="https://metacpan.org/module/Moo">Moo</a> can be defined with a simple <code>isa</code> keyword that accepts a subroutine reference that can validate whatever you&#39;re setting the attribute to:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">StuffForSanta</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Moo</span><span class="structure">;</span><br /><br /><span class="word">has</span> <span class="word">mincepies</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="double">&quot;rw&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="word">die</span> <span class="double">&quot;invalid&quot;</span> <span class="word">unless</span> <span class="magic">$_</span><span class="structure">[</span><span class="number">0</span><span class="structure">]</span> <span class="operator">=~</span> <span class="match">/\A-?[0-9]+\z/</span> <span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>So now StuffForSanta won&#39;t let us cheat:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$plate</span> <span class="operator">=</span> <span class="word">StuffForSanta</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">mincepies</span> <span class="operator">=&gt;</span> <span class="double">&quot;lots&quot;</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Results in:</p>
+
+<pre><code>   isa check for &quot;mincepies&quot; failed: invalid at StuffForSanta.pm line 7.</code></pre>
+
+<p>There are numerous problems with this simple approach however:</p>
+
+<ul>
+<li>The code isn't exactly what I'd call easy to read.  You have to actually
+parse the regular expression in your head each time to understand what's going
+on</li>
+<li>The error message doesn't actually tell you what's going wrong.  Good luck
+making sense of that during the production outage at 3:32am on Christmas Eve!
+</li>
+<li>Embedded like it is the constraint is hard to to test in isolation
+without having to instantiate the StuffForSanta object</li>
+<li>The code isn't reusable beyond the dreaded copy and paste</li>
+</ul>
+
+<p>What we need instead is a library of constraints that we can reuse, that have tests, and have easiy to read names. In the Modern Perl world we call such reusable constraints <i>types</i>.</p>
+
+<h3 id="Introducing-Types::Standard">Introducing Types::Standard</h3>
+
+<p>Handily, <a href="https://metacpan.org/module/Type::Tiny">Type::Tiny</a> comes with <a href="https://metacpan.org/module/Types::Standard">Types::Standard</a>, a bunch of built-in types that can be directly used with <a href="https://metacpan.org/module/Moo">Moo</a>, no further coding required:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">StuffForSanta</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Moo</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Types::Standard</span> <span class="words">qw(:all)</span><span class="structure">;</span><br /><br /><span class="comment"># how many mince pies are there?<br /></span><span class="word">has</span> <span class="word">mincepies</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="double">&quot;rw&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Int</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">default</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="comment"># how many carrots got left out?<br /></span><span class="word">has</span> <span class="word">carrots</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="double">&quot;rw&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Int</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">default</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="comment"># and a drink<br /></span><span class="word">has</span> <span class="word">drink</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="double">&quot;rw&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Enum</span><span class="structure">[</span><span class="double">&quot;Milk&quot;</span><span class="operator">,</span><span class="double">&quot;Sherry&quot;</span><span class="structure">]</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="number">1</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>You&#39;ll note that the type names themselves (<code>Int</code>, <code>Enum</code>, etc) are barewords, not quoted strings nor variables. Under the hood <a href="https://metacpan.org/module/Type::Tiny">Type::Tiny</a> is doing clever things with subroutine prototypes and overloaded variables to provide the clear syntax you see above, none of which you need worry about in your day to day usage of the type system.</p>
+
+<p>Now if we attempt to define an invalid object</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$plate</span> <span class="operator">=</span> <span class="word">StuffForSanta</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">carrots</span> <span class="operator">=&gt;</span> <span class="number">10</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">drink</span> <span class="operator">=&gt;</span> <span class="double">&quot;Prune Juice&quot;</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Our type system complains bitterly in a much more readable fashion when things go wrong:</p>
+
+<pre><code>    Value &quot;Prune Juice&quot; did not pass type constraint &quot;Enum[&quot;Milk&quot;,&quot;Sherry&quot;]&quot; (in $args-&gt;{&quot;drink&quot;}) at plate.pl line 8
+      &quot;Enum[&quot;Milk&quot;,&quot;Sherry&quot;]&quot; requires that the value is equal to &quot;Milk&quot; or &quot;Sherry&quot;</code></pre>
+
+<h3 id="Writing-your-Own-Types">Writing your Own Types</h3>
+
+<p>Writing your own type is very simple to do. You can use <a href="https://metacpan.org/module/Type::Tiny">Type::Tiny</a>&#39;s constructor, or simpler yet, use the syntactic sugar for declaring types from <a href="https://metacpan.org/module/Type::Utils">Type::Utils</a>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Type::Utils</span> <span class="word">-all</span><span class="structure">;</span><br /><br /><span class="word">declare</span> <span class="double">&quot;USTelephone&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">where</span> <span class="structure">{</span> <span class="match">/^(?:[+]?1-)?\d{3}-?\d{3}-?\d{4}$/a</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">message</span> <span class="structure">{</span> <span class="double">&quot;$_ doesn't look like a US telephone number to me&quot;</span> <span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>Since declaring a type also defines the handy <code>is_Whatever</code> function call we can easily test the type:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">ok</span> <span class="word">is_USTelephone</span><span class="structure">(</span><span class="double">&quot;+1-202-456-1111&quot;</span><span class="structure">)</span><span class="operator">,</span> <span class="double">&quot;Whitehouse telephone number valid&quot;</span><span class="structure">;</span><br /><span class="word">ok</span> <span class="word">is_USTelephone</span><span class="structure">(</span><span class="double">&quot;+7-495-695-37-76&quot;</span><span class="structure">)</span><span class="operator">,</span> <span class="double">&quot;Kremlin telephone number not valid&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Rather than declaring your types in the class that you&#39;re going to be using them, you should put them in their own package that subclasses <a href="https://metacpan.org/module/Type::Libary">Type::Libary</a>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Type::USTelephone</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">base</span> <span class="words">qw(Type::Library)</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="float">5.014</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Type::Utils</span> <span class="word">-all</span><span class="structure">;</span><br /><br /><span class="word">declare</span> <span class="double">&quot;USTelephone&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">where</span> <span class="structure">{</span> <span class="match">/^(?:1-)?\d{3}-?\d{3}-?\d{4}$/a</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">message</span> <span class="structure">{</span> <span class="double">&quot;$_ doesn't look like a US telephone number to me&quot;</span> <span class="structure">};</span><br /><br /><span class="number">1</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Then that type can be used in your object class:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">AlbanyPMMember</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Moo</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Types::Standard</span> <span class="words">qw(:all)</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Types::USTelephone</span> <span class="words">qw(:all)</span><span class="structure">;</span><br /><br /><span class="word">has</span> <span class="word">name</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="double">&quot;ro&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Str</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="word">has</span> <span class="word">cell</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="double">&quot;ro&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">USTelephone</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="operator">...</span></code><br />&nbsp;</td></table>
+
+<h3 id="Coercion">Coercion</h3>
+
+<p>Automatic coercion allows Perl to automatically convert one type from another type in situations where this might be beneficial.</p>
+
+<p>For example, let&#39;s add a <code>plate_color</code> attribute to our StuffForSanta Moo class:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">has</span> <span class="word">plate_color</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="double">&quot;rw&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">InstanceOf</span><span class="structure">[</span><span class="double">&quot;Graphics::Color::RGB&quot;</span><span class="structure">]</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>This is a standard type constraint from <a href="https://metacpan.org/module/Types::Standard">Types::Standard</a> that insists that this attribute only accepts an argument that is the specified type (i.e. only something that <code>-&gt;isa(&quot;Graphics::Color::RGB&quot;)</code>.)</p>
+
+<p>However, while this works:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$plate</span> <span class="operator">=</span> <span class="word">StuffForSanta</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">plate_color</span> <span class="operator">=&gt;</span> <span class="word">Graphics::Color::RGB</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">red</span>   <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">green</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">blue</span> <span class="operator">=&gt;</span> <span class="float">0.9</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>It&#39;d be nice if this worked too:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$plate</span> <span class="operator">=</span> <span class="word">StuffForSanta</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">plate_color</span> <span class="operator">=&gt;</span> <span class="double">&quot;#ffffdd&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>We&#39;d like StuffForSanta to automatically create the <code>Graphics::Color::RGB</code> object for us from the string as needed.</p>
+
+<p>First, in our type library let&#39;s create a more readable version of the <code>InstanceOf[&quot;Graphics::Color::RGB&quot;]</code> type by creating a named type:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">class_type</span> <span class="word">Color</span><span class="operator">,</span> <span class="structure">{</span> <span class="word">class</span> <span class="operator">=&gt;</span> <span class="double">&quot;Graphics::Color::RGB&quot;</span> <span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>Now we can write:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">has</span> <span class="word">plate_color</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="double">&quot;rw&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Color</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Now let&#39;s create a named coercion:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">declare_coercion</span> <span class="double">&quot;ColorFromStr&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">to_type</span> <span class="word">Color</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">from</span> <span class="word">Str</span><span class="operator">,</span> <span class="word">via</span> <span class="structure">{</span><br /><span class="comment">         # unless this looks like #ffffff or #fff return the original<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# string to indicate no coercion is possible<br /></span>         <span class="keyword">return</span> <span class="magic">$_</span> <span class="word">unless</span> <span class="match">/\A # (?: [0-9a-f]{3} | [0-9a-f]{6} ) \z/ix</span><span class="structure">;</span><br /><br /><span class="comment">         # turn it into a G::C::RGB object<br /></span>         <span class="keyword">return</span> <span class="word">Graphics::Color::RGB</span><span class="operator">-&gt;</span><span class="word">from_hex_string</span><span class="structure">(</span> <span class="magic">$_</span> <span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>And add it to our <a href="https://metacpan.org/module/Moo">Moo</a> class attribute:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">has</span> <span class="word">plate_color</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="double">&quot;rw&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Color</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">coerce</span> <span class="operator">=&gt;</span> <span class="word">ColorFromStr</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Now we can write:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$plate</span> <span class="operator">=</span> <span class="word">StuffForSanta</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">plate_color</span> <span class="operator">=&gt;</span> <span class="double">&quot;#ffffdd&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">);</span><br /><br /><span class="word">say</span> <span class="symbol">$plate</span><span class="operator">-&gt;</span><span class="word">plate_color</span><span class="operator">-&gt;</span><span class="word">red</span><span class="structure">;</span><br /><span class="word">say</span> <span class="symbol">$plate</span><span class="operator">-&gt;</span><span class="word">plate_color</span><span class="operator">-&gt;</span><span class="word">green</span><span class="structure">;</span><br /><span class="word">say</span> <span class="symbol">$plate</span><span class="operator">-&gt;</span><span class="word">plate_color</span><span class="operator">-&gt;</span><span class="word">blue</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>One important thing to note that this coercion only has effect in this one accessor where we&#39;ve set <code>coercion</code> - we don&#39;t have to worry about accidentally triggering a coercion in other accessors and having spooky action at a distance.</p>
+
+<h3 id="Per-Accessor-Moose-Coercion">Per Accessor Moose Coercion</h3>
+
+<p>Up until this point our <a href="https://metacpan.org/module/Moo">Moo</a> and <a href="https://metacpan.org/module/Moose">Moose</a> code looks essentially identical, but the way <a href="https://metacpan.org/module/Moose">Moose</a> handles coercions is different to Moo: It has global coercions that apply any time a type is used in any accessor that has coercions enabled. This can lead to unpredictable action at a distance if we&#39;re not careful.</p>
+
+<p><a href="https://metacpan.org/module/Type::Tiny">Type::Tiny</a> has a solution to this issue; Essentially it has a syntax for creating a one-off variant of a standard class with additional coercion ability.</p>
+
+<p>A similar <a href="https://metacpan.org/module/Moose">Moose</a> accessor would look like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">has</span> <span class="word">plate_color</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="double">&quot;rw&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">Color</span><span class="operator">-&gt;</span><span class="word">plus_coercions</span><span class="structure">(</span><span class="word">ColorFromStr</span><span class="structure">)</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">coerce</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The <code>Color-&gt;plus_coercions(ColorFromStr)</code> call actually returns a new one-off type that is a <code>Color</code> class with the additional <code>ColorFromStr</code> coercion.</p>
+
+<h3 id="Speed-Optimizations">Speed Optimizations</h3>
+
+<p>Because type systems often end up in <i>hot</i> areas of code, every little speed improvement can help. Up until now we&#39;ve been declaring our code as simple subroutines, but we can optimize this further by giving our type system a string containing a snippet of code allowing the type system to directly compile this into the accessor routine.</p>
+
+<p>To demonstrate how much quicker this can be, let&#39;s do a quick benchmark. First let&#39;s declare a simple type class:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">MyTyps</span><span class="structure">;</span><br />&nbsp;<span class="keyword">use</span> <span class="pragma">base</span> <span class="words">qw(Type::Library)</span><span class="structure">;</span><br /><br />&nbsp;<span class="keyword">use</span> <span class="float">5.014</span><span class="structure">;</span><br />&nbsp;<span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br />&nbsp;<span class="keyword">use</span> <span class="word">Type::Utils</span> <span class="word">-all</span><span class="structure">;</span><br /><br />&nbsp;<span class="word">declare</span> <span class="double">&quot;ThreeChars&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">where</span> <span class="structure">{</span> <span class="core">defined</span> <span class="operator">&amp;&amp;</span> <span class="operator">!</span><span class="word">ref</span> <span class="operator">&amp;&amp;</span> <span class="word">length</span> <span class="operator">==</span> <span class="number">3</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">message</span> <span class="structure">{</span> <span class="double">&quot;Not a three character string&quot;</span> <span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>Now, let&#39;s create a simple object that uses it</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Simple</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Moo</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">MyTypes</span> <span class="word">-all</span><span class="structure">;</span><br /><br /><span class="word">has</span> <span class="word">three_chars</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="word">ThreeChars</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>And time how long it takes to instantiate a million of these:</p>
+
+<pre><code>   timethis 1000000: 10 wallclock secs (10.54 usr +  0.01 sys = 10.55 CPU) @ 94786.73/s (n=1000000)</code></pre>
+
+<p>Now if we modify our constraint to have an <code>inline_as</code> subroutine that can generate a bunch of Perl code as needed:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">declare</span> <span class="double">&quot;ThreeChars&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">where</span> <span class="structure">{</span> <span class="core">defined</span> <span class="operator">&amp;&amp;</span> <span class="operator">!</span><span class="word">ref</span> <span class="operator">&amp;&amp;</span> <span class="word">length</span> <span class="operator">==</span> <span class="number">3</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">inline_as</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$constraint</span><span class="operator">,</span> <span class="symbol">$var</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="double">&quot;defined $var &amp;&amp; !ref $var &amp;&amp; length $var == 3&quot;</span><br />&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">message</span> <span class="structure">{</span> <span class="double">&quot;Not a three character string&quot;</span> <span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>This is signifcantly quicker:</p>
+
+<pre><code>   timethis 1000000:  9 wallclock secs ( 8.83 usr +  0.01 sys =  8.84 CPU) @ 113122.17/s (n=1000000)</code></pre>
+
+<br><center><img src="benchmark.png" width="391" height="323"></center>
+
+<h3 id="Conclusion">Conclusion</h3>
+
+<p><a href="https://metacpan.org/module/Type::Tiny">Type::Tiny</a> offers a deceptively simple approach to creating types with Perl. Despite its <code>::Tiny</code> name, it is a powerful system that allows you to do complex validation. And unlike <a href="https://metacpan.org/module/Moose">Moose</a>-based type systems, <a href="https://metacpan.org/module/Type::Tiny">Type::Tiny</a>&#39;s entire dependency chain involves only one Perl module (which is 100% Pure Perl) and does not require a compiler to build making it an excellent choice for code that needs to be easy to distribute.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Type::Tiny">Type::Tiny</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Type::Tiny::Manual">Type::Tiny::Manual</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Types::Standard">Types::Standard</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Type::Utils">Type::Utils</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Type::Library">Type::Library</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Moo">Moo</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Moose">Moose</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/MooseX::Types">MooseX::Types</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Foreign Function Interface and Perl" href="2014-12-10.html">Previous</a></li>
+
+    <li class="next"><a title="If if, use use if" href="2014-12-12.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

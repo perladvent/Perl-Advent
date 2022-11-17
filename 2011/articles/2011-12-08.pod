@@ -1,0 +1,195 @@
+Title: All the perls are all lined up
+Topic: App::perlbrew
+Author: Ricardo Signes <rjbs@cpan.org>
+
+=encoding utf8
+
+=head1 I can test just what I want
+
+I like to pretend that I can just target the latest stable release of C<perl>
+and that's that.  It's what I run on my computers, after all.  Unfortunately,
+at work, we have two different deployed versions, so I need to support those,
+too.  But that's only two versions, right?
+
+Well, not really.  The problem is that I release as much of my code as seems
+reasonable to the CPAN, and that means I get bug reports from lots of different
+versions.  My least favorite five words?  "It doesn't work on 5.8.1."  (You may
+be thinking, "Why 5.8.1 and not 5.6.1?"  Well, because if it's 5.6.1, I'll
+usually send condolences instead of bugfixes.)
+
+So, what do I do when I get that bug report?  If it looks like a plausible bug
+(and not an obvious user error), my next action is almost always to see whether
+I can reproduce it.  If the bug really is just in 5.8.1, and I can't reproduce
+it in my 5.14.1, or the 5.8.8 readily available on some other box sitting
+around, I'll have to buck up and install 5.8.1.
+
+The last thing I want, though, is to end up with a zillion C<perl5.x.y>
+binaries in my path, each partially sharing its library paths, different
+installs of this or that being alternately shared or not shared between
+interpreters.  It's pretty easy to get that with the right arguments to the
+F<Configure> program that builds C<perl> – oh, and right.  I'd have to I<run>
+the F<Configure> program, build, test, install, and so on.  Some versions would
+need patches to build on my OS X box.  What a drag.
+
+Fortunately, I am free from having to suffer through any of this, because I can
+use C<L<perlbrew|http://perlbrew.pl>> from
+L<gugod|https://metacpan.org/author/GUGOD>.  It manages a bunch of parallel
+Perl installs.  If you're familiar with Ruby's
+C<L<rvm|http://beginrescueend.com/>>, then you already know what C<perlbrew>
+is, more or less.
+
+If you don't, here's how you get started – we'll talk about how you use it in a
+bit, if you're not sure you want to install it, but you can trust me: you do.
+
+=begin :list
+
+1. install App::perlbrew with your favorite CPAN client (cpan, cpanp, cpanm, ppm, whatever)
+
+2. run C<perlbrew init>
+
+This will print out a big friendly message saying what it did, and it will
+include one key line, something like:
+
+  source ~/perl5/perlbrew/etc/bashrc
+
+3. add that C<source> line to your F<~/.bashrc> or F<.zshrc> or whatever
+
+Now when you open a new shell, it will look for stuff installed into
+C<perlbrew>-managed Perl environment instead of the global system environment
+first.
+
+4. run C<perlbrew install perl-5.14.2>
+
+Now C<perlbrew> will start doing the first hunk of boring that you're getting
+to avoid:  configuring, building, testing, and installing C<perl> v5.14.2.  If
+it knows that it will have to patch the source to compile (by using
+L<Devel-PatchPerl|https://metacpan.org/release/Devel-PatchPerl>, it will.  It
+will give the C<perl> its I<entirely self-contained> set of C<@INC> libraries,
+install paths, and so on.  I<No libraries> are getting shared with your system
+C<perl>, and it won't leak the other way, either.
+
+5. do something fun while it compiles
+
+Or, if you think it's fun, you can tail the log file – C<perlbrew> will have
+told you its path – to see how the build is going.
+
+6. open a new shell (or run that C<source> line in this one)
+
+7. run C<perlbrew switch perl-5.14.2> to make it your active perl
+
+8. run C<perl -v> and rejoice
+
+(Remember that if you just sourced that file in an existing shell like C<zsh>,
+you might need to run C<rehash>!)
+
+=end :list
+
+So, great, you have C<perl>.  So what?
+
+Well, go ahead and repeat steps 4 through 8, picking another version.  You'll
+end up with several installed Perl environments, each with its own libraries.
+Not only that, but you'll have C<cpanm> preinstalled.  So, someone told you
+that your Awesome::Library is busted on 5.8.9?
+
+  #!code
+  $ perlbrew switch perl-5.8.9
+  $ cpanm -v Awesome::Library
+
+...and you'll see the build process occur right there in your own 5.8.9
+install.
+
+I<One warning>:  trying this out, you may find some versions won't compile for
+you.  Not every version still compiles cleanly with modern libraries and tools.
+PatchPerl, included with C<perlbrew> should take care of this, but it doesn't
+handle everything.  For example, on Mac OS X 10.7, probably only 5.14.2 will
+compile.  These tend to get addressed eventually, but it won't ever be perfect.
+
+You can install more than one copy of any given perl, too.  Maybe you want to
+have different sets of libraries installed – although really you could just use
+L<local::lib|http://perladvent.org/2011/2011-12-01.html> for that.  Maybe,
+though, you want the same version with different options.  These are all
+useful:
+
+  perlbrew install perl-5.14.2 -Dusethreads --as threaded-5.14.2
+
+  perlbrew install perl-5.14.2 -DDEBUGGING --as debug-5.14.2
+
+...and you probably want to know that C<-j> works to make and test in parallel:
+
+  perlbrew install -j 5 perl-5.14.2
+
+=head1 Take your perl and roll it back
+
+If you really need to make C<which perl> start returning your old global perl
+or its installed programs – which should probably never happen – you can get
+C<perlbrew> out of the way with C<perlbrew off>.
+
+Of course, you probably don't need to do this.  If you've got C<perl> installed
+for your system at F</usr/bin/perl> you can just put that in the shebang lines
+as needed.  You can run C</usr/bin/perl $(which cpanm)> when you need to
+install things to the global install, and so on.  Almost certainly, though,
+you'll quickly find that you don't need to muck with it nearly at all.
+
+More likely, you'll start finding that you've got personal scripts that are
+using the system perl in their shebang, but your library updates are now going
+to perlbrew.  That's easy to fix, and you do some nice simple things this way.
+For example, you can write this:
+
+  #!perl
+  #!/home/rjbs/perl5/perlbrew/perls/perl-5.14.2/bin/perl
+  use 5.14.1;
+
+  use local::lib '/home/rjbs/.perlbrew/lib/safe';
+
+  ...
+
+First of all, you've spelled out exactly what version of C<perl> to use, and
+that won't go away when you install a new version -- it will stay there,
+working correctly, until you get everything working on 5.16 and (maybe) decide
+to delete your C<perl>.
+
+Secondly, you've decided to use a local::lib to keep the safe versions of all
+the libraries you're going to use.  Why is it under F<~/.perlbrew>?  Because
+C<perlbrew> can manage your local::lib compartments, too:
+
+  #!code
+  $ perlbrew switch perl-5.14.2
+  $ perlbrew lib create safe
+  $ perlbrew switch perl-5.14.2@safe
+  $ cpanm install Something::Cool
+
+In other words, we:
+
+=for :list
+1. pick the perl for we want a local::lib
+2. create a local::lib compartment called "safe" for that perl
+3. switch to using it
+4. install Something::Cool into it
+
+There are some limitations, here.  We can only have one active compartment at a
+time and we can't re-use a compartment across two versions (even if we think it
+will be safe).  Still, those are unlikely cases, and the base case is very,
+very useful.
+
+=head1 Doesn't it make your life better?
+
+It's hard to explain how much simpler C<perlbrew> can make testing of Perl
+code.  It's not just testing, either.  Obviously, this makes it easier to
+upgrade your code to a new version without having to go whole hog or have
+multiple versions installed in a single F<bin> dir.  It lets you keep your one
+stupid-but-vital ancient tool working on 5.6 while the rest of your work is
+getting done on 5.14.
+
+Finally, even if you only ever use it for one C<perl>, it takes away a bunch of
+the headache of installing C<perl> and later libraries by doing all the
+configuration for you and putting everything into directories into which you
+can write, without C<sudo> or local::lib.
+
+You will not regret using C<perlbrew>.
+
+=head1 See Also
+
+=for :list
+* L<App::perlbrew> on the CPAN
+* the L<perlbrew home page|http://www.perlbrew.pl/>
+

@@ -1,0 +1,213 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2019 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2019.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2019 - 
+Draft Solution
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2019</a></h1>
+        </div>
+
+        <p id="tagline">2019 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Draft Solution</h1>
+<div class='subtitle'>HTTP::Message::PSGI - 2019-12-13</div>
+
+<div class='pod'><h3 id="Productivity">Productivity</h3>
+
+<p>Nougat Jinglebubbles was an expert in Productivity (with a capital P.) That meant that he could spend hours and hours of each day optomizing his computer setup to ensure that he&#39;d shaved a few seconds off of his workflow rather than working on debugging the new Christmas letter OCR software like he was supposed to be doing.</p>
+
+<p>Today he was looking at the latest version of Drafts Pro for his macOS laptop.</p>
+
+<p><center><img src="drafts.jpg" widht="814" height="600" alt="Drafts"></center>
+
+</p>
+
+
+
+<p>Drafts is an application that allows you to capture text on your iPhone, iPad, Apple Watch or Mac and have that content sync between the devices.</p>
+
+<p>What&#39;s more, on iOS Drafts allows you to define actions to process that text, to easily ship it off to an email client, or create a calendar entry, or append it to a list in dropbox, or send it to your task management software. Or, if you were feeling really adventurous you could setup actions that executed JavaScript code to do pretty much wanted you wanted.</p>
+
+<p>Tap, tap, productive! (Eventually, after many hours of debugging.)</p>
+
+<p>And now with this week&#39;s <a href="https://www.macstories.net/reviews/drafts-for-mac-its-action-time/">new release</a> enabling feature parity with the iOS releases, you can even set up processing actions on your Mac. And of course running on the Mac without the restrictions of iOS you&#39;ll be able to do whatever you want - run Perl scripts, process files on the local file system, everything!</p>
+
+<p>Oh No. No, wait you can&#39;t.</p>
+
+<p>The problem is that JavaScript still runs inside the same type of sandbox on macOS. There is no way to shell out to Perl and get some real programming done.</p>
+
+<p>Or is there?</p>
+
+<h3 id="And-now-for-something-somewhat-unrelated">And now for something somewhat unrelated.</h3>
+
+<p>Wouldn&#39;t it be nice to have a web server always running on your Mac. We could quickly visit a local web page and get some graphs on disk usage, or visit a page that used AppleScript to pull out info from our calendar, or scraped some news from the web to show us or...the list goes on.</p>
+
+<p>The trouble is that our local laptops only have so much memory. And if we run twenty or so web servers all the time, sitting idle waiting for requests, that memory quickly runs out.</p>
+
+<p>Worse, if we&#39;ve got twenty web servers running we have to find some way to manage all of that. To restart them all when we make code changes. To ensure that they&#39;re running all the time. That sounds like a real pain in the jingle bells.</p>
+
+<h3 id="A-different-kind-of-serverless">A different kind of serverless</h3>
+
+<p>How can we run a web server on our local machine without running a web server? What we need is a super-server - a server that can listen on any port we&#39;d like to pretend there&#39;s a web server running and fire up some program on demand whenever someone connects to it.</p>
+
+<p>On Linux that kind of functionality it provided by inetd (or xinetd or any of the other itterations.) On macOS that functionality is just one of the things the all powerful <code>launchd</code> daemon can do.</p>
+
+<p>launchd is enterprise level software - you can tell by the way you have to configure it using XML. Here&#39;s an example <i>plist</i> file:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;<br />46:&nbsp;<br />47:&nbsp;<br />48:&nbsp;<br />49:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synComment">&lt;?</span><span class="synType">xml version</span>=<span class="synConstant">&quot;1.0&quot;</span><span class="synType"> encoding</span>=<span class="synConstant">&quot;UTF-8&quot;</span><span class="synComment">?&gt;</span><br /><span class="synIdentifier">&lt;!</span><span class="synStatement">DOCTYPE</span> plist <span class="synStatement">PUBLIC</span> <span class="synConstant">&quot;-//Apple//DTD PLIST 1.0//EN&quot;</span> <span class="synConstant">&quot;http://www.apple.com/DTDs/PropertyList-1.0.dtd&quot;</span><span class="synIdentifier">&gt;</span><br /><span class="synIdentifier">&lt;plist </span><span class="synType">version</span>=<span class="synConstant">&quot;1.0&quot;</span><span class="synIdentifier">&gt;</span><br /><span class="synIdentifier">&lt;dict&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;key&gt;</span>Label<span class="synIdentifier">&lt;/key&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;string&gt;</span>org.perladvent.example<span class="synIdentifier">&lt;/string&gt;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synComment">&lt;!-- this is the program we want to run.  We can't specify</span><br /><span class="synComment">        a script here with a shebang line, it has to be an</span><br /><span class="synComment">        actual executable, so we specify our perl and pass</span><br /><span class="synComment">        the name of the script as an argument --&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;key&gt;</span>ProgramArguments<span class="synIdentifier">&lt;/key&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;array&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;string&gt;</span>/usr/bin/perl<span class="synIdentifier">&lt;/string&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;string&gt;</span>/Users/Nougat/servers/example.pl<span class="synIdentifier">&lt;/string&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;/array&gt;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synComment">&lt;!-- we don't want to be loaded right away, we want to loaded</span><br /><span class="synComment">        on demand when someone tries to connect to the port --&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;key&gt;</span>OnDemand<span class="synIdentifier">&lt;/key&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;true/&gt;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synComment">&lt;!-- here's where we're listening - on port 54321 --&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;key&gt;</span>Sockets<span class="synIdentifier">&lt;/key&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;dict&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;key&gt;</span>Listeners<span class="synIdentifier">&lt;/key&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;array&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;dict&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;key&gt;</span>SockFamily<span class="synIdentifier">&lt;/key&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;string&gt;</span>IPv4<span class="synIdentifier">&lt;/string&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;key&gt;</span>SockServiceName<span class="synIdentifier">&lt;/key&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;string&gt;</span>54321<span class="synIdentifier">&lt;/string&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;/dict&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;/array&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;/dict&gt;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synComment">&lt;!-- finally we want to configure launchd to emulate</span><br /><span class="synComment">         inetd in 'nowait' mode.  This'll mean that launchd</span><br /><span class="synComment">         will handle all the port stuff for us.  It'll</span><br /><span class="synComment">         execute our program when someone connects and pass data</span><br /><span class="synComment">         sent to the port to the program via STDIN and anything</span><br /><span class="synComment">         output to STDOUT will be sent back across the port --&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;key&gt;</span>inetdCompatibility<span class="synIdentifier">&lt;/key&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;dict&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;key&gt;</span>Wait<span class="synIdentifier">&lt;/key&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;false/&gt;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">&lt;/dict&gt;</span><br /><span class="synIdentifier">&lt;/dict&gt;</span><br /><span class="synIdentifier">&lt;/plist&gt;</span></code><br />&nbsp;</td></table>
+
+<p>As we want the code to run as the user we&#39;re logged in as we need to create this file inside <code>~/Library/LaunchAgents</code>. It should be named <code>org.perladvent.example.plist</code>, as that&#39;s what corresponds to the <code>label</code> key in the plist.</p>
+
+<p>Once the file has been created we need to tell launchd to load it</p>
+
+<pre><code>   $ launchctl load ~/Library/LaunchAgents/org.perladvent.example.plist</code></pre>
+
+<p>No output from this command is good news!</p>
+
+<h3 id="Writing-the-server-script">Writing the &#39;server&#39; script</h3>
+
+<p>We now need to write a program that takes input on STDIN and produces output on STDOUT. Easy, right?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="float">5.024</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="comment"># disable STDOUT buffering<br /></span><span class="magic">$|</span> <span class="operator">=</span> <span class="number">1</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Chatbot::Eliza</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$bot</span> <span class="operator">=</span> <span class="word">Chatbot::Eliza</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><br /><span class="keyword">while</span> <span class="structure">(</span><span class="readline">&lt;STDIN&gt;</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="single">'-- '</span><span class="operator">,</span><span class="symbol">$bot</span><span class="operator">-&gt;</span><span class="word">transform</span><span class="structure">(</span> <span class="magic">$_</span> <span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>We can now connect to our server with telnet and talk to the bot over the local loopback interface:</p>
+
+<pre><code>    $ telnet 127.0.0.1 54321
+    Trying 127.0.0.1...
+    Connected to localhost.
+    Escape character is &#39;^]&#39;.
+    Hello
+    -- Hi. What seems to be your problem?
+    I&#39;ve run out of tape to wrap the presents
+    -- That&#39;s quite interesting.
+    Santa will be mad.
+    -- Does talking about this bother you?
+    A little.
+    -- I&#39;m not sure I understand you fully.
+    No-one does.
+    -- Why &#39;no&#39;?
+    Everything is no!
+    -- Are you saying no just to be negative?
+    ^]
+    telnet&gt; quit
+    Connection closed.</code></pre>
+
+<p>Okay, so we can write a simple &#39;server&#39; that sends data back and forth. How about handling web pages?</p>
+
+<h3 id="PSGI">PSGI</h3>
+
+<p>The PSGI standard is a simple protocol that allows web servers and web frameworks to have a common standard to communicate with each other. In theory any framework that is PSGI compatible can be used with any PSGI compatible webserver and vice versa.</p>
+
+<p>Here&#39;s what the world&#39;s simplest PSGI compatible web app looks like:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$psgi</span> <span class="operator">=</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$env</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'200'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">[</span> <span class="single">'Content-Type'</span> <span class="operator">=&gt;</span> <span class="single">'text/plain'</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">[</span> <span class="double">&quot;Hello person using $env-&gt;{HTTP_USER_AGENT}&quot;</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">];</span><br /><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>Like all PSGI apps it&#39;s just a subroutine that takes a hash reference and returns a bunch of array refs. Nothing more complicated than that.</p>
+
+<p>What we&#39;re going to do is write a shim so that when launchd executes our script it&#39;ll be able to use this - or any other PSGI compatible app - to generate the output.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># Process via PSGI.  <br /></span><br /><span class="keyword">use</span> <span class="word">HTTP::Request</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">HTTP::Response</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">HTTP::Message::PSGI</span><span class="structure">;</span><br /><br /><span class="comment"># Only bother gathering the headers, ignore the body of the request<br /></span><span class="keyword">my</span> <span class="symbol">$input</span> <span class="operator">=</span> <span class="double">&quot;&quot;</span><span class="structure">;</span><br /><span class="keyword">while</span> <span class="structure">(</span><span class="readline">&lt;STDIN&gt;</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">last</span> <span class="word">if</span> <span class="match">/^\r\n$/</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$input</span> <span class="operator">.=</span> <span class="magic">$_</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="word">print</span> <span class="single">'HTTP/1.1 '</span> <span class="operator">.</span> <span class="word">HTTP::Response</span><span class="operator">-&gt;</span><span class="word">from_psgi</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$psgi</span><span class="operator">-&gt;</span><span class="structure">(</span> <span class="word">HTTP::Request</span><span class="operator">-&gt;</span><span class="word">parse</span><span class="structure">(</span> <span class="symbol">$input</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="word">to_psgi</span> <span class="structure">)</span><br /><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">as_string</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Wow, that was pretty straight forward. Does it work?</p>
+
+<pre><code>    $ curl -v 127.0.0.1:54321
+    *   Trying 127.0.0.1...
+    * TCP_NODELAY set
+    * Connected to 127.0.0.1 (127.0.0.1) port 54321 (#0)
+    &gt; GET / HTTP/1.1
+    &gt; Host: 127.0.0.1:54321
+    &gt; User-Agent: curl/7.64.1
+    &gt; Accept: */*
+    &gt;
+    &lt; HTTP/1.1 200 OK
+    &lt; Content-Type: text/plain
+    * no chunk, no close, no size. Assume close to signal end
+    &lt;
+    Hello person using curl/7.64.1
+    * Closing connection 0</code></pre>
+
+<p>Awesome</p>
+
+<h3 id="Using-a-more-advanced-framework">Using a more advanced framework</h3>
+
+<p>Okay, so now we can plug in any framework we want, like Mojolicious:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="word">Mojolicious::Lite</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">HTTP::Request</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">HTTP::Response</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">HTTP::Message::PSGI</span><span class="structure">;</span><br /><br /><span class="word">get</span> <span class="single">'/'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$c</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$input</span> <span class="operator">=</span> <span class="symbol">$c</span><span class="operator">-&gt;</span><span class="word">param</span><span class="structure">(</span><span class="single">'text'</span><span class="structure">);</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$output</span> <span class="operator">=</span> <span class="word">reverse</span> <span class="symbol">$input</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$c</span><span class="operator">-&gt;</span><span class="word">render</span><span class="structure">(</span> <span class="word">text</span> <span class="operator">=&gt;</span> <span class="symbol">$output</span> <span class="structure">);</span><br /><span class="structure">}</span><br /><br /><span class="comment"># create a PSGI app from the Mojolicious app<br /></span><span class="word">app</span><span class="operator">-&gt;</span><span class="word">log</span><span class="operator">-&gt;</span><span class="word">level</span><span class="structure">(</span><span class="single">'error'</span><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$psgi</span> <span class="operator">=</span> <span class="word">app</span><span class="operator">-&gt;</span><span class="word">start</span><span class="structure">(</span><span class="single">'psgi'</span><span class="structure">);</span><br /><br /><span class="comment"># Process via PSGI.  Only bother with GET requests<br /></span><span class="keyword">my</span> <span class="symbol">$input</span> <span class="operator">=</span> <span class="double">&quot;&quot;</span><span class="structure">;</span><br /><span class="keyword">while</span> <span class="structure">(</span><span class="readline">&lt;STDIN&gt;</span><span class="structure">)</span> <span class="structure">{</span> <span class="word">last</span> <span class="word">if</span> <span class="match">/^\r\n$/</span><span class="structure">;</span> <span class="symbol">$input</span> <span class="operator">.=</span> <span class="magic">$_</span> <span class="structure">}</span><br /><span class="word">print</span> <span class="single">'HTTP/1.1 '</span> <span class="operator">.</span> <span class="word">HTTP::Response</span><span class="operator">-&gt;</span><span class="word">from_psgi</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$psgi</span><span class="operator">-&gt;</span><span class="structure">(</span> <span class="word">HTTP::Request</span><span class="operator">-&gt;</span><span class="word">parse</span><span class="structure">(</span> <span class="symbol">$input</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="word">to_psgi</span> <span class="structure">)</span><br /><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">as_string</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>So there&#39;s a really simple example of a server that can manipulate any text that&#39;s passed into it.</p>
+
+<pre><code>    $ curl 127.0.0.1:54321?text=Example
+    elpmaxE</code></pre>
+
+<p>I wonder if Nougat would find this helpful?</p>
+
+<h3 id="Back-to-the-Draft">Back to the Draft</h3>
+
+<p>One of the things that Drafts can from within JavaScript is make HTTP requests. Including, say, to a server we have running on demand on localhost.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synIdentifier">var</span> response = HTTP.create().request(<span class="synIdentifier">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synConstant">&quot;url&quot;</span>: <span class="synConstant">&quot;http://127.0.0.1:54321&quot;</span>,<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synConstant">&quot;method&quot;</span>: <span class="synConstant">&quot;GET&quot;</span>,<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synConstant">&quot;parameters&quot;</span>: <span class="synIdentifier">{</span> <span class="synConstant">&quot;text&quot;</span> : draft.content <span class="synIdentifier">}</span><br /><span class="synIdentifier">}</span>)<br />draft.content = response.responseText</code><br />&nbsp;</td></table>
+
+<p>So Nougat needs to take the following steps:</p>
+
+<p><ol> <li>Configure a Launchd plist to run a Perl script whenever something connects to a port on localhost</li> <li>Load the plist. This only needs to be done once - it'll happen automatically on restart</li> <li>Write a script that speaks PSGI at that location. If you use Mojolicious or another framework you can have it do different things on different paths!</li> <li>Configure an action in Drafts that uses a JavaScript step to call this URL </ol>
+
+</p>
+
+
+
+<p>And with that, he can execute Perl actions to his heart&#39;s content!</p>
+
+<p><center><img src="drafts-before.jpg" widht="814" height="600" alt="Drafts: Before Transformation"></center> <center><img src="drafts-after.jpg" widht="814" height="600" alt="Drafts: After TRansformation"></center>
+
+</p>
+
+
+
+<p>(Maybe he should get back to work though!)</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Now With Added Interactivity" href="2019-12-12.html">Previous</a></li>
+
+    <li class="next"><a title="Animated GIFs" href="2019-12-14.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

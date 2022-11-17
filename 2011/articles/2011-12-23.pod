@@ -1,0 +1,155 @@
+Title:  It Boiled Plate So You Don't Have To!
+Topic:  Params::Util
+Author: Ricardo Signes <rjbs@cpan.org>
+
+=encoding utf8
+
+=head1 ref, reftype, overload, and isa
+
+"The C<process_foos> method accepts either something that does the Foo role,
+an arrayref of such things, or a callback that should return one of the
+previous options."
+
+This kind of behavior is pretty common in Perl.  It's pretty convenient, too!
+The problem is that it is I<incredibly> ambiguous because Perl can behave in so
+many ways.  We might write an implementation like this:
+
+  #!perl
+  sub process_foos {
+    my ($self, $arg) = @_;
+
+    return $self->_process_one_foo($arg) if $arg->DOES('Foo');
+    return $self->_process_foo_arr($arg) if ref $arg eq 'ARRAY';
+
+    return $self->process_foos($arg->()) if ref $arg eq 'CODE';
+  }
+
+How many problems are there here, though?  Well…
+
+First off, that C<< ->DOES >> call is no good.  It will blow up if we pass in
+an arrayref, because you can't call C<DOES> or C<isa> (or any other method) on
+an unblessed reference.   So, the I<incredibly unfortunate> way people dealt
+with this in the past was:
+
+  #!perl
+  return $self->_process_one_foo($arg) if UNIVERSAL::isa($arg, 'Foo');
+
+Notice how I devolved back from C<DOES> to C<isa>?  That's because
+C<UNIVERSAL::DOES> detects and objects to this kind of abuse – but it doesn't
+give you a safe way to check it in one step, so now the new I<incredibly
+unfortunate> way people deal with this is:
+
+  #!perl
+  return $self->_process_one_foo($arg) if blessed $arg and $arg->DOES('Foo');
+
+This is fine, if you really wanted a Foo I<object>, but sometimes a I<class> is
+just as good, if it has the right interface.  The whole thing about classes and
+instances sharing the same set of methods is kind of its own problem… so let's
+just say "this is a mess" and keep going.
+
+So, this one seems less I<obviously> bad:
+
+  #!perl
+  return $self->_process_foo_arr($arg) if ref $arg eq 'ARRAY';
+
+…but it's still not perfect.  For one thing, some chucklehead might have
+blessed his object into C<ARRAY>.  Frankly, I think that if you've got that
+going on in your code base, you probably deserve what you get, but you can
+protect against it, any many do, with:
+
+  #!perl
+  return $self->_process_foo_arr($arg) if reftype $arg eq 'ARRAY';
+
+Now we're really checking the underlying reference type, not just the return of
+C<ref>, which has I<two> jobs.  That's better, except I<not really>.  See,
+C<reftype> is bypassing C<ref> – which seemed like a good thing when C<ref>
+sometimes returned C<ARRAY> but now it means we don't know whether the thing
+was blessed!  So you have a couple options.  One is:
+
+  #!perl
+  return $self->_process_foo_arr($arg)
+    if ! blessed $arg and reftype $arg eq 'ARRAY';
+
+Okay, that's not too, too bad.  Let's stick with it for now.
+
+  #!perl
+  return $self->process_foos($arg->()) if ref $arg eq 'CODE';
+
+Yup, this one has the same problem as the above.  So, maybe you want to use the
+same solution!
+
+  return $self->process_foos( $arg->() )
+    if ! blessed $arg and reftype $arg eq 'CODE';
+
+Unfortunately, the astute abuse-o-philes will remember, here, "Wait!  What if
+you provided an I<object> that is I<overloaded for C<&{}>>!?"  And you know
+what?  I'm going to take a step back and just say what I think:  I<that isn't
+even abuse!>  Closures and objects are closely related concepts, and the idea
+that your object can behave like a closure – at least by providing a
+subref-like calling interface – is totally reasonable.  I have done it, I
+enjoyed it, and I would do it again!
+
+So, what did you really need to test for?
+
+  #!perl
+  ( reftype($arg) || '' ) eq 'CODE'
+  ||
+  blessed($arg) and overload::Method($arg,'&{}')
+
+Yes.  I<Of course> I think it's ridiculous, too.  Even better, you have to do
+it for the C<ARRAY> bit above, because somebody might have overloaded C<@{}>.
+
+=head1 Help!!
+
+Don't worry!  There's help!
+
+L<Params::Util> provides a treatment for this madness.
+
+  #!perl
+  use Params::Util ':ALL';
+
+  sub process_foos {
+    my ($self, $arg) = @_;
+
+    return $self->_process_one_foo($arg)
+      if _CLASSISA($arg, 'Foo') || _INSTANCE($arg, 'Foo');
+
+    return $self->_process_foo_arr($arg) if _ARRAYLIKE( $arg );
+
+    return $self->process_foos($arg->()) if _CODELIKE( $arg );
+  }
+
+(Note that I had to use C<_CLASSISA>, which as the name implies uses C<< ->isa
+>> – Params::Util does not I<yet> have C<_CLASSDOES>.)
+
+These funky, hard-to-miss functions encapsulate all these kinds of checks, but
+they do them I<the right way>.  There's C<_SCALAR> to check for a plain,
+defined, unblessed scalar of nonzero length – and if you want a plain, defined,
+unblessed scalar length and have no problem with zero length, there's
+C<_SCALAR0>.  There are routines for hashrefs, non-empty hashrefs, or things
+that can act like hashrefs if you want.  There are tests for numberness,
+positive integerhood, and non-negative integerhood.  If you look at list of its
+routines, you can probably guess what almost all of them do, and you can start
+using them immediately, replacing the code you have that's just waiting to get
+tickled by some stupid edge case.
+
+Here's that list:
+
+  #!code
+  _STRING     _IDENTIFIER
+  _CLASS      _CLASSISA   _SUBCLASS  _DRIVER
+  _NUMBER     _POSINT     _NONNEGINT
+  _SCALAR     _SCALAR0
+  _ARRAY      _ARRAY0     _ARRAYLIKE
+  _HASH       _HASH0      _HASHLIKE
+  _CODE       _CODELIKE
+  _INVOCANT   _REGEX      _INSTANCE
+  _SET        _SET0
+  _HANDLE
+
+My only parting advice?  Avoid C<_STRING>.  It accepts globs!
+
+=head1 See Also
+
+=for :list
+* L<Params::Util>

@@ -1,0 +1,259 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2017 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2017.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2017 - 
+Quickly Building DBIx::Class Schemas
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2017</a></h1>
+        </div>
+
+        <p id="tagline">2017 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Quickly Building DBIx::Class Schemas</h1>
+<div class='subtitle'>dbicdump - 2017-12-21</div>
+
+<div class='pod'><p>Chestnut Emberflakes had been put in charge of solving a <b>big</b> problem at the North Pole. Several deliveries this year had failed to be delivered and he had to write a tool to store these few thousand orders in a database so Santa could make another quick orbit of the planet to re-deliver all those things he&#39;d missed.</p>
+
+<p>Chestnut only had until the first orbit had been completed to build his tool. He didn&#39;t have time to hand craft each and every SQL statement, but neither did he have time to write - and rewrite as he made changes - a bunch of class files for DBIx::Class so he could have it act as a ORM for him.</p>
+
+<p>The Wise Old Elf was very busy as always on Christmas Eve, but he had enough time to part some quick advice: &quot;Let the code build the code for you&quot;. Chestnut wasn&#39;t sure what that meant, but he&#39;d be sure to figure it out soon.</p>
+
+<h3 id="What-Emberflakes-Had-To-Model">What Emberflakes Had To Model</h3>
+
+<p>The requirements for the database model cold be summed up by this entity relationship diagram.</p>
+
+<p><center><img src="erd.png" width="600" height="211" alt="Entity Relationship Diagram"></center>
+
+</p>
+
+
+
+<p>In short:</p>
+
+<ul>
+
+<li><p>Each child would receive one or more named presents</p>
+
+</li>
+<li><p>Likewise each brand of present could be given to any number of children</p>
+
+</li>
+<li><p>Each child could have an address associated with them where the presents would be delivered (though some children sadly wouldn&#39;t have an address and Santa would have to use some ingenuity there instead)</p>
+
+</li>
+<li><p>Each address could have any number of children at it</p>
+
+</li>
+</ul>
+
+<h3 id="The-SQL">The SQL</h3>
+
+<p>Chestnut quickly knocked up some SQL to create a Postgres database. This prototype didn&#39;t have to be perfect - he wasn&#39;t trying too hard to get all the types right in the most efficient manner, but just get this <i>done</i>.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;<br />46:&nbsp;<br />47:&nbsp;<br />48:&nbsp;<br />49:&nbsp;<br />50:&nbsp;<br />51:&nbsp;<br />52:&nbsp;<br />53:&nbsp;<br />54:&nbsp;<br />55:&nbsp;<br />56:&nbsp;<br />57:&nbsp;<br />58:&nbsp;<br />59:&nbsp;<br />60:&nbsp;<br />61:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synStatement">DROP</span> DATABASE <span class="synSpecial">IF</span> <span class="synStatement">EXISTS</span> prototype;<br /><span class="synStatement">CREATE</span> DATABASE prototype;<br /><br />\c prototype;<br /><br /><span class="synStatement">CREATE</span> <span class="synSpecial">TABLE</span> stocking_address (<br />&nbsp;&nbsp;&nbsp;&nbsp;stocking_address_id UUID <span class="synStatement">NOT</span> <span class="synSpecial">NULL</span>,<br />&nbsp;&nbsp;&nbsp;&nbsp;street_address TEXT <span class="synStatement">NOT</span> <span class="synSpecial">NULL</span>,<br />&nbsp;&nbsp;&nbsp;&nbsp;lat <span class="synType">float</span>,<br />&nbsp;&nbsp;&nbsp;&nbsp;lon <span class="synType">float</span><br />);<br /><br /><span class="synStatement">ALTER</span> <span class="synSpecial">TABLE</span> ONLY stocking_address<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">ADD</span> CONSTRAINT stocking_address_pkey<br />&nbsp;&nbsp;&nbsp;&nbsp;PRIMARY KEY (stocking_address_id);<br /><br /><span class="synStatement">CREATE</span> <span class="synSpecial">TABLE</span> child (<br />&nbsp;&nbsp;&nbsp;&nbsp;child_id UUID <span class="synStatement">NOT</span> <span class="synSpecial">NULL</span>,<br />&nbsp;&nbsp;&nbsp;&nbsp;stocking_address_id UUID,<br />&nbsp;&nbsp;&nbsp;&nbsp;name TEXT <span class="synStatement">NOT</span> <span class="synSpecial">NULL</span><br />);<br /><br /><span class="synStatement">ALTER</span> <span class="synSpecial">TABLE</span> ONLY child<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">ADD</span> CONSTRAINT child_pkey<br />&nbsp;&nbsp;&nbsp;&nbsp;PRIMARY KEY (child_id);<br /><br /><span class="synStatement">ALTER</span> <span class="synSpecial">TABLE</span> ONLY child<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">ADD</span> CONSTRAINT child_stocking_address_id_fkey<br />&nbsp;&nbsp;&nbsp;&nbsp;FOREIGN KEY (stocking_address_id)<br />&nbsp;&nbsp;&nbsp;&nbsp;REFERENCES  stocking_address(stocking_address_id)<br />&nbsp;&nbsp;&nbsp;&nbsp;DEFERRABLE;<br /><br /><span class="synStatement">CREATE</span> <span class="synSpecial">TABLE</span> present (<br />&nbsp;&nbsp;&nbsp;&nbsp;present_id UUID <span class="synStatement">NOT</span> <span class="synSpecial">NULL</span>,<br />&nbsp;&nbsp;&nbsp;&nbsp;description TEXT <span class="synStatement">NOT</span> <span class="synSpecial">NULL</span><br />);<br /><br /><span class="synStatement">ALTER</span> <span class="synSpecial">TABLE</span> ONLY present<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">ADD</span> CONSTRAINT present_pkey<br />&nbsp;&nbsp;&nbsp;&nbsp;PRIMARY KEY (present_id);<br /><br /><span class="synStatement">CREATE</span> <span class="synSpecial">TABLE</span> child_presents (<br />&nbsp;&nbsp;&nbsp;&nbsp;child_id UUID <span class="synStatement">NOT</span> <span class="synSpecial">NULL</span>,<br />&nbsp;&nbsp;&nbsp;&nbsp;present_id UUID <span class="synStatement">NOT</span> <span class="synSpecial">NULL</span><br />);<br /><br /><span class="synStatement">ALTER</span> <span class="synSpecial">TABLE</span> ONLY child_presents<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">ADD</span> CONSTRAINT child_presents_pkey<br />&nbsp;&nbsp;&nbsp;&nbsp;PRIMARY KEY (child_id, present_id);<br /><br /><span class="synStatement">ALTER</span> <span class="synSpecial">TABLE</span> ONLY child_presents<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">ADD</span> CONSTRAINT child_idfkey<br />&nbsp;&nbsp;&nbsp;&nbsp;FOREIGN KEY (child_id)<br />&nbsp;&nbsp;&nbsp;&nbsp;REFERENCES  child(child_id)<br />&nbsp;&nbsp;&nbsp;&nbsp;DEFERRABLE;<br /><br /><span class="synStatement">ALTER</span> <span class="synSpecial">TABLE</span> ONLY child_presents<br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">ADD</span> CONSTRAINT present_idfkey<br />&nbsp;&nbsp;&nbsp;&nbsp;FOREIGN KEY (present_id)<br />&nbsp;&nbsp;&nbsp;&nbsp;REFERENCES  present(present_id)<br />&nbsp;&nbsp;&nbsp;&nbsp;DEFERRABLE;</code><br />&nbsp;</td></table>
+
+<p>He&#39;d at least spent the time writing in the foreign key constraints. He didn&#39;t have much time to spare, but he had even less time to spare debugging his database if he didn&#39;t stop junk being put in their by mistake!</p>
+
+<p>Chestnut quickly setup the database on his dev machine:</p>
+
+<pre><code>    bash$ psql &lt; database.sql
+    DROP DATABASE
+    CREATE DATABASE
+    You are now connected to database &quot;prototype&quot; as user &quot;Chestnut&quot;.
+    CREATE TABLE
+    ALTER TABLE
+    CREATE TABLE
+    ALTER TABLE
+    ALTER TABLE
+    CREATE TABLE
+    ALTER TABLE
+    CREATE TABLE
+    ALTER TABLE
+    ALTER TABLE
+    ALTER TABLE</code></pre>
+
+<h3 id="Building-The-ORM-Classes-Automatically">Building The ORM Classes Automatically</h3>
+
+<p>Emberflakes was just about to call out to see if anyone would help him when the Wise Old Elf snatched away his keyboard and typed something.</p>
+
+<pre><code>    bash$ dbicdump -o dump_directory=./lib \
+        Prototype::Schema &#39;dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432&#39;</code></pre>
+
+<p>And ran away. Emberflames was left staring at the message on his screen:</p>
+
+<pre><code>    Dumping manual schema for Prototype::Schema to directory ./lib ...
+    Schema dump completed.</code></pre>
+
+<p>What the huh? With no one to explain what had just happened Chestnut figured he better peek inside the <code>lib</code> directory.</p>
+
+<pre><code>    bash$ find .
+    find .
+    .
+    ./lib
+    ./lib/Prototype
+    ./lib/Prototype/Schema
+    ./lib/Prototype/Schema/Result
+    ./lib/Prototype/Schema/Result/Child.pm
+    ./lib/Prototype/Schema/Result/ChildPresent.pm
+    ./lib/Prototype/Schema/Result/Present.pm
+    ./lib/Prototype/Schema/Result/StockingAddress.pm
+    ./lib/Prototype/Schema.pm</code></pre>
+
+<p>Ooooh. It&#39;d all been written for him. Opening up one of the files shows all the code.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;<br />46:&nbsp;<br />47:&nbsp;<br />48:&nbsp;<br />49:&nbsp;<br />50:&nbsp;<br />51:&nbsp;<br />52:&nbsp;<br />53:&nbsp;<br />54:&nbsp;<br />55:&nbsp;<br />56:&nbsp;<br />57:&nbsp;<br />58:&nbsp;<br />59:&nbsp;<br />60:&nbsp;<br />61:&nbsp;<br />62:&nbsp;<br />63:&nbsp;<br />64:&nbsp;<br />65:&nbsp;<br />66:&nbsp;<br />67:&nbsp;<br />68:&nbsp;<br />69:&nbsp;<br />70:&nbsp;<br />71:&nbsp;<br />72:&nbsp;<br />73:&nbsp;<br />74:&nbsp;<br />75:&nbsp;<br />76:&nbsp;<br />77:&nbsp;<br />78:&nbsp;<br />79:&nbsp;<br />80:&nbsp;<br />81:&nbsp;<br />82:&nbsp;<br />83:&nbsp;<br />84:&nbsp;<br />85:&nbsp;<br />86:&nbsp;<br />87:&nbsp;<br />88:&nbsp;<br />89:&nbsp;<br />90:&nbsp;<br />91:&nbsp;<br />92:&nbsp;<br />93:&nbsp;<br />94:&nbsp;<br />95:&nbsp;<br />96:&nbsp;<br />97:&nbsp;<br />98:&nbsp;<br />99:&nbsp;<br />100:&nbsp;<br />101:&nbsp;<br />102:&nbsp;<br />103:&nbsp;<br />104:&nbsp;<br />105:&nbsp;<br />106:&nbsp;<br />107:&nbsp;<br />108:&nbsp;<br />109:&nbsp;<br />110:&nbsp;<br />111:&nbsp;<br />112:&nbsp;<br />113:&nbsp;<br />114:&nbsp;<br />115:&nbsp;<br />116:&nbsp;<br />117:&nbsp;<br />118:&nbsp;<br />119:&nbsp;<br />120:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">utf8</span><span class="structure">;</span><br /><span class="keyword">package</span> <span class="word">Prototype::Schema::Result::Child</span><span class="structure">;</span><br /><br /><span class="comment"># Created by DBIx::Class::Schema::Loader<br /># DO NOT MODIFY THE FIRST PART OF THIS FILE<br /></span><br /><span class="pod">=head1 NAME<br /><br />Prototype::Schema::Result::Child<br /><br />=cut<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="pragma">base</span> <span class="single">'DBIx::Class::Core'</span><span class="structure">;</span><br /><br /><span class="pod">=head1 TABLE: C&lt;child&gt;<br /><br />=cut<br /></span><br /><span class="word">__PACKAGE__</span><span class="operator">-&gt;</span><span class="word">table</span><span class="structure">(</span><span class="double">&quot;child&quot;</span><span class="structure">);</span><br /><br /><span class="pod">=head1 ACCESSORS<br /><br />=head2 child_id<br /><br />&nbsp;&nbsp;data_type: 'uuid'<br />&nbsp;&nbsp;is_nullable: 0<br />&nbsp;&nbsp;size: 16<br /><br />=head2 stocking_address_id<br /><br />&nbsp;&nbsp;data_type: 'uuid'<br />&nbsp;&nbsp;is_foreign_key: 1<br />&nbsp;&nbsp;is_nullable: 1<br />&nbsp;&nbsp;size: 16<br /><br />=head2 name<br /><br />&nbsp;&nbsp;data_type: 'text'<br />&nbsp;&nbsp;is_nullable: 0<br /><br />=cut<br /></span><br /><span class="word">__PACKAGE__</span><span class="operator">-&gt;</span><span class="word">add_columns</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="double">&quot;child_id&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">{</span> <span class="word">data_type</span> <span class="operator">=&gt;</span> <span class="double">&quot;uuid&quot;</span><span class="operator">,</span> <span class="word">is_nullable</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span> <span class="word">size</span> <span class="operator">=&gt;</span> <span class="number">16</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="double">&quot;stocking_address_id&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">{</span> <span class="word">data_type</span> <span class="operator">=&gt;</span> <span class="double">&quot;uuid&quot;</span><span class="operator">,</span> <span class="word">is_foreign_key</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span> <span class="word">is_nullable</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span> <span class="word">size</span> <span class="operator">=&gt;</span> <span class="number">16</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="double">&quot;name&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">{</span> <span class="word">data_type</span> <span class="operator">=&gt;</span> <span class="double">&quot;text&quot;</span><span class="operator">,</span> <span class="word">is_nullable</span> <span class="operator">=&gt;</span> <span class="number">0</span> <span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="pod">=head1 PRIMARY KEY<br /><br />=over 4<br /><br />=item * L&lt;/child_id&gt;<br /><br />=back<br /><br />=cut<br /></span><br /><span class="word">__PACKAGE__</span><span class="operator">-&gt;</span><span class="word">set_primary_key</span><span class="structure">(</span><span class="double">&quot;child_id&quot;</span><span class="structure">);</span><br /><br /><span class="pod">=head1 RELATIONS<br /><br />=head2 child_presents<br /><br />Type: has_many<br /><br />Related object: L&lt;Prototype::Schema::Result::ChildPresent&gt;<br /><br />=cut<br /></span><br /><span class="word">__PACKAGE__</span><span class="operator">-&gt;</span><span class="word">has_many</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="double">&quot;child_presents&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="double">&quot;Prototype::Schema::Result::ChildPresent&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">{</span> <span class="double">&quot;foreign.child_id&quot;</span> <span class="operator">=&gt;</span> <span class="double">&quot;self.child_id&quot;</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">{</span> <span class="word">cascade_copy</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span> <span class="word">cascade_delete</span> <span class="operator">=&gt;</span> <span class="number">0</span> <span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="pod">=head2 stocking_address<br /><br />Type: belongs_to<br /><br />Related object: L&lt;Prototype::Schema::Result::StockingAddress&gt;<br /><br />=cut<br /></span><br /><span class="word">__PACKAGE__</span><span class="operator">-&gt;</span><span class="word">belongs_to</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="double">&quot;stocking_address&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="double">&quot;Prototype::Schema::Result::StockingAddress&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">{</span> <span class="word">stocking_address_id</span> <span class="operator">=&gt;</span> <span class="double">&quot;stocking_address_id&quot;</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is_deferrable</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">join_type</span>     <span class="operator">=&gt;</span> <span class="double">&quot;LEFT&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">on_delete</span>     <span class="operator">=&gt;</span> <span class="double">&quot;NO ACTION&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">on_update</span>     <span class="operator">=&gt;</span> <span class="double">&quot;NO ACTION&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="pod">=head2 presents<br /><br />Type: many_to_many<br /><br />Composing rels: L&lt;/child_presents&gt; -&gt; present<br /><br />=cut<br /></span><br /><span class="word">__PACKAGE__</span><span class="operator">-&gt;</span><span class="word">many_to_many</span><span class="structure">(</span><span class="double">&quot;presents&quot;</span><span class="operator">,</span> <span class="double">&quot;child_presents&quot;</span><span class="operator">,</span> <span class="double">&quot;present&quot;</span><span class="structure">);</span><br /><br /><br /><span class="comment"># Created by DBIx::Class::Schema::Loader v0.07043 @ 2017-12-20 18:03:02<br /># DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fvT7p0SmZa93Fop9i10jyA<br /></span><br /><br /><span class="comment"># You can replace this text with custom code or comments, and it will be preserved on regeneration<br /></span><span class="number">1</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>There&#39;s a lot to digest in that code. The important thing to remember was that no human (or elf) had to write any of it. And if any changes were made to the schema then it was possible to regenerate this file by simply re-running the command (regenerating the file won&#39;t overwrite or lose any additional code any elf has added below the <code>DO NOT MODIFY THIS OR ANYTHING ABOVE LINE</code>.)</p>
+
+<h3 id="Loading-Test-Data">Loading Test Data</h3>
+
+<p>Emberflakes decided that he&#39;d better experiment with what was going on in the database, so he wrote a bunch of test data as JSON files to create some test fixtures.</p>
+
+<pre><code>    fixtures/StockingAddress.json:
+    [
+        {
+            &quot;stocking_address_id&quot;: &quot;db1e1ce1-bc05-4931-b79f-4356ea6270ff&quot;,
+            &quot;street_address&quot;: &quot;671 Lincoln Ave. Winnetka, Illinois&quot;,
+            &quot;lat&quot;: -87.7358245,
+            &quot;lon&quot;: 42.109756
+        }
+    ]
+
+    fixtures/Present.json:
+    [
+        {
+            &quot;present_id&quot;: &quot;a9c15d33-b157-4513-9638-926d7793fdb1&quot;,
+            &quot;description&quot;: &quot;BB Gun&quot;
+        },
+        {
+            &quot;present_id&quot;: &quot;d321221e-6f1e-41ec-82b2-bda7d4783569&quot;,
+            &quot;description&quot;: &quot;Micro Machines&quot;
+        },
+        {
+            &quot;present_id&quot;: &quot;108bebb9-871b-45a6-b4e0-36fc720b2165&quot;,
+            &quot;description&quot;: &quot;Blowtorch&quot;
+        }
+    ]
+
+    fixtures/Child.json:
+    [
+        {
+            &quot;child_id&quot;: &quot;f69eaf6c-bf77-4b29-9eca-78cda6fd2db7&quot;,
+            &quot;name&quot;: &quot;Kevin McCallister&quot;,
+            &quot;stocking_address_id&quot;: &quot;db1e1ce1-bc05-4931-b79f-4356ea6270ff&quot;,
+            &quot;child_presents&quot;: [
+                { &quot;present_id&quot;: &quot;a9c15d33-b157-4513-9638-926d7793fdb1&quot; },
+                { &quot;present_id&quot;: &quot;d321221e-6f1e-41ec-82b2-bda7d4783569&quot; },
+                { &quot;present_id&quot;: &quot;108bebb9-871b-45a6-b4e0-36fc720b2165&quot; }
+            ]
+        }
+    ]</code></pre>
+
+<p>Reading these files in and using them to populate the database is fairly straight forward:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="version">v5.22</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">lib</span> <span class="words">qw(lib)</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">JSON::PP</span> <span class="words">qw( decode_json )</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Path::Tiny</span> <span class="words">qw( path )</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Prototype::Schema</span><span class="structure">;</span><br /><br /><span class="comment"># connect to the database<br /></span><span class="keyword">my</span> <span class="symbol">$schema</span> <span class="operator">=</span> <span class="word">Prototype::Schema</span><span class="operator">-&gt;</span><span class="word">connect</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432'</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="symbol">$schema</span><span class="operator">-&gt;</span><span class="word">txn_do</span><span class="structure">(</span><span class="keyword">sub</span> <span class="structure">{</span><br /><span class="comment">    # run with constraints disabled until the end of a transaction so we<br />&nbsp;&nbsp;&nbsp;&nbsp;# don't have to worry about the order in which we're inserting<br />&nbsp;&nbsp;&nbsp;&nbsp;# fixtures into the database<br /></span>    <span class="symbol">$schema</span><span class="operator">-&gt;</span><span class="word">storage</span><span class="operator">-&gt;</span><span class="word">dbh</span><span class="operator">-&gt;</span><span class="word">do</span><span class="structure">(</span><span class="single">'SET CONSTRAINTS ALL DEFERRED'</span><span class="structure">);</span><br /><br /><span class="comment">    # for each json file<br /></span>    <span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$file</span> <span class="structure">(</span> <span class="word">grep</span> <span class="structure">{</span> <span class="match">/[.]json$/</span> <span class="structure">}</span> <span class="word">path</span><span class="structure">(</span><span class="single">'fixtures'</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">children</span> <span class="structure">)</span> <span class="structure">{</span><br /><span class="comment">        # decode the json file<br /></span>        <span class="keyword">my</span> <span class="symbol">$ds</span> <span class="operator">=</span> <span class="word">decode_json</span><span class="structure">(</span> <span class="word">path</span><span class="structure">(</span> <span class="symbol">$file</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="word">slurp</span> <span class="structure">);</span><br /><br /><span class="comment">        # turn fixtures/Foo.json to Foo<br /></span>        <span class="keyword">my</span> <span class="symbol">$name</span> <span class="operator">=</span> <span class="word">path</span><span class="structure">(</span> <span class="symbol">$file</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="word">basename</span><span class="structure">(</span><span class="single">'.json'</span><span class="structure">);</span><br /><br /><span class="comment">        # get the result set<br /></span>        <span class="keyword">my</span> <span class="symbol">$rs</span> <span class="operator">=</span> <span class="symbol">$schema</span><span class="operator">-&gt;</span><span class="word">resultset</span><span class="structure">(</span><span class="symbol">$name</span><span class="structure">);</span><br /><br /><span class="comment">        # and insert each json object into the database<br /></span>        <span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$row</span> <span class="structure">(</span><span class="cast">@</span><span class="structure">{</span> <span class="symbol">$ds</span> <span class="structure">})</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$rs</span><span class="operator">-&gt;</span><span class="word">create</span><span class="structure">(</span> <span class="symbol">$row</span> <span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">});</span></code><br />&nbsp;</td></table>
+
+<p>Since the database schema that Emberflakes had designed had <code>DEFERRABLE</code> constraints it&#39;s possible to use <code>SET CONSTRAINTS ALL DEFERRED</code> to allow inserting incomplete foreign key data into the database, as long as when the transaction ends all the foreign keys are in place. If we didn&#39;t do this</p>
+
+<p>There&#39;s another thing worth noticing: Did you spot that there&#39;s no <code>ChildPresent.json</code> file? If you look closely at the <code>Child.json</code> file you&#39;ll notice that the <code>child_presents</code> field isn&#39;t actually a normal database field at all but the name of a DBIx::Class relationship - and DBIx::Class will take the array of objects that it contains and used them to create related objects for us.</p>
+
+<h3 id="Playing-Around-with-the-data">Playing Around with the data</h3>
+
+<p>More than anything Chestnut Emberflakes just needed to get to grips with the database schema. What better way to try it out than to use it interactively?</p>
+
+<p>Chestnut fired up the <code>reply</code>, the Perl REPL:</p>
+
+<pre><code>    bash$ reply -Ilib -MPrototype::Schema
+    0&gt; my $schema = Prototype::Schema-&gt;connect(&#39;dbi:Pg:dbname=prototype;host=127.0.0.1;port=5432&#39;); 1
+    $res[0] = 1
+
+    1&gt; my $child_rs = $schema-&gt;resultset(&#39;Child&#39;); 1
+    $res[1] = 1
+
+    2&gt; my $kevin = $child_rs-&gt;find(&quot;f69eaf6c-bf77-4b29-9eca-78cda6fd2db7&quot;); 1
+    $res[2] = 1
+
+    3&gt; $kevin-&gt;name;
+    $res[3] = &#39;Kevin McCallister&#39;
+
+    4&gt; my $p = $kevin-&gt;presents; 1
+    $res[4] = 1
+
+    5&gt; $p-&gt;next-&gt;description;
+    $res[5] = &#39;BB Gun&#39;
+
+    6&gt; $p-&gt;next-&gt;description;
+    $res[6] = &#39;Micro Machines&#39;
+
+    7&gt; $p-&gt;next-&gt;description;
+    $res[7] = &#39;Blowtorch&#39;
+
+    8&gt; $kevin-&gt;name(&#39;Kevin McCallister (aka Macaulay Culkin)&#39;);
+    $res[8] = &#39;Kevin McCallister (aka Macaulay Culkin)&#39;
+
+    9&gt; $kevin-&gt;update; 1
+    $res[9] = 1
+
+    10&gt; my $children = $child_rs-&gt;search_rs( name =&gt; &#39;Kevin McCallister (aka Macaulay Culkin)&#39; ); 1
+    $res[10] = 1
+
+    11&gt; $children-&gt;first-&gt;child_id
+    $res[11] = &#39;f69eaf6c-bf77-4b29-9eca-78cda6fd2db7&#39;
+
+    12&gt; $children-&gt;first-&gt;stocking_address-&gt;street_address
+    $res[12] = &#39;671 Lincoln Ave. Winnetka, Illinois&#39;
+
+    14&gt;</code></pre>
+
+<p>Note that Chestnut was careful not to return any of the DBIx::Class objects (otherwise <code>reply</code> would dump them out, which would be 300+ lines each of too much detail.)</p>
+
+<h3 id="Not-Much-Coding-So-Much-Done">Not Much Coding, So Much Done</h3>
+
+<p>With no actual Perl coding Chestnut Emberflakes had managed to get a fully functioning ORM setup where he could quickly prototype any task that the night might throw at him. Wish him luck...the children are counting on him.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Reindeer" href="2017-12-20.html">Previous</a></li>
+
+    <li class="next"><a title="Custom Relationships with DBIx::Class" href="2017-12-22.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

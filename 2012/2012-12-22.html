@@ -1,0 +1,177 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Generate static web sites using your favorite Perl framework
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Generate static web sites using your favorite Perl framework</h1>
+<div class='subtitle'>Wallflower - 2012-12-22</div>
+
+<div class='pod'><h2 id="The-best-of-two-worlds">The best of two worlds</h2>
+
+<h3 id="Static-web-sites">Static web sites</h3>
+
+<p>Have you noticed the recent trend of static blogging?</p>
+
+<p>The idea behind static blogging is to use a tool to <i>generate</i> the HTML pages that constitute the blog from a set of simple text files, and to publish these generated pages using a basic web server.</p>
+
+<p>Some would argue that a blog without comments is not really a blog. And how do you comment without <code>POST</code>? One way would be to delegate the <code>POST</code>ing to someone else (like <a href="http://disqus.com/">Disqus</a>).</p>
+
+<p>Also, static web sites don&#39;t have to be frozen. Nothing prevents you from generating the site content regularly (especially if it depends on an external source) or from hooking it to your VCS repository, so that every update to the source triggers a regeneration.</p>
+
+<p>Going back to static web sites, here are a few reasons why people like them:</p>
+
+<ul>
+
+<li><p>Speed:</p>
+
+<p>It would be really hard to beat a webserver serving a static file from disk.</p>
+
+</li>
+<li><p>Security:</p>
+
+<p>No user input means no SQL injection. If no code is run to produce the response, then no bugs can interfere in the process.</p>
+
+<p>Of course, you&#39;re still vulnerable to your webserver&#39;s own security issues when it serves static files, but that should be a pretty limited set.</p>
+
+</li>
+<li><p>Simplicity:</p>
+
+<p>A static web site is a bunch of files. You can commit them in a VCS and push them to their final destination, or you can use FTP. It&#39;s the easiest deployment procedure ever.</p>
+
+</li>
+<li><p>Economy:</p>
+
+<p>Generate once, request any time!</p>
+
+</li>
+</ul>
+
+<p>Static blogging tools like <a href="http://jekyllrb.com/">Jekyll</a>, <a href="http://pypi.python.org/pypi/pelican">Pelican</a>, <a href="http://middlemanapp.com/">Middleman</a> keep popping up, and new ones are invented almost daily.</p>
+
+<p>(I have myself been using <a href="http://template-toolkit.org/docs/tools/ttree.html">ttree</a> for years, but writing code using <a href="http://template-toolkit.org/">Template Toolkit</a>&#39;s DSL can be limiting.)</p>
+
+<p>The setup is always the same: take a bunch of files in <i>some format</i> (usually <a href="http://daringfireball.net/projects/markdown/">Markdown</a>, <a href="http://docutils.sourceforge.net/rst.html">reStructuredText</a> or <a href="http://www.txstyle.org/">Textile</a>), plus some configuration, and run the tool. The problem with that is always the same: the model fits the original author&#39;s needs, and you have to follow <i>their</i> rules. Personalisation not included.</p>
+
+<h3 id="Web-frameworks">Web frameworks</h3>
+
+<p>Perl has plenty of awesome web frameworks, such as <a href="http://www.catalystframework.org/">Catalyst</a>, <a href="http://www.perldancer.org/">Dancer</a>, <a href="http://mojolicio.us/">Mojolicious</a>, and many others, to let you write your web application the way you want. Each has its own set of advantages and disadvantages, but that is not the point of this article.</p>
+
+<p>The point is that using those to run a blog or the framework&#39;s marketing^Whome page may seem wasteful, as there&#39;s probably little need to regenerate a page for each request, no matter if the content has changed or not.</p>
+
+<h3 id="Static-web-sites-made-with-web-frameworks">Static web sites made with web frameworks</h3>
+
+<p>PSGI is an interface between web servers and applications written in Perl. The Plack implementation of PSGI is supported by most Perl web frameworks. It&#39;s also possible to write your own application (a PSGI application is just a subroutine) and connect it to any supported web server &mdash; and most web servers are supported.</p>
+
+<p>After having tried to write my own static site generator, and having failed at making it as flexible as I would have liked (which in retrospect would probably have made it a web framework in itself), it seemed wiser to start building a site with one of those nice web frameworks and to use Plack as my entry point to get the to the content.</p>
+
+<p><a href="https://metacpan.org/module/wallflower">wallflower</a> is a command-line tool that takes a PSGI application, and uses Plack to access to the content and save it to local files, ready to be uploaded to your static web server.</p>
+
+<p>After obtaining the coderef for your application, it repeatedly creates the PSGI environment for the URL you want to process and runs your app on it (using <code>Plack::Util::run_app</code>), saving the response content to a local file. If the response content type is <code>text/html</code> or <code>text/css</code>, it will automatically look for embedded links and add them to its queue, thus enabling auto-discovery of the entire web site.</p>
+
+<p>The point of <a href="https://metacpan.org/module/Wallflower">Wallflower</a> is to let you write any static website using all the power of your favorite web framework. It also follows links inside your Plack application, so if your site is properly organized, you only need to point it to <code>/</code>.</p>
+
+<h3 id="Blogging-statically-with-your-favorite-framework">Blogging statically with your favorite framework</h3>
+
+<p>The obvious example for this would be to write a blog. I&#39;ll use Dancer, because it&#39;s the only web framework I know, but keep in mind that this will work with any PSGI-compliant framework. You could actually write your own PSGI application, if no existing framework suited you.</p>
+
+<p>Since our target is a <i>static</i> web site, the main thing to keep in mind is that the target web server will determine the content type by looking at the extension, each all of our URLs <b>must</b> have an extension.</p>
+
+<p>The sources for our basic blog will be a set of text files in the <i>public/</i> subdirectory, with the content written in Markdown. URL will simply be mapped to those files.</p>
+
+<p>So, we start by writing a route to handle all URL ending with <i>.html</i>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">ShyBlog</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Dancer</span> <span class="single">':syntax'</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Text::Markdown</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Path::Class</span> <span class="words">qw( file )</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$m</span> <span class="operator">=</span> <span class="word">Text::Markdown</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><br /><span class="word">get</span> <span class="regexp">qr{/(.*)\.html}</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$file</span><span class="structure">)</span> <span class="operator">=</span> <span class="word">splat</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$text</span> <span class="operator">=</span> <span class="word">file</span><span class="structure">(</span> <span class="word">setting</span><span class="structure">(</span><span class="single">'public'</span><span class="structure">)</span> <span class="operator">=&gt;</span> <span class="double">&quot;$file.txt&quot;</span> <span class="structure">)</span><span class="operator">-&gt;</span><span class="word">slurp</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">template</span> <span class="single">'blog'</span><span class="operator">,</span> <span class="structure">{</span> <span class="word">content</span> <span class="operator">=&gt;</span> <span class="symbol">$m</span><span class="operator">-&gt;</span><span class="word">markdown</span><span class="structure">(</span><span class="symbol">$text</span><span class="structure">)</span> <span class="structure">};</span><br /><span class="structure">};</span><br /><br /><span class="number">1</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Since we put our blog entries in the <i>public/</i> directory, Dancer will automatically serve the source when we end the URL in <i>.txt</i>! And we didn&#39;t even need to write a route for that!</p>
+
+<p>Now, we want to get any further than a single blog post, to showing a main page with the latest post, some side bars on every page pointing to the archives by month, and maybe a JSON file with all our tags for making a nice tag cloud in JavaScript, we have a bit of a problem: we need to know about all our blog&#39;s posts when generating any individual one.</p>
+
+<p>Remember that our PSGI application is ultimately a subroutine that will be called repeatedly by wallflower, so we just have to make the needed data available to the subroutine by building the list of all posts, once and for all, during the initialisation phase of the application.</p>
+
+<p>A simple call to <a href="https://metacpan.org/module/File::Find">File::Find</a> will help us generate the list of all posts, from which we can create a data structure. In this example it&#39;s an array:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">File::Find</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Path::Class</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">@entries</span><span class="structure">;</span><br /><br /><span class="word">find</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">sub</span> <span class="structure">{</span><br /><br /><span class="comment">        # we only care about blog entries<br /></span>        <span class="keyword">return</span> <span class="word">if</span> <span class="operator">!</span><span class="match">/\.txt$/</span><span class="structure">;</span><br /><br /><span class="comment">        # get a Path::Class::File for it<br /></span>        <span class="keyword">my</span> <span class="symbol">$file</span> <span class="operator">=</span> <span class="word">file</span><span class="structure">(</span><span class="symbol">$File::Find::name</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$fh</span>   <span class="operator">=</span> <span class="symbol">$file</span><span class="operator">-&gt;</span><span class="word">openr</span><span class="structure">;</span><br /><br /><span class="comment">        # parse a simple header using the kite secret operator<br /></span>        <span class="word">chomp</span><span class="structure">(</span> <span class="keyword">my</span> <span class="structure">(</span> <span class="symbol">$title</span><span class="operator">,</span> <span class="symbol">$date</span><span class="operator">,</span> <span class="symbol">$tags</span> <span class="structure">)</span> <span class="operator">=</span> <span class="structure">(</span> <span class="operator">~~&lt;</span><span class="symbol">$fh</span><span class="operator">&gt;,</span> <span class="operator">~~&lt;</span><span class="symbol">$fh</span><span class="operator">&gt;,</span> <span class="operator">~~&lt;</span><span class="symbol">$fh</span><span class="operator">&gt;</span> <span class="structure">)</span> <span class="structure">);</span><br /><br /><span class="comment">        # update the structure will all relevant information<br /></span>        <span class="keyword">my</span> <span class="symbol">$source</span> <span class="operator">=</span> <span class="word">substr</span><span class="structure">(</span> <span class="symbol">$File::Find::name</span><span class="operator">,</span> <span class="word">length</span><span class="structure">(</span> <span class="word">setting</span><span class="structure">(</span><span class="single">'public'</span><span class="structure">)</span> <span class="structure">)</span> <span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">(</span> <span class="keyword">my</span> <span class="symbol">$url</span> <span class="operator">=</span> <span class="symbol">$source</span> <span class="structure">)</span> <span class="operator">=~</span> <span class="substitute">s/\.txt$/.html;<br /><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;push @entries, {<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;url    =&gt; '/</span><span class="single">' .<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;title  =&gt; $title,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;date   =&gt; $date,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;tags   =&gt; [ split /\s*,\s*/, $tags ],<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;source =&gt; &quot;/$year/$month/$_.txt&quot;,<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;};<br />&nbsp;&nbsp;&nbsp;&nbsp;},<br />&nbsp;&nbsp;&nbsp;&nbsp;setting( '</span><span class="word">public</span><span class="single">' )<br />);</span></code><br />&nbsp;</td></table>
+
+<p>Actually, for simplicity, and integration with the framework, it would make sense to create a temporary SQLite database, with a few tables for blog entries meta-information, tags, etc. The code in the templates and some special routes (like the main page) can then use that database to fetch all the information they need.</p>
+
+<p>Generating the website is now simply a matter of running:</p>
+
+<pre><code>    $ wallflower -a bin/app.pl -d /path/to/the/output/</code></pre>
+
+<p><i>wallflower</i> will start browsing the application from <code>/</code> and will follow all links (from HTML and CSS files) to generate your site content.</p>
+
+<p>You can then copy the content of <i>output/</i> to the proper location on the target web server, and you&#39;re done!</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/App::Wallflower">App::Wallflower</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/wallflower">wallflower</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/PSGI">PSGI</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Dancer">Dancer</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/perlsecret#Kite">~~&lt;&gt;</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/caceed5798ea9b855532b257de4686e8?r=g&s=80&d=retro />
+This article contributed by: Philippe Bruhat (BooK) &lt;book@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Set-based DBIx::Class" href="2012-12-21.html">Previous</a></li>
+
+    <li class="next"><a title="Give and Receive the Right Number of Gifts" href="2012-12-23.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

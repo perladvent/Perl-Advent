@@ -1,0 +1,169 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+Testing The Naughty Or Nice Database
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Testing The Naughty Or Nice Database</h1>
+<div class='subtitle'>Test::DatabaseRow - 2014-12-06</div>
+
+<div class='pod'><p>&quot;Why&quot;, asked the Wise Old Elf, &quot;are there three separate Santa users in the production database?&quot;</p>
+
+<p>The question was directed at Baubles MacTinsle, the hotshot new elf that had joined the team a few weeks ago. Baubles had been working on the rewrite of the code that interfaced with the Christmas database, and the Wise Old Elf wasn&#39;t happy with what he saw.</p>
+
+<p>&quot;Ah, well, er, you..um, see&quot;, Baubles started unpromisingly, &quot;there was a bug in the new code. You know how it is. You never know if it&#39;s going to work right until you run it on the live database. No worries though, we got it all fixed up right away. And we thought we&#39;d cleaned up all the data. Obviously missed a few...&quot;</p>
+
+<p>&quot;This database can&#39;t have any errors in it!&quot; spluttered the Wise Old Elf, &quot;This is the canonical record of who&#39;s been naughty or nice! Big data? Humans have no idea. Do you have <i>any</i> idea how many times the average human child is naughty in a day? Rebuilding this would take weeks! Let me see the tests.&quot;</p>
+
+<p>&quot;Ah, tests....they&#39;re tedious to write you see. We...sorta skipped that bit on account of how long it takes...&quot;</p>
+
+<p>&quot;Ah&quot;, exclaimed the Wise Old Elf. &quot;I&#39;ll have to show you Test::DatabaseRow&quot;</p>
+
+<h3 id="Test::DatabaseRow">Test::DatabaseRow</h3>
+
+<p>&quot;Let me show you how to write a simple test&quot;, the Wise Old Elf began. &quot;First we start the tests like any normal test suite. Turning on strictures, loading Test::More and of course Test::DatabaseRow itself&quot;</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Test::More</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Test::DatabaseRow</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>&quot;Next we we need to hook up Test::DatabaseRow to our database&quot;</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">DBI</span><span class="structure">;</span><br /><span class="keyword">local</span> <span class="symbol">$Test::DatabaseRow::dbh</span> <span class="operator">=</span> <span class="word">DBI</span><span class="operator">-&gt;</span><span class="word">connect</span><span class="structure">(</span><span class="double">&quot;dbi:SQLite:dbname=test.db&quot;</span><span class="operator">,</span><span class="double">&quot;&quot;</span><span class="operator">,</span><span class="double">&quot;&quot;</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>&quot;The local statement sets the default database handle that all subsequent Test::DatabaseRow tests will use unless a <code>dbh</code> argument is explicitly passed to them. Since we&#39;re only testing one database we can save ourselves some typing if we set a default like this at the top of our script.&quot;</p>
+
+<p>Baubles was nodding enthusiastically. He was all about typing less.</p>
+
+<p>&quot;Well, here&#39;s the first test we&#39;re doing&quot;, the Wise Old Elf continued, &quot;we&#39;re checking that there&#39;s exactly one row returned from a SQL statement that selects everyone that has the first name Santa&quot;</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">all_row_ok</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">sql</span>     <span class="operator">=&gt;</span> <span class="double">&quot;SELECT * FROM staff WHERE first_name = 'Santa'&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">results</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>&quot;Oh oh, you&#39;r not using bind parameters&quot;, the young elf shouted, &quot;you&#39;re going to get us HACKED&quot;.</p>
+
+<p>&quot;Well, no&quot;, the Wise Old Elf countered humorlessly. &quot;There&#39;s no variable. But you right, bind parameters are a good idea, and this is how we use them&quot;.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">all_row_ok</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">sql</span>     <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="double">&quot;SELECT * FROM staff WHERE first_name = ?&quot;</span><span class="operator">,</span> <span class="single">'Santa'</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">results</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>&quot;Er, thanks Sir, that&#39;s kinda nice, but...look, we just don&#39;t have time to write so much SQL.&quot;</p>
+
+<p>The Wise Old Elf sighed. He was pretty sure Baubles would argue whatever he needed to avoid writing the tests. Luckily, he had an answer. &quot;Well, you don&#39;t have to write the SQL if you don&#39;t want to. Test::DatabaseRow is able to write the SQL for us too.&quot;</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">all_row_ok</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">table</span>   <span class="operator">=&gt;</span> <span class="double">&quot;staff&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">where</span>   <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="word">first_name</span> <span class="operator">=&gt;</span> <span class="single">'Santa'</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">results</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The young elf looked despondent. Then, it suddenly dawned on him, &quot;But I still have to write SQL if I need to do a like, or say something is not something, right?&quot;</p>
+
+<p>&quot;We&#39;ve got that covered too&quot;</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># check we've got all the original reindeer in the database<br /></span><span class="word">all_row_ok</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">table</span> <span class="operator">=&gt;</span> <span class="double">&quot;staff&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">where</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'='</span>  <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">species</span> <span class="operator">=&gt;</span> <span class="single">'Reindeer'</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'!='</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">nose_color</span> <span class="operator">=&gt;</span> <span class="single">'red'</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'like'</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">address</span> <span class="operator">=&gt;</span> <span class="single">'%North Pole%'</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">results</span> <span class="operator">=&gt;</span> <span class="number">7</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>MacTinsle threw his little elf arms up in the air in resignation. &quot;Okay, okay, I give up. I&#39;ll write the tests.&quot;</p>
+
+<h3 id="Explicit-Tests">Explicit Tests</h3>
+
+<p>&quot;All right, but let me show you a problem first. Look at this test where we&#39;re checking Santa&#39;s last name is right.&quot;</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">all_row_ok</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">table</span> <span class="operator">=&gt;</span> <span class="double">&quot;staff&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">where</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">first_name</span> <span class="operator">=&gt;</span> <span class="double">&quot;Santa&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">last_name</span>  <span class="operator">=&gt;</span> <span class="double">&quot;Claws&quot;</span><br />&nbsp;&nbsp;<span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">results</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>&quot;Can you see the problem?&quot;</p>
+
+<p>The younger elf scratched his beard for a minute and then slowly started to shake his head.</p>
+
+<p>&quot;The problem is my young friend that if the test fails you can&#39;t tell <code>how</code>. The database just doesn&#39;t return any results.&quot;</p>
+
+<pre><code>  not ok 1 - simple db test
+  #   Failed test &#39;simple db test&#39;
+  #   at test.pl line 11.
+  # Got the wrong number of rows back from the database.
+  #   got:      0 rows back
+  #   expected: 1 rows back</code></pre>
+
+<p>&quot;We&#39;d be better off writing the test like so:&quot;</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">all_row_ok</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">table</span> <span class="operator">=&gt;</span> <span class="double">&quot;staff&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">where</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">first_name</span> <span class="operator">=&gt;</span> <span class="double">&quot;Santa&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">tests</span> <span class="operator">=&gt;</span> <span class="structure">[</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">last_name</span> <span class="operator">=&gt;</span> <span class="double">&quot;Claws&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">results</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>&quot;This causes Perl to load the row that matchs the where parameters into memory and then compare it within Perl to see that the tests match. Because <code>Claws</code> looks like a string not a number it&#39;ll do a string equality comparison. And if something goes wrong you&#39;ll see something that tells you <b>how</b> it went wrong:&quot;</p>
+
+<pre><code>  not ok 1 - simple db test
+  #   Failed test &#39;simple db test&#39;
+  #   at test.pl line 11.
+  # While checking column &#39;last_name&#39; on 1st row
+  #          got: &#39;Clause&#39;
+  #     expected: &#39;Claws&#39;
+  1..6
+  # Looks like you failed</code></pre>
+
+<p>&quot;I like it. But...wait, you said that Test::DatabaseRow essentially guesses if it should do a number comparison or a string comparison by what it&#39;s comparing the result against...what if it guesses wrong?</p>
+
+<p>&quot;Just like the <code>where</code> parameter, the <code>tests</code> parameter can also take an explicit hashref of comparisons:&quot;</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">all_row_ok</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">table</span> <span class="operator">=&gt;</span> <span class="double">&quot;staff&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">where</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'first_name'</span> <span class="operator">=&gt;</span> <span class="double">&quot;Rudolph&quot;</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">tests</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'eq'</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">idcode</span> <span class="operator">=&gt;</span> <span class="double">&quot;480058686&quot;</span><span class="operator">,</span>    <span class="comment"># must be exact string</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'=~'</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">address</span> <span class="operator">=&gt;</span> <span class="regexp">qr/North Pole/</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">results</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>&quot;And if you want to write something very complex, you can always capture the data from the test if you really need to:&quot;</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">%row</span><span class="structure">;</span><br /><span class="word">all_row_ok</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;<span class="word">table</span> <span class="operator">=&gt;</span> <span class="double">&quot;staff&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">where</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'first_name'</span> <span class="operator">=&gt;</span> <span class="double">&quot;Frosty&quot;</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">store_row</span> <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">%row</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;<span class="word">results</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">}</span><br /><br /><span class="comment"># don't care if we use snowman or snowperson<br /># but the last name should match the species<br /></span><span class="word">is</span><span class="structure">(</span><span class="symbol">$row</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">last_name</span><span class="structure">}</span><span class="operator">,</span> <span class="symbol">$row</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">species</span><span class="structure">});</span></code><br />&nbsp;</td></table>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Test::DatabaseRow">Test::DatabaseRow</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Test::More">Test::More</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/DBI">DBI</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="A Subroutine By Any Other Name" href="2014-12-05.html">Previous</a></li>
+
+    <li class="next"><a title="Out of Time" href="2014-12-07.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

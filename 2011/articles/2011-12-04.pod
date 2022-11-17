@@ -1,0 +1,155 @@
+Title: Warn Different
+Topic: Carp::Always
+Author: Ricardo Signes <rjbs@cpan.org>
+
+=encoding utf8
+
+=head1 You Need Carp::Always
+
+I was making a list of libraries to try to cover in this year's Advent
+calendar, and so I tried to think of the most useful stuff I could.  I tried to
+think of libraries without which I'd be lost.  The first thing I thought of was
+Carp::Always – but it was a dumb idea.  I<Obviously>, it would have been
+covered already.  Maybe a few times.
+
+After I'd made my list and gotten started, though, something inside urged me to
+double-check.  I brought up the L<big master Advent
+index|http://perladvent.org/archives-AZ.html> and was shocked – I<B<shocked!>>
+– to find no entry for Carp::Always.  (Frankly, I was surprised not to see
+Carp, either, but there isn't all that much coverage of the core in the index.
+Maybe we'll have to work on that…)
+
+Then I almost gave up anyway, because I<of course> everyone knows about
+Carp::Always.  Suddenly, though, I was overwhelmed with a stream of memories
+all working like this:
+
+  <rjbs> Anyway, just try it with Carp::Always.
+  <dude> What's Carp::Always?
+  <rjbs> ????????
+
+So, let's get to it.
+
+=head1 Death, Croaking, and Confession
+
+  #!perl
+  package Common {
+
+    sub func  { die "func is unimplemented" }
+  }
+
+  package Program {
+    sub minor_system { Common::func(90, 80, 70) }
+    sub subroutine   { minor_system(10, 20, 30) }
+
+    sub run {
+      subroutine(123);
+    }
+  }
+
+  Program->run;
+
+Here's a ridiculously simple, pointless program.  Well, not quite pointless: it
+exists just to build some simple call stack, and then die a few frames down it.
+
+We get an error like this:
+
+  func is unimplemented at program.pl line 4.
+
+If you pretend that Common is actually some library that's getting called all
+over the place, you can imagine how the error above is just about the I<least
+useful thing ever>.  Yeah, great.  You go look up the error and find that it's
+from inside one of the most-used parts of your whole program.  What's calling
+it?  Well, you could start adding print statements, or maybe inspect C<caller>,
+but you could just replace that C<die> with a C<croak>.
+
+C<croak>, provided by L<Carp>, is just like C<die>, but instead of reporting
+the line and file where the exception is thrown, it tells you what called the
+routine that died.  In the great majority of cases, this is much more useful.
+Unless you're using C<die> to print a user-visible error for a command line
+program, you should probably be using C<croak> instead of C<die> all the time.
+
+If we add a C<use Carp;> line at line 3 and switch our exception to C<croak>,
+we get:
+
+  func is unimplemented at program.pl line 8
+
+Despite looking almost the same, this is much more useful!  We can go back to
+our code, find line 8, and see that the error is coming from that I<particular>
+call to C<func>.  If our code was calling it all over the place, this would
+eliminate a huge mess of hunting around.
+
+So, already, knowing how to use the stuff in Carp is a huge win – but I haven't
+talked about all of it, just C<croak>, which is like C<die>.  There's also
+C<carp>, which is like C<warn>.  The other two similar functions in Carp are
+C<confess> and C<cluck>.  They act like C<die> and C<warn>, respectively, but
+provide the whole stack trace.
+
+See, imagine that our stupidly simple example program was a dozen or more
+packages, with calls going from one to the other in different orders and
+forming all kinds of different stacks.  Finding out that the caller of C<func>
+was C<Program::minor_system> wouldn't actually be that big of a deal, because
+we'd want the caller of that, and the next one, too.
+
+We could go into our code for Common and replace C<croak> with C<confess>, and
+now we'd get something like:
+
+  func is unimplemented at program.pl line 4
+    Common::func() called at program.pl line 8
+    Program::minor_system() called at program.pl line 9
+    Program::subroutine(123) called at program.pl line 12
+    Program::run('Program') called at program.pl line 16
+
+=head1 Doesn't everybody love stack traces?
+
+It turns out, not everybody loves seeing stack traces all the time.  If you use
+L<Moose|http://moose.perl.org/>, you've probably already got a complex set of
+feelings about stack traces.  You might think things like, "this isn't alway
+very useful" or "what the hell am I supposed to do with this?" or "boy, am I
+ever sick of stack traces!"
+
+So, maybe you don't I<want> C<func> to use C<confess>.  Maybe most of the time,
+it would actually be a huge drag.  Sometimes, though, you do want it, and you
+don't want to have to go edit the source just to get it.  This is where
+L<Carp::Always> comes in.
+
+If we revert our program to the version that used C<die>, but then run like
+this:
+
+  #!code
+  $ perl -MCarp::Always program.pl
+
+...we get a stack trace, and it looks just like the one above!  We have to be a
+bit wary of these Carp::Always-provided stack traces, though.  Carp::Always
+works by adding a C<__DIE__> handler, which is tricky stuff.  Sometimes, you
+get bogus output.  For example, if we use C<croak> in our program I<and> run
+with C<-MCarp::Always> we get a duplicated stack:
+
+  func is unimplemented at program.pl line 4
+    Common::func() called at program.pl line 8
+    Program::minor_system() called at program.pl line 9
+    Program::subroutine(123) called at program.pl line 12
+    Program::run('Program') called at program.pl line 4
+    Common::func() called at program.pl line 8
+    Program::minor_system() called at program.pl line 9
+    Program::subroutine(123) called at program.pl line 12
+    Program::run('Program') called at program.pl line 16
+
+Oops!  This can be a big problem, but in practice it's not all that likely.
+Still, you have to keep in mind that it's not foolproof.
+
+Keep in mind that Carp::Always doesn't just convert die and croak to confess.
+It also converts warn and carp to cluck.  That means that if your program
+throws a bunch of warnings before it finally dies, you're potentially going to
+start seeing huge streams of stack traces, all blending together.  To deal with
+that, you can use L<Carp::Always::Color>, which breaks the traces up by
+colorizing the message part of the first line of each warning or error:
+warnings become yellow, errors become red.  This makes it easy to scan over the
+error output to see just what happened, where, and maybe even why.
+
+=head1 See Also
+
+=for :list
+* L<Carp::Always>
+* L<Carp>
+* L<Carp::Always::Color>
+

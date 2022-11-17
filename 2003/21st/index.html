@@ -1,0 +1,341 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: Inline::Java</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 21st day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Inline::Java</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../20th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../22nd/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>People often get so hung up about the computer languages that they use
+rather than picking the right tool for the job. Java, for example, is
+a language that lots of Perl people dislike, but when you look at it
+it's got some nice features.  For example, Java's got a nice GUI
+system.  I often find myself programming in Perl and wishing I could
+just use Java GUI for a bit.</p>
+<p>People hate Java for the nice bits of it's languages however (since it
+belittles their efforts to do the same thing in Perl and draws away
+developers from their language of choice.)  Even more than this they
+hate the missing features from Java, the things that Perl does well.
+This is no-one's fault; Both languages have their own advantages and
+disadvantages (if they didn't then we'd all be using one and not the
+other)</p>
+<p>What would be nice would be to be able to combine the two languages
+and call each other virtually transparently as if you were just
+calling anything else in the native language.  Then we really could
+use whatever tool was best for the Job.</p>
+<p>Inline::Java gets us a lot of the way there.   Read on to find out
+how we can seamlessly call one language from another.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Inline::Java">[Read the documentation for Inline::Java on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p><b>Inline::Java</b> is a Inline module to allow you to work with Java
+from within Perl.  Like all Inline modules it allows you to declare
+part of your program code in another language - in this case Java -
+and handles the nitty-gritty of recompiling the code with that lanauge's
+own compiler when and as needed, and handing the communication layer
+so that both lanagues can call each other without making it too
+obvious on each side that what you're calling isn't actually handled
+nativly in the original language. </p>
+<h2>Installing Inline Java</h2>
+<p>Installing Inline::Java isn't that hard, though not a simple as
+following the traditional four stage program that other modules use.
+Since the installation routine isn't standard, you can't use CPAN or
+CPANPLUS to install the module, you'll have to do it by hand.  First,
+you should install <b>Inline</b> with your shell.  Then you should
+download <b>Inline::Java</b> and uncompressing it:</p>
+<pre>  servalan:~ mark$ sudo cpanp
+  CPAN Terminal&gt; install Inline
+  CPAN Terminal&gt; d Inline::Java
+  CPAN Terminal&gt; q
+  servalan:~ mark$ gunzip Inline-Java-0.44.tar.gz
+  servalan:~ mark$ tar -xvf Inline-Java-0.44.tar
+  servalan:~ mark$ cd Inline-Java-0.44</pre>
+
+<p>(You can do the same thing in the CPAN shell by typing <code>install Java</code>
+to install Inline and then <code>look Inline::Java</code> to download and
+decompress Inline::Java)</p>
+<p>One you've decompressed the package contents, need to run the
+Makefile.PL script that will write the makefile and make the code.
+You need to pass to it, via the J2SDK variable, the exact path to your
+copy of the JDK.  For example, if your JDK is install in
+/home/mark/jdk1.4.1 then you need to run:</p>
+<pre> bash$ perl Makefile.PL J2SDK=/home/mark</pre>
+
+<p>Back on Mac OS X, the bits of the JDK that are needed are installed by
+default directly into <code>/usr</code> meaning I do:</p>
+<pre> servalan:~Inline-Java-0.44 mark$ perl Makefile.PL J2SDK=/usr</pre>
+
+<p>The Makefile.PL script then asks you if you want to use the JNI
+extension or not.  Using the JNI extensions means that your perl
+executable is embedded directly into the Java Virtual machine (or vice
+versa, depending on how you look at it.)  If you answer no to this
+question then a separate Java process will be started by perl, and the
+perl and Java process will start up and talk to each other over
+sockets.  The two have different advantages and disadvantages, with the
+former being quicker, but the latter being better at startup time
+with multiple scripts (i.e. in a CGI environment) and capable of calling
+back to Perl across multiple Java threads.</p>
+<p>I chose 'no' as that means all me examples below work.</p>
+<p>The next step in installing is to compile the Java source code that
+shipped with the module.  To do this you simply type <code>make java</code></p>
+<pre> servalan:~/Inline-Java-0.44 mark$ make java</pre>
+
+<p>After this it's just the normal build process</p>
+<pre> servalan:~/Inline-Java-0.44 mark$ make
+ servalan:~/Inline-Java-0.44 mark$ make test
+ servalan:~/Inline-Java-0.44 mark$ sudo make install</pre>
+
+<h2>A simple Inline::Java example</h2>
+<p>The easiest way to get to grips with Inline::Java is to go though a
+simple script bit by bit.  We start it off as we always start off
+any script:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features.
+  use strict;
+  use warnings;</pre>
+
+<p>Then things suddenly change:</p>
+<pre>  # there's java code down in data
+  use Inline Java =&gt; "DATA";</pre>
+
+<p>This means that the Java code is located in the <code>__DATA__</code> section of
+the code.  The first time the code is run the script will create a
+_Inline directory in the same directory containing the compiled
+version of the script.  This compiled copy is used and reused until
+changes are made to the Java section of the script, in which case the
+next time the script is called the compiled cache will be recompiled.</p>
+<p>Anyway we can now create objects:</p>
+<pre>  # create a triangle object
+  my $triangle = RightAngledTriangle-&gt;new(3,4);
+  print "The hypotenuse is " . $triangle-&gt;get_hypotenuse . "\n";</pre>
+
+<p>Wait! Though this looks like RightAngledTriangle is a normal Perl
+class, but it isn't - it's actually a Java class defined below in the 
+<code>__DATA__</code> section.</p>
+<pre>  __DATA__
+  __Java__</pre>
+
+<pre>  import java.lang.Math;</pre>
+
+<pre>  public class RightAngledTriangle
+  {
+    double aj;
+    double op;</pre>
+
+<pre>    // the constructor (i.e. 'new')
+    public RightAngledTriangle(double aj, double op)
+    {
+      this.aj = aj;
+      this.op = op;
+    }</pre>
+
+<pre>    public double get_adjacent()
+    {
+      return aj;
+    }</pre>
+
+<pre>    public double get_opposite()
+    {
+      return op;
+    }</pre>
+
+<pre>    public double get_hypotenuse()
+    {
+      return Math.sqrt(
+        Math.pow(aj,2) +
+        Math.pow(op,2)
+      );
+    }
+  }</pre>
+
+<p>Note how we call this class transparently from Perl and it all
+works, including the converting of numbers from doubles to Perl
+scalars and back again.</p>
+<h2>A GUI Example</h2>
+<p>This is all very well, but this still a long way from the discussion
+about taking advantage of, say, the Java GUI that I mentioned all the
+way back in the synopsis.  Let's create a working example of this.
+We'll create a window with a button in it</p>
+<center><img src="button.png" /></center>
+
+<p>That whenever we click on it will print out <i>from within Perl</i></p>
+<pre>  Button Pressed (from perl)</pre>
+
+<p>Calling back to Perl from Java is handled by the
+<b>org.perl.inline.java.InlineJavaCaller</b> class.  Only objects of this
+class can call back to Perl via the <code>CallPerl</code> method, and these
+objects can only be created from the original thread that Perl
+started.  This, combined with an event loop you start from Perl to
+listen for events, ensures that the correct Java threads are talking to
+the correct Perl threads (otherwise it all gets <i>really</i> confusing and
+your code breaks in <i>interesting</i> ways)</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # there's java code down in data
+  use Inline Java =&gt; "DATA";</pre>
+
+<pre>  # create the object, which causes the object
+  # to be displayed.
+  my $greeter = MyButton-&gt;new();</pre>
+
+<pre>  # enter the runloop meaning we're essentially
+  # handing control to Java and we're waiting for callbacks
+  $greeter-&gt;StartCallbackLoop() ;</pre>
+
+<pre>  # quit.  If we got this far then we're done.
+  exit;</pre>
+
+<pre>  # a simple subroutine that's called from Java whenever
+  # the button is pressed.  This could be as complicated as
+  # we like, but for now just print out a nice message
+  sub button_pressed
+  {
+    print "Button Pressed (from perl)\n"
+  }</pre>
+
+<pre>  __DATA__
+  __Java__</pre>
+
+<pre>  import java.util.*;
+  import org.perl.inline.java.*;
+  import javax.swing.*;
+  import java.awt.event.*;</pre>
+
+<pre>  // create a class that is a InlineJavaPerlCaller.  This provides
+  // some important methods, most notably the CallPerl method
+  // that's used to call perl code from within java and the
+  // StartCallbackLoop method that's used to hand control over </pre>
+
+<pre>  // also make it an ActionListener, meaning that it supports
+  // the actionPerformed method that will be called by objects
+  // that it's 'listing to' - i.e. the method that will be 
+  // called whenever someone presses the button</pre>
+
+<pre>  public class MyButton extends    InlineJavaPerlCaller
+                        implements ActionListener 
+  {</pre>
+
+<pre>    // the constructor (i.e. 'new')
+    public MyButton() throws InlineJavaException
+    {
+      // create frame (a new window)
+      JFrame frame = new JFrame("MyButton");
+      frame.setSize(200,200);</pre>
+
+<pre>      // create button and add it to the frame
+      JButton button = new JButton("Click Me!");
+      frame.getContentPane().add(button);</pre>
+
+<pre>      // tell the button that when it's clicked, report it to
+      // this class (via the actionPerfomed method)
+      button.addActionListener(this);</pre>
+
+<pre>      // all done, everything added, just tell the frame to show itself
+      frame.show();
+    }</pre>
+
+<pre>    // this method will called whenever the action is triggered (i.e.
+    // whenever the button is clicked)
+    public void actionPerformed(ActionEvent e)
+    {
+      try
+      {
+        // call &amp;main::button_pressed subroutine in Perl
+        CallPerl("main", "button_pressed", new Object [] {});
+      }</pre>
+
+<pre>      // check for errors and handle them by printing debug info
+      catch (InlineJavaPerlException pe)  { pe.printStackTrace(); }
+      catch (InlineJavaException pe)      { pe.printStackTrace(); }
+    }
+  }</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://inline.pm.org/java/">Inline Java's webpage</a></li>
+<li><a href="http://lists.perl.org/showlist.cgi?name=inline">The Inline Mailing List</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:56 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

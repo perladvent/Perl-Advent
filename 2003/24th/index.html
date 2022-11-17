@@ -1,0 +1,326 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: Data::Structure::Util</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 24th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Data::Structure::Util</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../23rd/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../25th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Maintaining data structures in Perl is a reasonably easy thing to do,
+but you can still be caught out by one of the common gotchas if you're
+not very careful in your implementation.  One such common gotcha is
+creating a circular data structure - a structure that points to itself
+- in such a manner that when you discard the structure the memory
+that that structure took up will not be reclaimed.  This can be
+problematic in big long running programs that, if not employing proper
+data structure management, can consume more and more memory getting
+increasingly bloated over their runtime until they need to be shut
+down in a (hopefully) controlled manner and restarted.</p>
+<p><b>Data::Structure::Util</b> is a bag 'o tricks that can greatly help in
+developing better behaved modules, not in the least since it can
+detect (and correct) circular data structures.  Analogous to
+<b>Scalar::Util</b>, <b>List::Util</b> and <b>Hash::Util</b>, it provides numerous
+functions that are handy when working with data structures.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Data::Structure::Util">[Read the documentation for Data::Structure::Util on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>To understand how perl manages memory, you must first understand how
+reference counting works.  This is a very basic - yet remarkably
+powerful - scheme where each variable in your program has a little
+counter associated with it that counts how many references point to
+it.  These references can either be named references (like <code>$foo</code>,
+<code>$bar</code>, etc) or references as part of a data structure.  Simply put,
+when this counter falls to zero it means that there's no variables
+pointing at it, and hence no-one could possibly be using the variable,
+so the variable can be cleaned up and the memory reclaimed.</p>
+<p>For example, here the variable <code>$foo</code> has one reference due to the
+name, <code>$foo</code>, pointing at it from your current scope.</p>
+<pre>  my $foo = "bar";</pre>
+
+<p>Using our old friend <b>Devel::Peek</b> we can see how many things are
+pointing at the variable at once.</p>
+<pre>  use Devel::Peek;
+  my $foo = "bar";
+  print Dump $foo;</pre>
+
+<pre>  SV = PV(0x815de80) at 0x8170ee4
+    REFCNT = 1                          &lt;-- just one
+    FLAGS = (PADBUSY,PADMY,POK,pPOK)
+    PV = 0x816c668 "bar"\0
+    CUR = 3
+    LEN = 4</pre>
+
+<p>If we take a second reference to that variable then the <code>REFCNT</code> goes
+up.</p>
+<pre>  use Devel::Peek;
+  my $foo = "bar";
+  my $baz = \$foo;
+  print Dump $foo;</pre>
+
+<pre>  SV = PV(0x815de80) at 0x8170ee4
+    REFCNT = 2                          &lt;-- now two!
+    FLAGS = (PADBUSY,PADMY,POK,pPOK)
+    PV = 0x816c668 "bar"\0
+    CUR = 3
+    LEN = 4</pre>
+
+<p>If we jiggle our program so <code>$foo</code> falls out of scope then we see we
+only have a reference of one again (since only $bar is pointing at it
+now, the reference from <code>$baz</code>.</p>
+<pre>  use Devel::Peek;
+  my $baz;
+  {
+    my $foo = "bar";
+    $baz = \$foo;
+  }
+  print Dump ${ $baz };</pre>
+
+<pre>  SV = PV(0x815de80) at 0x8170ef0
+    REFCNT = 1                        &lt;-- back to one
+    FLAGS = (PADBUSY,PADMY,POK,pPOK)
+    PV = 0x816c668 "bar"\0
+    CUR = 3
+    LEN = 4</pre>
+
+<p>If we now undefined <code>$baz</code> then the reference of <code>$foo</code> will fall to
+zero.  I would show this, but, of course I no longer have any way of
+getting to <code>$foo</code>, and that is precisely the reason that perl can
+throw it away.</p>
+<p>Perl programmers abuse the reference counting system to great
+advantage.  Consider the constructor.</p>
+<pre>  sub new
+  {
+    my $class = shift;
+    my $self  = bless {}, $class;
+    return $self
+  }</pre>
+
+<pre>  my $hc = HizenburgCompensator-&gt;new();</pre>
+
+<p>In the above code we create a variable - an object - and stick it in
+<code>$self</code>.  <code>$self</code> is declared lexically which means it's contents
+should, by all rights, be cleared up at the end of the scope.  But
+they're not?  Why?  Because we return a copy of the reference as we
+exit that subroutine (that gets put in <code>$hc</code>, or whatever else calls
+$new) and hence that data structure still has a reference pointing at
+it.</p>
+<h2>Circular References</h2>
+<p>The big problem comes in when we accidentally create a circular
+reference.  By way of an example, meet the Flintstones (they're the
+modern stone age family)</p>
+<pre>  my $fred  = Person-&gt;new();
+  my $wilma = Person-&gt;new();</pre>
+
+<pre>  $fred-&gt;{spouse} = $wilma;
+  $wilma-&gt;{spouse} = $fred;</pre>
+
+<pre>  use Data::Dumper;
+  print Dumper $fred;</pre>
+
+<p>Eek, this prints out</p>
+<pre>  $VAR1 = bless( {
+                   'spouse' =&gt; bless( {
+                                        'spouse' =&gt; $VAR1
+                                      }, 'Person' )
+                 }, 'Person' );</pre>
+
+<p>This means that we can get back to Fred by going <code>$fred-&gt;{spouse}{spouse}</code>.  It's a circular reference as I can keep
+going round and round in circles, alternating between Fred and Wilma as
+I go to the next spouse.</p>
+<p>Why are these so bad?  Because even if both <code>$fred</code> and <code>$wilma</code>
+fall out of scope then they'll both still have a reference pointing at
+them (<code>$wilma</code> will point at <code>$fred</code> and vice versa) and their
+reference count will never drop to zero, meaning that memory will
+never be recovered.</p>
+<h2>Using <code>weaken</code></h2>
+<p>Let's simplify our data structure a little:</p>
+<pre>  my $person =  bless( {
+                     'spouse' =&gt; bless( {
+                                        }, 'Person' )
+                   }, 'Person' );
+  $person-&gt;{spouse}{spouse} = $person;</pre>
+
+<p>Let's use <b>Devel::Peek</b> to have a look at that:</p>
+<pre>  print Dump $person;
+  SV = RV(0x813840) at 0x80a270
+    REFCNT = 1
+    FLAGS = (PADBUSY,PADMY,ROK)
+    RV = 0x80a348
+    SV = PVHV(0x809f30) at 0x80a348
+      REFCNT = 2
+      FLAGS = (OBJECT,SHAREKEYS)
+      ... </pre>
+
+<p>We can see that the hash that makes up <code>$person</code> has a refcount of
+two.  While this is correct, it means we're never going to recover
+that data.  What we need to do is someone keep one of the references,
+but have it not counted when we do reference counting.  This kind of
+reference is called a <i>weak reference</i> and normal references can be
+converted into them with <b>Scalar::Util</b>'s <code>weaken</code> function:</p>
+<pre>  use Scalar::Util qw(weaken);
+  weaken($person-&gt;{spouse}{spouse});
+  
+=head2 Doing this the easy way: Using Data::Structure::Util</pre>
+
+<p>All this requires an awful lot of thought.  I mean, if you accidentally
+weaken the only reference you are holding to the object then that
+object's going to be reclaimed before your very eyes.  This is not
+good.  What you really want is some way of just dealing with circular
+references.  This is where <b>Data::Structures::Util</b> comes in.</p>
+<p><b>Data::Structure::Util</b> can detect circular data references:</p>
+<pre>  # create my data structure.
+  my $person =  bless( {
+                     'spouse' =&gt; bless( {
+                                        }, 'Person' )
+                   }, 'Person' );
+  $person-&gt;{spouse}{spouse} = $person;</pre>
+
+<pre>  use Data::Structure::Util qw(has_circular_ref);
+  print "Originally circular\n"
+    if has_circular_ref($person);</pre>
+
+<pre>  # weaken a reference, make one non circular.
+  use Scalar::Util qw(weaken);
+  weaken($person-&gt;{spouse}{spouse});</pre>
+
+<pre>  print "Still circular!\n"
+    if has_circular_ref($person);</pre>
+
+<p>This prints out </p>
+<pre>  Originally circular</pre>
+
+<p>But not </p>
+<pre>  Originally circular
+  Still circular!</pre>
+
+<p>Because <b>Data::Structure::Util</b> is smart enough to realise that one
+of the links has been weakened.  Of course, it's actually smart enough
+to do that weakening for us.</p>
+<pre>  # create my data structure.
+  my $person =  bless( {
+                     'spouse' =&gt; bless( {
+                                        }, 'Person' )
+                   }, 'Person' );
+  $person-&gt;{spouse}{spouse} = $person;</pre>
+
+<pre>  use Data::Structure::Util qw(has_circular_ref circular_off);
+  print "Originally circular\n"
+    if has_circular_ref($person);</pre>
+
+<pre>  my $offed = circular_off($person);
+  print "Weakened '$offed' references\n";</pre>
+
+<pre>  print "Still circular!\n"
+    if has_circular_ref($person);</pre>
+
+<p>How simple is that?</p>
+<h2>Other Handy Utility Functions</h2>
+<p>There are a couple of other very handy utilities in the package.
+Top of the list is my personal favourite, <code>unbless</code>.  This actually
+is really useful.  The common idiom for unblessing an object is
+to bless it back into it's native class.</p>
+<pre>    my $thingy = bless {}, "SpaceAlien";
+    bless($thingy, "HASH");</pre>
+
+<p>This is a 'class A' hack.  For a start, <b>Scalar::Util</b>'s <code>blessed</code>
+method will catch us out, as it's really still blessed - it's just
+got a stealthy name:</p>
+<pre>    use Scalar::Util qw(blessed);</pre>
+
+<pre>    print "Zounders, it's an object!"
+      if blessed($thingy);</pre>
+
+<p>Better to use <b>Data::Structure::Util</b>'s <code>unbless</code></p>
+<pre>    use Data::Structure::Util qw(unbless);
+    my $thingy = bless {}, "SpaceAlien";
+    unbless($thingy);</pre>
+
+<pre>    use Scalar::Util qw(blessed);
+    print "Zounders, it's an object!"
+      if blessed($thingy);</pre>
+
+<p>This prints nothing, which is exactly what I want.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/dist/Devel-Peek/Peek.pm">Devel::Peek</a></li>
+<li><a href="http://search.cpan.org/dist/Scalar-List-Utils/lib/Scalar/Util.pm">Scalar::Util</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:57 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

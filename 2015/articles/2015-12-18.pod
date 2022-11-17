@@ -1,0 +1,182 @@
+Title: Christmas Wishes
+Topic: Sereal
+Author: Ivan Kruglov <ivan.kruglov@yahoo.com>
+
+One of the problems with Santa's delivering presents to all the girls and boys
+in the world was that when he arrived at midnight in New Zealand to deliver
+presents to all the good girls and boys, it was twenty three and three quarter
+hours earlier in Honolulu, barely even Christmas Eve and all the boys and girls
+there were still making their last minute requests!
+
+The elves had compensated somewhat by putting extra gifts in Santa's magic sack
+of infinite holding, but updating the gift list in real time to tell Santa what
+everyone wanted was becoming a serious problem:  The sat-phone could only
+transmit so much data, and Santa was getting tired of flying around aimlessly
+while he waited for the download to complete.
+
+=head2 The Problem With JSON
+
+Here's an example update to the gift list the elves needed to send to Santa:
+
+   #!perl
+   my $updates = [
+       {
+           id => '79ABF5D8-9A75-4263-8F8F-A2346EDA62F7',
+           wants => [
+              'iPad Pro',
+              'Modern Perl 4th Edition',
+           ],
+        },
+        {
+           id => '7593A066-3C83-4A9C-8A43-4F09D8693B15',
+           wants => [
+              'Pokemon Alpha-Sapphire',
+              'Modeling Clay',
+           ],
+        },
+        {
+            id => '2A94FFDB-9FAB-440D-8C2A-D7ED40F30557',
+            wants => [
+                'My Two Front Teeth',
+            ],
+        },
+   }
+
+Traditionally the elves had been encoding this out with JSON to shoot over
+the wire.
+
+  #!perl
+  use JSON::PP;
+  my $bytes = encode_json $updates;
+  say length($bytes) . ' bytes';
+
+This prints C<268 bytes>.  Not so bad, but can the elves do better?
+
+=head2 Introducing Sereal
+
+Sereal is I<an efficient, compact-output, binary and feature-rich serialization
+protocol>.  In other words it's a standard for bundling up a data structure
+really small to send over the wire, and is just what the Elves are looking for!
+
+=head2 Compression
+
+Sereal has built in compression. Snappy compression should be enough in most
+situations:
+
+   #!perl
+   use Sereal::Encoder qw(encode_sereal SRL_SNAPPY);
+
+   my $bytes = encode_sereal(
+      $updates,
+      {
+          compress => SRL_SNAPPY,
+          compress_threshold => 0
+      }
+   );
+
+   say length($bytes) . ' bytes';
+
+This prints out the much improved C<233 bytes>.  For better compression we can
+use Zlib (which is more CPU intensive, but right now the elves need every byte
+they can get)
+
+   #!perl
+   use Sereal::Encoder qw(encode_sereal SRL_ZLIB);
+
+   my $bytes = encode_sereal(
+      $updates,
+      {
+          compress => SRL_ZLIB,
+          compress_threshold => 0
+      }
+   );
+
+   say length($bytes) . ' bytes';
+
+This code prints out the even more improved C<205 bytes>.  Looking at this on a
+graph we can see we've saved just short of quarter of the byte count over using
+plain old JSON:
+
+=for html
+   <center><img src="sereal_graph.png" width="502" height="312"></center>
+
+=head2 Scaling Up For More Impressive Results
+
+The elves were concerned about how Sereal would behave when scaling up the size
+of the data that was being sent - there are a lot of children in the world after
+all. They decided to re-run the test with a bigger data set.  Being thankful to
+all the CPAN authors in the world Santa decided to give each and every one
+either new copy of the Modern Perl 4th Edition book or a Round Tuit token:
+
+   #!perl
+   my $updates = [
+      map {
+        +{
+           id => $_,
+           wants => [
+               rand > 0.5 ? 'Modern Perl 4th Edition' : 'A Round Tuit'
+           ]
+         }
+      } (
+        'E113BD23-E72A-4EC0-A57C-C4E868D9049C',
+        '7F1AAB0C-4B85-4B42-9C8D-A41C6CF9D93E',
+        ... # and 12483 other uuids
+      )
+   ];
+
+Rerunning the above tests produced an even more impressive savings:
+
+=for html
+   <center><img src="sereal_graph2.png" width="482" height="319"></center>
+
+The elves had reduced the byte count by almost 94%!
+
+=head2 Even More Compression
+
+One of the elves decided to investigate ways to make the data that had to be
+sent even smaller.  Noticing that many of the last minute present requests were
+for this year's hot new toy, the elf suggested that the data structure have some
+short cut code to avoid having to repeat the same string name of the toy over
+and over again in the data that was sent over the wire.
+
+Luckily for him, one of the other elves were paying close attention and before
+he got to work it was pointed out that Sereal can be configured to do this
+automatically for you!
+
+The elves tried rerunning the CPAN authors data with the C<dedupe_strings> option enabled:
+
+   #!perl
+   my $bytes = encode_sereal(
+      $updates,
+      {
+          compress => SRL_ZLIB,
+          dedupe_strings => 1,
+      }
+   );
+
+This resulted in even smaller bytesize
+
+=for html
+  <table class="pretty-table">
+  <thead>
+  <tr>
+  <td>dedupe_strings</td>
+  <td>Bytes</td>
+  </tr>
+  </thead>
+  <tbody>
+  <tr class="alt">
+  <td>disabled</td>
+  <td>60207</td>
+  </tr>
+  <tr>
+  <td>enabled</td>
+  <td>58537</td>
+  </tr>
+  </tbody>
+  </table>
+
+=head2 Success
+
+This year not only would the gift list update quicker, Santa's phone bill
+would also be considerably less!

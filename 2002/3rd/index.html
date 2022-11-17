@@ -1,0 +1,210 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: DBD::SQLite</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 3rd day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">DBD::SQLite</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../2nd/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../4th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>The trouble with relational databases is that that they introduce
+complications to your project.  Suddenly the requirements for your
+script to function properly change from just requiring a working
+copy of Perl to requiring a database be set up for your application.</p>
+<p>This is quite a sudden increase in requirements; It might require a
+user to go off and fiddle with some permissions, create tables, or
+otherwise configure their database, ensuring that they don't break
+anything else that runs on that database server.  It requires the
+user to somehow configure your script with the usernames and passwords
+that are needed to access the database.  In the worst case scenario,
+the user has to install a database from scratch just to run your
+application.</p>
+<p>All this seems a bit much to ask if all your programs wants is a place
+to store some data during your quick log progressing run.</p>
+<p>This is where <b>DBD::SQLite</b> shines.  It's a relational database
+driver like many of the others, but it ships with the database itself.
+Installing the module (which isn't too big, the whole distribution is
+277KB at the time of writing) installs the database program. </p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?DBD::SQLite">[Read the documentation for DBD::SQLite on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>SQLite databases are simply files created in the filesystem.  This may
+come to a shock to traditional database users who are used to their
+database server hiding their data away somewhere out of sight.  This
+just having the databases in the filesystem can encourage you to
+quickly create databases as and when you need them and simple delete
+them (using the <code>unlink</code> command) when you're done with them.</p>
+<pre>   # use the standard DBI (database interface)
+   use DBI;</pre>
+
+<pre>   # get a handle on our database, which is simply the file
+   # "foo.db" in our current directory
+   my $dbh = DBI-&gt;connect('dbi:SQLite:foo.db');</pre>
+
+<p>Since you're often need a database for each run of your script, and
+you don't want concurrent runs of the program interfering with each
+other's database it often makes sense to create the database in a
+separate temp file for each run.</p>
+<pre>   use File::Temp qw( :POSIX );
+   use DBI;
+   my $dbh = DBI-&gt;connect('dbi:SQLite:' . tmpnam());</pre>
+
+<p>Anyway, once you have a database handle you can treat it exactly like
+you would a normal database.  First up you create a table:</p>
+<pre>  # just do the SQL needed to create a table
+  $dbh-&gt;do(q{
+    CREATE TABLE modules (day        INTEGER PRIMARY KEY,
+                          name       TEXT,
+                          maintainer TEXT)
+  });</pre>
+
+<p>Note that the type system with SQLite is a little odd compared to
+other databases.  SQLite doesn't really have types so specifying
+something as <code>TEXT</code> or <code>INT(10)</code> really won't make much difference,
+SQLite will accept anything.  This is considered a feature rather than
+a bug - the view being that your database shouldn't really care about
+the type of data being stored into it.</p>
+<p>The type <i>is</i> important when doing comparisons though with <code>SELECT</code>
+conditions and their like.  If you've defined something as <code>TEXT</code>
+then it is compared with a string comparison (like Perl's <code>eq</code>
+operator) and if it's created with a number data type it's compared
+like a number (like Perl's <code>==</code> operator.)</p>
+<p>Finally you might notice the <code>INTEGER PRIMARY KEY</code> field.  This is
+an autoinc field.  Every time data is added to the database this column
+will automatically get a new number, starting at 1.</p>
+<p>Enough, let's enter some data:</p>
+<pre>  my $sth = $dbh-&gt;prepare(q{
+    INSERT INTO modules (name, maintainer) VALUES (?,?)
+  });</pre>
+
+<pre>  # run that insert, with the text to replace the ? with
+  $sth-&gt;execute("URI::Find",     "ROSCH");
+  $sth-&gt;execute("IO::AtomicFile","ERYQ");
+  $sth-&gt;execute("DBD::SQLite",   "MSERGEANT");</pre>
+
+<p>Note we don't assign any value to the <code>day</code> column, so it gets assigned
+<code>NULL</code>.  The database will automatically fill that in for us.  If we
+want the value that the database filled in for us we can get at it like
+so:</p>
+<pre>  print $dbh-&gt;func('last_insert_rowid');</pre>
+
+<p>Right, so we've got some data in, now we're ready to search it, right?
+Well, yes.  However, note that if we'd turned autocommit off (enabling
+the rollback - the undo - feature of the database and making it
+transactional) we'd want to commit the data at this point.</p>
+<pre>   # connect to the database with no username or password but
+   # set autocommit off so we can use transactions
+   my $dbh = DBI-&gt;connect('dbi:SQLite:' . tmpnam(), "", "",
+                          { AutoCommit =&gt; 0 });
+	
+   # do all the inserts and stuff
+   ...</pre>
+
+<pre>   # finally commit it
+   $dbh-&gt;commit();</pre>
+
+<p>If we'd wanted to undo it instead of commiting it we could have said</p>
+<pre>   $dbh-&gt;rollback();</pre>
+
+<p>So, onto the searching:</p>
+<pre>  # load the module for the ordinate function
+  # to make '1' '1st' and '2' '2nd' etc.
+  use Lingua::EN::Numbers::Ordinate;</pre>
+
+<pre>  # find which day someone's modules are shown on
+  my $sth2 = $dbh-&gt;prepare(q{
+    SELECT day, name FROM modules WHERE maintainer = ?
+  });</pre>
+
+<pre>  # look up baud's modules
+  $sth2-&gt;execute("MSERGEANT");</pre>
+
+<pre>  # print out each result
+  while(my ($day, $name) = $sth2-&gt;fetchrow)
+  {
+    print "$name will be shown on the ".ordinate($day)."\n";
+  }</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://www.hwaci.com/sw/sqlite/">SQLite homepage</a></li>
+<li><a href="http://search.cpan.org/author/TIMB/DBI/DBI.pm">DBI</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:52 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

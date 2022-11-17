@@ -1,0 +1,158 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2013 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2013.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2013 - 
+Got Git? Ask Santa to get Got!
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2013</a></h1>
+        </div>
+
+        <p id="tagline">2013 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Got Git? Ask Santa to get Got!</h1>
+<div class='subtitle'>App::GitGot - 2013-12-15</div>
+
+<div class='pod'><h3 id="Many-Git-Repos-Can-Get-Messy">Many Git Repos Can Get Messy</h3>
+
+<p>Like most developers, I&#39;ve got a <i>lot</i> of source code in Git repositories, scattered and duplicated across the four-odd machines I use on a regular basis (the laptop, the server, the other laptop, the VPS...) It&#39;s actually worse than that, because it&#39;s not just source code &mdash; I&#39;ve got various configuration files in different repositories, a couple repositories that just contain documents, and so on. I keep everything in sync and configured the same across all my machines by depending on these repositories to be reasonably up-to-date with the master copy (which is some times at Github, some times on $WORK&#39;s repo server, some times on one of my servers...)</p>
+
+<p>In order to effectively manage the all these git repositories, from all those different locations, across all those machines, I use <a href="https://metacpan.org/pod/App::GitGot">got</a>. <code>got</code> is a utility that makes it trivial to run various <code>git</code> commands across some or all of the repositories that <code>got</code> knows about.</p>
+
+<h3 id="Get-GitGot">Get GitGot</h3>
+
+<p>Before you can use <code>got</code>, you need to install it. Luckily, it&#39;s on CPAN, in the <a href="https://metacpan.org/module/App::GitGot">App::GitGot</a> dist. Fire up your favorite CPAN client and install that, and once all the dependencies install, you should have a shiny new <code>got</code> command available to you. Much like <code>git</code>, <code>got</code> works via a series of sub-commands &mdash; if you just run <code>got</code>, you&#39;ll get a list of all the available sub-commands.</p>
+
+<h3 id="Gotta-tell-got-where-your-git-repos-are">Gotta tell got where your git repos are</h3>
+
+<p>In order for <code>got</code> to manage your repositories, you&#39;ll have to add them to the configuration file. (By default, this lives at <code>~/.gitgot</code>.) One way to add a repo is the <code>got add</code> command &mdash; <code>cd</code> into the repo you want to add, and run <code>got add</code>. You&#39;ll be prompted for a few pieces of info &mdash; the defaults are generally correct &mdash; and then the repository will be added to the config file.</p>
+
+<pre><code>    % got add
+    Name: etc
+     URL: git@github.com:genehack/etc.git
+    Path: /Users/genehack/etc
+    Tags: config</code></pre>
+
+<p>Note the &quot;Tags&quot; entry &mdash; as we&#39;ll see shortly, tags are one way you can select repositories to operate on.</p>
+
+<p>If you want to just accept the defaults without having a chance to edit them, you can run <code>got add -D</code>, which will just accept the default options. Currently, there isn&#39;t any command to edit a repository after it has been added (to add or change tags, for example), but the configuration file is a very simple YAML file which is trivial to hand-edit.</p>
+
+<p>There are a couple of other sub-commands that add repositories to your config file. <code>got clone $CLONE_URL</code> will run <code>git clone</code> on the given URL, and then add the resulting repository checkout to your <code>got</code> config. Similarly, <code>got fork $GITHUB_URL</code> will fork the given Github repo, then clone the resulting fork, and finally add it to your <code>got</code> config. The <code>got fork</code> sub-command depends on having a properly configured <code>~/.github-identity</code> file with your Github authentication information.</p>
+
+<h3 id="Got-Gets-Your-Git-Repos-In-Line">Got Gets Your Git Repos In Line</h3>
+
+<p>Once you&#39;ve added some git repositories to your <code>got</code> config file, you can use <code>got</code> to carry out various batch operations. For example, you can show all the repositories <code>got</code> is aware of with the <code>got list</code> (aka <code>got ls</code>) sub-command. You can also specify a subset of repositories to operate on by providing additional arguments. For example, given this output:</p>
+
+<pre><code>  % got ls
+    1) Perl-Build      git   git://github.com/tokuhirom/Perl-Build
+    2) STAMPS          git   git@github.com:genehack/STAMPS.git
+    3) app-gitgitr     git   git@github.com:genehack/app-gitgitr.git
+    4) app-gitgot      git   git@github.com:genehack/app-gitgot.git
+    5) app-miseenplace git   git@github.com:genehack/app-miseenplace.git
+    6) build-color     git   git@github.com:genehack/build-color.git
+    7) dosetool        git   genehack.net:/var/git/private/dosetool
+    8) emacs           git   git@github.com:genehack/emacs.git
+    9) etc             git   git@github.com:genehack/etc.git</code></pre>
+
+<p>You can specify one or more repository index numbers, or number ranges, to only select certain repos. For example:</p>
+
+<pre><code>  % got ls 2 4-6 7 9
+    2) STAMPS           git   git@github.com:genehack/STAMPSOB.git
+    4) app-gitgot       git   git@github.com:genehack/app-gitgot.git
+    5) app-miseenplace  git   git@github.com:genehack/app-miseenplace.git
+    6) build-color      git   git@github.com:genehack/build-color.git
+    7) dosetool         git   genehack.net:/var/git/private/dosetool
+    9) etc              git   git@github.com:genehack/etc.git</code></pre>
+
+<p>You can also specify tags with the <code>-t</code> flag:</p>
+
+<pre><code>  % got ls -t config
+    5) app-miseenplace  git   git@github.com:genehack/app-miseenplace.git
+    8) emacs            git   git@github.com:genehack/emacs.git
+    9) etc              git   git@github.com:genehack/etc.git</code></pre>
+
+<p>Multiple <code>-t</code> options may be given, in which case they are combined in a &quot;logical OR&quot; fashion.</p>
+
+<p>Finally, you can specify repos by name:</p>
+
+<pre><code>  % got ls emacs
+    8) emacs  git   git@github.com:genehack/emacs.git</code></pre>
+
+<p>This ability to select a subset of repositories to operate on applies not just to the <code>got ls</code> subcommand, but to any <code>got</code> subcommand that operates on multiple repositories, such as <code>got gc</code>, <code>got status</code>, or <code>got update</code>.</p>
+
+<h3 id="Gotta-Get-It-Together-Now">Gotta Get It Together Now</h3>
+
+<p>As I mentioned above, I depend on a number of git repositories being kept up to date with the master copy in order to propagate configuration changes across machines and to maintain consistency in how things are configured. I do this by frequently (at least once a week, if not more often), using a combination of <code>got update_status</code> and <code>got status</code> to first update all the repositories on a given machine, then display repositories that have either uncommitted changes or changes that have been locally committed but not pushed up to the master. By using these two commands and iterating across all my active machines, it becomes trivial to make sure everything is up to date.</p>
+
+<p><b>Note:</b> The <code>update_status</code>, <code>update</code>, and <code>status</code> commands all take an optional <code>-q</code> (for quiet) flag. This hides the output from repositories that don&#39;t have anything &quot;interesting&quot; to show &mdash; all the unchanged repos, all the clean repos that are in sync with the remote, etc. Also worth noting is that the <code>update</code> command does a <code>git pull</code>. There&#39;s an outstanding request for a <code>git fetch</code> command, which is waiting on me to have a spare tuit, or some brave volunteer to send in a pull request.</p>
+
+<h3 id="But-Wait-We-Got-More">But Wait, We Got More</h3>
+
+<p><code>got</code> also has a number of commands that are designed to make it easier to work with individual repositories without needing to know exactly where they live on disk. The <code>got chdir REPO</code> command spawns a new subshell inside the given repository, and the <code>got tmux REPO</code> subcommand (contributed by Yanick Champoux) spawns a new <code>tmux</code> window with the working directory inside the given repository. The repository&#39;s name will be used as the name of the <code>tmux</code> window. If the window has already been created by a previous invocation of <code>got tmux</code>, instead of creating a new window, the existing window will be selected.</p>
+
+<p>If you&#39;re curious whether a given repository is being managed by <code>got</code>, you can use the <code>got this</code> command (contributed by Yanick Champoux) while inside the repository. If it is managed by <code>got</code>, you&#39;ll get back the listing output for the repo. If it is not managed by <code>got</code>, you&#39;ll see a message to that effect.</p>
+
+<h3 id="What-You-Got">What You Got?</h3>
+
+<p>At this point, <code>got</code> is a very good fit for my personal workflow around git repositories across multiple machines. I realize, however, that my workflow is not everybody&#39;s workflow, and I&#39;m very open to additional commands or command flags being added to make <code>got</code> more generically useful to more people. <code>got</code> was also originally intended to be a VCS-agnostic tool; it just so happened that around the time I got the first usable version of it completed, my need to use anything other than <code>git</code> for revision control evaporated. The extension hooks for other VCSen are still in place, however, and I would love to merge code that adds SVN, Hg, or even CVS support.</p>
+
+<p>Please fork the <a href="http://github.com/genehack/app-gitgot/">repository</a> on Github, add your own contribution, and send in a pull request!</p>
+
+<h3 id="Acknowledgments">Acknowledgments</h3>
+
+<p><code>got</code> was originally very heavily inspired by a similar tool, developed by Ingy d&ouml;t Net, called <a href="https://metacpan.org/pod/App::AYCABTU">App::AYCABTU</a>. In particular, the repository selection interface and large chunks of the config file were shamelessly pilfered. <code>got</code> has also been greatly improved by the efforts of Yanick Champoux, Mike Greb, and Chris Prather, as well as everybody who has reported a bug or wishlist feature.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/App::GitGot">App::GitGot</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/d07c1f81d10a1d147d6b5cb80fa1c654?r=g&s=80&d=retro />
+This article contributed by: John SJ Anderson &lt;genehack@genehack.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Shake those gifts and figure out what&#39;s inside!" href="2013-12-14.html">Previous</a></li>
+
+    <li class="next"><a title="Advent-based Programming" href="2013-12-16.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

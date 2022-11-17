@@ -1,0 +1,132 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Better Testing
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Better Testing</h1>
+<div class='subtitle'>forkprove and Test::Pretty - 2012-12-20</div>
+
+<div class='pod'><h2 id="Moose-is-slow">Moose is slow!</h2>
+
+<p>At least when testing. Moose&#39;s compile time speed isn&#39;t typically a problem when running things like web applications, since they only start up once, but tests frequently run many instances of the application in quick succession, and this can add quite a bit of time to the overall runtime of the test suite. This can in fact happen with a lot of different modules - Moose is just the most well known example, but any large module will have a similar effect.</p>
+
+<p>If you look at what&#39;s actually happening though, all of this extra time is spent doing the same thing. The same code is loaded at the start, and then only after compilation is finished do things start to diverge (to run the actual tests themselves). There&#39;s no reason that the code that runs for <code>use Moose</code> should need to run multiple times during the test suite, since it always does the same thing, and so a lot of time could be saved by loading modules fewer times.</p>
+
+<h3 id="Test::Aggregate">Test::Aggregate</h3>
+
+<p>In the past, people have attacked this problem by combining test files into fewer, bigger ones, or by using something like <a href="https://metacpan.org/module/Test::Aggregate">Test::Aggregate</a> to automate this process. This is error-prone, because a lot of times tests can have global effects - installing subs into packages, creating classes, etc. We really do want tests to run in separate environments, to avoid allowing them to interfere with each other.</p>
+
+<h3 id="App::ForkProve">App::ForkProve</h3>
+
+<p><a href="https://metacpan.org/module/App::ForkProve">App::ForkProve</a> solves this problem. It is a wrapper for <a href="https://metacpan.org/module/App::Prove">App::Prove</a>, which allows you to preload modules, and then instead of running each of the test files via <code>fork</code> and <code>exec</code>, it runs them via <code>fork</code> and <code>eval</code>. This way, the preloaded modules are already loaded in the current interpreter, and so when the test files are run, the <code>use</code> statement is just a no-op.</p>
+
+<p>This actually works remarkably well - the <a href="https://metacpan.org/module/OX">OX</a> test suite takes 30 seconds to run <code>make test</code> on my laptop, which decreases to 14 seconds under <code>prove -rj5 -l t</code> (since it runs the tests in parallel on multiple processors), but <code>forkprove -rj5 -l -MOX -MOX::Request -MOX::Response -MOX::RouteBuilder::Code -MOX::RouteBuilder::ControllerAction -MOX::RouteBuilder::HTTPMethod t</code> runs in just <i>3 seconds</i>.</p>
+
+<h3 id="Tips-and-tricks">Tips and tricks</h3>
+
+<p>That command line did get a bit long though, and it&#39;s hard for people who aren&#39;t the developer to know what things are useful to preload. It may be useful to provide a module along with your test suite that does the job of loading all of the useful modules, so you only have to specify a single <code>-M</code> option. For instance, here is the contents of <code>t/Preload.pm</code> in the OX repository:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synStatement">package</span><span class="synType"> t::Preload</span>;<br /><span class="synStatement">use strict</span>;<br /><span class="synStatement">use warnings</span>;<br /><br /><span class="synStatement">use </span>OX;<br /><span class="synStatement">use </span>OX::Request;<br /><span class="synStatement">use </span>OX::Response;<br /><span class="synStatement">use </span>OX::RouteBuilder::Code;<br /><span class="synStatement">use </span>OX::RouteBuilder::ControllerAction;<br /><span class="synStatement">use </span>OX::RouteBuilder::HTTPMethod;<br /><br /><span class="synConstant">1</span>;</code><br />&nbsp;</td></table>
+
+<p>Now, you can just run <code>forkprove -rj5 -l -Mt::Preload t</code> to get the same effect.</p>
+
+<p>Another useful trick is that since <code>forkprove</code> is entirely compatible with <code>prove</code> except for the <code>-M</code> option, you can replace <code>prove</code> with <code>forkprove</code> entirely, by adding an alias to your shell configuration:</p>
+
+<pre><code>  alias prove=&quot;forkprove&quot;</code></pre>
+
+<p>This way, prove will continue to work as it always has in the past, but if you specify any <code>-M</code> options, they will be preloaded.</p>
+
+<h3 id="Caveats">Caveats</h3>
+
+<p>This isn&#39;t <i>entirely</i> free, however. One obvious place where this would cause problems is in test files which test to make sure certain modules <i>don&#39;t</i> get loaded in certain situations. If you preload those modules, those tests will start failing.</p>
+
+<p>In addition, since the tests are running from <code>forkprove</code> itself, any calls to <code>Carp::confess</code> or similar will report a longer stacktrace than they would otherwise, because all of the App::ForkProve machinery is actually still on the call stack. This is not typically a problem, but can potentially cause failures if you are relying on matching the entire stacktrace in a test.</p>
+
+<h2 id="TAP-is-ugly">TAP is ugly!</h2>
+
+<p>So now we have our tests running nice and quickly, and we make a change in our actual code, and it causes some tests to fail. The trouble is, the actual causes of the failures can be obscured by all of the <code>prove</code> output, especially if it&#39;s running in parallel. It&#39;d be nice to have an easily skimmable output that makes it much more apparent what is wrong.</p>
+
+<p>A typical solution here is to run <code>prove -l t</code>, see the list of failures at the end, and run the test files individually with <code>perl -Ilib t/failing-test.t</code>. This isn&#39;t great though, since raw TAP isn&#39;t the easiest thing to read. Additionally, if your tests don&#39;t have descriptions, it can be quite hard to find the test you&#39;re looking for.</p>
+
+<h3 id="Test::Pretty">Test::Pretty</h3>
+
+<p><a href="https://metacpan.org/module/Test::Pretty">Test::Pretty</a> modifies the TAP output in order to make it a lot more pleasant to read. It adds colored output, automatically generates a test description based on the line number and contents of tests if they don&#39;t have one. For instance:</p>
+
+<img src="test-pretty.png" />
+
+<p>In addition, it cleans up the output of subtests to make them easier to follow:</p>
+
+<img src="test-pretty-subtest.png" />
+
+<h3 id="Tips-and-tricks1">Tips and tricks</h3>
+
+<p>Another shell alias can make using this easier:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>function t <span class="synSpecial">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synStatement">if </span><span class="synSpecial">[[</span> <span class="synStatement">-d</span> <span class="synConstant">blib</span> <span class="synSpecial">]]</span><span class="synStatement">;</span> <span class="synStatement">then</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;perl <span class="synSpecial">-Mblib</span> <span class="synSpecial">-MTest</span>::Pretty <span class="synStatement">&quot;</span><span class="synPreProc">$@</span><span class="synStatement">&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synStatement">else</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;perl <span class="synSpecial">-Ilib</span> <span class="synSpecial">-MTest</span>::Pretty <span class="synStatement">&quot;</span><span class="synPreProc">$@</span><span class="synStatement">&quot;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="synStatement">fi</span><br /><span class="synSpecial">}</span></code><br />&nbsp;</td></table>
+
+<p>This way, <code>t t/foo.t</code> will run the given test file, using <code>blib</code> if appropriate.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/forkprove">forkprove</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Test::Pretty">Test::Pretty</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/dd9aceaf17982bc33972b3bb8701cd19?r=g&s=80&d=retro />
+This article contributed by: Jesse Luehrs &lt;doy@tozt.net&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="A Cache Present" href="2012-12-19.html">Previous</a></li>
+
+    <li class="next"><a title="Set-based DBIx::Class" href="2012-12-21.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

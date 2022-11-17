@@ -1,0 +1,349 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: Test::Inline</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 10th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Test::Inline</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../9th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../11th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Hands up how many of you have uploaded modules to CPAN?  Good.  Hands
+up how many of you have made a stupid mistake in the module's
+documentation and had to upload another version?  Too many of us it
+would seem.</p>
+<p>I'm sad to say I've done this more than a couple of times.  It's so
+easy to write a chunk of code directly into your pod and get lazy
+enough to never check that it compiles, or check that that does
+the right thing.  Copying and pasting example code back and forth
+to your test suite is a tiresome task and it's easy to forget to 
+do it.  It's also entirely possible to document a feature that
+you never got round to writing tests for, and doesn't even work!</p>
+<p>This is where Test::Inline comes in.  It allows you to write tests
+directly in your pod.  It can check if the code you've written
+compiles okay, so you can write a test for a feature as soon as you've
+written in the documentation that your code can do something.  It also
+allows you to markup the code examples you're including in your
+documentation to indicate that the testing routines should check that
+they compile and that they produce the correct output.</p>
+<p>All these tests can be extracted with a utility program that creates a
+test script that ships with your code, meaning you never need have to
+manage two separate files again.  How handy.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Test::Inline">[Read the documentation for Test::Inline on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Let's write a simple module to get the modules published in the
+Perl advent calendar.</p>
+<pre>  package WWW::PerlAdventCalendar;</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;</pre>
+
+<pre>  # declare a version
+  use vars qw($VERSION);
+  $VERSION = 0.01;</pre>
+
+<pre>  use LWP::Simple qw(get);
+  use XML::RSS;</pre>
+
+<pre>  =head1 NAME</pre>
+
+<pre>  WWW::PerlAdventCalendar - get module for the day</pre>
+
+<pre>  =head1 SYNOPSIS</pre>
+
+<pre>    use WWW::PerlAdventCalendar;</pre>
+
+<pre>    my $advent = WWW::PerlAdventCalendar-&gt;new();
+    my $module = $advent-&gt;module_for(2002,3);</pre>
+
+<pre>  =head1 DESCRIPTION</pre>
+
+<pre>  A simple interface that works out what modules have been
+  published on the Perl advent calendar for a year.  This module
+  uses the XML RDF streams that.</pre>
+
+<pre>  Using it is simple.  All you need do is create the object,
+  and then ask the object what the module is for a year and date.</pre>
+
+<pre>    # print out what module was on the 7th December 2003
+    my $advent = WWW::PerlAdventCalendar-&gt;new();
+    print $advent-&gt;module_for(2003,7);</pre>
+
+<pre>  Each RSS feed is downloaded once (and only once) on demand and cached.
+  To clear a year's cache, all you have to do is call the clear_cache
+  method with the year in question</pre>
+
+<pre>    $advent-&gt;clear_cache(2003);</pre>
+
+<pre>  =cut</pre>
+
+<pre>  # basic standard constructor
+  sub new
+  {
+    my $class = shift;
+    return bless {}, $class
+  }</pre>
+
+<pre>  # simply look up and return the correct module, downloading
+  # and parsing the year's rss if we need to
+  sub module_for
+  {
+    my $self = shift;
+    my $year = shift;
+    my $day  = shift;</pre>
+
+<pre>    # get the year if we haven't got it already
+    unless ($self-&gt;{cache}{ $year })
+      { $self-&gt;_parse_year($year) };</pre>
+
+<pre>    # return the module for that day
+    return $self-&gt;{cache}{ $year }[ $day ]
+  }</pre>
+
+<pre>  # download and parse year
+  sub _parse_year
+  {
+    my $self = shift;
+    my $year = shift;</pre>
+
+<pre>    # get the year
+    my $xml = get "http://perladvent.org/perladvent${year}.rdf"
+      or die "Can't get year '$year'";</pre>
+
+<pre>    # parse it into a rss file
+    my $rss = XML::RSS-&gt;new();
+    $rss-&gt;parse($xml);</pre>
+
+<pre>    # fill up the year
+    my $count = 1;
+    for my $item (reverse @{ $rss-&gt;{items} })
+    {
+      # extract out the module name
+      ($self-&gt;{cache}{ $year }[ $count++ ]) =
+        $item-&gt;{title} =~ /\d+[a-z]+ - (.*)$/;
+    }
+  }</pre>
+
+<pre>  sub clear_cache
+  {
+    my $self = shift;
+    my $year = shift;</pre>
+
+<pre>    delete $self-&gt;{cache}{ $year };
+  }</pre>
+
+<pre>  =head1 AUTHOR</pre>
+
+<pre>  Written by Mark Fowler E&lt;lt&gt;mark@twoshortplanks.comE&lt;gt&gt;</pre>
+
+<pre>  Copyright Mark Fowler 2003.  All Rights Reserved.</pre>
+
+<pre>  This program is free software; you can redistribute it
+  and/or modify it under the same terms as Perl itself.</pre>
+
+<pre>  =head1 BUGS</pre>
+
+<pre>  None known.</pre>
+
+<pre>  =head1 SEE ALSO</pre>
+
+<pre>  L&lt;XML::RSS&gt;, L&lt;LWP::Simple&gt;</pre>
+
+<pre>  =cut</pre>
+
+<pre>  1;</pre>
+
+<p>You can see how there's several code snippets talked about in the
+documentation that I'd like to check actually function as I expect
+them to.  What we need to do is markup some of the text using extra
+notation so that Test::Inline knows what to extract.  We start with
+we markup the text in our synopsis:</p>
+<pre>  =head1 SYNOPSIS</pre>
+
+<pre>  =for example begin</pre>
+
+<pre>    use WWW::PerlAdventCalendar;</pre>
+
+<pre>    my $advent = WWW::PerlAdventCalendar-&gt;new();
+    my $module = $advent-&gt;module_for(2002,3);</pre>
+
+<pre>  =for example end</pre>
+
+<pre>  =head1 DESCRIPTION</pre>
+
+<p>It's important to include a blank line after each of the <code>=for</code>
+directives.  This pod will be rendered by perldoc (and pod2html and
+all the other pod viewers) no differently to the previous version;
+however we can now use the <code>pod2test</code> to extract these tests and
+install them into a file:</p>
+<pre>  bask-2.05b$ mkdir t
+  bash-2.05b$ pod2test lib/WWW/PerlAdventCalendar.pm  &gt; t/01basic.t</pre>
+
+<p>This test file can be then run like any other test.  The amazing thing
+is that because the outputted test script doesn't rely on
+<b>Test::Inline</b> you don't even need to get your end users to install
+it.  You only need the module installed in order to extract the test
+from the pod.</p>
+<p>When we run the test we get the rather satisfactory result indicating
+that our code compiled okay and didn't contain any syntax errors.</p>
+<pre>  bash-2.05b$ perl -Ilib t/01basic.t 
+  ok 1 - example from line 20
+  1..1</pre>
+
+<p>If we want to test the code any closer, to make sure the code actually
+did the job it was supposed to we need to add extra test code that isn't
+printed out when the pod is viewed through a normal pod renderer.  We
+do this with the <code>=for example_testing</code> notation:</p>
+<pre>  =head1 SYNOPSIS</pre>
+
+<pre>  =for example begin</pre>
+
+<pre>    use WWW::PerlAdventCalendar;</pre>
+
+<pre>    my $advent = WWW::PerlAdventCalendar-&gt;new();
+    my $module = $advent-&gt;module_for(2002,3);</pre>
+
+<pre>  =for example end</pre>
+
+<pre>  =for example_testing
+    is($module,"DBD::SQLite","3rd dec 2002 is DBD::SQLite");</pre>
+
+<pre>  =head1 DESCRIPTION</pre>
+
+<p>All the code we want to run to check must immediately follow the
+<code>=for</code> statement and you can't leave any blank lines - leaving blank
+lines would indicate to pod that the current <code>=for example_testing</code>
+has ended and the rest of the code should be treated as normal pod and
+rendered rather than converted into tests.  Anyway, it all works:</p>
+<pre>  bash-2.05b$ perl -Ilib t/01basic.t 
+  ok 1 - example from line 20
+  ok 2 - 3rd dec 2002 is DBD::SQLite
+  1..2</pre>
+
+<p>The second code example we want to test is about half way down the
+page.  This time we want to check it compiles and <i>prints out</i> the
+correct thing:</p>
+<pre>  =for example begin</pre>
+
+<pre>    # print out what module was on the 7th December 2003
+    my $advent = WWW::PerlAdventCalendar-&gt;new();
+    print $advent-&gt;module_for(2003,7);</pre>
+
+<pre>  =for example end</pre>
+
+<pre>  =for example_testing
+    is($_STDOUT_,"Attribute::Handlers", "prints out A::H");</pre>
+
+<p>All the output that is printed to <code>STDOUT</code> is captured by the code
+<b>Test::Inline</b> produces and is stored in <code>$_STDOUT_</code> (<code>$_STDERR_</code>
+works similarly) enabling you to run tests against it.</p>
+<p>The final chunk of code in our pod needs setup before it's compiled as
+it's just a simple one line example that assumes <code>$advent</code> has
+already been created.  If we're going to test that the cache is
+cleared like it says, we need to create <code>$advent</code> and download a page
+before we run the example code:</p>
+<pre>  =for example
+    my $advent = WWW::PerlAdventCalendar-&gt;new();
+    $advent-&gt;module_for(2003,3);</pre>
+
+<pre>  =for example begin</pre>
+
+<pre>    $advent-&gt;clear_cache(2003);</pre>
+
+<pre>  =for example end</pre>
+
+<pre>  =for example_testing
+    ok(!$advent-&gt;{cache}{2003},"cache empty");</pre>
+
+<p>And that's the examples in the code tested.  It's still probably a
+good idea to write an extra test suite to cover the cases that haven't
+been covered here (for example, does the code work if we clear a
+cache that doesn't exist?  Does it throw an error correctly in getting
+an erroneous year?)  However, all the examples we've written in the pod
+work and we can be assured anyone using the documentation will
+have a solid basis to build their code on.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/dist/Test-Inline/lib/Test/Inline/Tutorial.pod">Test::Inline::Tutorial</a></li>
+<li><a href="http://search.cpan.org/dist/Test-Simple/lib/Test/More.pm">Test::More</a></li>
+<li><a href="http://search.cpan.org/dist/libwww-perl/lib/LWP/Simple.pm">LWP::Simple</a></li>
+<li><a href="http://search.cpan.org/dist/XML-RSS/lib/RSS.pm">XML::RSS</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:55 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

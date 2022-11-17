@@ -1,0 +1,114 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2015 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2015.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2015 - 
+Where in the World?
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2015</a></h1>
+        </div>
+
+        <p id="tagline">2015 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Where in the World?</h1>
+<div class='subtitle'>GeoIP2 - 2015-12-01</div>
+
+<div class='pod'><p>Santa had a problem, and the problem was <i>kids</i>. Not that he didn&#39;t love the children - far from it, their happiness was why he did what he did after all - but now there were more than ever of them. World population had grown to the point where there were 2.2 billion children who potentially wanted a gift, and that was a lot of mince pies to get through in one night!</p>
+
+<p>To ensure that he&#39;d have time to make all the deliveries he&#39;d taken the unprecedented step of installing agents in homes around the world - elves that sat on shelves - who were able to report on any problem, from waking children to adverse weather conditions, that might slow him down. Traditionally a Shelf Elf would report by flying home each night leading up to Christmas, but on the big night itself the elf would have to report back in real time. Luckily for Santa, so many houses had internet connections that the Elf could use to report issues via a simple web form the Wise Old Elf had set up on the North Pole extranet.</p>
+
+<p>This is where our hero Candy Cane comes in. Candy Cane sighed as he read the story in the latest Elf development sprint: &quot;A proof of concept exists that displays the Shelf Elf reports on a map so that Central Elf Command can coordinate them as Santa moves around the world&quot;. 2 points.</p>
+
+<p><i>Should be straight forward</i>, thought Candy Cane to himself, <i>We agreed in estimation that all I have to do is take the location from each report and feed it to the MapBox JavaScript library, and we&#39;ll have a nice map. Easy peasy</i>. With Elf joy in his heart from working on something he loved, he opened up the database schema to see how to get the location from the reports table.</p>
+
+<p>The joy was short lived. With a sinking heart Candy realized that the reports didn&#39;t actually contain a location. They just contained the child&#39;s name the Elf was responsible for: fine for giving to the magical reindeer who instinctively knew the way to every chimney top, but useless for plotting on a map.</p>
+
+<p>The elf cast his gaze over the other columns, trying to figure out what to do, when his eyes settled on the IP address that the report was submitted from. <i>Hmmm</i>, he thought, <i>just maybe...</i></p>
+
+<h3 id="GeoIP2">GeoIP2</h3>
+
+<p>GeoIP2 is the Perl interface to the MaxMind geolocation services, providing a way to map an IP address to, amongst other things, a physical location in the world - perfect for plotting Elf reports on a map based on an IP address alone. MaxMind provides the GeoLite2 databases which anyone can periodically download for free from their website to do offline geolocation.</p>
+
+<p>From Perl this is relatively straight forward to use. First create the reader with the database:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$reader</span> <span class="operator">=</span> <span class="word">GeoIP2::Database::Reader</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">file</span>    <span class="operator">=&gt;</span> <span class="symbol">$MMDB_DATABASE_LOCATION</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">locales</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="single">'en'</span> <span class="structure">]</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Then do a lookup on an IP address:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># lookup where the IP is with the &quot;city&quot; level of precision<br /></span><span class="keyword">my</span> <span class="symbol">$where</span> <span class="operator">=</span> <span class="symbol">$reader</span><span class="operator">-&gt;</span><span class="word">city</span><span class="structure">(</span> <span class="word">ip</span> <span class="operator">=&gt;</span> <span class="symbol">$ip</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>From this model you can ask for various things, for example the location of the IP:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$location</span> <span class="operator">=</span> <span class="symbol">$where</span><span class="operator">-&gt;</span><span class="word">location</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$lat</span><span class="operator">,</span> <span class="symbol">$long</span><span class="structure">)</span> <span class="operator">=</span> <span class="structure">(</span><span class="symbol">$location</span><span class="operator">-&gt;</span><span class="word">latitude</span><span class="operator">,</span> <span class="symbol">$location</span><span class="operator">-&gt;</span><span class="word">longitude</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Or information on the nearest city:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$nearest_city</span> <span class="operator">=</span> <span class="symbol">$where</span><span class="operator">-&gt;</span><span class="word">city</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$city_name</span> <span class="operator">=</span> <span class="symbol">$nearest_city</span><span class="operator">-&gt;</span><span class="word">name</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>All kinds of things that you can render on a map.</p>
+
+<h3 id="MapBox">MapBox</h3>
+
+<p>Once the hard work is out of the way, Candy Cane had the relatively simple job of rendering the reports on a map. While a complicated version would come later, Candy decided for the proof of concept a simple Mojolicious::Lite application that used the MapBox API would be sufficient:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;<br />37:&nbsp;<br />38:&nbsp;<br />39:&nbsp;<br />40:&nbsp;<br />41:&nbsp;<br />42:&nbsp;<br />43:&nbsp;<br />44:&nbsp;<br />45:&nbsp;<br />46:&nbsp;<br />47:&nbsp;<br />48:&nbsp;<br />49:&nbsp;<br />50:&nbsp;<br />51:&nbsp;<br />52:&nbsp;<br />53:&nbsp;<br />54:&nbsp;<br />55:&nbsp;<br />56:&nbsp;<br />57:&nbsp;<br />58:&nbsp;<br />59:&nbsp;<br />60:&nbsp;<br />61:&nbsp;<br />62:&nbsp;<br />63:&nbsp;<br />64:&nbsp;<br />65:&nbsp;<br />66:&nbsp;<br />67:&nbsp;<br />68:&nbsp;<br />69:&nbsp;<br />70:&nbsp;<br />71:&nbsp;<br />72:&nbsp;<br />73:&nbsp;<br />74:&nbsp;<br />75:&nbsp;<br />76:&nbsp;<br />77:&nbsp;<br />78:&nbsp;<br />79:&nbsp;<br />80:&nbsp;<br />81:&nbsp;<br />82:&nbsp;<br />83:&nbsp;<br />84:&nbsp;<br />85:&nbsp;<br />86:&nbsp;<br />87:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="word">Mojolicious::Lite</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="version">5.18.0</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">GeoIP2::Database::Reader</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">File::Spec::Functions</span> <span class="words">qw(:ALL)</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">File::Basename</span> <span class="words">qw(dirname)</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$MAPBOX_TOKEN</span> <span class="operator">=</span> <span class="single">'pk.eyJ1IjoiMnNob3J0cGxhbmzzIiwiYSI6ImNpZmw1ZzdnMTV5aXBpdWx4dDhpbjF6ZGQifQ.C3lPhZeBCapfVSQhpcGsLA'</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$MMDB_DATABASE_LOCATION</span> <span class="operator">=</span> <span class="word">catfile</span><span class="structure">(</span><span class="word">dirname</span><span class="structure">(</span><span class="word">__FILE__</span><span class="structure">)</span><span class="operator">,</span><span class="single">'GeoLite2-City.mmdb'</span><span class="structure">);</span>   <br /><br /><span class="keyword">sub</span> <span class="word">report_to_point</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$report</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">state</span> <span class="symbol">$reader</span> <span class="operator">=</span> <span class="word">GeoIP2::Database::Reader</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">file</span>    <span class="operator">=&gt;</span> <span class="symbol">$MMDB_DATABASE_LOCATION</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">locales</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="single">'en'</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><br /><span class="comment">    # lookup where the IP is with the &quot;city&quot; level of precision<br /></span>    <span class="keyword">my</span> <span class="symbol">$where</span> <span class="operator">=</span> <span class="symbol">$reader</span><span class="operator">-&gt;</span><span class="word">city</span><span class="structure">(</span> <span class="word">ip</span> <span class="operator">=&gt;</span> <span class="symbol">$report</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">ip</span><span class="structure">}</span> <span class="structure">);</span><br /><br /><span class="comment">    # define a &quot;point feature&quot; data structure that MapBox understands<br /></span>    <span class="keyword">return</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">type</span> <span class="operator">=&gt;</span> <span class="single">'Feature'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">properties</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">title</span> <span class="operator">=&gt;</span> <span class="symbol">$where</span><span class="operator">-&gt;</span><span class="word">city</span><span class="operator">-&gt;</span><span class="word">name</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">description</span> <span class="operator">=&gt;</span> <span class="symbol">$report</span><span class="operator">-&gt;</span><span class="structure">{</span><span class="word">description</span><span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">geometry</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">type</span> <span class="operator">=&gt;</span> <span class="single">'Point'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">coordinates</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="symbol">$where</span><span class="operator">-&gt;</span><span class="word">location</span><span class="operator">-&gt;</span><span class="word">longitude</span><span class="operator">,</span> <span class="symbol">$where</span><span class="operator">-&gt;</span><span class="word">location</span><span class="operator">-&gt;</span><span class="word">latitude</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br /><span class="structure">}</span><br /><br /><span class="word">get</span> <span class="single">'/'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$c</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br /><span class="comment">  # get the reports from the database, and turn them into mapbox &quot;points&quot;<br /></span>  <span class="word">state</span> <span class="symbol">$pg</span> <span class="operator">=</span> <span class="word">Mojo::Pg</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><span class="single">'postgresql://postgres@/test'</span><span class="structure">);</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$features</span> <span class="operator">=</span> <span class="symbol">$pg</span><span class="operator">-&gt;</span><span class="word">db</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">-&gt;</span><span class="word">query</span><span class="structure">(</span><span class="single">'SELECT * FROM reports'</span><span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">-&gt;</span><span class="word">hashes</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">-&gt;</span><span class="word">map</span><span class="structure">(</span><span class="keyword">sub</span> <span class="structure">{</span> <span class="word">report_to_point</span><span class="structure">(</span><span class="magic">$_</span><span class="structure">)</span> <span class="structure">});</span><br /><br />&nbsp;&nbsp;<span class="symbol">$c</span><span class="operator">-&gt;</span><span class="word">render</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">features</span> <span class="operator">=&gt;</span> <span class="symbol">$features</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">token</span> <span class="operator">=&gt;</span> <span class="symbol">$MAPBOX_TOKEN</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="structure">);</span><br /><span class="structure">}</span> <span class="operator">=&gt;</span> <span class="single">'index'</span><span class="structure">;</span><br /><br /><span class="word">app</span><span class="operator">-&gt;</span><span class="word">start</span><span class="structure">;</span><br /><br /><span class="separator">__DATA__</span><br /><span class="data"><br />@@ index.html.ep<br />% use Mojo::JSON qw(to_json);<br />&lt;!DOCTYPE html&gt;<br />&lt;html&gt;<br />&lt;head&gt;<br />&lt;meta charset=utf-8 /&gt;<br />&lt;title&gt;Shelf Elf Reports&lt;/title&gt;<br />&lt;meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' /&gt;<br />&lt;script src='https://api.mapbox.com/mapbox.js/v2.2.2/mapbox.js'&gt;&lt;/script&gt;<br />&lt;link href='https://api.mapbox.com/mapbox.js/v2.2.2/mapbox.css' rel='stylesheet' /&gt;<br />&lt;style&gt;<br />&nbsp;&nbsp;body { margin:0; padding:0; }<br />&nbsp;&nbsp;#map { position:absolute; top:0; bottom:0; width:100%; }<br />&lt;/style&gt;<br />&lt;/head&gt;<br />&lt;body&gt;<br />&lt;div id='map'&gt;&lt;/div&gt;<br />&lt;script&gt;<br />L.mapbox.accessToken = '&lt;%= $token %&gt;';<br /><br />var map = L.mapbox.map('map', 'mapbox.light').setView([29, -26], 2);<br /><br />var myLayer = L.mapbox.featureLayer().addTo(map);<br />myLayer.setGeoJSON({<br />&nbsp;&nbsp;&nbsp;&nbsp;type: 'FeatureCollection',<br />&nbsp;&nbsp;&nbsp;&nbsp;features: &lt;%== to_json $features %&gt;<br />});<br /><br />&lt;/script&gt;<br />&lt;/body&gt;<br />&lt;/html&gt;</span></code><br />&nbsp;</td></table>
+
+<p><i>Wait till Santa sees this</i> thought Candy, laughing to himself how he&#39;d managed to get the map working despite not having what anyone would have traditionally thought of as location data. Santa wouldn&#39;t be asking <i>where in the world?</i> the problems were anymore, but he probably would be asking <i>where in the world?</i> had Candy got the brilliant idea to use IP Geolocation.</p>
+
+<h2 id="SEE-ALSO">SEE ALSO</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/pod/GeoIP2::Database::Reader">https://metacpan.org/pod/GeoIP2::Database::Reader</a></p>
+
+</li>
+<li><p><a href="http://dev.maxmind.com/geoip/geoip2/geolite2/">http://dev.maxmind.com/geoip/geoip2/geolite2/</a> offers download of the GeoLite2 databases</p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous">Previous</li>
+
+    <li class="next"><a title="Fast CPAN Module Installation" href="2015-12-02.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,239 @@
+Title: Generate static web sites using your favorite Perl framework
+Topic: Wallflower
+Author: Philippe Bruhat (BooK) <book@cpan.org>
+
+=encoding utf8
+
+=head1 The best of two worlds
+
+=head2 Static web sites
+
+Have you noticed the recent trend of static blogging?
+
+The idea behind static blogging is to use a tool to I<generate> the
+HTML pages that constitute the blog from a set of simple text files,
+and to publish these generated pages using a basic web server.
+
+Some would argue that a blog without comments is not really a blog.
+And how do you comment without C<POST>? One way would be to delegate
+the C<POST>ing to someone else (like L<Disqus|http://disqus.com/>).
+
+Also, static web sites don't have to be frozen. Nothing prevents you
+from generating the site content regularly (especially if it depends on
+an external source) or from hooking it to your VCS repository, so that every
+update to the source triggers a regeneration.
+
+Going back to static web sites, here are a few reasons why
+people like them:
+
+=over 4
+
+=item *
+
+Speed:
+
+It would be really hard to beat a webserver serving a static
+file from disk.
+
+=item  *
+
+Security:
+
+No user input means no SQL injection. If no code is run to produce the
+response, then no bugs can interfere in the process.
+
+Of course, you're still vulnerable to your webserver's own security issues
+when it serves static files, but that should be a pretty limited set.
+
+=item *
+
+Simplicity:
+
+A static web site is a bunch of files. You can commit them in a VCS and push
+them to their final destination, or you can use FTP.  It's the easiest
+deployment procedure ever.
+
+=item *
+
+Economy:
+
+Generate once, request any time!
+
+=back
+
+Static blogging tools like L<Jekyll|http://jekyllrb.com/>,
+L<Pelican|http://pypi.python.org/pypi/pelican>,
+L<Middleman|http://middlemanapp.com/> keep popping up, and new ones are
+invented almost daily.
+
+(I have myself been using
+L<ttree|http://template-toolkit.org/docs/tools/ttree.html> for years,
+but writing code using L<Template Toolkit|http://template-toolkit.org/>'s
+DSL can be limiting.)
+
+The setup is always the same: take a bunch of files in I<some format>
+(usually L<Markdown|http://daringfireball.net/projects/markdown/>,
+L<reStructuredText|http://docutils.sourceforge.net/rst.html> or
+L<Textile|http://www.txstyle.org/>), plus some configuration, and run
+the tool. The problem with that is always the same: the model fits
+the original author's needs, and you have to follow I<their> rules.
+Personalisation not included.
+
+=head2 Web frameworks
+
+Perl has plenty of awesome web frameworks, such
+as L<Catalyst|http://www.catalystframework.org/>,
+L<Dancer|http://www.perldancer.org/>, L<Mojolicious|http://mojolicio.us/>,
+and many others, to let you write your web application the way
+you want.  Each has its own set of advantages and disadvantages, but
+that is not the point of this article.
+
+The point is that using those to run a blog or the framework's
+marketing^Whome page may seem wasteful, as there's
+probably little need to regenerate a page for each request, no matter
+if the content has changed or not.
+
+
+=head2 Static web sites made with web frameworks
+
+PSGI is an interface between web servers and applications written in
+Perl. The Plack implementation of PSGI is supported by most Perl web
+frameworks. It's also possible to write your own application (a PSGI
+application is just a subroutine) and connect it to any supported web
+server — and most web servers are supported.
+
+After having tried to write my own static site generator, and having
+failed at
+making it as flexible as I would have liked (which in retrospect would
+probably have made it a web framework in itself), it seemed wiser to
+start building a site with one of those nice web frameworks and to use
+Plack as my entry point to get the to the content.
+
+L<wallflower> is a command-line
+tool that takes a PSGI application, and uses Plack to access to the
+content and save it to local files, ready to be uploaded to your
+static web server.
+
+After obtaining the coderef for your application, it repeatedly creates
+the PSGI environment for the URL you want to process and runs your app on
+it (using C<Plack::Util::run_app>), saving the response content to a local
+file.  If the response content type is C<text/html> or C<text/css>,
+it will automatically look for embedded links and add them to its queue,
+thus enabling auto-discovery of the entire web site.
+
+The point of L<Wallflower> is to let you write any static website using
+all the power of your favorite web framework. It also follows links
+inside your Plack application, so if your site is properly organized,
+you only need to point it to C</>.
+
+
+=head2 Blogging statically with your favorite framework
+
+The obvious example for this would be to write a blog. I'll use Dancer,
+because it's the only web framework I know, but keep in mind that this
+will work with any PSGI-compliant framework. You could actually write
+your own PSGI application, if no existing framework suited you.
+
+Since our target is a I<static> web site, the main thing to keep in mind
+is that the target web server will determine the content type by looking
+at the extension, each all of our URLs B<must> have an extension.
+
+The sources for our basic blog will be a set of text files in the
+F<public/> subdirectory, with the content written in Markdown. URL will
+simply be mapped to those files.
+
+So, we start by writing a route to handle all URL ending with F<.html>:
+
+  #!perl
+  package ShyBlog;
+  use Dancer ':syntax';
+  use Text::Markdown;
+  use Path::Class qw( file );
+
+  my $m = Text::Markdown->new;
+
+  get qr{/(.*)\.html} => sub {
+      my ($file) = splat;
+      my $text = file( setting('public') => "$file.txt" )->slurp;
+      template 'blog', { content => $m->markdown($text) };
+  };
+
+  1;
+
+Since we put our blog entries in the F<public/> directory, Dancer
+will automatically serve the source when we end the URL in F<.txt>!
+And we didn't even need to write a route for that!
+
+Now, we want to get any further than a single blog post, to showing a
+main page with the latest post, some side bars on every page pointing to
+the archives by month, and maybe a JSON file with all our tags for making
+a nice tag cloud in JavaScript, we have a bit of a problem: we need to
+know about all our blog's posts when generating any individual one.
+
+Remember that our PSGI application is ultimately a subroutine
+that will be called repeatedly by wallflower, so we just have to make
+the needed data available to the subroutine by building the list of all
+posts, once and for all, during the initialisation phase of the application.
+
+A simple call to L<File::Find> will help us generate the list of all posts,
+from which we can create a data structure.  In this example it's an array:
+
+  #!perl
+  use File::Find;
+  use Path::Class;
+
+  my @entries;
+
+  find(
+      sub {
+
+          # we only care about blog entries
+          return if !/\.txt$/;
+
+          # get a Path::Class::File for it
+          my $file = file($File::Find::name);
+          my $fh   = $file->openr;
+
+          # parse a simple header using the kite secret operator
+          chomp( my ( $title, $date, $tags ) = ( ~~<$fh>, ~~<$fh>, ~~<$fh> ) );
+
+          # update the structure will all relevant information
+          my $source = substr( $File::Find::name, length( setting('public') ) );
+          ( my $url = $source ) =~ s/\.txt$/.html;
+
+          push @entries, {
+              url    => '/' .
+              title  => $title,
+              date   => $date,
+              tags   => [ split /\s*,\s*/, $tags ],
+              source => "/$year/$month/$_.txt",
+          };
+      },
+      setting( 'public' )
+  );
+
+Actually, for simplicity, and integration with the framework, it would
+make sense to create a temporary SQLite database, with a few tables for
+blog entries meta-information, tags, etc.  The code in the templates and some
+special routes (like the main page) can then use that database to fetch all the
+information they need.
+
+Generating the website is now simply a matter of running:
+
+    $ wallflower -a bin/app.pl -d /path/to/the/output/
+
+F<wallflower> will start browsing the application from C</> and will follow
+all links (from HTML and CSS files) to generate your site content.
+
+You can then copy the content of F<output/> to the proper location on
+the target web server, and you're done!
+
+=head1 See Also
+
+=for :list
+* L<App::Wallflower>
+* L<wallflower>
+* L<PSGI>
+* L<Dancer>
+* L<< ~~<>|perlsecret/Kite >>
+

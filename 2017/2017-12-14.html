@@ -1,0 +1,271 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2017 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2017.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2017 - 
+Prereqing around the Christmas Tree
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2017</a></h1>
+        </div>
+
+        <p id="tagline">2017 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Prereqing around the Christmas Tree</h1>
+<div class='subtitle'>Perl::PrereqScanner - 2017-12-14</div>
+
+<div class='pod'><p>Mincepie Frostystockings was elated. The Wise Old Elf had just given him permission to port a bunch of little scripts that he&#39;d been using on his development machine to the main North Pole git repository. From there they&#39;d be deployed to the production machines and available for the entire devops team to use to help debug ongoing live issues.</p>
+
+<p>&quot;Just don&#39;t forget to make sure the dependencies are installed&quot;, were the Wise Old Elf&#39;s parting words.</p>
+
+<p>Mincepie scratched his chin. He hadn&#39;t exactly been keeping track of dependencies when he&#39;d written these scripts. They&#39;d grown organically with him just installing whatever he&#39;d needed to get it work with <code>cpanm</code>.</p>
+
+<p>How was he going to work out exactly what his requirements are?</p>
+
+<h3 id="Technique-1:-Hooking-INC">Technique 1: Hooking @INC</h3>
+
+<p><code>@INC</code> is a global variable that holds all the locations that perl will look for modules when it attempts to load a module</p>
+
+<pre><code>    shell$ /usr/bin/perl -E &#39;say for @INC&#39;
+    /Library/Perl/5.18/darwin-thread-multi-2level
+    /Library/Perl/5.18
+    /Network/Library/Perl/5.18/darwin-thread-multi-2level
+    /Network/Library/Perl/5.18
+    /Library/Perl/Updates/5.18.2
+    /System/Library/Perl/5.18/darwin-thread-multi-2level
+    /System/Library/Perl/5.18
+    /System/Library/Perl/Extras/5.18/darwin-thread-multi-2level
+    /System/Library/Perl/Extras/5.18
+    .</code></pre>
+
+<p>When you <code>use lib qw(...)</code> it&#39;s this variable that Perl is modifying.</p>
+
+<p>Perl also lets you put other things than simple strings in <code>@INC</code>, for example a subroutine reference. This subroutine reference will be called every time a module is required and is given the chance to return the code that perl should load (this is how tools like PAR can provide modules directly from a zipfile.)</p>
+
+<p>You can abuse this mechanism to provide debugging each time something is loaded:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># use a BEGIN block so the code is executed before all<br /># the 'use' statements<br /></span><span class="keyword">BEGIN</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">unshift</span> <span class="symbol">@INC</span><span class="operator">,</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="core">undef</span><span class="operator">,</span> <span class="symbol">$name</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="symbol">$name</span><span class="structure">;</span><br /><br /><span class="comment">        # don't return anything, meaning Perl will continue<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# searching through @INC as before<br /></span>        <span class="keyword">return</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">}</span><br /><br /><span class="keyword">use</span> <span class="word">Data::Dumper</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Test::More</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">JSON::PP</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>This now prints out the following:</p>
+
+<pre><code>    Carp.pm
+    strict.pm
+    warnings.pm
+    Exporter.pm
+    XSLoader.pm
+    constant.pm
+    warnings/register.pm
+    bytes.pm
+    overload.pm
+    overloading.pm
+    Test/More.pm
+    Test/Builder/Module.pm
+    Test/Builder.pm
+    Scalar/Util.pm
+    List/Util.pm
+    Test2/Util.pm
+    Config.pm
+    vars.pm
+    PerlIO.pm
+    Config_heavy.pl
+    Config_git.pl
+    Test2/API.pm
+    Test2/API/Instance.pm
+    Test2/Util/Trace.pm
+    Test2/Util/HashBase.pm
+    mro.pm
+    DynaLoader.pm
+    Test2/API/Stack.pm
+    Test2/Hub.pm
+    Test2/Util/ExternalMeta.pm
+    Test2/Hub/Subtest.pm
+    Test2/Hub/Interceptor.pm
+    Test2/Hub/Interceptor/Terminator.pm
+    Test2/Event/Ok.pm
+    Test2/Event.pm
+    Test2/Event/Diag.pm
+    Test2/Event/Note.pm
+    Test2/Event/Plan.pm
+    Test2/Event/Bail.pm
+    Test2/Event/Exception.pm
+    Test2/Event/Waiting.pm
+    Test2/Event/Skip.pm
+    Test2/Event/Subtest.pm
+    Test2/API/Context.pm
+    Test/Builder/Formatter.pm
+    Test2/Formatter/TAP.pm
+    Test2/Formatter.pm
+    Test/Builder/TodoDiag.pm
+    JSON/PP.pm
+    base.pm
+    B.pm</code></pre>
+
+<p>There&#39;s a few things worth noting about this output:</p>
+
+<dl>
+
+<dt>The <b>filenames</b> of what we&#39;re search for are specified, not the module names. i.e. <code>Foo/Bar.pm</code> not <code>Foo::Bar</code></dt>
+<dd>
+
+</dd>
+<dt>It&#39;s not just the modules we&#39;re requiring directly, but the modules that our modules require. Test2::Event is listed even though we only required Test::More.</dt>
+<dd>
+
+</dd>
+<dt>Things are only listed once. Even though Test::More itself loads <code>strict</code> and <code>warnings</code> they&#39;re not listed a second time after Data::Dumper required them</dt>
+<dd>
+
+</dd>
+</dl>
+
+<p>You can easily turn this into a module</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">oreLoadingDebugging</span><span class="structure">;</span><br /><span class="word">unshift</span> <span class="symbol">@INC</span><span class="operator">,</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="word">say</span> <span class="magic">$_</span><span class="structure">[</span><span class="number">1</span><span class="structure">];</span> <span class="keyword">return</span> <span class="structure">};</span><br /><span class="number">1</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>That you can load from the command line</p>
+
+<pre><code>    perl -MoreLoadingDebugging -c myscript.pl</code></pre>
+
+<p>By using the <code>-c</code> flag our script doesn&#39;t actually run past the compiling stage meaning (hopefully) the script won&#39;t actually do anything.</p>
+
+<h4 id="The-Downsides-of-This-Technique">The Downsides of This Technique</h4>
+
+<p>This is a fairly simple technique that, unfortunately has a few downsides:</p>
+
+<dl>
+
+<dt><b>Doesn&#39;t find run time dependencies</b>. Since we&#39;re only running some of the Perl phases of execution, we won&#39;t find anything that&#39;s conditionally loaded at runtime(e.g. something like <code>eval &#39;use SomethingOptional&#39; if $ENV{FEATURE_NAME}</code>)</dt>
+<dd>
+
+</dd>
+<dt><b>Totally unsafe</b>. Even with the <code>-c</code> flag there&#39;s a chance that something bad will happen when you do this - you&#39;re actually running Perl code that&#39;s one <code>BEGIN { system(&quot;rm -rf $HOME&quot;) }</code> from deleting everything you care about on your system. You <i>really</i> don&#39;t want to do this with untrusted code!</dt>
+<dd>
+
+</dd>
+<dt><b>Must compile</b>. If the code you&#39;re using won&#39;t compile on the system - probably because you&#39;re actually missing some of those dependencies - then you can&#39;t effectively use this technique. Mincepie couldn&#39;t analyze the scripts on anything but the setup he&#39;d originally written them on.</dt>
+<dd>
+
+</dd>
+<dt><b>Filename cleanup</b>. This technique won&#39;t give you a clean set of dependencies you can easily work with. The list contains things in the wrong form <code>Foo/Bar.pm</code> rather than <code>Foo::Bar</code>, and is peppered with things that are core pragma (<code>base.pm</code>, <code>mro.pm</code>) and core modules that you wouldn&#39;t necessarily need to list as a dependency.</dt>
+<dd>
+
+</dd>
+<dt><b>Indirect dependencies</b>. The listed dependencies also contains things that are your dependencies&#39; dependencies - your indirect dependencies - and you don&#39;t want to necessarily state in your <code>cpanfile</code> that you depend on all of those because they might change as your direct dependencies&#39; dependencies change</dt>
+<dd>
+
+</dd>
+</dl>
+
+<h3 id="Technique-2:-Parsing-the-source">Technique 2: Parsing the source</h3>
+
+<p>An alternative approach to executing the code is to attempt to write a program that parses it and works out what all the <code>use</code> and <code>require</code> statements are attempting to do. With a dynamic language like Perl it&#39;s not possible for a program to work out <i>every</i> single possible situation that an elf could conceivably write to import code, but its certainly possible to recognize all the ways a <i>sane</i> elf might write import statements - even those that aren&#39;t executed every program run!</p>
+
+<p>To do this Mincepie first tried a module on the CPAN <a href="https://metacpan.org/module/Perl::PrereqScanner">Perl::PrereqScanner</a></p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Perl::PrereqScanner</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$scanner</span> <span class="operator">=</span> <span class="word">Perl::PrereqScanner</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$requirements</span> <span class="operator">=</span> <span class="symbol">$scanner</span><span class="operator">-&gt;</span><span class="word">scan_file</span><span class="structure">(</span><span class="single">'myscript.pl'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The returned <code>$requirements</code> is a <a href="https://metacpan.org/module/CPAN::Meta::Requirements">CPAN::Meta::Requirements</a> object. You can do a lot with this - including <a href="https://metacpan.org/module/..#html">graphing it</a> - but the simplest thing you can do is just dump it out as a hash;</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">JSON::PP</span> <span class="words">qw(encode_json)</span><span class="structure">;</span><br /><span class="word">print</span> <span class="word">encode_json</span><span class="structure">(</span> <span class="symbol">$requirements</span><span class="operator">-&gt;</span><span class="word">as_string_hash</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>This helpfully prints out in the above example:</p>
+
+<pre><code>    {&quot;Data::Dumper&quot;:&quot;0&quot;,&quot;JSON::PP&quot;:&quot;0&quot;,&quot;Test::More&quot;:&quot;0&quot;}</code></pre>
+
+<p>This works on Moose code also:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Rudolph</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Moose</span><span class="structure">;</span><br /><br /><span class="word">extends</span> <span class="single">'SantasReindeer'</span><span class="structure">;</span><br /><br /><span class="word">with</span> <span class="single">'GlowingRedNose'</span><span class="structure">;</span><br /><span class="operator">...</span></code><br />&nbsp;</td></table>
+
+<p>Scanning this correctly shows our dependencies:</p>
+
+<pre><code>    {&quot;GlowingRedNose&quot;:&quot;0&quot;,&quot;Moose&quot;:&quot;0&quot;,&quot;SantasReindeer&quot;:&quot;0&quot;}</code></pre>
+
+<h3 id="Speeding-things-up-with-Perl::PrereqScanner::Lite">Speeding things up with Perl::PrereqScanner::Lite</h3>
+
+<p>The only problem with using Perl::PrereqScanner is that it&#39;s relatively slow. Under the hood it uses PPI, a Perl parsing library that builds a comprehensive object tree representing each keyword, symbol, structure, etc of the source code. It&#39;s powerful - but slow.</p>
+
+<pre><code>    shell$ time perl scan-moose-example.pl
+    {&quot;Moose&quot;:&quot;0&quot;,&quot;GlowingRedNose&quot;:&quot;0&quot;,&quot;SantasReindeer&quot;:&quot;0&quot;}
+    real    0m0.244s
+    user    0m0.215s
+    sys     0m0.027s</code></pre>
+
+<p>This might not seem a lot, but when you&#39;re scanning a hundred big files you&#39;re suddenly taking half a minute or so!</p>
+
+<p>There are alternatives on the CPAN. For example <a href="https://metacpan.org/module/Perl::PrereqScanner::Lite">Perl::PrereqScanner::Lite</a>, which from a user point of view is almost the same to use:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Perl::PrereqScanner::Lite</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$scanner</span> <span class="operator">=</span> <span class="word">Perl::PrereqScanner::Lite</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><span class="symbol">$scanner</span><span class="operator">-&gt;</span><span class="word">add_extra_scanner</span><span class="structure">(</span><span class="single">'Moose'</span><span class="structure">);</span> <span class="comment"># add extra scanner for moose style</span><br /><span class="keyword">my</span> <span class="symbol">$result</span> <span class="operator">=</span> <span class="symbol">$scanner</span><span class="operator">-&gt;</span><span class="word">scan_file</span><span class="structure">(</span><span class="single">'Rudolph.pm'</span><span class="structure">);</span><br /><br /><span class="keyword">use</span> <span class="word">JSON::PP</span> <span class="words">qw(encode_json)</span><span class="structure">;</span><br /><span class="word">print</span> <span class="word">encode_json</span><span class="structure">(</span> <span class="symbol">$result</span><span class="operator">-&gt;</span><span class="word">as_string_hash</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>But is much faster:</p>
+
+<pre><code>    $ time perl scan-moose-example-with-lite.pl
+    {&quot;SantasReindeer&quot;:&quot;0&quot;,&quot;Moose&quot;:&quot;0&quot;,&quot;GlowingRedNose&quot;:&quot;0&quot;}
+    real    0m0.053s
+    user    0m0.037s
+    sys     0m0.014s</code></pre>
+
+<h3 id="Finding-optional-dependencies-with-Perl::PrereqScanner::NotSoLite">Finding optional dependencies with Perl::PrereqScanner::NotSoLite</h3>
+
+<p>So far our scanners have only found things that our code always depends on. What about optional dependencies? Things we&#39;d <i>like</i> to load, but work around if they&#39;re not available?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">if</span> <span class="structure">(</span><span class="word">eval</span> <span class="double">&quot;use Term::ANSIColor; 1&quot;</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="word">STDERR</span> <span class="word">Term::ANSIColor::colored</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'STARTING DEBUGGING'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'red on_yellow'</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><span class="structure">}</span> <span class="keyword">else</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="word">STDERR</span> <span class="single">'STARTING DEBUGGING'</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Both Perl::PrereqScanner and Perl::PrereqScanner::Lite won&#39;t detect the dependency on Term::ANSIColor since it&#39;s loaded inside the <code>eval</code> string. However, <a href="https://metacpan.org/module/Perl::PrereqScanner::NotSoLite">Perl::PrereqScanner::NotSoLite</a> will:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Perl::PrereqScanner::NotQuiteLite</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$scanner</span> <span class="operator">=</span> <span class="word">Perl::PrereqScanner::NotQuiteLite</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span> <span class="word">suggests</span> <span class="operator">=&gt;</span> <span class="number">1</span> <span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$result</span> <span class="operator">=</span> <span class="symbol">$scanner</span><span class="operator">-&gt;</span><span class="word">scan_file</span><span class="structure">(</span><span class="single">'Rudolph.pm'</span><span class="structure">);</span><br /><br /><span class="keyword">use</span> <span class="word">JSON::PP</span> <span class="words">qw(encode_json)</span><span class="structure">;</span><br /><span class="word">say</span> <span class="single">'requires: '</span><span class="operator">.</span><span class="word">encode_json</span><span class="structure">(</span> <span class="symbol">$result</span><span class="operator">-&gt;</span><span class="word">requires</span><span class="operator">-&gt;</span><span class="word">as_string_hash</span> <span class="structure">);</span><br /><span class="word">say</span> <span class="single">'suggests: '</span><span class="operator">.</span><span class="word">encode_json</span><span class="structure">(</span> <span class="symbol">$result</span><span class="operator">-&gt;</span><span class="word">suggests</span><span class="operator">-&gt;</span><span class="word">as_string_hash</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>We get <b>two</b> hashes out, our hard requirements and things we suggest:</p>
+
+<pre><code>    requires: {&quot;Reindeer&quot;:&quot;0&quot;,&quot;GlowingRedNose&quot;:&quot;0&quot;,&quot;Moose&quot;:&quot;0&quot;}
+    suggests: {&quot;Term::ANSIColor&quot;:&quot;0&quot;}</code></pre>
+
+<h3 id="Frostystockings-List">Frostystocking&#39;s List</h3>
+
+<p>Mincepie Frostystockings had spend a good few hours scanning all his scripts till he was 100% sure that he&#39;d identified everything that they needed to work correctly.</p>
+
+<p>Now all he had to do was try and work out what the heck <a href="https://metacpan.org/module/Acme::Damn">Acme::Damn</a> was, and why his code was using it...</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="It&#39;s All There in the Numbers!" href="2017-12-13.html">Previous</a></li>
+
+    <li class="next"><a title="Mojolicious on the Command Line" href="2017-12-15.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

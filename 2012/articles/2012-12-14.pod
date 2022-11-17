@@ -1,0 +1,192 @@
+Title: Self-contained applications
+Topic: fatpack / App::FatPacker
+Author: Sawyer X <xsawyerx@cpan.org>
+
+=encoding utf8
+
+=head1 In No-Dependency Land
+
+While the proliferation of solutions like L<local::lib> and L<cpanminus> has
+made it a breeze to manage dependencies, there are still some rare occassions
+in which we need to be able to ship code that has no external non-core
+dependencies.
+
+There are a few existing solutions for them, but we're going to concentrate
+on a new one called B<FatPacker>.
+
+=head1 Our application
+
+Of course, we just happen to have a sample application we want to pack. It
+downloads various pages from our website and compiles a statistics report. It
+uses L<HTTP::Tiny> as a user agent. Our application begins with the lines:
+
+    #!perl
+    #!/usr/bin/perl
+    use strict;
+    use warnings;
+    use HTTP::Tiny;
+
+Our app is, surprisingly, saved as the file F<ourapp.pl>.
+
+=head1 Packing the deps
+
+L<App::FatPacker> comes with an application called F<fatpack>.  You'll use
+F<fatpack> to get at all of App::FatPacker's features.  There are four simple
+steps for packing your dependencies. Let's go over them.
+
+=head2 Tracing
+
+To find out what dependencies our code has, we C<trace> our app. This will
+create a file called F<fatpacker.trace>, which includes a list of modules that
+F<fatpack> has discovered.
+
+    #!code
+    $ fatpack trace ourapp.pl
+
+In case some modules aren't successfully traced, you can ask C<fatpack> to
+include them:
+
+    #!code
+    $ fatpack trace --use=Additional::Module ourapp.pl
+
+If we open the F<fatpacker.trace> file, we can see it collected a few modules,
+including both F<HTTP/Tiny.pm> and F<Carp.pm> (which L<HTTP::Tiny> uses).
+
+=head2 Gathering packlists
+
+Packlists are files that distributions install.  They contain information on
+which modules are included in the distribution. FatPacker needs to find the
+packlist for each module in order to make sure it includes all dependencies
+recursively and does not miss anything. One module is likely to use another
+module, which might use another module in turn, and so on.
+
+We can call C<packlists-for> with a list of modules, or we can feed it the
+content of the trace output we created with the previous command. It will print
+out a list of all the packlists, which we'll simply redirect to a file so we
+can reuse this information.
+
+    #!code
+    $ fatpack packlists-for `cat fatpacker.trace` > packlists
+
+The F<packlists> file will include the path to the packlists of L<Carp> and
+L<HTTP::Tiny>.
+
+=head2 Forming the tree
+
+In this step FatPacker collects all the dependencies recursively into a
+directory called F<fatlib>, which it will then be able to pack together.
+
+C<tree> needs a list of packlists. Lucky for us, we saved the packlists
+that our previous command has found in a file called F<packlists>.  Let's
+just call C<tree> and feed it that file.
+
+    #!code
+    $ fatpack tree `cat packlists`
+
+Taking a look at our F<fatlib> directory, we'll see the following structure:
+
+    fatlib/
+    ├── Carp
+    │   └── Heavy.pm
+    ├── Carp.pm
+    └── HTTP
+        └── Tiny.pm
+
+You can clearly see it added L<HTTP::Tiny> and L<Carp>, but you can also see
+it added L<Carp::Heavy> which comes with L<Carp>. This is what recursively
+copying dependencies means.
+
+=head2 Packing dependencies
+
+Once we have all our dependencies in a directory, we can finally pack it all
+nicely using the last command: C<file>. This command packs all the
+modules in the current F<fatlib> directory. It will also try to pack any F<lib>
+directory that exists in the current directory. If none is present, you will
+need to create it.
+
+Since the command only packs the modules, we're still missing our code that
+uses them, so we will concatenate that as well. We will also print this to a
+new file so we could ship it.
+
+    #!code
+    $ (fatpack file; cat ourapp.pl) > ourapp.packed.pl
+
+Stick a shebang line at the top of F<ourapp.packed.pl> and that's all there is
+to it!
+
+You can now ship F<ourapp.packed.pl> to any location, and it will include
+all dependencies recursively.
+
+You can open our newly-packed application file and see the way it has packed
+everything together:
+
+    #!perl
+    BEGIN {
+        my %fatpacked;
+
+        $fatpacked{"Carp.pm"} = <<'CARP';
+            ... # entire Carp
+        CARP
+
+        $fatpacked{"Carp/Heavy.pm"} = <<'CARP_HEAVY';
+            ... # entire Carp::Heavy
+        CARP_HEAVY
+
+        $fatpacked{"HTTP/Tiny.pm"} = <<'HTTP_TINY';
+            ... # entire HTTP::Tiny
+        HTTP_TINY
+
+        # fixing of @INC to load these
+        ...
+    } # END OF FATPACK CODE
+    #!perl
+    use strict;
+    use warnings;
+    use HTTP::Tiny;
+
+    # rest of our code
+    ...
+
+=head1 It's already being used!
+
+There is at least one famous project which uses this method to create a
+self-contained program: L<cpanminus> proved this method to be useful for
+beginners and seasoned system administrators in providing a self-contained
+full-fledged CPAN client, always available at your finger-tips without any
+installations required (other than having a Perl interpreter, of course).
+
+You can always download a packed C<cpanminus> program and use it, wherever
+you are, using the following command:
+
+    #!code
+    $ curl -kL cpanmin.us > cpanm
+    $ perl cpanm Some::Module
+
+=head1 Caveat
+
+There are some considerations still:
+
+=head2 Compile time code will be run
+
+If you have any compile-time code (think C<BEGIN> blocks), they will be run
+as part of the tracing step. Generally, these aren't recommended for most use
+cases anyway.
+
+If you have any compile-time code which shouldn't run upon tracing, you might
+want to consider refactoring it into run-time code.
+
+=head2 Lazily loaded modules won't be found
+
+Any modules that are loaded lazily (such as C<require> statements) will not
+be traced successfully. You can, however, provide them as additional modules
+for the C<trace> command, as described above.
+
+=head2 XS modules are not supported
+
+L<App::FatPacker> only supports Pure-Perl modules, so if you're using any XS
+modules, you'll need to have them installed remotely.
+
+=head1 See Also
+
+=for :list
+* L<App::FatPacker>

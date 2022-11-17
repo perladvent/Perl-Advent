@@ -1,0 +1,111 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2011 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2011.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2011 - 
+Revisiting Test::Routine
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2011</a></h1>
+        </div>
+
+        <p id="tagline">2011 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Revisiting Test::Routine</h1>
+<div class='subtitle'>Test::Routine - 2011-12-20</div>
+
+<div class='pod'><p>Back in September 2010, I was still actively working on my <a href="https://metacpan.org/module/MooseX::Declare">MooseX::Declare</a> inspired and <a href="https://metacpan.org/module/Devel::Declare">Devel::Declare</a> powered layer over <a href="https://metacpan.org/module/Test::Class">Test::Class</a>; Test::Class::Sugar and was feeling some pain as I tried to extend it. I was struggling to combine the xUnit style behaviour of Test::Class with <a href="https://metacpan.org/module/Moose">Moose</a>&#39;s expressive tools for declaring attributes and generally writing object oriented code. I don&#39;t want to go into the details (because I&#39;ve mercifully forgotten them), but I couldn&#39;t see a way to make Test::Class&#39;s innards compatible with Moose&#39;s innards.</p>
+
+<p>So, when a message from rjbs appeared in my IRC client pointing me at his Moosey testing framework, Test::Routine, it appeared at the most opportune moment possible. You may have noticed that Test::Class::Sugar hasn&#39;t been updated in a long time - that&#39;s because I&#39;ve switched all my testing to Test::Routine.</p>
+
+<h3 id="Wrapping-my-head-around-Test::Routine">Wrapping my head around Test::Routine</h3>
+
+<p>When I first started playing with Test::Routine there was one thing I found rather frustrating. In xUnit style testing, test isolation (a <i>very</i> good thing) is isolated because each test is run with a fresh instance of the test class. It&#39;s much harder to have your tests getting tangled when you do this. However, consider something like:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Test::Routine</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Test::More</span><br /><br /><span class="word">has</span> <span class="word">a_big_immutable_fixture</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">lazy_builder</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">sub</span> <span class="word">_build_a_big_immutable_fixture</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span><span class="structure">(</span><span class="symbol">$self</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$xml</span> <span class="operator">=</span> <span class="word">fetch_document_over_a_slow_connection</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">munge_10megs_of</span><span class="structure">(</span><span class="symbol">$xml</span><span class="structure">);</span><br /><span class="structure">}</span><br /><br /><span class="operator">...</span><br /><br /><span class="word">test</span> <span class="double">&quot;this&quot;</span>      <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">};</span><br /><span class="word">test</span> <span class="double">&quot;that&quot;</span>      <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">};</span><br /><span class="word">test</span> <span class="double">&quot;the other&quot;</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">};</span><br /><br /><span class="word">run_me</span><span class="structure">;</span><br /><span class="word">done_testing</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>If Test::Routine worked like xUnit, that big fixture would make the test suite slow. The usual way fixture building is done in xUnit style classes is that the test suite calls <code>setup</code> before it runs a test and <code>teardown</code> after. With Test::Routine I found that I could dispense with an explicit setup phase by declaring my attributes with the <code>lazy_build</code> flag and using builders to set up my attributes and an <code>after</code> hook to clear up any attributes that needed resetting. So I might do:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Test::Routine</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Test::More</span><span class="structure">;</span><br /><br /><span class="word">has</span> <span class="word">big_immutable_fixture</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'ro'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lazy_build</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="word">has</span> <span class="word">something_mutable</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'rw'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lazy_build</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">sub</span> <span class="word">_build_a_big_immutable_fixture</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">}</span><br /><span class="keyword">sub</span> <span class="word">_build_something_mutable</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">}</span><br /><br /><span class="word">after</span> <span class="word">run_test</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$self</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">clear_something_mutable</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="operator">...</span></code><br />&nbsp;</td></table>
+
+<p>Now, this is all very well, and it certainly works, but it&#39;s not very declarative. What would be rather handy, I said to Rik, would be if I could write something like:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">has</span> <span class="word">something_mutable</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'rw'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lazy_build</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">auto_clear</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>and let the <code>after run_test</code> part be handled automatically by Test::Routine. Rik agreed that that would be cool, but that he wasn&#39;t in a hurry to get it written. Nor was I. And there we left it.</p>
+
+<h3 id="Its-Advent-all-over-again">It&#39;s Advent all over again</h3>
+
+<p>Spool forward to now. Rik&#39;s written about Test::Routine in his 2010 advent calendar and the world knows about it. But in 2011, he&#39;s not just plotting an Advent calendar, he&#39;s also the recently crowned (on Halloween, natch) Perl Pumpking and he can&#39;t just dash off 25 articles about cool perl modules like he has done for the past couple of years. Once again, a chat window opens up in my IRC client.</p>
+
+<p>&quot;Hey, Piers, would you like to write an article for this year&#39;s Advent calendar?&quot;</p>
+
+<p>Well... there&#39;s an invitation you take very seriously.</p>
+
+<h3 id="Not-very-many-lines-of-code-later">Not very many lines of code later</h3>
+
+<p>Do you know how hard Moose rocks? Really? In one evening&#39;s hacking, most of which was spent reading documentation and a couple of different MooseX modules to see how it was done, I can now write:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Test::Routine::xUnitish</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Test::Routine::Util</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Test::More</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">namespace::autoclean</span><span class="structure">;</span><br /><br /><span class="word">has</span> <span class="word">counter</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span> <span class="operator">=&gt;</span> <span class="single">'rw'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">isa</span> <span class="operator">=&gt;</span> <span class="single">'Int'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">default</span> <span class="operator">=&gt;</span> <span class="number">0</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">lazy</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">auto_clear</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="word">test</span> <span class="double">&quot;first&quot;</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span><span class="structure">(</span><span class="symbol">$self</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span><span class="structure">(</span><span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">counter</span><span class="operator">,</span> <span class="number">0</span><span class="operator">,</span> <span class="double">&quot;Always starting from zero&quot;</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">counter</span><span class="structure">(</span> <span class="number">1</span> <span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span><span class="structure">(</span><span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">counter</span><span class="operator">,</span> <span class="number">1</span><span class="operator">,</span> <span class="double">&quot;And going to 1&quot;</span><span class="structure">);</span><br /><span class="structure">};</span><br /><br /><span class="word">test</span> <span class="double">&quot;second&quot;</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span><span class="structure">(</span><span class="symbol">$self</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span><span class="structure">(</span><span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">counter</span><span class="operator">,</span> <span class="number">0</span><span class="operator">,</span> <span class="double">&quot;Always starting from zero&quot;</span><span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">counter</span><span class="structure">(</span> <span class="number">1</span> <span class="structure">);</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">is</span><span class="structure">(</span><span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">counter</span><span class="operator">,</span> <span class="number">1</span><span class="operator">,</span> <span class="double">&quot;And going to 1&quot;</span><span class="structure">);</span><br /><span class="structure">};</span><br /><br /><span class="word">run_me</span><span class="structure">;</span><br /><span class="word">done_testing</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>And it all Just Works. The code isn&#39;t on the main line of Test::Routine. The documentation is laughably non-existent and I&#39;m not entirely sure that the implementation is properly robust, but it works. If you&#39;re interested in having a play, you can pull the latest version from my <a href="http://github.com/pdcawley/Test-Routine">Test::Routine github fork</a>. Enjoy yourselves.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Test::Routine">Test::Routine</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Test::Class">Test::Class</a></p>
+
+</li>
+<li><p><a href="https://github.com/pdcawley/Test-Routine/blob/master/lib/Test/Routine/xUnitish.pm">Test::Routine::xUnitish</a> (on GitHub)</p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/0196ff65610046d2f8ba58bc4a45f144?r=g&s=80&d=retro />
+This article contributed by: Piers Cawley &lt;pdcawley@bofh.org.uk&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Process ALL the FILES!" href="2011-12-19.html">Previous</a></li>
+
+    <li class="next"><a title="A Shortcut to Unicode" href="2011-12-21.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

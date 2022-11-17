@@ -1,0 +1,180 @@
+Author: Mark Fowler <mark@twoshortplanks.com>
+Title: There is No Try
+Topic: Try::Tiny
+
+=encoding utf8
+
+=for :html
+<div class="bestof">
+2020 has been time consuming - a global pandemic, giant fires, horrific floods
+and political unrest - which has left us little time for side projects.
+This year we're looking back to happier times into the 20+ year archive with the
+Best of the Perl Advent Calendar.
+</div>
+
+=head1 C<eval> Stinks
+
+This is a pretty common pattern of code:
+
+  #!perl
+  my $result = eval { $self->computation_helper->compute_stuff };
+
+  if ($@) {
+    $self->set_last_error( "couldn't get stuff computed: $@" );
+    return undef;
+  }
+
+  return $result;
+
+In other words, try to call some method on C<$self>'s helper object.  If it
+fails, set an error and return C<undef>.  Otherwise, return the result we got.
+You can find code like this all over the place, and unfortunately, it's got
+problems.
+
+The most horrible, and possibly well known, is that C<$@> being set isn't the
+right way to check for C<eval> failing.  (Let's not worry about the
+pathological case of someone throwing a false exception object.  That's just
+sick.)
+
+The real reason is that until recently, C<$@> could get easily clobbered by
+action at a distance.  For example, look at the code again:
+
+  #!perl
+  my $result = eval { $self->computation_helper->compute_stuff };
+
+It's calling C<computation_helper> which might look like this:
+
+  #!perl
+  sub computation_helper {
+    my ($self) = @_;
+    return Computation::Helper->new( helper_for => $self );
+  }
+
+It sets up some helper object that we can throw away when we're done.  We call
+its C<compute_stuff> method, which dies.  At this point, C<eval> starts to
+return false, with C<$@> set to that exception message.  Unfortunately, little
+known to us, this code exists:
+
+  #!perl
+  package Computation::Helper;
+  sub DESTROY {
+    my ($self) = @_;
+    eval { ... };
+  }
+
+...and it's going to clobber our C<$@> when the helper object gets destroyed –
+and that's going to happen once the C<eval> block is done and the helper object
+is no longer referenced by anything.  Instead of testing for C<$@>, we should
+test for a false return from C<eval>:
+
+  #!perl
+  my $result = eval { $self->computation_helper->compute_stuff };
+
+  if (! $result) {
+    # we died! set last_error, etc.
+  }
+
+This isn't any good, either, though.  What if C<compute_stuff> can actually
+return false, or more specifically the empty string?  We need to rewrite to
+force C<eval>'s hand:
+
+  #!perl
+  my $result;
+  my $ok = eval { $result = $self->computation_helper->compute_stuff; 1 };
+
+  if (! $ok) {
+    # we died! set last_error, etc.
+  }
+
+Now we know that C<eval> will always return C<1> unless it fails.  This means
+we need to move the assignment to C<$result> inside the eval, and we need to
+move the declaration to an new, earlier statement.
+
+Finally, to keep our eval from clobbering anybody else's C<$@> in the future,
+we need to localize.  In the end, our code ends up as:
+
+  #!perl
+  my $result;
+  my $ok = do {
+    local $@;
+    eval { $result = $self->computation_helper->compute_stuff; 1 };
+  };
+
+  if (! $ok) {
+    my $error = $@ eq '' ? 'unknown error' : "$@";
+    $self->set_last_error( "couldn't get stuff computed: $error" );
+    return undef;
+  }
+
+  return $result;
+
+Even if not a I<huge> increase in the code needed for the operation, it's a
+bunch of magic to remember every time.  If you don't do this sort of thing,
+though, you've got a big opening for horrible error-handling problems.
+
+=head1 Two Solutions
+
+It's worth noting that these problems are greatly lessened in perl 5.14, where
+our hypothetical C<DESTROY> method would not have clobbered the outer C<$@>.
+If you can use 5.14, you should, and this is one very good reason.
+
+That still leaves a bunch of boilerplate, though.  This is why L<Try::Tiny>
+has become so popular.  Unlike many of the other, more feature-rich try/catch
+systems on the CPAN, Try::Tiny focuses on doing just the minimum needed to
+avoid the boilerplate above.  For example, we'd write the code above as:
+
+  #!perl
+  use Try::Tiny;
+
+  return try {
+    $self->computation_helper->compute_stuff;
+  } catch {
+    my $error = $_ eq '' ? 'unknown error' : "$_";
+    $self->set_last_error( "couldn't get stuff computed: $error" );
+    return undef;
+  };
+
+It encapsulates the localization of the error variable and the addition of the
+constant true value to check for.  The C<catch> block is only entered if the
+C<try> block died, and the exception thrown is in C<$_> (and C<$_[0]>).
+Simple!
+
+=head1 Extra Sugar
+
+Try::Tiny also provides one more helper:  C<finally>.  It lets you provide a
+block (or many blocks) of code to be run after the C<try> and C<catch>, no
+matter whether there was an error:
+
+  #!perl
+  use Try::Tiny;
+
+  my $start = Time::HiRes::time;
+
+  return try {
+    $self->computation_helper->compute_stuff;
+  } catch {
+    my $error = $_ eq '' ? 'unknown error' : "$_";
+    $self->set_last_error( "couldn't get stuff computed: $error" );
+    return undef;
+  } finally {
+    my $failed = @_;
+    my $end  = Time::HiRes::time;
+    warn sprintf "took %f seconds to %s",
+      $end - $start,
+      $failed ? 'fail' : 'succeed';
+  };
+
+You can tell whether the C<try> block failed by whether there are any elements
+in C<@_>.  Even if somehow the contents of C<$@> couldn't be preserved, you'll
+find an undef in the argument list if the try failed.  Otherwise, it will be
+empty.  You can supply as many try blocks as you want.
+
+Try::Tiny doesn't do much, but it nicely packages up a pattern that's important
+to use and really boring to type out every time.  Not only does it save you
+from having to remember the details each time, but it gives you an interface
+that's easier to write and skim, too.  Use it!
+
+=head1 See Also
+
+=for :list
+* L<Try::Tiny>

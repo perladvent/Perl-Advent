@@ -1,0 +1,153 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Take a little REST
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Take a little REST</h1>
+<div class='subtitle'>adenosine - 2012-12-13</div>
+
+<div class='pod'><p>About six months ago I learned about <a href="https://github.com/micha/resty">resty</a>. I think Stevan Little may have mentioned it in his <a href="https://metacpan.org/module/Web::Machine">Web::Machine</a> talk. Unfortunately <code>resty</code> had problems running in <code>zsh</code>. I initially tried to fix the problem, but then I ported it to Perl instead, which was not only easier but also ended up having a lot of other exciting benfits.</p>
+
+<h2 id="What-even-is-that-thing"><a href="https://www.youtube.com/watch?v=H4w0_n1Yras&amp;t=3m29s">What even is that thing?</a></h2>
+
+<p>Adenosine is a tool that allows you to fiddle with <a href="https://en.wikipedia.org/wiki/Representational_state_transfer">RESTful</a> services easily. The basic gist is that you can use <code>HTTP</code> verbs (<code>POST</code>, <code>PUT</code>, <code>HEAD</code>, <code>GET</code>, <code>OPTIONS</code>, <code>TRACE</code>) directly in your shell. You get the body of the response as stdout, headers and more as stderr if you turn on <code>-v</code>, the exit code is directly related to the error code, and there&#39;s a minimal plugin architecture (with more hooks on their way.)</p>
+
+<h2 id="How-do-I-use-it">How do I use it?</h2>
+
+<p>The first thing you need to do with adenosine is to set up your environment to use it:</p>
+
+<pre><code>  $ eval $(adenosine exports)</code></pre>
+
+<p>The next thing you need to do is set the base URI. The base URI is just a URI with a <code>*</code> in it. So for example, why don&#39;t we start with the DuckDuckGo API. A simple, useful base URI could be set as follows:</p>
+
+<pre><code> $ adenosine &#39;http://api.duckduckgo.com/?q=*&amp;o=json&#39;</code></pre>
+
+<p>So with that set all you need to do is:</p>
+
+<pre><code> $ GET test | pp</code></pre>
+
+<p>The above will put <code>test</code> into the base URI in place of the <code>*</code>. <a href="https://metacpan.org/module/pp">pp</a> is just a tiny json pretty printer bundled with adenosine.</p>
+
+<p>If you don&#39;t specify a URI scheme (<code>http://</code> or <code>https://</code>), your URI will be prepended with <code>http://</code>, and if you don&#39;t specify a <code>*</code> it will be appended to your URI.</p>
+
+<p><code>GET</code> isn&#39;t all you can do, though it&#39;s certainly what <i>I</i> do most often. Here&#39;s an example of how I might send a text message with our API at work:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>$ adenosine &#39;http://our.api.com/api/2/*/sms&#39;<br />$ POST myaccount &#39;{&quot;message&quot;:&quot;Hello Frew!&quot;,&quot;destinations&quot;:[8675309]}&#39; \<br />&nbsp;&nbsp;-H &#39;Content-Type: application/json&#39; -H &#39;Accept: application/json&#39;</code><br />&nbsp;</td></table>
+
+<p>If you want to edit the data you are about to post, use adenosine&#39;s <code>-V</code> switch to open your <code>$EDITOR</code>.</p>
+
+<p>There&#39;s more in the <a href="https://metacpan.org/module/adenosine">documentation</a>, but that&#39;s basically how it works.</p>
+
+<h2 id="Too-much-to-type">Too much to type!</h2>
+
+<p>Sometimes you&#39;ll want to set certain headers for a given host. For example, in my previous example I need to set the <code>Content-Type</code> and <code>Accept</code> headers so that my application will do the right thing. I actually <b>always</b> want to set those headers when interacting with my application. The way to do this nicely is to create a configuration file for my server. For example, I could create the following:</p>
+
+<p><i>~/.resty/our.api.com</i>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>POST -H &#39;Content-Type: application/json&#39; -H &#39;Accept: application/json&#39;<br />PUT -H &#39;Content-Type: application/json&#39; -H &#39;Accept: application/json&#39;<br />DELETE -H &#39;Content-Type: application/json&#39; -H &#39;Accept: application/json&#39;<br />GET -H &#39;Content-Type: application/json&#39; -H &#39;Accept: application/json&#39;</code><br />&nbsp;</td></table>
+
+<p>That will set those two headers for all four of the major HTTP verbs, so the previous example could now be merely:</p>
+
+<pre><code>  $ POST myaccount &#39;{&quot;message&quot;:&quot;Hello Frew!&quot;,&quot;destinations&quot;:[8675309]}&#39;</code></pre>
+
+<h2 id="Plugins">Plugins</h2>
+
+<p>One of the most exciting new features of adenosine (vs. resty) is that it supports plugins. I initially just wrote two: Stopwatch and Rainbow.</p>
+
+<h3 id="Stopwatch"><code>Stopwatch</code></h3>
+
+<p><code>Stopwatch</code> adds timing info to the output from <code>-v</code>. I like to know how long various commands and requests take, especially when I am the implementor of said command. If something takes longer than 0.5s, I did a bad job. So <code>Stopwatch</code> gives me exactly what information I need to know. To enable it put the following in <i>~/.adenosinerc.yml</i>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synIdentifier">plugins</span><span class="synSpecial">:</span><br />&nbsp;&nbsp;&nbsp;<span class="synStatement">- </span>::Stopwatch</code><br />&nbsp;</td></table>
+
+<h3 id="Rainbow"><code>Rainbow</code></h3>
+
+<p><code>Rainbow</code> color codes the output from <code>-v</code>. I really like this, but obviously it&#39;s not for everyone. At the most basic, you can enable it the same way that you enable <code>Stopwatch</code>, but that just gives you the most basic color coding. <code>Rainbow</code> is implemented to be easily themable as well as overridable. If you just wanted to override the color of the method from the request, put the following in <i>~/.adenosinerc.yml</i>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synIdentifier">plugins</span><span class="synSpecial">:</span><br />&nbsp;&nbsp;&nbsp;<span class="synStatement">- </span><span class="synIdentifier">::Rainbow</span><span class="synSpecial">:</span> <span class="synSpecial">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synIdentifier">request_method_color</span><span class="synSpecial">:</span> cyan<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="synSpecial">}</span></code><br />&nbsp;</td></table>
+
+<p>That&#39;s fine for experimentation, but I&#39;d like to encourage everyone to make their own themes and submit them as pull requests. To make a theme, all you need to do is create a file as follows:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">App::Adenosine::Plugin::Rainbow::Halloween</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">Moo</span><span class="structure">;</span><br /><span class="word">extends</span> <span class="single">'App::Adenosine::Plugin::Rainbow'</span><span class="structure">;</span><br /><span class="word">has</span> <span class="single">'+response_header_colon_color'</span> <span class="operator">=&gt;</span> <span class="structure">(</span><span class="word">default</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="single">''</span> <span class="structure">});</span><br /><span class="word">has</span> <span class="single">'+response_header_name_color'</span>  <span class="operator">=&gt;</span> <span class="structure">(</span><span class="word">default</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="single">'orange1'</span> <span class="structure">});</span><br /><span class="word">has</span> <span class="single">'+response_header_value_color'</span> <span class="operator">=&gt;</span> <span class="structure">(</span><span class="word">default</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="single">'orange2'</span> <span class="structure">});</span><br /><span class="comment"># ...</span></code><br />&nbsp;</td></table>
+
+<p><code>Rainbow</code> uses <a href="https://metacpan.org/module/Term::ExtendedColor">Term::ExtendedColor</a>, so to see what colors are available run the <code>color_matrix</code> script that comes with it. Also note that while in the example above only a single color is specified, the foreground, backround, and even a few other (spottily supported) attributes may be set:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">has</span> <span class="single">'+response_header_value_color'</span> <span class="operator">=&gt;</span> <span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">default</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">fg</span>        <span class="operator">=&gt;</span> <span class="single">'orange2'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">bg</span>        <span class="operator">=&gt;</span> <span class="single">'cyan'</span><span class="operator">,</span> <span class="comment"># what a bad choice</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">bold</span>      <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">italic</span>    <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">underline</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Once you&#39;ve done that, your <i>~/.adenosinerc.yml</i> can reference your theme directly:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synIdentifier">plugins</span><span class="synSpecial">:</span><br />&nbsp;&nbsp;&nbsp;<span class="synStatement">- </span>::Rainbow::Halloween<br />&nbsp;&nbsp;&nbsp;<span class="synStatement">- </span>::Stopwatch</code><br />&nbsp;</td></table>
+
+<p>&hellip;and that&#39;s adenosine! Please play with it and let me know if you like it!</p>
+
+<h2 id="Installing-adenosine-without-CPAN">Installing <code>adenosine</code> without CPAN</h2>
+
+<p>Most readers of this article are likely to be comfortable installing adenosine from the CPAN, but if you don&#39;t want to use CPAN, or you somehow got to this post as a non-<a href="http://en.wikipedia.org/wiki/Just_another_Perl_hacker">japh</a>, this might be more your speed:</p>
+
+<pre><code> git clone http://github.com/frioux/app-adenosine-prefab
+ source app-adenosine-prefab/adenosine-exports</code></pre>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/adenosine">adenosine</a></p>
+
+</li>
+<li><p><a href="https://github.com/micha/resty">resty</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/99d7d0aba169ea255ffa5c8c63f652ae?r=g&s=80&d=retro />
+This article contributed by: Arthur Axel &quot;fREW&quot; Schmidt &lt;frew@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Testing networking client code using Test::LWP::UserAgent" href="2012-12-12.html">Previous</a></li>
+
+    <li class="next"><a title="Self-contained applications" href="2012-12-14.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

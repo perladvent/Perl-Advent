@@ -1,0 +1,305 @@
+Title: Cute Christmas Animals
+Topic: Mojo::Promise
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=for :html
+<div class="bestof">
+2020 has been time consuming - a global pandemic, giant fires, horrific floods
+and political unrest - which has left us little time for side projects.
+This year we're looking back to happier times into the 20+ year archive with the
+Best of the Perl Advent Calendar.
+</div>
+
+State sponsored hacking.  Influencing foreign elections.  Crypto currency ponzi
+schemes.  Have we forgotten what the Internet is really for?  I<Looking at
+cute pictures of cats>.
+
+=for :html
+  <center><img src="https://i.imgur.com/XgJetkM.jpg" width="500"></center>
+
+With all the craziness that's going on online, it feels good to take a break
+from it all and just look at pictures of cats for a bit.  And you know what
+can help with that?  Yep...Perl!
+
+Let's write a quick Perl script to get us some I<Christmas> cat pictures to
+look at by accessing Imgur's REST API.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    use Mojo::UserAgent;
+    use Mojo::Template;
+
+    # get your own client id at https://api.imgur.com/oauth2/addclient
+    my $CLIENT_ID = '<<REDACTED>>';
+
+    my $results = Mojo::UserAgent->new->get(
+        Mojo::URL->new( 'https://api.imgur.com' )
+                 ->path('/3/gallery/search')
+                 ->query(
+                     q_all => 'christmas cat',
+                     q_not => 'tag:"secret santa"',
+                 ),
+        { Authorization => "Client-ID $CLIENT_ID"},
+    )->result->json('/data');
+
+    my $mt = Mojo::Template->new;
+    print $mt->vars(1)->render(<<'HTML', { data => $results });
+    <html>
+    <body>
+    % for my $post (@{ $data }) {
+    <h2><%= $post->{title} %></h2>
+    %   for my $image (@{ $post->{images} }) {
+    <img src="<%= $image->{link} %>" width="400">
+    <p><%= $image->{description} || ""%></p>
+    %   }
+    % }
+    </body>
+    </html>
+    HTML
+
+Rather than using LWP::UserAgent and URI (like in L<the Spotify REST API example|http://perladvent.org/2018/2018-12-17.html>) we're using
+Mojolicious's L<Mojo::UserAgent> and L<Mojo::URL> to make the request and
+build the URL.  Mojolicious's interface is a little more compact, allowing
+us to easily do things like chain method calls as we're building the URL
+object (with each mutating call returning the object itself again) so we
+can construct it directly inside our user agent method call.  With Mojolicious
+there's no need to explicitly create a request object in order to simply
+set a header.  The JSON parsing is also handled as part of the Mojolicious
+framework with a call to the C<json> method rather than needing to make
+use of a seperate C<decode_json> function call - in addition, we're passing it a
+L<JSON Pointer|https://tools.ietf.org/html/rfc6901> to indicate which I<bit>
+of the JSON data structure it should return.
+
+All in all, it's pretty neat having to write less code.  But the real
+advantages in using Mojo to do this comes when you want to start doing concurrency...
+
+=head2 What about the Dogs?
+
+What you say?  You're a I<Dog> person?  Well, me too.  Our house is blessed by not
+only two cute cats but a wonderful basset hound (who fight each other like
+cats and dogs...but I digress.)  So, yep, I like looking at pictures of
+dogs too.  Maybe we can adjust our script to show pictures of Christmas dogs
+as well?
+
+=for :html
+  <center><img src="https://i.imgur.com/gGiXuyv.jpg" width="500"></center>
+
+What I really want to do is alternate posts from the cat search with posts
+from the dog search.  But to do that I need to make two API calls, and I'm
+an I<incredibly> impatient person when it comes to getting my cute animal fix.
+I don't want to wait for my cute Christmas cats API call to return before making my
+cute Christmas dogs API call.  What I want to do is make them at I<the same
+time>.
+
+Instead of returning a result we could have Mojo::UserAgent use the Mojo IO
+loop to fire a callback when it's complete.  This is achieved by passing an
+anonymous subroutine as an argument:
+
+    #!perl
+    $ua->get(
+        Mojo::URL->new( 'https://api.imgur.com' )
+                 ->path('/3/gallery/search')
+                 ->query(
+                     q_all => 'christmas $animal',
+                     q_not => 'tag:"secret santa"',
+                 ),
+        { Authorization => "Client-ID $CLIENT_ID"},
+        sub {
+            my ($ua, $tx) = @_;
+            print STDERR "Got data back for $animal...\n";
+
+            ...
+        }
+    );
+
+But what are we going to replace the C<...> with?  What we need is some way
+to await the content of both of the REST API calls we're fetching and I<then> do something.
+The easiest way to do this is to use Mojolicious' implementation of promises: L<Mojo::Promise>.
+
+When we write our C<perform_search> function rather than waiting on the API call
+and only then returning from the function we instead immediately
+return a new I<promise> object, a promise to later return the API data.
+
+    #!perl
+    sub perform_search {
+        my $animal = shift;
+
+        # create a new promise to return
+        my $promise = Mojo::Promise->new;
+
+        $ua->get(
+            Mojo::URL->new( 'https://api.imgur.com' )
+                     ->path('/3/gallery/search')
+                     ->query(
+                         q_all => "christmas $animal",
+                         q_not => 'tag:"secret santa"',
+                     ),
+            { Authorization => "Client-ID $CLIENT_ID"},
+            sub {
+                my ($ua, $tx) = @_;
+                print STDERR "Got data back for $animal...\n";
+
+                my $data = $tx->result->json('/data');
+
+                # resolve the promise with the data now we have it
+                $promise->resolve( $data );
+            }
+        );
+
+        # immediately return the promise object
+        return $promise;
+    }
+
+When the callback is executed it calls the C<resolve> method
+on the promise meaning anything waiting on that promise will
+be allowed to continue.  For example:
+
+    #!perl
+    my $promise = perform_search('cat');
+    $promise->wait;
+
+C<wait> runs the Mojolicious IO loop and halts the current execution
+flow until the promise is fulfilled or fails.  In our example this happens
+when C<resolve> is called
+by the C<get> method's callback when the REST API response arrives - meaning
+C<wait> in this example effectively stops the program until the API result has
+been downloaded.
+
+Great! So how do we collect the promised result?  The easiest
+way to do this is to use the C<then> method on the promise.  You
+can pass an anonymous subroutine to C<then> which will be executed
+when that promise is resolved with whatever value was used to resolve it.
+Here's the really clever bit though:
+when called C<then> itself immediately returns a new promise.  This
+new promise will only get itself resolved when whatever happens in the
+anonymous subroutine is done.
+
+If we want to capture our cat data structure we could use
+a C<then>/C<wait> pair like so:
+
+    #!perl
+    my $cat_results;
+    perform_search('cat')->then(sub {
+        ($cat_results) = @_;
+        return;
+    })->wait;
+
+The anonymous subroutine is called when the promise that C<perform_search>
+created is resolved (when the API request has returned).  When that
+anonymous subroutine returns the promise that C<then> created
+which we're waiting on is resolved.  By creating this chain we're
+able to control the program flow.
+
+Above I mentioned that the promise that C<then> returns is resolved
+when the subroutine is done...but what did I mean by that?  It's not
+I<just> whenever the subroutine returns a value.  The
+really really clever bit is that this occurs I<either> when
+the anonymous subroutine returns a non promise value
+I<or> it returns a promise that itself resolves!  For example,
+we could return a promise for the dog API call in the first
+C<then> subroutine  and then the promise created will only allow us to move
+onto the next C<then> when the dog search API promise is
+resolved.  This sounds complicated, but actually is very
+readable in code:
+
+    #!perl
+    my $cat_results;
+    my $dog_results;
+
+    perform_search('cat')->then(sub {
+        ($cat_results) = @_;
+        return perform_search('dog');
+    })->then(sub {
+        ($dog_results) = @_
+    })->wait;
+
+Before we continue onto running these requests in parallel
+we should do a little housekeeping.  Mojo::UserAgent is
+actually able to create promises directly
+with the C<get_p> convenience method.  Now we know how to
+use C<then> we can simplify our C<perform_search> function
+greatly by chaining our promises within C<perform_search>:
+
+    #!perl
+    sub perform_search {
+        my $animal = shift;
+
+        return $ua->get_p(
+            Mojo::URL->new( 'https://api.imgur.com' )
+                    ->path('/3/gallery/search')
+                    ->query(
+                        q_all => "christmas $animal",
+                        q_not => 'tag:"secret santa"',
+                    ),
+            { Authorization => "Client-ID $CLIENT_ID"},
+        )->then( sub {
+            my ($tx) = @_;
+            return $tx->result->json('/data');
+        });
+    }
+
+We're almost there!  Now can we finally run these in parallel?  You bet!
+There's no reason we have to pause for the cat promise to complete before
+retrieving the dog promise:
+
+    #!perl
+    my $cat_results;
+    my $dog_results;
+    my $promise1 = perform_search('cat')->then(sub { $cat_results = shift });
+    my $promise2 = perform_search('dog')->then(sub { $dog_results = shift });
+    $promise1->wait;
+    $promise2->wait;
+
+    use Data::Dumper;
+    print Dumper [$cat_results, $dog_results];
+
+Looking good!  Mojo::Promise's C<all> method makes this even easier, allowing
+us to quickly create a single promise that will resolve when all the promises
+we pass to it themselves resolve:
+
+    #!perl
+    my $cat_results;
+    my $dog_results;
+    Mojo::Promise->all(
+        perform_search('cat')->then(sub { $cat_results = shift }),
+        perform_search('dog')->then(sub { $dog_results = shift }),
+    )->wait;
+
+Or, even more simply necessitating only writing one C<then> call:
+
+    #!perl
+    my $cat_results;
+    my $dog_results;
+    Mojo::Promise
+        ->all( perform_search('cat'), perform_search('dog') )
+        ->then( sub { ($cat_results, $dog_results) = @_ } )
+        ->wait;
+
+Now all that's left to do is zip the results together so we get
+alternating cat and dog posts (we can even use the same
+template code we had before):
+
+    #!perl
+    use List::MoreUtils qw(zip);
+    my $results = [ zip @{ $cat_results }, @{ $dog_results } ];
+
+    my $mt = Mojo::Template->new;
+    print $mt->vars(1)->render(<<'HTML', { data => $results });
+    <html>
+    <body>
+    % for my $post (@{ $data }) {
+    <h2><%= $post->{title} %></h2>
+    %   for my $image (@{ $post->{images} }) {
+    <img src="<%= $image->{link} %>" width="400">
+    <p><%= $image->{description} || ""%></p>
+    %   }
+    % }
+    </body>
+    </html>
+    HTML
+
+And there, as promised (groan) is our Christmas Cat and Dog Extravaganza.

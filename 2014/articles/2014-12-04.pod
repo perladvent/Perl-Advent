@@ -1,0 +1,319 @@
+Title: PSGI, Enabling Modern Web Technology in Perl
+Topic: Plack
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+In recent years we've seen an explosion of powerful web technologies in
+Perl not at the least due to the creation of the PSGI specification.
+
+PSGI and Plack allow us to glue together webservers and web frameworks
+in interesting ways, not only allowing us to hook any webservice up
+to any web framework, but allowing us to chain our frameworks together
+and transform output in interesting and exciting ways.
+
+=head2 Why PSGI?
+
+PSGI is a convention that allows an easy way to connect webservers and web
+frameworks together.  By following the convention any PSGI compatible
+webserver can connect to any PSGI compatible web framework. When someone
+writes a new web framework, as long as it supports PSGI, then it'll work with
+any webserver.  Whenever someone writes a new webserver, as long as it
+supports PSGI (or has an adapter written for it like Apache and nginx do) they
+can support any of the web frameworks.
+
+=head2 PSGI by example
+
+PSGI applications are surprisingly simple to write:
+
+  #!perl
+  #!/usr/bin/perl
+
+  use strict;
+  use warnings;
+
+  my $app = sub {
+      my $env = shift;
+
+      return [
+          '200',
+          [ 'Content-Type' => 'text/plain' ],
+          [ "Merry Christmas from $env->{PATH_INFO}\n"]
+      ]
+  };
+
+You can actually launch the application in the simple Perl script above as a
+functioning webserver with the C<plackup> command that comes with plack.
+
+  bash$ plackup merryxmas.pl
+  HTTP::Server::PSGI: Accepting connections at http://0:5000/
+
+Plackup expects the last thing in the script to be the subroutine reference
+that is the PSGI application.  And it works just as you might expect:
+
+  bash$ curl http://127.0.0.1:5000/santa/and/the/elves
+  Merry Christmas from /santa/and/the/elves
+
+This all works because at its most basic a PSGI compatible web application is
+a simple subroutine. The subroutine is passed one argument - a hashref
+representing the environment variables, and returns something representing
+the response.
+
+These environment variables represent the environment the webserver would
+normally see like C<PATH_INFO>, C<QUERY_STRING>, etc, etc and a few PSGI
+specific ones including C<psgi.input> (a IO::Handle like object that allows
+the reading of the request body) and C<psgi.errors> (an IO::Handle that can be
+written to to, say, write to apache's error log.) The subroutine return value
+is one of three things - an arrayref containing the strings that make up the
+output, or a IO::Handle like object the output can be read from, or another
+callback that can be used for server push like applications.
+
+There's slightly more to the PSGI spec than this - for example, there's
+optional streaming support so if the server and client want they can send
+parts of the web page back before the whole thing has been generated - but
+that's the gist of it.
+
+=head2 Plack
+
+Aside from providing us with the handy C<plackup> command line utility, what's
+Plack's role in this?  Well at the very least Plack can be thought of as a
+slightly higher level abstraction that sits on top of the raw PSGI
+specification to make it easier to do the common things with the PSGI input
+and output.
+
+For example, something as simple as getting a query parameter is complicated
+since it's entirely the responsibility of the PSGI application to decode the
+contents of the C<QUERY_STRING> to get at the query parameters.  Similarly
+cookies are problematic, requiring both encoding and setting and parsing
+and decoding http header strings.
+
+Plack provides a B<Plack::Request> and B<Plack::Response> classes that can
+be constructed from the incoming C<$env> hash and be used to build the
+array ref response respectively.
+
+  #!perl
+  #!/usr/bin/perl
+
+  use strict;
+  use warnings;
+
+  use Plack::Request;
+
+  my $app = sub {
+      my $request = Plack::Request->new(shift);
+
+      # get who is saying merry christmas
+      my $who = $request->param('who');
+
+      # did they come back a second time?
+      my $again = "";
+      $again = " again" if $request->cookies->{again};
+
+      # create a response in a much more friendly way
+      my $response = $request->new_response;
+      $response->status(200);
+      $response->content_type("text/plain");
+      $response->body("Merry Christmas$again from $who");
+      $response->cookies->{again} = 1;
+
+      # convert the response back into an array ref
+      # and return it
+      return $response->finalize;
+  };
+
+Z<>
+
+  bash$ plackup merryxmas2.pl
+  HTTP::Server::PSGI: Accepting connections at http://0:5000/
+
+  bash$ curl -b jar -c jar http://127.0.0.1:5000?who=Santa+and+the+elves
+  Merry Christmas from Santa and the elves
+
+  bash$ curl -b jar -c jar http://127.0.0.1:5000?who=Santa+and+the+elves
+  Merry Christmas again from Santa and the elves
+
+=head2 Plack Middleware
+
+One of the handy things about the PSGI specification is that it makes it
+trivial for a PSGI compatible client to make a request to another PSGI
+compatible client to help fulfill the request.  Because the I<outer>
+client is playing the role of yet another compatible PSGI webserver
+the I<inner> client doesn't need to care its not directly hooked
+up to the so-called I<real> web server.
+
+For example, we could easily adapt our previous script to give
+a Very Special Christmas Message from Mr Hankey:
+
+  #!perl
+  #!/usr/bin/perl
+
+  use strict;
+  use warnings;
+
+  use Plack::Request;
+
+  my $app = sub {
+     ... # as before
+  };
+
+  my $app2 = sub {
+      my $env = shift;
+      my $request = Plack::Request->new($env);
+
+      # If Mr Hankey is saying Merry Christmas, send them to the
+      # video instead.
+      if ($request->param('who') eq "Mr Hankey") {
+          my $response = $request->new_response;
+          $response->redirect("http://www.hulu.com/watch/249828");
+          return $response->finalize();
+      }
+
+       # otherwise chain through to the original app
+      return $app->($env);
+  }
+
+Because we're just wrapping the original application we don't have to alter
+the application in any way.  Of course, in this example, we have the source
+code for the original application in the same file - but the application could
+be provided third party code inside a module and the same technique would
+work.
+
+Plack provides the B<Plack::Middleware> class that makes the process of
+modifying the response easier, and along with B<Plack::Util> helps us
+deal with the slightly more complex cases where there's a callback for
+a response from our inner class:
+
+  #!perl
+  package Plack::Middleware::XReindeer;
+  use base qw(Plack::Middleware);
+
+  use strict;
+  use warnings;
+
+  use Plack::Util;
+  use Acme::MetaSyntactic::reindeer qw(metareindeer);
+
+  sub call {
+      my($self, $env) = @_;
+
+      # run the original application
+      my $res  = $self->app->($env);
+
+      # now modify the response.  Use response_cb to turn
+      # any response into the three-item list before we process it
+      Plack::Util::response_cb($res, sub {
+          # get the three item arrayref
+          my $res = shift;
+
+          # add an extra header with some random reindeer
+          push @{ $res->[1] },
+              "X-Reindeer" => metareindeer;
+
+          # return nothing;  It doesn't matter what we return, we
+          # always directly modify the original arrayref
+          return;
+      });
+   }
+
+   1;
+
+By turning our middleware into a B<Plack::Middleware> subclass we can easily
+make use of the C<Plack::Builder> module to glue our applications together:
+
+  #!perl
+  #!/usr/bin/perl
+
+  use strict;
+  use warnings;
+
+  use Plack::Builder;
+
+  my $app = sub { ... };
+
+  # builder returns a new app annoymous sub that wraps $app with the
+  # middleware we specify
+
+  builder {
+      enable "XReindeer";
+      $app;
+  }
+
+Plenty of pre-existing middleware modules exist on CPAN.  For example
+we could have implemented gzip compression on our application as well
+just by wrapping the output with B<Plack::Middleware::Deflater>.
+
+  #!perl
+  builder {
+      enable "Deflater";
+      enable "XReindeer";
+      $app;
+  }
+
+=head2 Plack::Test
+
+Another great thing about abstracting away the actual webserver that our PSGI
+application is talking to is that we don't actually have to have a real
+webserver at the outer layer at all!  If we just want to test our application
+we can do this in process by just sending input to the anonymous subroutine
+and examining the return values.
+
+This is a tremendous improvement over such frameworks as Apache::Test that
+actually have to launch a mod_perl Apache webserver in another process and
+talk to it over TCP/IP sockets.  Not only is talking in process significantly
+less complex, but its an order of magnitude quicker and can save many minutes
+off a test suite execution time.
+
+Plack ships with the Plack::Test module that can perform the job of the
+external server.  Designed to have LWP style requests thrown at it and LWP
+style responses coming back, it gets the job done with minimal fuss:
+
+  #!perl
+  #!/usr/bin/perl
+
+  use strict;
+  use warnings;
+
+  use Test::More tests => 4;
+  use Plack::Test;
+  use HTTP::Request::Common qw(GET);
+
+  # load the application from the other script
+  my $app = do 'merryxmas3.pl';
+
+  test_psgi
+       app => $app,
+       client => sub {
+            my $response = shift->(GET '/?who=Santa');
+            is $response->status, 200;
+            is $response->content, "Merry Christmas from Santa\n";
+       };
+
+  test_psgi
+       app => $app,
+       client => sub {
+            my $response = shift->(GET '/?who=Mr+Hankey');
+            is $response->status, 302;
+            like $response->header('Location'), qr/hulu[.]com/;
+       };
+
+  done_testing;
+
+=head2 In Conclusion
+
+Plack and PSGI offer a wonderful toolset.  I'm blown away that I can go
+from a simple server for testing:
+
+   bash$ plackup perladventcalendar.pl
+
+Right the way up to running a powerful pre-forking server (like Starman)
+suitable for handling the traffic that the Perl Advent Calendar receives by
+just changing one command line argument:
+
+   bash$ plackup -s Starman perladventcalendar.pl
+
+=head1 See Also
+
+=for :list
+* L<PSGI>
+* L<Plack>
+* L<Plack::Builder>
+* L<Plack::Util>
+* L<Plack::Middleware>

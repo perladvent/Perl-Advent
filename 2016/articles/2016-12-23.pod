@@ -1,0 +1,341 @@
+Title: speeding up the inter-web
+Topic: HTTP::Caching
+Author: Theo van Hoesel <Th.J.v.Hoesel@gmail.com>
+
+=pod
+
+So, after years using mainframes to get the job done and later using monolithic
+applications, it became time to have a more lean architecture. Service Oriented
+Architectures or Reactive Microservices or ...
+
+Tourmaline the newbie Elf got all excited with the new task and had been jumping
+for days and started to build some nice REST-api with Dancer2. And as good
+developers do, first a working proof of concept... and then make it fast.
+
+However, the biggest speed increase was not in writing optimised code, it was in
+making sure that the services wouldn't get overloaded with repeating request
+when nothing had changed!
+
+=head2 Let caches temporarily store the responses!
+
+"Caching?!" shouted the the old grumpy Elves, "that is evil magic that get
+things go kaput!". But it didn't stop the keen young devoted Elf. They watched
+the I<'Talking Heads'> presentation, L<REST API's don't need to be your 'psycho-killer'|https://www.youtube.com/watch?v=E7OO83xvWPY>.
+Was it not just a matter of knowing what goes on inside those heads of
+HTTP requests and HTTP responses? But which header and how should Tourmaline the
+Elf do it? Was it enough to add C<Expires: on Christmas Eve> to the response?
+
+=head2 RFC 7234 - HTTP Caching
+
+Tourmaline decided he should just sit down and read the official documentation
+in the form of RFC7234.  A hefty document, it attempts to describe HTTP caching
+- essentially the ability to re-use a document you'd previously downloaded
+rather than fetch it again.
+
+Like most RFCs it starts with introduction, specification, definition, credits,
+IANA concerns, copyright table of contents and a lot more blah blah. The
+remaining of the 41 pages is still a nightmare to go through, but basically is
+about three things:
+
+=over
+
+=item Storing responses in a cache
+
+When can a cache store a response, what to do with errors, and is it safe to
+store it in intermediate responses on public servers?
+
+=item Reusing responses
+
+If a request comes in, can it just reuse the response, or are there more checks
+that need to be done?
+
+=item HTTP Header fields
+
+There are only a few headers that really play a role in a response: the
+validation header field C<Last-Modified> and C<ETag>, and then two others,
+C<Vary> and C <Cache-Control>.
+
+=back
+
+Those validation headers are needed by the cache to revalidate the stored
+responses and they are used with a GET request to conditionally return a new
+response.  In other words as part of the GET request header the client passes
+meta information about what it's already got cached to the server and the server
+will decide to respond based on this metadata with either an updated copy of the
+file or simply a response that indicates that they cached copy is okay to reuse.
+This metadata is the same data the server sent to the client in the response
+header when it delivered the original content that is now in its cache. The
+server will conditionally return based on the C<If-Modified- Since> header, the
+previously returned C<Last-Modified> date or C<If-None-Match> from the given
+C<ETag>s. An ETag uniquely differentiates two different versions of a resource
+and the forms it can take are varied; Some servers use a MD5 hash over the
+values, but a incremental serial number will do too.
+
+=head2 Dancer2::Plugin::HTTP::ConditionalRequest - no no no
+
+Dancer2 can make such requests conditionally by using a small plugin:
+
+    #!perl
+    #!perl
+
+    use Dancer2::Plugin::HTTP::ConditionalRequest;
+
+    ...
+
+    get '/catalog' => sub {
+
+        http_conditional {
+            last_modified => Santa::Helper->http_last_modified('Catalog')
+        };
+
+        ...
+
+    }
+
+Not only will it set the values for a new response, more importantly, it will
+check with the request header fields if to continue or not. If the pre-conditions
+are met then the Dancer application will continue. If not - in case
+of a GET request - if the resource is NOT Not-Modified-Since, or NOT None-Match
+- If the pre-conditions are not met, the Dancer app will stop here returning a
+status code C<304> (C<Not modified>) back to the cache or the client when it
+was a request with a 'safe' method.
+
+=head2 Dancer2::Plugin::HTTP::ContentNegotiation - your representation can vary
+
+Everybody at the north pole has their favourite data representation.  Santa
+loves YAML. The new kids around the block think that the world only knows JSON.
+But Santa just relaxes while the JSON usage constantly changes, new specs, new
+ideas about data-type, new this new that (Actually, Santa looooooves XML).
+
+Dancer2 does already come with some add-ons that make it possible to let the
+client (and Santa) decide what C<Content-Type> the response they would like
+returned to them. But, as shown during that I<Talking Heads>, it is nothing REST
+like:
+
+    #!perl
+    #!perl
+
+    use Dancer2::Plugin::HTTP::ContentNegotiation;
+
+    ...
+
+    get '/catalog' => sub {
+
+        ...
+
+        my @list = Santa::Helper->list( Catalog => 'all' );
+
+        http_choose_media_type (
+            'application/json'   => sub { to_json \@list, {canonical => 1}},
+            'application/x-yaml' => sub { to_yaml \@list },
+            { default => undef }, # default is 406: Not Acceptable
+        );
+    }
+
+By using in the request the C<Accept> header field, one can choose what output
+one will get. Setting the default to C<undef> dictates the client to specify
+one rather then defaulting to the first in the list.
+
+But take note of what also happens... remember that our dedicate Elf Tourmaline
+was concerned about caching! Not only does C<http_choose_media_type> set the C
+<Content-Type> response header, as a bonus it sets the C<Vary> header too. This
+C<Vary> header informs the cache that there are more variants of this resource.
+Each of those variants must be saved separately and the cache should figure out
+which of the variants shall be use to hand to the client.
+
+=head2 Dancer2::Plugin::HTTP::Caching - doesn't do any caching!
+
+Elf D. wasn't yet so sure about the whole caching thing. She knows that those
+caches can be naughty and she just wants to be in control about what they do
+and do not do. She was not happy with confidential information being scattered
+in these caches all around the world. Private sensitive information about kids
+(and parents) can not be trusted to the wide open Internet! She wanted to be in
+control about how long the caches can keep their data and when should be checked
+if it's still valid.
+
+    #!perl
+    #!perl
+
+    use Dancer2::Plugin::HTTP::Caching;
+
+    ...
+
+    get '/catalog' => sub {
+
+        ...
+
+        http_cache_max_age 3600; # one hour
+        http_cache_private;
+
+        ...
+
+    }
+
+The only thing the plugin provides are a bunch of keywords and do some sanity
+checks on the parameters following them.
+
+=head2 Ready to roll!
+
+Yes, it magically all works and the sound of jingling bells can fill the world!
+
+L<Dancer2::Plugin::HTTP::Bundle> does it all together. And ol' Dave, the wise
+Elf has suggested some very useful improvements.
+
+    #!perl
+    package Santa;
+
+    use Dancer2;
+    use Dancer2::Plugin::HTTP::Bundle;
+
+    use Santa::Helper;
+
+    get '/catalog' => sub {
+
+        http_cache_max_age 30; # half a minute
+        http_cache_private;
+
+        http_conditional {
+            last_modified => Santa::Helper->http_last_modified( Catalog => undef ),
+
+
+        my @list = Santa::Helper->list( Catalog => 'all' );
+        http_choose_media_type (
+            'application/json'      => sub { to_json \@list, {canonical => 1}},
+            'application/x-yaml'    => sub { to_yaml \@list },
+            { default => undef }, # default is 406: Not Acceptable
+        );
+    };
+
+    ...
+
+    get '/catalog/:uuid' => sub {
+        my $uuid = route_parameters->get('uuid');
+        unless ( Santa::Helper->does_exists( Catalog => $uuid ) ) {
+            status 'Not Found';
+            return
+        }
+
+        http_cache_max_age 3600; # a full hour
+
+        http_conditional {
+            etag => Santa::Helper->http_etag( Catalog => $uuid ),
+        };
+
+        response_header 'Content-Type' => 'application/json';
+
+        my @languages_available =
+            Santa::Helper->lang_available( Catalog => $uuid );
+        http_choose_language (
+             \@languages_available => sub {
+                my $data = Santa::Helper->find_in_language(
+                    Catalog => $uuid, http_chosen_language
+                );
+                to_json( $data,  {canonical => 1} )
+             },
+             { default => 'en' }
+        )
+    };
+
+=head2 Kaput!
+
+The grumpy ol' Elves were right. Things were not working at all! When Santa is
+checking the catalog, the application still makes request to the origin server
+and the Elves from the NorthPole Operation Center scratching their heads what
+went wrong with their Microservices.
+
+Quickly the root of the problem was found... Since L<LWP::UserAgent> the
+application uses does not know about caching, it just makes request, C<GET>s
+results, C<POST>s new stuff or C<DELETE>s things directly on the server. But
+surely, there must be a way to cache the responses!
+
+=head2 RTFRC
+
+And surely, some Elf wrote C<LWP::UserAgent::Cache> that only stores responses
+and gets it when the URL is the same, fast, but dirty and wrong if one talks to
+a REST-api.
+
+Then another Elf wrote C<LWP::UserAgent::WithCache>, and yeah, it knows about
+C<If- Modified-Since>
+
+After that yet another Elf, wrote C<LWP::UserAgent::CHICaching>, and while he
+was doing quite well obviously did think a lot about the spec.
+
+And more and more and more... all written for what the Elves needed for them at
+that time for a specific reason...
+
+None of these various modules properly respects the C<Vary> header and makes content negotiation impossible,
+C<Cache-Control> directives are ignored. But worst of all, none of these caches
+are invalidating the stored responses after an unsafe method like C<POST>,
+C<PUT> or C<DELETE>. One can not imagine what will happen when serving old REST
+resources that have just been update or even deleted...
+
+The sad Tourmaline Elf went back and thought about  I<TIMTOWTDI>. He thought
+about the warnings from the old Elves when quoting Phil Karlton about the two
+hard things in computer science.
+
+=head2 Making the first hard thing ... easy!
+
+Next morning Tourmaline woke up with a brilliant plan... for once and for all,
+make a UserAgent that does get it right!  Simple replace LWP::UserAgent with
+something else!
+
+He read the RFC over and over, studied it, front to back and the other way
+around and wrote a nasty piece of software that no one ever should use...
+L<HTTP::Caching> I<The RFC 7234 compliant brains to do caching right>. It does
+know (almost) all about the RFC.
+
+Of course, that's not the end of the story.  HTTP::Cachine wasn't well written
+for I<clients>. And it seems to be under continuous development and it might
+break stuff.  So what we need is a something more LWP like that can make use of
+HTTP::Caching but use a familiar interface.....something like
+L<LWP::UserAgent::Caching> instead.
+
+    #!perl
+    #!perl
+
+    use LWP::UserAgent::Caching;
+
+    use CHI;
+
+    my $cache = CHI->new(
+        driver          => 'File',
+        root_dir        => '/tmp/LWP_UserAgent_Caching',
+        file_extension  => '.cache',
+        l1_cache        => {
+            driver          => 'Memory',
+            global          => 1,
+            max_size        => 1024*1024
+        }
+    );
+
+    my $ua = LWP::UserAgent::Caching->new( http_caching => {cache=>$cache} );
+
+    my $rqst = HTTP::Request->new( GET => 'http://northpole.xxx/catalog');
+    $rqst->header( Accept => 'application/x-yaml' );
+
+    my $resp = $ua->request( $rqst );
+
+=head2 Perl, to make easy things easy and making hard things simple!
+
+If even that is all too complicated, then Tourmaline made it really simple for
+you guys...with L<LWP::UserAgent::Caching::Simple>
+
+    #!perl
+    #!perl
+
+    use LWP::UserAgent::Caching::Simple qw/get_from_json/;
+
+    my $data = get_from_json ('http://northpole.xxx/catalog');
+
+
+And yes, it does respect the rules written down in the RFC 7234 - so it will be
+a Merry Christmas after all!
+
+Next time when you want to write a REST-api, please consider the
+L<Dancer2::Plugin::HTTP::Bundle>. And if you ever want to write an application
+to plan a pub-crawl near your hotel where you want to crash down after Christmas
+Eve... no need to build your own caches on top of your app. No more extra
+databases and figuring out what to keep and how long... Just keep it simple and
+let the slow HTTP stack handle itself with L<LWP::UserAgent::Caching::Simple>
+
+Finally... Merry Christmas All!  Ho ho ho!

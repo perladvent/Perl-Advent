@@ -1,0 +1,170 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Self-contained applications
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Self-contained applications</h1>
+<div class='subtitle'>fatpack / App::FatPacker - 2012-12-14</div>
+
+<div class='pod'><h2 id="In-No-Dependency-Land">In No-Dependency Land</h2>
+
+<p>While the proliferation of solutions like <a href="https://metacpan.org/module/local::lib">local::lib</a> and <a href="https://metacpan.org/module/cpanminus">cpanminus</a> has made it a breeze to manage dependencies, there are still some rare occassions in which we need to be able to ship code that has no external non-core dependencies.</p>
+
+<p>There are a few existing solutions for them, but we&#39;re going to concentrate on a new one called <b>FatPacker</b>.</p>
+
+<h2 id="Our-application">Our application</h2>
+
+<p>Of course, we just happen to have a sample application we want to pack. It downloads various pages from our website and compiles a statistics report. It uses <a href="https://metacpan.org/module/HTTP::Tiny">HTTP::Tiny</a> as a user agent. Our application begins with the lines:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">HTTP::Tiny</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Our app is, surprisingly, saved as the file <i>ourapp.pl</i>.</p>
+
+<h2 id="Packing-the-deps">Packing the deps</h2>
+
+<p><a href="https://metacpan.org/module/App::FatPacker">App::FatPacker</a> comes with an application called <i>fatpack</i>. You&#39;ll use <i>fatpack</i> to get at all of App::FatPacker&#39;s features. There are four simple steps for packing your dependencies. Let&#39;s go over them.</p>
+
+<h3 id="Tracing">Tracing</h3>
+
+<p>To find out what dependencies our code has, we <code>trace</code> our app. This will create a file called <i>fatpacker.trace</i>, which includes a list of modules that <i>fatpack</i> has discovered.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>$ fatpack trace ourapp.pl</code><br />&nbsp;</td></table>
+
+<p>In case some modules aren&#39;t successfully traced, you can ask <code>fatpack</code> to include them:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>$ fatpack trace --use=Additional::Module ourapp.pl</code><br />&nbsp;</td></table>
+
+<p>If we open the <i>fatpacker.trace</i> file, we can see it collected a few modules, including both <i>HTTP/Tiny.pm</i> and <i>Carp.pm</i> (which <a href="https://metacpan.org/module/HTTP::Tiny">HTTP::Tiny</a> uses).</p>
+
+<h3 id="Gathering-packlists">Gathering packlists</h3>
+
+<p>Packlists are files that distributions install. They contain information on which modules are included in the distribution. FatPacker needs to find the packlist for each module in order to make sure it includes all dependencies recursively and does not miss anything. One module is likely to use another module, which might use another module in turn, and so on.</p>
+
+<p>We can call <code>packlists-for</code> with a list of modules, or we can feed it the content of the trace output we created with the previous command. It will print out a list of all the packlists, which we&#39;ll simply redirect to a file so we can reuse this information.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>$ fatpack packlists-for `cat fatpacker.trace` &gt; packlists</code><br />&nbsp;</td></table>
+
+<p>The <i>packlists</i> file will include the path to the packlists of <a href="https://metacpan.org/module/Carp">Carp</a> and <a href="https://metacpan.org/module/HTTP::Tiny">HTTP::Tiny</a>.</p>
+
+<h3 id="Forming-the-tree">Forming the tree</h3>
+
+<p>In this step FatPacker collects all the dependencies recursively into a directory called <i>fatlib</i>, which it will then be able to pack together.</p>
+
+<p><code>tree</code> needs a list of packlists. Lucky for us, we saved the packlists that our previous command has found in a file called <i>packlists</i>. Let&#39;s just call <code>tree</code> and feed it that file.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>$ fatpack tree `cat packlists`</code><br />&nbsp;</td></table>
+
+<p>Taking a look at our <i>fatlib</i> directory, we&#39;ll see the following structure:</p>
+
+<pre><code>    fatlib/
+    &#x251C;&#x2500;&#x2500; Carp
+    &#x2502;&nbsp;&nbsp; &#x2514;&#x2500;&#x2500; Heavy.pm
+    &#x251C;&#x2500;&#x2500; Carp.pm
+    &#x2514;&#x2500;&#x2500; HTTP
+        &#x2514;&#x2500;&#x2500; Tiny.pm</code></pre>
+
+<p>You can clearly see it added <a href="https://metacpan.org/module/HTTP::Tiny">HTTP::Tiny</a> and <a href="https://metacpan.org/module/Carp">Carp</a>, but you can also see it added <a href="https://metacpan.org/module/Carp::Heavy">Carp::Heavy</a> which comes with <a href="https://metacpan.org/module/Carp">Carp</a>. This is what recursively copying dependencies means.</p>
+
+<h3 id="Packing-dependencies">Packing dependencies</h3>
+
+<p>Once we have all our dependencies in a directory, we can finally pack it all nicely using the last command: <code>file</code>. This command packs all the modules in the current <i>fatlib</i> directory. It will also try to pack any <i>lib</i> directory that exists in the current directory. If none is present, you will need to create it.</p>
+
+<p>Since the command only packs the modules, we&#39;re still missing our code that uses them, so we will concatenate that as well. We will also print this to a new file so we could ship it.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>$ (fatpack file; cat ourapp.pl) &gt; ourapp.packed.pl</code><br />&nbsp;</td></table>
+
+<p>Stick a shebang line at the top of <i>ourapp.packed.pl</i> and that&#39;s all there is to it!</p>
+
+<p>You can now ship <i>ourapp.packed.pl</i> to any location, and it will include all dependencies recursively.</p>
+
+<p>You can open our newly-packed application file and see the way it has packed everything together:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">BEGIN</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">%fatpacked</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$fatpacked</span><span class="structure">{</span><span class="double">&quot;Carp.pm&quot;</span><span class="structure">}</span> <span class="operator">=</span> <span class="heredoc">&lt;&lt;'CARP'</span><span class="structure">;</span><br /><span class="heredoc_content">        ... # entire Carp<br />&nbsp;&nbsp;&nbsp;&nbsp;CARP<br /><br />&nbsp;&nbsp;&nbsp;&nbsp;$fatpacked{&quot;Carp/Heavy.pm&quot;} = &lt;&lt;'CARP_HEAVY';<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;... # entire Carp::Heavy<br />&nbsp;&nbsp;&nbsp;&nbsp;CARP_HEAVY<br /><br />&nbsp;&nbsp;&nbsp;&nbsp;$fatpacked{&quot;HTTP/Tiny.pm&quot;} = &lt;&lt;'HTTP_TINY';<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;... # entire HTTP::Tiny<br />&nbsp;&nbsp;&nbsp;&nbsp;HTTP_TINY<br /><br />&nbsp;&nbsp;&nbsp;&nbsp;# fixing of @INC to load these<br />&nbsp;&nbsp;&nbsp;&nbsp;...<br />} # END OF FATPACK CODE<br />#!perl<br />use strict;<br />use warnings;<br />use HTTP::Tiny;<br /><br /># rest of our code<br />...</span><span class="heredoc_terminator">CARP<br /></span></code><br />&nbsp;</td></table>
+
+<h2 id="Its-already-being-used">It&#39;s already being used!</h2>
+
+<p>There is at least one famous project which uses this method to create a self-contained program: <a href="https://metacpan.org/module/cpanminus">cpanminus</a> proved this method to be useful for beginners and seasoned system administrators in providing a self-contained full-fledged CPAN client, always available at your finger-tips without any installations required (other than having a Perl interpreter, of course).</p>
+
+<p>You can always download a packed <code>cpanminus</code> program and use it, wherever you are, using the following command:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>$ curl -kL cpanmin.us &gt; cpanm<br />$ perl cpanm Some::Module</code><br />&nbsp;</td></table>
+
+<h2 id="Caveat">Caveat</h2>
+
+<p>There are some considerations still:</p>
+
+<h3 id="Compile-time-code-will-be-run">Compile time code will be run</h3>
+
+<p>If you have any compile-time code (think <code>BEGIN</code> blocks), they will be run as part of the tracing step. Generally, these aren&#39;t recommended for most use cases anyway.</p>
+
+<p>If you have any compile-time code which shouldn&#39;t run upon tracing, you might want to consider refactoring it into run-time code.</p>
+
+<h3 id="Lazily-loaded-modules-wont-be-found">Lazily loaded modules won&#39;t be found</h3>
+
+<p>Any modules that are loaded lazily (such as <code>require</code> statements) will not be traced successfully. You can, however, provide them as additional modules for the <code>trace</code> command, as described above.</p>
+
+<h3 id="XS-modules-are-not-supported">XS modules are not supported</h3>
+
+<p><a href="https://metacpan.org/module/App::FatPacker">App::FatPacker</a> only supports Pure-Perl modules, so if you&#39;re using any XS modules, you&#39;ll need to have them installed remotely.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/App::FatPacker">App::FatPacker</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/f2bdad6d5883044b9d3c88e50f957bfc?r=g&s=80&d=retro />
+This article contributed by: Sawyer X &lt;xsawyerx@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Take a little REST" href="2012-12-13.html">Previous</a></li>
+
+    <li class="next"><a title="Gift Wrapping, part II: Locking the Room" href="2012-12-15.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

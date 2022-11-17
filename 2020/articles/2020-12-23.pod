@@ -1,0 +1,258 @@
+Title: Proc::Daemon
+Topic: Proc::Daemon
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+
+Sometimes we want to run a script forever.  We want it to monitor
+what's going on, or perform some action periodically, and we don't
+want it to go away when we log out.
+
+B<Proc::Daemon> is a handy little utility class that can handle all
+the complicated operating system related tasks that are involved in
+making the script completely fork into the background.  With one
+simple command your script will can be detached from the terminal
+login session you're using.  Along with B<Proc::PID::File> you can
+manage background tasks with the smallest amount of effort.
+
+One of the more common ways of tackling spam is to is maintaining a
+whitelist of addresses of people you trust that you're willing to
+always accept mail from (or at the very least, trust I<more> than
+other addresses) and blacklists of people we don't ever want to hear
+from again.
+
+The hard thing about maintaining the whitelist and blacklist is
+providing a mechanism for updating the lists.  The solution I came up
+with was a special mailbox on my mailserver that if I put a message in
+it would be added to the correct list and then moved back into my
+inbox or spam folder.  This means I'm able to update my
+whitelist/blacklists using any of the mail clients I normally use
+(Apple Mail, pine and Squirrel Mail) over IMAP without any problem.
+
+The script that runs on the server that updates the blacklist is
+fairly simple.  I keep my mail in maildir format meaning that any mail
+I've put for blacklisting will be in the C<.blacklist> folder.  Let's
+start by writing the part of the script that finds that file:
+
+  #!perl
+  #!/usr/bin/perl
+
+  # turn on my message
+  use strict;
+  use warnings;
+
+  # load my collection of modules
+  use File::Copy;
+  use File::Find::Rule;
+  use Email::Simple;
+  use Email::Address;
+
+  # find all messages in the blacklist folder
+  my @files = (
+     File::Find::Rule
+       ->file
+       ->in("/home/mark/Maildir/.blacklist/cur"),
+     File::Find::Rule
+       ->file
+       ->in("/home/mark/Maildir/.blacklist/new"),
+  );
+
+  # stop here unless we found any mails
+  exit unless @files;
+
+
+We then need to open the blacklist file for appending - we're
+hopefully going to add some addresses to the end.
+
+  #!perl
+  # open the file we're updating
+  open my $list_fh,">>", "/home/mark/.my_blacklist"
+   or die "Can't open the blacklist: $!";
+
+And then start a loop that works though each of the files we found and
+loads them one by one into memory, works out what the from address
+was, and prints it out to C<$list_fh>.
+
+  #!perl
+  # read in each of the messages
+  foreach my $file (@files)
+  {
+    print "Looking at '$file'\n";
+
+    # read in the file
+    open my $in_fh,"&lt;", $file
+      or next;  # can't read it?  Skip it
+    my $message_text = join '', &lt;$in_fh>;
+    close $in_fh;
+
+    # make it an email simple object
+    my $email = Email::Simple->new($message_text);
+
+    # get the email addresses and store them in the blacklist
+    eval
+    {
+      my $header = $email->header("From")
+        or die "No From";
+      my @address = Email::Address->parse($header)
+        or die "No addresses parsed";
+      foreach my $address (@address)
+      {
+        my $from = $address->address
+          or next;
+        print "...Found address '$from'\n";
+        print $list_fh "$from\n";
+      }
+
+      # move the mail to my spambox
+      move($file, "/home/mark/Maildir/.spam.blacklisted/cur");
+
+    };  # ignore all errors
+  }
+
+=head2 Running The Script Forever
+
+Making this script run forever is pretty simple...we just need to
+wrap the whole code in a while loop with a sleep command so that it
+waits five seconds between runs and doesn't overload the server:
+
+  #!perl
+  # run forever
+  while (1)
+  {
+    sleep(5);
+    eval
+    {
+       ...rest of code from the script...
+    };
+  }
+
+
+Note the use of C<eval> so that if we get die from any errors then the
+whole run isn't aborted - we just wait five seconds and try again.
+Along these lines we also need to change the script to not exit if
+there are new mails and rather go back to waiting again.  Changing:
+
+  #!perl
+  # stop here unless we found any mails
+  exit unless @files;
+
+To:
+
+  #!perl
+  # stop here unless we found any mails
+  die "not this time" unless @files;
+
+causes it to skip to the end of the loop and start the next sleep.
+
+=head2 Running The Script In The Background
+
+If we run the script from the shell then this runs forever
+
+  bash$ perl blacklist.pl &
+
+Well...at least until we log out and close the shell.
+
+  #!perl
+  bash$ exit
+  [1]+  Done                    perl blacklist.pl
+  Connection to perladvent.org closed.
+  bash$ 
+
+At which point the script is killed because it's parent is killed.
+What we need to do is reparent the process to a higher process
+(normally C<init>) and free up all other resources it's using (like
+closing STDIN, STDOUT and STDERR and moving to another directory) This
+is actually quite complicated to get right.  Luckily, B<Proc::Daemon>
+does all this for us.  We simply just have to insert at the top
+of the script the code:
+
+  #!perl
+  # make this run in the background.
+  use Proc::Daemon;
+  Proc::Daemon::Init;
+
+And magically it'll all fork into the background for us.  And that's
+all there is to it!  Told you this was easy.
+
+=head2 Controlling The Forked Process
+
+It's be nice if we could control the forked process, to tell it to
+stop running when we want for example.  This is actually quite
+complicated.  Let's walk though what needs to be done.
+
+Firstly, we need to keep track of if the process is running or not,
+and what process it's running as.  To do this we use a I<PID file>, a
+file that is stored somewhere on disk that has simply the process id of
+the process that's running.  To do this we use B<Proc::PID::File>.  This
+module has one routine that we want to use:
+
+  #!perl
+  use Proc::PID::File;
+  my $pid = Proc::PID::File->running(name => "foo");
+
+The C<running> routine returns the pid contained in the file if one
+existed (i.e. another process is already running) or returns C<undef>
+if one wasn't and writes to the file with the current pid of the process
+we're currently using.  Crucially, when the current process exits it
+deletes the pid file.
+
+We can start to adapt the script like so:
+
+  #!perl
+  #!/usr/bin/perl
+
+  # turn on the safety features
+
+  use Proc::Daemon;
+  use Proc::PID::File;
+
+  # did we get a stop command?
+  if (@ARGV && $ARGV[0] eq "stop")
+  {
+    # we need to send a signal to the running process to tell it
+    # to quit
+
+    # get the pid file (in /var/run by default)
+    my $pid = Proc::PID::File->running(name => "blacklist");
+    unless ($pid)
+     { die "Not already running!" }
+
+    # and send a signal to that process
+    kill(2,$pid);  # you may need a different signal for your system
+    print "Stop signal sent!\n";
+    exit;
+  }
+
+  # fork into the background
+  # do this first because our process id will change
+  Proc::Daemon::Init;
+
+  # write the pid file, exiting if there's one there already.
+  # this pid file will automatically be deleted when this script
+  # exits.
+  if (Proc::PID::File->running(name => "blacklist"))
+   { die "Already running!" }
+
+
+The second problem that remains is that we're killing the process
+straight out without giving it a chance to do anything else.  This
+isn't a good idea - it might be in the middle of something important
+like processing a mail and removing it might cause corruption.
+What we need to do is add a signal handler which catches the kill
+signal and logs that it's been received and then when it's safe to
+exit it'll check the flag and exit then .  At the top of the file we
+add:
+
+  #!perl
+  # when we get a INT signal, set the exit flag
+  $SIG{INT} = sub { $::exit = 1 }
+
+Then in our while loop we write:
+
+  #!perl
+  while (1)
+  {
+    exit if $::exit;
+    sleep(5);
+    exit if $::exit;
+    ...
+  }

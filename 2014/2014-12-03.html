@@ -1,0 +1,145 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+Attention Seeking Behavior
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Attention Seeking Behavior</h1>
+<div class='subtitle'>HTTP::Tiny - 2014-12-03</div>
+
+<div class='pod'><p>Since perl 5.14, Perl has shipped with HTTP::Tiny and JSON:PP which allows accessing a large collection of web services without installing any additional modules trivial. I have a set of scripts that can be put on any server on the Internet with a modern Perl installed that can send me notifications.</p>
+
+<h3 id="Distractions-are....oooh-shiny">Distractions are....oooh, shiny!</h3>
+
+<p>Ever get bored waiting for a script to complete on a remote server? Happens to me all the time. Then next thing I know I realize I&#39;ve been reading the Perl Weekly for half an hour and the remote command completed twenty five minutes ago.</p>
+
+<p>Ooops.</p>
+
+<p>What I need is some way to notify me that we&#39;re done now. In my ideal world, I&#39;d have a script that I could call like this</p>
+
+<pre><code>   bash$ perl something_really_long.pl; notify &quot;done with really long task&quot;</code></pre>
+
+<p>How could I go about writing that?</p>
+
+<h3 id="Drop-me-an-email">Drop me an email</h3>
+
+<p>The simplest solution would be to send me an email, with a command that looks like:</p>
+
+<pre><code>    bash$ perl something_really_long.pl; emailnotify &quot;done with really long task&quot;</code></pre>
+
+<p>Traditionally we&#39;d do this by initializing a SMTP connection from the notifying machine itself; This is impractical these days for several reasons including modern SPAM filtering not trusting connections from random servers, and, of course, talking SMTP is non-trivial without several non-core modules from the CPAN.</p>
+
+<p>Luckily in our modern cloud like infrastructure email-as-a-service is a real thing. Several providers allow you to request an email send with nothing more than a HTTP request. One such provider is Mandrill, who currently offer a large number of free emails on their trial account.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">HTTP::Tiny</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">JSON::PP</span> <span class="words">qw(encode_json)</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$text</span> <span class="operator">=</span> <span class="word">join</span> <span class="double">&quot; &quot;</span><span class="operator">,</span> <span class="symbol">@ARGV</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$API_KEY</span> <span class="operator">=</span> <span class="single">'&lt;redacted&gt;'</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$FROM</span>    <span class="operator">=</span> <span class="single">'mark@example.com'</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$TO</span>      <span class="operator">=</span> <span class="single">'mark@example.com'</span><span class="structure">;</span><br /><br /><span class="word">HTTP::Tiny</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">()</span><span class="operator">-&gt;</span><span class="word">post</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'https://mandrillapp.com/api/1.0/messages/send.json'</span><span class="operator">,</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">content</span> <span class="operator">=&gt;</span> <span class="word">encode_json</span><span class="structure">({</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">key</span> <span class="operator">=&gt;</span> <span class="symbol">$API_KEY</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">message</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">text</span> <span class="operator">=&gt;</span> <span class="symbol">$text</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">subject</span> <span class="operator">=&gt;</span> <span class="double">&quot;Email notification&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">from_name</span> <span class="operator">=&gt;</span> <span class="double">&quot;Email notifier&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">from_email</span> <span class="operator">=&gt;</span> <span class="symbol">$FROM</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">to</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="structure">{</span> <span class="word">email</span> <span class="operator">=&gt;</span> <span class="symbol">$TO</span> <span class="structure">}</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">})</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h3 id="Cut-me-some-Slack">Cut me some Slack</h3>
+
+<p>Okay, I admit it. I never check my email in a timely fashion these days. If I dropped everything to check my email each time a new message arrived, I&#39;d spend my entire day being interrupted by the latest breaking Buffy The Vampire Slayer news from London.pm rather than getting work done.</p>
+
+<p>Anyway, all the cool kids are moving onto next generation communication systems like Slack. Often described as &quot;Modern IRC&quot;, Slack is a web chat system that can also run in desktop clients and on mobile devices. Slack has a range of notification systems built in, from using modern HTML5 browser notifications into sending push notifications to the iOS devices that pretty much never leaves my side.</p>
+
+<p>By leveraging this notification system on top of a free account I can send messages to my cell phone.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">HTTP::Tiny</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">JSON::PP</span> <span class="words">qw(encode_json)</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$text</span> <span class="operator">=</span> <span class="word">join</span> <span class="double">&quot; &quot;</span><span class="operator">,</span> <span class="symbol">@ARGV</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$SECRET_URL</span> <span class="operator">=</span> <span class="single">'https://hooks.slack.com/services/&lt;redacted&gt;'</span><span class="structure">;</span><br /><br /><span class="word">HTTP::Tiny</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">()</span><span class="operator">-&gt;</span><span class="word">post_form</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$SECRET_URL</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">payload</span> <span class="operator">=&gt;</span> <span class="word">encode_json</span><span class="structure">({</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">channel</span> <span class="operator">=&gt;</span> <span class="double">&quot;#test&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">text</span> <span class="operator">=&gt;</span> <span class="symbol">$text</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">})</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h3 id="Last-ditch:-all-going-to-POTS">Last ditch: all going to POTS</h3>
+
+<p>Sometimes I&#39;m away from my computer (shocking I know) and my cell phone is plugged in upstairs charging. What could we do to notify me in this situation? As a last ditch I guess we could call my house landline phone and hope that whoever answers it can track me down.</p>
+
+<p>Twillo offers a service where it can phone you up and use text-to-speech to read you your message. A free trial account will be able to call the number that you verified the account from (with a disclaimer played before your message is read to remind you that this is just a trial account.)</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;<br />32:&nbsp;<br />33:&nbsp;<br />34:&nbsp;<br />35:&nbsp;<br />36:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">HTTP::Tiny</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$ACCOUNT_SID</span> <span class="operator">=</span> <span class="single">'&lt;redacted&gt;'</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$API_TOKEN</span>   <span class="operator">=</span> <span class="single">'&lt;redacted&gt;'</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$FROM</span>        <span class="operator">=</span> <span class="single">'+15185551234'</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$TO</span>          <span class="operator">=</span> <span class="single">'+15185555678'</span><span class="structure">;</span><br /><br /><span class="comment"># get the message<br /></span><span class="keyword">my</span> <span class="symbol">$text</span> <span class="operator">=</span> <span class="word">join</span> <span class="double">&quot; &quot;</span><span class="operator">,</span> <span class="symbol">@ARGV</span><span class="structure">;</span><br /><br /><span class="comment"># escape it to stick it in the xml<br /></span><span class="symbol">$text</span> <span class="operator">=~</span> <span class="substitute">s/&lt;/&amp;lt;/g</span><span class="structure">;</span><br /><span class="symbol">$text</span> <span class="operator">=~</span> <span class="substitute">s/&amp;/&amp;amp;/g</span><span class="structure">;</span><br /><br /><span class="comment"># Create the Twillo XML containg what should be contained in the call<br /></span><span class="keyword">my</span> <span class="symbol">$xml</span> <span class="operator">=</span> <span class="double">&quot;&lt;Response&gt;&lt;Say&gt;$text&lt;/Say&gt;&lt;/Response&gt;&quot;</span><span class="structure">;</span><br /><br /><span class="comment"># Twillo needs a URL to fetch XML that contains what should be said in the<br /># call.  This url just will contain whatever we send in it in the Twiml<br /># parameter<br /></span><span class="symbol">$xml</span> <span class="operator">=~</span> <span class="substitute">s/([^A-Za-z0-9])/&quot;%&quot;.uc(sprintf(&quot;%2.2x&quot;,ord($1)))/eg</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$url</span> <span class="operator">=</span> <span class="double">&quot;http://twimlets.com/echo?Twiml=&quot;</span><span class="operator">.</span><span class="symbol">$xml</span><span class="structure">;</span><br /><br /><span class="comment"># make the call<br /></span><span class="word">HTTP::Tiny</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">()</span><span class="operator">-&gt;</span><span class="word">post_form</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="double">&quot;https://$ACCOUNT_SID:$API_TOKEN\@api.twilio.com/2010-04-01/Accounts/$ACCOUNT_SID/Calls.json&quot;</span><span class="operator">,</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Url</span> <span class="operator">=&gt;</span> <span class="symbol">$url</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">To</span> <span class="operator">=&gt;</span> <span class="symbol">$TO</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">From</span> <span class="operator">=&gt;</span> <span class="symbol">$FROM</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h3 id="Installing-the-utilities-on-the-remote-server">Installing the utilities on the remote server.</h3>
+
+<p>Now I have these handy notification tools, how do I ship the scripts to the boxes I want to use them on? Ideally I&#39;d use some sort of version control system like git, but not all the boxes have that installed. They all do have Perl however, so how can we leverage that to do our installation in pain free way?</p>
+
+<p>First I need to run some code locally to package up my scripts into one single installer script:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="float">5.012</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">autodie</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">@filenames</span> <span class="operator">=</span> <span class="words">qw(<br />&nbsp;&nbsp;&nbsp;&nbsp;emailnotify<br />&nbsp;&nbsp;&nbsp;&nbsp;slacknotify<br />&nbsp;&nbsp;&nbsp;&nbsp;phonenotify<br />)</span><span class="structure">;</span><br /><br /><span class="word">print</span> <span class="heredoc">&lt;&lt;'ENDOFHEADER'</span><span class="structure">;</span><br /><span class="heredoc_content">use autodie;<br />chdir($ENV{HOME});<br />mkdir(&quot;bin&quot;) unless -d &quot;bin&quot;;<br />chdir(&quot;bin&quot;);<br /></span><span class="heredoc_terminator">ENDOFHEADER<br /></span><br /><span class="keyword">foreach</span> <span class="keyword">my</span> <span class="symbol">$filename</span> <span class="structure">(</span><span class="symbol">@filenames</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="double">&quot;{&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="literal">q!open my $fh, &quot;&gt;&quot;, &quot;!</span><span class="operator">.</span><span class="symbol">$filename</span><span class="operator">.</span><span class="single">'&quot;;'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="literal">q!print $fh &lt;&lt;'ENDOFSCRIPT';!</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">open</span> <span class="word">my</span> <span class="symbol">$fh</span><span class="operator">,</span> <span class="double">&quot;&lt;&quot;</span><span class="operator">,</span> <span class="symbol">$filename</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">while</span> <span class="structure">(</span><span class="readline">&lt;$fh&gt;</span><span class="structure">)</span> <span class="structure">{</span> <span class="word">print</span> <span class="structure">}</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="double">&quot;&quot;</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="literal">q!ENDOFSCRIPT!</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="interpolate">qq!chmod(0775,&quot;$filename&quot;);!</span><span class="structure">;</span>    <br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">say</span> <span class="double">&quot;}&quot;</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>The output of this script itself is a Perl script, one that I can store on a secret gist from gist.github.com, and access again using the raw URL link from anywhere that is connected to the Internet.</p>
+
+<p>So, on any server I want to install my commands on now I can issue a simple curl command to download and immediately execute the Perl script from its secret location.</p>
+
+<pre><code>  bash$ curl https://gist.githubusercontent.com/2shortplanks/&lt;redacted&gt;/gistfile1.txt | perl</code></pre>
+
+<p>The downloaded Perl script reconstitutes the original scripts that were found on my local machine on the remote server that&#39;s executing the command.</p>
+
+<h3 id="Always-on">Always on</h3>
+
+<p>So, now computers all over the Internet can reach me day or night. If you&#39;ll excuse me, I&#39;m just off to shop online for some earplugs...</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/HTTP::Tiny">HTTP::Tiny</a></p>
+
+</li>
+<li><p><a href="JSON:PP">JSON:PP</a></p>
+
+</li>
+<li><p><a href="https://mandrillapp.com/api/docs/messages.JSON.html">https://mandrillapp.com/api/docs/messages.JSON.html</a></p>
+
+</li>
+<li><p><a href="http://slack.com/">http://slack.com/</a></p>
+
+</li>
+<li><p><a href="https://www.twilio.com/docs/api/rest/making-calls">https://www.twilio.com/docs/api/rest/making-calls</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Making a list, checking it twice..." href="2014-12-02.html">Previous</a></li>
+
+    <li class="next"><a title="PSGI, Enabling Modern Web Technology in Perl" href="2014-12-04.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

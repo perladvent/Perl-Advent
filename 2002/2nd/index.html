@@ -1,0 +1,231 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: IO::AtomicFile</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 2nd day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">IO::AtomicFile</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../1st/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../3rd/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><b>IO::AtomicFile</b> is one of those modules that has saved my skin more
+times that I care to mention.  It's a simple module that deals with the
+situation where you're overwriting an existing file, and you want to
+preserve the existing file right up until the moment you're done writing
+the new file and you're sure it's a valid replacement.</p>
+<p>To do this the module automates the process of writing to a temp
+file and then renaming that file to the destination.  This means that
+any program trying to read the existing file will get the old one
+until the new file is completely done.</p>
+<p>The other big advantage in this technique is that at any point you
+can abandon the current file you're writing and the old one is still
+intact.  Because of this <b>IO::AtomicFile</b> allows you to write defensive
+code that acts well when it encounters errors.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?IO::AtomicFile">[Read the documentation for IO::AtomicFile on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p><b>IO::AtomicFile</b> is really easy to use - you just use it 
+exactly like you'd use <b>IO::File</b>.  But to explain that, I'd
+better explain how <b>IO::File</b> works, just incase you haven't used
+it before.</p>
+<h2>A Recap of File Handling in Perl</h2>
+<p>This is a quick recap of file handling in Perl.  Feel free to skip
+to the next section if this is all familiar to you.</p>
+<p>An example program that creates a web page full of random numbers:</p>
+<pre>  # open the filehandle to index.html
+  open FH, "&gt;", "index.html"
+    or die "Can't open '.index.html': $!";</pre>
+
+<pre>  # print the web page
+  print FH webpage();</pre>
+
+<pre>  # close the filehandle.  Will happen automatically at the
+  # end of the script if we don't do it ourselves
+  close FH;</pre>
+
+<pre>  # create a page of random numbers
+  sub webpage
+  {
+    my $output = q{
+      &lt;html&gt;
+<link rel="stylesheet" href="../style.css" type="text/css" />      &lt;head&gt;&lt;title&gt;Today's Random Numbers&lt;/title&gt;&lt;/head&gt;
+      &lt;body&gt;};</pre>
+
+<pre>    # create the random numbers 
+    foreach my $count (1..100)
+    {
+     $output .= "Random number $count: " .
+                int(rand(10000)) . "&lt;br /&gt;\n";
+    }
+ 
+    $output .= "&lt;/body&gt;&lt;/html&gt;";
+    return $output;
+  }</pre>
+
+<p>Since Perl 5.6.0 we've had the ability to rewrite the above file
+operations to use a scalar.</p>
+<pre>  # open the filehandle to index.html
+  open my $fh, "&gt;", "index.html"
+    or die "Can't open 'index.html': $!";</pre>
+
+<pre>  # print the webpage
+  print {$fh} webpage();</pre>
+
+<pre>  # close the file.  If we don't do this then it will be closed
+  # automatically when $fh goes out of scope. 
+  close $fh;</pre>
+
+<p>This has the advantage that $fh is now just a normal scalar and you
+can pass it around just like any other variable and that there's a lot
+less chance of introducing some weird scoping bugs.  There's another
+possibility though - one that works on even older perls than 5.6.0:  The
+<b>IO::File</b> module.</p>
+<pre>  # open the file handle to index.html
+  my $fh = IO::File-&gt;new("index.html", "&gt;")
+	or die "Can't open 'index.html': $!"</pre>
+
+<pre>  # print the address to the file handle
+  print {$fh} webpage();</pre>
+
+<pre>  # close the file.  If we don't do this then it will be closed
+  # automatically when $fh goes out of scope. 
+  close $fh;</pre>
+
+<p>Note that the order of the arguments is different to the <code>open</code>
+command.</p>
+<h2>Using IO::AtomicFile</h2>
+<p>Now the question is, what happens if someone tries to access the
+webpage at the same time as you're updating it?  They could quite
+possibly (assuming that you're writing quite slowly) read the file
+as you're creating it and get only half a file.  This is where
+<b>IO::AtomicFile</b> comes in.  Simply by replacing the <code>IO::File</code>
+with <code>IO::AtomicFile</code> we get atomic file creation.</p>
+<pre>  # open the file handle to index.html
+  my $fh = IO::AtomicFile-&gt;new("index.html", "&gt;")
+	or die "Can't open 'index.html': $!";</pre>
+
+<pre>  # print the address to the file handle
+  print {$fh} webpage();</pre>
+
+<pre>  # close the file.  If we don't do this then it will be closed
+  # automatically when $fh goes out of scope. 
+  close $fh;</pre>
+
+<p>What actually happens is that a file <code>index.html.TMP</code> is created
+and the output is written there.  This file is then renamed to
+<code>index.html</code> - and this is an 'atomic operation' meaning that
+it happens, to all intents and purposes, instantaneously.  One instant
+the old file is there, the next instant the new one is in place.</p>
+<p>This rename happens when you close the file - both with the explicit
+close listed above and in the situation where you let $fh go out
+of scope and it's closed automatically.  In other words, you don't
+normally need to worry about it - it happens transparently.</p>
+<h2>Disaster recovery</h2>
+<p>The best thing about writing to a temporary file rather than directly
+to the 'live' file is that if at any time anything goes wrong, we
+can simply back out and give up.  This is the actual code that I
+use to create the Advent Calendar pages.</p>
+<pre>    # open an atomic file.  This creates a temp file and means that we
+    # can both abandon changes made, and that the live version will
+    # be replaced suddenly.
+    my $output_fh = IO::AtomicFile-&gt;new(catfile($dir,$file),"&gt;")
+      or die "Can't open file for writing: $!";</pre>
+
+<pre>    # try writing the template, and unless it's okay...
+    unless ($template-&gt;process(catfile(TEMPLATE_DIR,$file),{},
+	  		       $output_fh))
+    {
+      # eeek! a problem, okay, don't write that to the real file
+      # whatever we do, delete the temp file
+      $output_fh-&gt;delete;</pre>
+
+<pre>      # die
+      die "Problem with template: " . $template-&gt;error()
+    }</pre>
+
+<p>So, as you can see, we check if the <code>$template-&gt;process</code> call had
+any errors with the <code>unless</code> (it'll return <code>undef</code> if it did) and if
+it did we abandon the file we've been working on by calling the
+<code>delete</code> method on the filehandle.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://perldoc.com/perl5.8.0/pod/perlopentut.html">perlopentut</a></li>
+<li><a href="http://search.cpan.org/author/JHI/perl/ext/IO/lib/IO/File.pm">IO::File</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:51 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

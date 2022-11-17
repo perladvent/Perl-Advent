@@ -1,0 +1,101 @@
+Title: Unwrapping the Package(::Stash)
+Topic: Package::Stash
+Author: Jesse Luehrs <doy@cpan.org>
+
+A symbol table in perl (also known as a I<stash>, short for "symbol table
+hash") is the place where perl stores variables and functions associated with a
+package. C<our $Foo = "a">, C<sub foo { }>, and C<@Child::ISA = ('Parent')> are
+all examples of storing values into package variables: the first two into
+whatever the current package happens to be and the third into a different
+package ('Child' in this case).
+
+When the package whose symbol table we are manipulating is known at compile
+time, these operations are easy and straightforward. Unfortunately, this isn't
+always possible. Take modules which export functions for instance: the package
+that is requesting functions to be imported isn't known when the exporting
+package is compiled, and it's not even likely that there will be only one.
+Consider a typical C<import> function for a simple module which exports a
+few functions (ignoring for now the fact that something this simple should
+likely just use L<Exporter> instead):
+
+  #!perl
+  sub import {
+      shift;
+      my %to_export = map { $_ => 1 } @_;
+      my $caller = caller;
+      no strict 'refs';
+      *{ $caller . '::foo' } = \&foo
+          if $to_export{foo};
+      *{ $caller . '::bar' } = \&bar
+          if $to_export{bar};
+  }
+
+Symbolic references? Typeglobs¹? We I<can> rewrite this in a way that is
+L<strict>-safe:
+
+  #!perl
+  sub import {
+      shift;
+      my %to_export = map { $_ => 1 } @_;
+      my $stash = \%::;
+      for my $part (split /::/, scalar caller) {
+          $stash = \%{ *{ $stash->{$part . '::'} } };
+      }
+      *{ $stash->{foo} = do { local *ANON } } = \&foo
+          if $to_export{foo};
+      *{ $stash->{bar} = do { local *ANON } } = \&bar
+          if $to_export{bar};
+  }
+
+but... wow. Replacing symbolic references with even scarier typeglob magic
+isn't really a win; there are reasons that most people just do C<no strict
+'refs'> and get on with it (not least because bugs in the perl core prevented
+this version from working before 5.14). It only gets worse if you want to do
+other things, like set a default base class if none exists (since superclasses
+are stored in the C<@ISA> package variable).
+
+As you may have guessed from that last example, these are issues that L<Moose>
+has had to deal with a lot of, in order for its introspection capabilities to
+be able to find existing methods and superclasses. Initially, this was
+contained in L<Class::MOP::Package>, but it was eventually split into its own
+distribution called L<Package::Stash> so that people who don't use Moose can
+avoid the hairy mess that is dynamic stash manipulation.
+
+Using Package::Stash, our C<import> method can be rewritten like this:
+
+  #!perl
+  sub import {
+      shift;
+      my %to_export = map { $_ => 1 } @_;
+      my $stash = Package::Stash->new(scalar caller);
+      $stash->add_symbol('&foo' => \&foo)
+          if $to_export{foo};
+      $stash->add_symbol('&bar' => \&bar)
+          if $to_export{bar};
+  }
+
+This has the benefit of not requiring any thinking about (or even knowledge of)
+typeglobs and the storage representation of stashes², and makes these sorts
+of operations much more readable. For instance, doing something like setting a
+default version for a package can be done by C<< $stash->add_symbol('$VERSION'
+=> 0.01) unless $stash->has_symbol('$VERSION') >>, which makes it very clear
+what is going on.
+
+So next time you think of reaching for C<no strict 'refs'>, consider using
+Package::Stash instead. It's much more readable and maintainable than direct
+stash access, it's very well tested (being used by L<Moose>,
+L<namespace::clean>, and L<Class::Load>, each of which do different bits of
+crazy symbol table manipulation, and each of which are very widely used), and
+it deals with a lot of weird bugs and edge cases in different versions of the
+core that you really don't want to have to think about (trust me!).
+
+=head1 Footnotes
+
+=for :list
+1. No, I'm not going to go into typeglobs here - for the purposes of this entry, you can think of them as "magic", or look them up in C<perldoc perldata> if you're especially curious.
+2. For instance, does the output of C<< perl -e'package Foo; sub bar () { 1 }; use constant BAR => 1; use Data::Dumper; warn Dumper(\%Foo::)' >> surprise you?
+
+=head1 See Also
+
+=for :list
+* L<Package::Stash>

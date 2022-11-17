@@ -1,0 +1,147 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2011 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2011.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2011 - 
+Taming Search with Data::SearchEngine
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2011</a></h1>
+        </div>
+
+        <p id="tagline">2011 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Taming Search with Data::SearchEngine</h1>
+<div class='subtitle'>Data::SearchEngine - 2011-12-09</div>
+
+<div class='pod'><p>Sooner or later it&#39;s going to happen: Someone will request a feature of your application&#39;s search code. It might be gentle at first. A casual remark about speed, functionality or scalability will meander into your bug tracker, standup meeting or planning session. At first you will nod and file it away, knowing that it takes a few requests for something to really stick. Pretty soon a second, perhaps unrelated, request will arrive. Before you know it you&#39;ll be surrounded by reminders, almost <a href="http://en.wikipedia.org/wiki/Tribble">Tribble-like</a>, of a sobering fact:</p>
+
+<p><code>SELECT * FROM table WHERE description LIKE &quot;whatever%&quot;</code> isn&#39;t going to cut it anymore.</p>
+
+<h3 id="Investigating-Your-Options">Investigating Your Options</h3>
+
+<p>There are <b>lots</b> of ways to add search to your application. The details of which largely depend on the type of data you are searching. You are on your own for evaluating and testing search-engines. There are plenty of resources for that task.</p>
+
+<p>Instead, lets focus on what to do to minimize the impact to your application when adopting or changing search engines.</p>
+
+<h3 id="The-Problem-with-Search">The Problem with Search</h3>
+
+<p>Every search library has a different interface. Assuming you are using something similar to <a href="http://en.wikipedia.org/wiki/Model&ndash;view&ndash;controller">MVC</a>, you&#39;ll have code in each layer that deals with the implementation-specific functionality. Your controller will have to parse requests and build queries to send to the model, and the view will need to iterate over and display the results. The model will bear the brunt of the changes, but that&#39;s what models are for.</p>
+
+<p>Needing to rewrite our controller and view every time we adjust our search or &ndash; worse yet &ndash; each time we evaluate a new search product is a real pain. I bet we can fix this if we just add another layer of abstraction!</p>
+
+<h3 id="Enter-Data::SearchEngine">Enter Data::SearchEngine</h3>
+
+<p>Data::SearchEngine is a toolbox that comes with everything you need to wrap a pretty API around your search implementation. It even has two wrappers already written: one for <a href="http://lucene.apache.org/solr/">Solr</a> and one for <a href="http://www.elasticsearch.org/">ElasticSearch</a>. Before we talk about those let&#39;s take a moment to wrap up your average SQL-based search with these tools so you can see how they work.</p>
+
+<h3 id="Step-1:-Subclass">Step 1: Subclass!</h3>
+
+<p>First, you&#39;ll want to create a Data::SearchEngine::MySearch that wraps your implementation:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Data::SearchEngine::MySearch</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Moose</span><span class="structure">;</span><br /><br /><span class="word">with</span> <span class="single">'Data::SearchEngine'</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">search</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$query</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="number">1</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>We&#39;re consuming a <a href="https://metacpan.org/module/Moose::Cookbook::Roles::Recipe1">Moose roles</a> called <a href="https://metacpan.org/module/Data::SearchEngine">Data::SearchEngine</a> that requires the implementation of a method called <code>search</code>. Let&#39;s imagine that your search code just searches a databases using <code>LIKE</code>. I&#39;m sure you can imagine a bit of code that executes that query and gets back a resultset, right? Great! Let&#39;s move on to the next bit then.</p>
+
+<p><b>Note:</b> That role also requires that you implement <code>find_by_id</code>. You can just make an empty sub to satisfy it for now.</p>
+
+<h3 id="Step-2:-Getting-the-Query">Step 2: Getting the Query</h3>
+
+<p>The query is the request that the user has given us to find something. This is where the rubber really meets the road, as we need to create a query format that any search engine can use. We won&#39;t try to abstract the syntax, but we can provide a container:</p>
+
+<p><a href="https://metacpan.org/module/Data::SearchEngine::Query">Data::SearchEngine::Query</a> gives us a simple Query object:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$query</span> <span class="operator">=</span> <span class="word">Data::SearchEngine::Query</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">count</span> <span class="operator">=&gt;</span> <span class="number">10</span><span class="operator">,</span> <span class="comment"># the number of results we'd like</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">page</span>  <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span>  <span class="comment"># the page we are on</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">query</span> <span class="operator">=&gt;</span> <span class="single">'elephants'</span><span class="operator">,</span> <span class="comment"># the query we're searching for</span><br /><span class="structure">);</span><br /><br /><span class="keyword">my</span> <span class="symbol">$se</span> <span class="operator">=</span> <span class="word">Data::SearchEngine::MySearch</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$results</span> <span class="operator">=</span> <span class="symbol">$se</span><span class="operator">-&gt;</span><span class="word">search</span><span class="structure">(</span><span class="symbol">$query</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Easy, eh? Your search backend may need more information or have a more complex query format, but that&#39;s ok. Data::SearchEngine::Query has a permissive <code>query</code> attribute plus hooks for things like filters.</p>
+
+<h3 id="Step-3:-Results">Step 3: Results!</h3>
+
+<p>That last code example showed getting results back. How does that work? Let&#39;s write it! Start with our <code>MySearch</code> example earlier, but put some meat on it&#39;s bones:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;<br />25:&nbsp;<br />26:&nbsp;<br />27:&nbsp;<br />28:&nbsp;<br />29:&nbsp;<br />30:&nbsp;<br />31:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">search</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$query</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br /><span class="comment">  # ... your internal search junk, run some SQL maybe?<br /></span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$result</span> <span class="operator">=</span> <span class="word">Data::SearchEngine::Results</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">query</span> <span class="operator">=&gt;</span> <span class="symbol">$query</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">pager</span> <span class="operator">=&gt;</span> <span class="word">Data::Paginator</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">current_page</span> <span class="operator">=&gt;</span> <span class="symbol">$query</span><span class="operator">-&gt;</span><span class="word">page</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">entries_per_page</span> <span class="operator">=&gt;</span> <span class="symbol">$query</span><span class="operator">-&gt;</span><span class="word">count</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">total_entries</span> <span class="operator">=&gt;</span> <span class="comment"># results from your query!</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">)</span><br />&nbsp;&nbsp;<span class="structure">);</span><br /><br /><span class="comment">  # Iterate over your resultset here.<br /></span>  <span class="keyword">foreach</span> <span class="keyword">my</span> <span class="symbol">$hit</span> <span class="structure">(</span><span class="symbol">@hits</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$result</span><span class="operator">-&gt;</span><span class="word">add</span><span class="structure">(</span><span class="word">Data::SearchEngine::Item</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">id</span> <span class="operator">=&gt;</span> <span class="symbol">$hit</span><span class="operator">-&gt;</span><span class="word">id</span><span class="operator">,</span> <span class="comment"># The unique id for this item</span><br /><span class="comment">          # Put any data you want to use in your result listing into<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# this values hash.<br /></span>          <span class="word">values</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">name</span> <span class="operator">=&gt;</span> <span class="symbol">$hit</span><span class="operator">-&gt;</span><span class="word">name</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">description</span> <span class="operator">=&gt;</span> <span class="symbol">$hit</span><span class="operator">-&gt;</span><span class="word">description</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">score</span> <span class="operator">=&gt;</span> <span class="symbol">$hit</span><span class="operator">-&gt;</span><span class="word">score</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">));</span><br />&nbsp;&nbsp;<span class="structure">}</span><br /><br /><span class="comment">  # Return the result<br /></span>  <span class="keyword">return</span> <span class="symbol">$result</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>That bit of code is pretty simple. We run our query and then store each row that is returned for that page in a <a href="https://metacpan.org/module/Data::SearchEngine::Results">Data::SearchEngine::Results</a> object. Now that we have our results we can show them to the user.</p>
+
+<p><b>Note:</b> Data::SearchEngine uses a special paginator class called <a href="https://metacpan.org/module/Data::Paginator">Data::Paginator</a> that has many of the features of <a href="https://metacpan.org/module/Data::Page">Data::Page</a> and <a href="https://metacpan.org/module/Data::Pageset">Data::Pageset</a>. Since all of Data::SearchEngine is serializable there needed to be an easily serializable, Moose-based pagination module. Hence Data::Paginator!</p>
+
+<h3 id="Step-4:-Show-Our-Answers">Step 4: Show Our Answers</h3>
+
+<p>The aforementioned Results object has an attribute <code>items</code>. This is an array of <a href="https://metacpan.org/module/Data::SearchEngine::Item">Data::SearchEngine::Item</a> objects. Displaying our results is as simple as iterating over this array. We&#39;ll write this in Perl, but it&#39;s easy to translate into your favorite templating module.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">foreach</span> <span class="keyword">my</span> <span class="symbol">$item</span> <span class="structure">(</span><span class="cast">@</span><span class="structure">{</span> <span class="symbol">$result</span><span class="operator">-&gt;</span><span class="word">items</span> <span class="structure">})</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">print</span> <span class="symbol">$item</span><span class="operator">-&gt;</span><span class="word">id</span><span class="operator">.</span><span class="single">' '</span><span class="operator">.</span><span class="symbol">$item</span><span class="operator">-&gt;</span><span class="word">get_value</span><span class="structure">(</span><span class="single">'name'</span><span class="structure">)</span><span class="operator">.</span><span class="double">&quot;\n&quot;</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>That&#39;s it! You&#39;ll use <code>get_value</code> to retrieve any fields other than <code>id</code> from the item.</p>
+
+<h3 id="Done-So-Now-What">Done, So Now What?</h3>
+
+<p>You&#39;ve now successfully wrapped your internal search code with a powerful abstraction. You could now easily experiment with <a href="https://metacpan.org/module/Data::SearchEngine::ElasticSearch">ElasticSearch</a> or <a href="https://metacpan.org/module/Data::SearchEngine::Solr">Solr</a>, the two search products for which there are existing Data::SearchEngine backends. Or you could take what you&#39;ve just learned and create a new backend for a different search product.</p>
+
+<h3 id="Some-Other-Noteworthy-Features">Some Other Noteworthy Features</h3>
+
+<p>The Query object has lots of convenience methods for filtering (limiting your results via a filter such as &quot;price &gt; 20&quot;) and faceting (counting the number of items with different attributes so you can filter them). It will also generate a unique digest based on it&#39;s attributes so that you can cache results.</p>
+
+<p>The Results object can be subclassed if your implementation needs some new features. There are existing roles for <a href="https://metacpan.org/module/Data::SearchEngine::Results::Faceted">Faceting</a> and <a href="https://metacpan.org/module/Data::SearchEngine::Results::Spellcheck">Spellchecking</a>. Just have your <code>search</code> method return the subclass.</p>
+
+<p>Results, Query and Item objects are all serializable using <a href="https://metacpan.org/module/MooseX::Storage">MooseX::Storage</a> via <a href="https://metacpan.org/module/MooseX::Storage::Deferred">Deferred</a>. This is provided to make caching easy.</p>
+
+<p>Finally, keep in mind that Query is just a guide. Your implementation may require much more complex syntax and Data::SearchEngine tries to stay out of the way. For example the ElasticSearch query DSL uses hashrefs, not strings:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># A real example using ElasticSearch<br /></span><span class="keyword">my</span> <span class="symbol">$query</span> <span class="operator">=</span> <span class="word">Data::SearchEngine::Query</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">count</span> <span class="operator">=&gt;</span> <span class="number">20</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">page</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">type</span> <span class="operator">=&gt;</span> <span class="single">'query_string'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">query</span> <span class="operator">=&gt;</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'query'</span> <span class="operator">=&gt;</span> <span class="single">'foobar'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">order</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="single">'date_crated'</span> <span class="operator">=&gt;</span> <span class="single">'desc'</span> <span class="structure">}</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h3 id="Conclusion">Conclusion</h3>
+
+<p>You might not change search backends every week, but taking a bit of time to wrap your custom implementation in something featureful can save you a lot of trouble down the road. It also provides you with some great features as a result!</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Data::SearchEngine">Data::SearchEngine</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/6d3d1174791275b713d13840bd5eeb0f?r=g&s=80&d=retro />
+This article contributed by: Cory G Watson &lt;gphat@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="All the perls are all lined up" href="2011-12-08.html">Previous</a></li>
+
+    <li class="next"><a title="A Big List of Stuff You Want" href="2011-12-10.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

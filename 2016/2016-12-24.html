@@ -1,0 +1,231 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2016 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2016.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2016 - 
+The Grinch&#39;s Well-Tested Second Attempt
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2016</a></h1>
+        </div>
+
+        <p id="tagline">2016 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>The Grinch&#39;s Well-Tested Second Attempt</h1>
+<div class='subtitle'>Test2 Tooling - 2016-12-24</div>
+
+<div class='pod'><p>The Grinch&#39;s earlier attempt to steal Christmas failed. This was documented by Dr. Seuss (PhD, Rhymeology) many years ago. However, Seuss&#39;s account, while correct insofar as it went, does not tell the full story. While The Grinch&#39;s heart did grow three sizes, the effect was temporary. It has now returned to its prior (two sizes too small) size, and The Grinch is determined to steal Christmas properly this time.</p>
+
+<p>This time, however, The Grinch is much better armed. The Grinch is going to steal Christmas using modern tools, and he&#39;s hired me to help him!</p>
+
+<h3 id="l33t-hax0r-7oolz">l33t hax0r 7oolz</h3>
+
+<p>With so much commerce taking place online these days, it&#39;s natural to focus on stealing Christmas by hacking. Why steal all the presents by hand when he can simply divert the shipments to him directly? It&#39;s simpler and more elegant.</p>
+
+<p>So The Grinch and I have been working on a suite of cybercrime tools. The target is the online mega-retailer Nile.com. We&#39;re following good OO design principles, and we&#39;ve broken up these tools up into well-defined components. Each component is a stage in the hacking process, with the ultimate goal being to divert all orders for children&#39;s presents to The Grinch.</p>
+
+<p>We&#39;ll take a look at the <code>Grinch::Netfiltrator</code> class, which implements the logic necessary to break into the Nile.com internal network, where additional tools can then be deployed.</p>
+
+<h3 id="Testing-with-Test2::Suite">Testing with Test2::Suite</h3>
+
+<p>We want to make sure this all works. After all, you only get one chance each year to steal Christmas. That means writing tests for all of our code. We&#39;re using <a href="https://metacpan.org/module/Test2::Suite">Test2::Suite</a>, which provides a rich set of tools for testing data structures, objects, and more. Even better, it provides really nice output when a test fails.</p>
+
+<h4 id="Bundles">Bundles</h4>
+
+<p>The <a href="https://metacpan.org/module/Test2::Suite">Test2::Suite</a> distribution ships with several bundle modules. Each bundle exports a set of testing subroutines. The <a href="https://metacpan.org/module/Test2::Bundle::More">Test2::Bundle::More</a> module exports subroutines that are almost a drop-in replacement for <a href="https://metacpan.org/module/Test::More">Test::More</a>, including <code>ok</code>, <code>is</code>, <code>like</code>, <code>diag</code>, etc. The <a href="https://metacpan.org/module/Test2::Bundle::Extended">Test2::Bundle::Extended</a> module exports even more functions, as well as loading some useful plugins. You get all the familiar subroutines like <code>ok</code> and <code>is</code>, plus many more.</p>
+
+<p>However, under the hood, familiar subs like <code>is</code> and <code>like</code> are much more powerful. These work a lot more like <code>cmp_deeply</code> from <a href="https://metacpan.org/module/Test::Deep">Test::Deep</a>. The Extended bundle also gives you a lot of special comparison tools, similar to what <a href="https://metacpan.org/module/Test::Deep">Test::Deep</a> provides. The biggest difference is that with this bundle most of the comparisons are defined using a DSL rather than complex data structures.</p>
+
+<h4 id="Writing-Some-Tests">Writing Some Tests</h4>
+
+<p>Let&#39;s get back to our hacking tools. We&#39;ll start with some tests for <code>Grinch::Netfiltrator</code>. It has a method named <code>find_nile_servers</code> that scans the entire Internet to find servers owned by Nile. Let&#39;s not worry about how it does that, we&#39;ll just look at the tests for the method&#39;s return value.</p>
+
+<p>Our first version of this method returned an array reference of hash references. With some mocking in place, the test code looked like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Test2::Bundle::Extended</span><span class="structure">;</span><br /><br /><span class="comment"># Mocking goes here ...<br /></span><br /><span class="keyword">my</span> <span class="symbol">$servers</span> <span class="operator">=</span> <span class="word">Grinch::Netfiltrator</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">-&gt;</span><span class="word">find_nile_servers</span><span class="structure">;</span><br /><span class="word">is</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$servers</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">array</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">item</span> <span class="word">hash</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">field</span> <span class="word">hostname</span> <span class="operator">=&gt;</span> <span class="single">'www.nile.com'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">field</span> <span class="word">ip</span>       <span class="operator">=&gt;</span> <span class="single">'1.2.3.4'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">field</span> <span class="word">ssh_port</span> <span class="operator">=&gt;</span> <span class="number">443</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">item</span> <span class="word">hash</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">field</span> <span class="word">hostname</span> <span class="operator">=&gt;</span> <span class="single">'www2.nile.com'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">field</span> <span class="word">ip</span>       <span class="operator">=&gt;</span> <span class="single">'1.2.3.5'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">field</span> <span class="word">ssh_port</span> <span class="operator">=&gt;</span> <span class="number">447</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'got the expected servers back'</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The subroutines <code>array</code>, <code>item</code>, <code>hash</code>, and <code>field</code> are all exported from <a href="https://metacpan.org/module/Test2::Bundle::Extended">Test2::Bundle::Extended</a>. We put these all together to declaratively define what we expect a complex data structure to look like.</p>
+
+<p>The <code>array</code> sub takes a code reference which provides further details of the expected array. Inside that sub, a call to <code>item</code> takes an optional index and a value check. If we don&#39;t provide an index, it just uses the next index (starting at 0).</p>
+
+<p>The value check can be many things. If we give it a plain scalar (including <code>undef</code>), we&#39;re asking it to check for that literal value. So if we wrote <code>item 42</code> we&#39;d be saying that the next item in the arrayref should be the value <code>42</code>.</p>
+
+<p>We can also give it a check defined by further calls to subroutines provided by <code>Test2::Bundle::Extended</code>. We could write <code>item T()</code>. The <code>T</code> subroutine matches any Perlishly true value. Or we could write <code>item F()</code>, where <code>F</code> matches any Perlishly false value.</p>
+
+<p>In our case, we&#39;re using <code>hash</code> to define the hash we expect to see. Just like with <code>array</code>, the <code>hash</code> sub takes a coderef that defines the hash contents. We use <code>field</code> to name each of the fields we expect to see, along with their values. The values are just like those passed to <code>item</code>. They can be literals, checks exported by the bundle, or even complex validators that you define on the fly.</p>
+
+<p>So what happens if a check fails? The <a href="https://metacpan.org/module/Test2::Suite">Test2::Suite</a> tools give us very detailed information on the failure:</p>
+
+<pre><code>    # Failed test &#39;got the expected servers back&#39;
+    # at t/netfiltrator.t line 46.
+    # +---------+------------------+----+---------+--------+
+    # | PATH    | GOT              | OP | CHECK   | LNs    |
+    # +---------+------------------+----+---------+--------+
+    # |         | ARRAY(0x1502660) |    | &lt;ARRAY&gt; | 38, 45 |
+    # | [1]     | HASH(0x18c12b0)  |    | &lt;HASH&gt;  | 44     |
+    # | [1]{ip} | 1.2.3.5          | eq | 1.2.3.6 | 42     |
+    # +---------+------------------+----+---------+--------+</code></pre>
+
+<p>We can see that the diagnostics show the exact path to the failure, including the checks that succeeded before the failure, the failed check, and the lines where all of these things were defined. This makes debugging test failures <i>much</i> easier!</p>
+
+<p>In this particular case we can see that the <code>$servers-&gt;[1]{ip}</code> contains the value &quot;1.2.3.5&quot; when we expected &quot;1.2.3.6&quot;. The failing check was defined at line 42 in our test file.</p>
+
+<p>But there&#39;s something missing here. What if one of the hashes has other, unexpected keys? And what if the arrayref being returned has more than the two elements we&#39;re testing? Right now we won&#39;t catch that at all. That&#39;s no good. In fact, <a href="https://metacpan.org/module/Test2::Suite">Test2::Suite</a> will warn you about this and suggest some ways to fix it.</p>
+
+<p>In our case we want to fix this by adding calls to <code>end</code> in the appropriate spots:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">is</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$servers</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">array</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">item</span> <span class="word">hash</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">field</span> <span class="word">hostname</span> <span class="operator">=&gt;</span> <span class="single">'www.nile.com'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">field</span> <span class="word">ip</span>       <span class="operator">=&gt;</span> <span class="single">'1.2.3.4'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">field</span> <span class="word">ssh_port</span> <span class="operator">=&gt;</span> <span class="number">443</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">end</span><span class="structure">();</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">item</span> <span class="word">hash</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">field</span> <span class="word">hostname</span> <span class="operator">=&gt;</span> <span class="single">'www2.nile.com'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">field</span> <span class="word">ip</span>       <span class="operator">=&gt;</span> <span class="single">'1.2.3.5'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">field</span> <span class="word">ssh_port</span> <span class="operator">=&gt;</span> <span class="number">447</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">end</span><span class="structure">();</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">end</span><span class="structure">();</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'got the expected servers back'</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>The <code>end</code> subroutine can be used inside the <code>array</code> and <code>hash</code> subs to say that we only expect the defined fields or items, not more. And if that fails we get this:</p>
+
+<pre><code>    # Failed test &#39;got the expected servers back&#39;
+    # at t/netfiltrator.t line 67.
+    # +---------------+------------------+---------+------------------+--------+
+    # | PATH          | GOT              | OP      | CHECK            | LNs    |
+    # +---------------+------------------+---------+------------------+--------+
+    # |               | ARRAY(0x17b3670) |         | &lt;ARRAY&gt;          | 57, 66 |
+    # | [1]           | HASH(0x1b722a0)  |         | &lt;HASH&gt;           | 64     |
+    # | [1]{username} | admin            | !exists | &lt;DOES NOT EXIST&gt; |        |
+    # +---------------+------------------+---------+------------------+--------+</code></pre>
+
+<p>So we can see that the <code>$servers-&gt;[1]</code> hashref contains a <code>username</code> key that we did not expect.</p>
+
+<h4 id="I-Object-Mr.-Grinch">I Object, Mr. Grinch</h4>
+
+<p>I wasn&#39;t really happy with the way this class returns raw data structures. It was obvious that these data structures would be better off as objects. That way we could hack each server simply by writing <code>$server-&gt;hack</code>. Simple and elegant! I talked to The Grinch and he agreed. Once I&#39;d implemented that change I needed to update the tests as well. Fortunately, <a href="https://metacpan.org/module/Test2::Suite">Test2::Suite</a> has tools for testing objects as well. Here&#39;s what our test looks like now:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">is</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$servers</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">array</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">item</span> <span class="word">object</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">prop</span> <span class="word">blessed</span>  <span class="operator">=&gt;</span> <span class="single">'Grinch::Server'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">call</span> <span class="word">hostname</span> <span class="operator">=&gt;</span> <span class="single">'www.nile.com'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">call</span> <span class="word">ip</span>       <span class="operator">=&gt;</span> <span class="single">'1.2.3.4'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">call</span> <span class="word">ssh_port</span> <span class="operator">=&gt;</span> <span class="number">443</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">item</span> <span class="word">object</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">prop</span> <span class="word">blessed</span>  <span class="operator">=&gt;</span> <span class="single">'Grinch::Server'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">call</span> <span class="word">hostname</span> <span class="operator">=&gt;</span> <span class="single">'www2.nile.com'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">call</span> <span class="word">ip</span>       <span class="operator">=&gt;</span> <span class="single">'1.2.3.5'</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">call</span> <span class="word">ssh_port</span> <span class="operator">=&gt;</span> <span class="number">446</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">};</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">end</span><span class="structure">();</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'got the expected servers back'</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>We&#39;ve replaced our use of <code>hash</code> with <code>object</code>. Inside the sub we pass to <code>object</code>, we can call a number of other subs, including <code>prop</code> and <code>call</code>. The <code>prop</code> sub is used to check meta-information about the object. We&#39;re checking what class it&#39;s blessed into here. The <code>call</code> sub calls the named method and looks for the named result.</p>
+
+<p>And here&#39;s another example of what the failure diagnostics look like:</p>
+
+<pre><code>    # Failed test &#39;got the expected servers back&#39;
+    # at t/netfiltrator.t line 108.
+    # +---------------+--------------------------------+----+------------------------+---------+
+    # | PATH          | GOT                            | OP | CHECK                  | LNs     |
+    # +---------------+--------------------------------+----+------------------------+---------+
+    # |               | ARRAY(0xf49560)                |    | &lt;ARRAY&gt;                | 98, 107 |
+    # | [1]           | Grinch::Server=HASH(0x1481708) |    | &lt;OBJECT&gt;               | 105     |
+    # | [1] &lt;blessed&gt; | Grinch::Server                 | eq | Grinch::Server::Hacked | 101     |
+    # +---------------+--------------------------------+----+------------------------+---------+</code></pre>
+
+<p>This tells us that our second object was expected to be a <code>Grinch::Server::Hacked</code> object but is instead just a <code>Grinch::Server</code>.</p>
+
+<h4 id="Shorthand-for-Common-Cases">Shorthand for Common Cases</h4>
+
+<p>For simple cases involving array and hash reference values, you don&#39;t need to write everything out using <code>array</code> and <code>hash</code>. Let&#39;s assume that our <code>ssh_port</code> method from above returns an arrayref. We can check that like:</p>
+
+<pre><code>    call ssh_port =&gt; [ 443, 444 ];</code></pre>
+
+<p>Rather than writing this out with <code>array</code>, we can just use a literal array reference that contains the expected value. You can do the same thing with a hash ref. If the check fails, we get output that looks like this:</p>
+
+<pre><code>    # Failed test &#39;got the expected servers back&#39;
+    # at t/netfiltrator.t line 144.
+    # +----------------------+--------------------------------+----+------------------------+----------+
+    # | PATH                 | GOT                            | OP | CHECK                  | LNs      |
+    # +----------------------+--------------------------------+----+------------------------+----------+
+    # |                      | ARRAY(0x1385598)               |    | &lt;ARRAY&gt;                | 134, 143 |
+    # | [1]                  | Grinch::Server=HASH(0x1743e18) |    | &lt;OBJECT&gt;               | 141      |
+    # | [1] &lt;blessed&gt;        | Grinch::Server                 | eq | Grinch::Server::Hacked | 137      |
+    # | [1]-&gt;ssh_port()-&gt;[4] | &lt;DOES NOT EXIST&gt;               |    | 447                    |          |
+    # +----------------------+--------------------------------+----+------------------------+----------+</code></pre>
+
+<p>If our method returns a list rather than an arrayref, that&#39;s easy to handle as well:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">call_list</span> <span class="word">ssh_ports</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="number">443</span><span class="operator">,</span> <span class="number">444</span> <span class="structure">];</span></code><br />&nbsp;</td></table>
+
+<p>The <code>call_list</code> sub calls the method in list context, turns the return value into an arrayref, and compares it to the right hand side value. There is a hash version as well called <code>call_hash</code>.</p>
+
+<h4 id="Regex-Checks">Regex Checks</h4>
+
+<p>Maybe we don&#39;t want to check for a specific hostname. Instead, let&#39;s just check that this is any valid hostname. There is, of course, a module to do that, but for the sake of example we&#39;ll whip up a quick regex:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">call</span> <span class="word">hostname</span> <span class="operator">=&gt;</span> <span class="word">matches</span> <span class="regexp">qr/\A\w+(?:\.\w+)+\z/</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>If the regex check fails we get output that looks like this:</p>
+
+<pre><code>    # Failed test &#39;got the expected servers back&#39;
+    # at t/netfiltrator.t line 184.
+    # +-----------------+--------------------------------+----+------------------------+----------+
+    # | PATH            | GOT                            | OP | CHECK                  | LNs      |
+    # +-----------------+--------------------------------+----+------------------------+----------+
+    # |                 | ARRAY(0x11f7598)               |    | &lt;ARRAY&gt;                | 174, 183 |
+    # | [1]             | Grinch::Server=HASH(0x16fe418) |    | &lt;OBJECT&gt;               | 181      |
+    # | [1]-&gt;hostname() | www2.nile.com!@$!@             | =~ | (?^:\A\w+(?:\.\w+)+\z) | 178      |
+    # +-----------------+--------------------------------+----+------------------------+----------+</code></pre>
+
+<h4 id="Arbitrary-Checks">Arbitrary Checks</h4>
+
+<p>That regex is terrible. Let&#39;s use <a href="https://metacpan.org/module/Data::Validate::Domain">Data::Validate::Domain</a> instead. We can wrap its <code>is_hostname</code> sub to provide much better hostname checking:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Data::Validate::Domain</span> <span class="words">qw( is_hostname )</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$hostname_check</span> <span class="operator">=</span> <span class="word">validator</span><span class="structure">(</span> <span class="word">is_hostname</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span> <span class="word">is_hostname</span><span class="structure">(</span><span class="magic">$_</span><span class="structure">)</span> <span class="structure">}</span> <span class="structure">);</span><br /><br /><span class="operator">...</span><br /><span class="word">call</span> <span class="word">hostname</span> <span class="operator">=&gt;</span> <span class="symbol">$hostname_check</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>The <code>validator</code> sub call can take a number of forms. In this case we&#39;ve given it a name (used in diagnostic output) and a subroutine that implements the check, returning true or false based on the value in <code>$_</code>.</p>
+
+<p>If that validator fails we get output that looks like this:</p>
+
+<pre><code>    # Failed test &#39;got the expected servers back&#39;
+    # at t/netfiltrator.t line 207.
+    # +-----------------+--------------------------------+-----------+-------------+----------+
+    # | PATH            | GOT                            | OP        | CHECK       | LNs      |
+    # +-----------------+--------------------------------+-----------+-------------+----------+
+    # |                 | ARRAY(0x2a8c670)               |           | &lt;ARRAY&gt;     | 197, 206 |
+    # | [1]             | Grinch::Server=HASH(0x2f82638) |           | &lt;OBJECT&gt;    | 204      |
+    # | [1]-&gt;hostname() | www2.nile.com!@$!@             | CODE(...) | is_hostname | 188      |
+    # +-----------------+--------------------------------+-----------+-------------+----------+</code></pre>
+
+<h3 id="More-Tools">More Tools</h3>
+
+<p>This is just a small sample of the test comparisons supported by <a href="https://metacpan.org/module/Test2::Suite">Test2::Suite</a>. This distribution has a variety of helpers for checking definedness, whether elements of arrays and hashes exist or not, and much, much more. And you can extend it simply by writing your own class which inherits from <a href="https://metacpan.org/module/Test2::Compare::Base">Test2::Compare::Base</a>.</p>
+
+<p>My experience when using <a href="https://metacpan.org/module/Test2::Suite">Test2::Suite</a> to test The Grinch&#39;s hacking tools has been great. The expressive declarative testing syntax, combined with the excellent output on failures, has helped me find and fix dozens of bugs. I think that The Grinch is going to steal Christmas in a big way this year!</p>
+
+<h3 id="References">References</h3>
+
+<p>To see the actual test code, go to <a href="https://github.com/autarch/perl-advent-calendar-2016-test2">https://github.com/autarch/perl-advent-calendar-2016-test2</a>. You can fiddle with the mocked values to produce different kinds of failure output if you&#39;re curious.</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/ac0051ccbf2115f581f5da62fb56c219?r=g&s=80&d=retro />
+This article contributed by: Dave Rolsky &lt;autarch@urth.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="speeding up the inter-web" href="2016-12-23.html">Previous</a></li>
+
+    <li class="next"><a title="Here Comes Santa Claus" href="2016-12-25.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

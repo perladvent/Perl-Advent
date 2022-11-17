@@ -1,0 +1,100 @@
+Title: Spot The Difference
+Topic: App::ccdiff
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+"Sometimes", Binky the Elf thought to himself, "you end up making life
+difficult for yourself".
+
+Sure, implementing the new low-bandwidth communications protocol to Santa's
+sleigh had been Binky's best idea yet, but, of course, someone had to support
+the system when it went wrong.  And that someone?  The Elf whose bright idea
+it was in the first place.
+
+The problem that Binky's team was solving was that Santa's crew had needed to
+constantly update the status of
+present delivery back to the North Pole, but the sleigh kept entering
+communication dead zones where they couldn't make use of the HTTP endpoints
+they'd originally setup.  Binky has addressed this problem by encoding each present delivery
+status as a single character, and sending a constant stream of present updates
+back to home base.  Rather than two hundred HTTP calls, the stream
+just sent back the following highly compact data:
+
+    tweiadzjxiwxbbqrhlrrjcprgmctbtusbvwkvxwu
+    afnysopgavusxkcejwbsbxajoncdkiiwzbkhjzem
+    ijcqrbnkiynhpvnyazgejwbtzkcnagtnjcqxvrwm
+    qcxdvczunrrkcusgmzhsglznliheqivqhkhavvas
+    urwybcffdnqkqwnqdblzmgppolxhbkkhktjqqozp
+
+Highly compact data, however, that Binky was finding out to be really hard to debug.  On one of
+the sleigh's many dry runs it had returned the wrong data I<somewhere> in the
+stream of less-than-readable letters, and Binky had to track each of them down.
+
+Binky stared in his terminal at the files C<a.txt> and C<b.txt> that
+represented the expected and actual output for the first of the several hundred
+delivery sites with corrupt data.
+
+Finding the line with the different character was simple - that's what C<diff>
+is for:
+
+    shell$ diff -u a.txt b.txt
+    --- a.txt	2018-12-05 05:59:11.000000000 -0500
+    +++ b.txt	2018-12-05 05:59:26.000000000 -0500
+    @@ -1,5 +1,5 @@
+     tweiadzjxiwxbbqrhlrrjcprgmctbtusbvwkvxwu
+     afnysopgavusxkcejwbsbxajoncdkiiwzbkhjzem
+    -ijcqrbnkiynhpvnyazgejwbtzkcnagtnjcqxvrwm
+    +ijcqrbnkiynhpvnyazgejwdtzkcnagtnjcqxvrwm
+     qcxdvczunrrkcusgmzhsglznliheqivqhkhavvas
+     urwybcffdnqkqwnqdblzmgppolxhbkkhktjqqozp
+
+But finding the actual differing character on that line that...that was much harder.
+
+Binky tried
+moving character by character with his finger on the screen comparing each line with the one above it, but by the
+time he got half way through his had eyes glazed over.  And there wasn't just one of these files...there were hundreds to go! Either he was going to have to prop his eyes open with candy canes or he
+was going to have to be smarter.
+
+It was time for Binky to use one of the virtues of a Perl programmer: Laziness!
+Time to search the CPAN for a solution.
+
+=head2 App::ccdiff
+
+One of the humans, H.Merijn Brand, had had a similar problem when debugging
+terminal capabilities files (which also tend to be somewhat unreadable).  In the
+end he'd written a diff utility C<ccdiff> that could not only identify what
+I<line> had changed in the file, but could also indicate what I<characters> had
+changed on the line.
+
+=for html
+  <center><img src="ccdiff1.jpg" width="528" height="360" alt="ccdiff screenshot"></center>
+
+Binky was over the moon.  With this tool he'd be able to spot the changes right
+away.
+
+C<ccdiff> is quite configurable and has some handy extra features.  You can
+configure the color scheme for the various different characters.  Very handy
+if you're even slightly red-green colorblind (like the author of this article.)
+
+=for html
+  <center><img src="ccdiff2.jpg" width="528" height="360" alt="ccdiff screenshot"></center>
+
+C<ccdiff> even has settings suitable for generating output that's easy to
+copy and paste into an email, bug tracker, or other tool that'll lose the
+color information
+
+    shell$ ccdiff --ascii --no-color -m -u a.txt b.txt
+    --- a.txt	Wed Dec  5 05:59:11 2018
+    +++ b.txt	Wed Dec  5 05:59:26 2018
+    3,3c3,3
+     tweiadzjxiwxbbqrhlrrjcprgmctbtusbvwkvxwu
+     afnysopgavusxkcejwbsbxajoncdkiiwzbkhjzem
+    -ijcqrbnkiynhpvnyazgejwbtzkcnagtnjcqxvrwm
+    -                      ^
+    +ijcqrbnkiynhpvnyazgejwdtzkcnagtnjcqxvrwm
+    +                      ^
+     qcxdvczunrrkcusgmzhsglznliheqivqhkhavvas
+     urwybcffdnqkqwnqdblzmgppolxhbkkhktjqqozp
+
+Awesome!  Now Binky was able to open a github issue with the problem identified.
+Unfortunatly, some poor elf had to actually I<fix> that bug, and it looked
+like it might be another long night for Binky...

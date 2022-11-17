@@ -1,0 +1,180 @@
+<html>
+<head>
+<title>YA Perl Advent Calendar 2005: A penny saved is a penny earned</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body>
+<h1><a href="../">YA Perl Advent Calendar</a> 2005-12-13</h1>
+Have you ever found yourself writing
+<pre>
+     <span class="q">s/(wibble)wobble/$1wubble/g</span><span class="sc">;</span>
+</pre>
+and felt it was somehow wrong, and ineffecient? If you dug a little deeper
+you probably would have learned about positive look-behind in <tt>perlre</tt>.
+Today's module,
+<a href="http://search.cpan.org/search?module=Regexp::Keep">Regexp::Keep</a>,
+gives us another way to do that.
+<pre>
+     <span class="q">s/wibble\Kwobble/wubble/g</span><span class="sc">;</span>
+</pre>
+Wahoo, right? Okay, so consider this: while the documentation doesn't exactly
+speak to the point, the author was actually giving you a means to implement
+variable width look-behinds. That's right, if you've ever tried using
+look-behinds you've likely been bitten by the fact that in order to implement
+them the perl regexp engine limits you to a fixed width. Now, the module isn't
+exactly speedy when you could be getting away with using a (fixed width)
+look-behind
+<pre>
+Keep:
+           Rate   keep behind
+keep   171277/s     --   -41%
+behind 288725/s    69%     --
+</pre>
+
+Nevertheless, it <em>is</em> faster than save-and-replace-with-self
+
+<pre>
+Star:
+            Rate perlOUT  perlIN keepOUT  keepIN
+perlOUT 105519/s      --     -4%    -22%    -25%
+perlIN  109523/s      4%      --    -19%    -22%
+keepOUT 134998/s     28%     23%      --     -4%
+keepIN  140203/s     33%     28%      4%      --
+
+Plus:
+            Rate perlOUT  perlIN keepOUT  keepIN
+perlOUT 110951/s      --     -4%    -17%    -21%
+perlIN  116117/s      5%      --    -13%    -17%
+keepOUT 132882/s     20%     14%      --     -5%
+keepIN  139665/s     26%     20%      5%      --
+
+Nmbr:
+            Rate perlOUT  perlIN keepOUT  keepIN
+perlOUT 107875/s      --     -4%    -30%    -34%
+perlIN  112177/s      4%      --    -27%    -32%
+keepOUT 153858/s     43%     37%      --     -6%
+keepIN  164029/s     52%     46%      7%      --
+</pre>
+
+This is all achieved with some seriously strange voodoo: overloading the <tt>qr</tt>
+operator, the experimental <tt>(?{ })</tt> assertion and a little XS to tweak
+the guts of perl. But it works. By the way, there's obviously more you could
+learn about about regular expression construction and performance from those
+benchmarks but I'll leave that as an exercise for the reader. Or maybe you want
+to consider using a
+<a href="http://perlmonks.org/index.pl?node=sexeger">sexeger</a> instead;
+also from the same author.
+ <p />
+Here's the code for the benchmarks, I ran it on a Sun Fire V440 with perl 5.8.4
+<p />
+<b>ADDENDUM</b>: You can in fact have multiple \K. No, \K and /g together don't work, read the POD and then think about it.
+
+<h1><a href="mod13.pl">mod13.pl</a></h1>
+<hr />
+<pre>
+   1 <span class="k">use</span> <span class="w">Benchmark</span> <span class="q">'cmpthese'</span><span class="sc">;</span>
+   2 <span class="k">use</span> <span class="w">Regexp::Keep</span><span class="sc">;</span>
+   3 
+   4 <span class="c">#Pull out the regular expression compilation to test for overloading penalty</span>
+   5 <span class="k">my</span> <span class="i">$pstar</span> = <span class="q">qr/(.*)\..*/</span><span class="sc">;</span>
+   6 <span class="k">my</span> <span class="i">$kstar</span> = <span class="q">qr/.*\K\..*/</span><span class="sc">;</span>
+   7 <span class="k">my</span> <span class="i">$pplus</span> = <span class="q">qr/(.+)\..*/</span><span class="sc">;</span>
+   8 <span class="k">my</span> <span class="i">$kplus</span> = <span class="q">qr/.+\K\..*/</span><span class="sc">;</span>
+   9 <span class="k">my</span> <span class="i">$pnmbr</span> = <span class="q">qr/(\w{3})\..*/</span><span class="sc">;</span>
+  10 <span class="k">my</span> <span class="i">$knmbr</span> = <span class="q">qr/\w{3}\K\..*/</span><span class="sc">;</span>
+  11 
+  12 <span class="k">print</span> <span class="q">&quot;Keep:\n&quot;</span><span class="sc">;</span>
+  13 <span class="i">cmpthese</span><span class="s">(</span><span class="n">2_000_000</span><span class="cm">,</span>
+  14 	 <span class="s">{</span>
+  15 	  <span class="w">behind</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  16 	    <span class="c"># slow and inefficient</span>
+  17 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  18 	    <span class="i">$r</span> =~ <span class="q">s/(?&lt;=.{3})\..*//</span><span class="sc">;</span>
+  19 	  <span class="s">}</span><span class="cm">,</span>
+  20 	  <span class="w">keep</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  21 	    <span class="c"># fast and efficient</span>
+  22 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  23 	    <span class="i">$r</span> =~ <span class="q">s/.{3}\K\..*//</span><span class="sc">;</span>
+  24 	  <span class="s">}</span>
+  25          <span class="s">}</span>
+  26 	<span class="s">)</span><span class="sc">;</span>
+  27 
+  28 <span class="k">print</span> <span class="q">&quot;Star:\n&quot;</span><span class="sc">;</span>
+  29 <span class="i">cmpthese</span><span class="s">(</span><span class="n">2_000_000</span><span class="cm">,</span>
+  30 	 <span class="s">{</span>
+  31 	  <span class="w">perlIN</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  32 	    <span class="c"># slow and inefficient</span>
+  33 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  34 	    <span class="i">$r</span> =~ <span class="q">s/(.*)\..*/$1/</span><span class="sc">;</span>
+  35 	  <span class="s">}</span><span class="cm">,</span>
+  36 	  <span class="w">keepIN</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  37 	    <span class="c"># fast and efficient</span>
+  38 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  39 	    <span class="i">$r</span> =~ <span class="q">s/.*\K\..*//</span><span class="sc">;</span>
+  40 	  <span class="s">}</span><span class="cm">,</span>
+  41 	  <span class="w">perlOUT</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  42 	    <span class="c"># slow and inefficient</span>
+  43 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  44 	    <span class="i">$r</span> =~ <span class="q">s/$pstar/$1/</span><span class="sc">;</span>
+  45 	  <span class="s">}</span><span class="cm">,</span>
+  46 	  <span class="w">keepOUT</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  47 	    <span class="c"># fast and efficient</span>
+  48 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  49 	    <span class="i">$r</span> =~ <span class="q">s/$kstar//</span><span class="sc">;</span>
+  50 	  <span class="s">}</span>
+  51 	 <span class="s">}</span>
+  52 	<span class="s">)</span><span class="sc">;</span>
+  53 
+  54 <span class="k">print</span> <span class="q">&quot;\nPlus:\n&quot;</span><span class="sc">;</span>
+  55 <span class="i">cmpthese</span><span class="s">(</span><span class="n">2_000_000</span><span class="cm">,</span>
+  56 	 <span class="s">{</span>
+  57 	  <span class="w">perlIN</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  58 	    <span class="c"># slow and inefficient</span>
+  59 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  60 	    <span class="i">$r</span> =~ <span class="q">s/(.+)\..*/$1/</span><span class="sc">;</span>
+  61 	  <span class="s">}</span><span class="cm">,</span>
+  62 	  <span class="w">keepIN</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  63 	    <span class="c"># fast and efficient</span>
+  64 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  65 	    <span class="i">$r</span> =~ <span class="q">s/.+\K\..*//</span><span class="sc">;</span>
+  66 	  <span class="s">}</span><span class="cm">,</span>
+  67 	  <span class="w">perlOUT</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  68 	    <span class="c"># slow and inefficient</span>
+  69 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  70 	    <span class="i">$r</span> =~ <span class="q">s/$pplus/$1/</span><span class="sc">;</span>
+  71 	  <span class="s">}</span><span class="cm">,</span>
+  72 	  <span class="w">keepOUT</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  73 	    <span class="c"># fast and efficient</span>
+  74 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  75 	    <span class="i">$r</span> =~ <span class="q">s/$kplus//</span><span class="sc">;</span>
+  76 	  <span class="s">}</span>
+  77 	 <span class="s">}</span>
+  78 	<span class="s">)</span><span class="sc">;</span>
+  79 
+  80 <span class="k">print</span> <span class="q">&quot;\nNmbr:\n&quot;</span><span class="sc">;</span>
+  81 <span class="i">cmpthese</span><span class="s">(</span><span class="n">2_000_000</span><span class="cm">,</span>
+  82 	 <span class="s">{</span>
+  83 	  <span class="w">perlIN</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  84 	    <span class="c"># slow and inefficient</span>
+  85 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  86 	    <span class="i">$r</span> =~ <span class="q">s/(\w{3})\..*/$1/</span><span class="sc">;</span>
+  87 	  <span class="s">}</span><span class="cm">,</span>
+  88 	  <span class="w">keepIN</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  89 	    <span class="c"># fast and efficient</span>
+  90 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  91 	    <span class="i">$r</span> =~ <span class="q">s/\w{3}\K\..*//</span><span class="sc">;</span>
+  92 	  <span class="s">}</span><span class="cm">,</span>
+  93 	  <span class="w">perlOUT</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  94 	    <span class="c"># slow and inefficient</span>
+  95 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+  96 	    <span class="i">$r</span> =~ <span class="q">s/$pnmbr/$1/</span><span class="sc">;</span>
+  97 	  <span class="s">}</span><span class="cm">,</span>
+  98 	  <span class="w">keepOUT</span><span class="cm">=&gt;</span><span class="k">sub</span><span class="s">{</span>
+  99 	    <span class="c"># fast and efficient</span>
+ 100 	    <span class="k">my</span> <span class="i">$r</span> = <span class="q">&quot;abc.def.ghi.jkl&quot;</span><span class="sc">;</span>
+ 101 	    <span class="i">$r</span> =~ <span class="q">s/$knmbr//</span><span class="sc">;</span>
+ 102 	  <span class="s">}</span>
+ 103 	 <span class="s">}</span>
+ 104 	<span class="s">)</span><span class="sc">;</span>
+</pre>
+</body>
+</html>

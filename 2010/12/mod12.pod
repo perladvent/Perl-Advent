@@ -1,0 +1,73 @@
+=pod
+
+=for advent_year 2010
+
+=for advent_day 12
+
+=for advent_title メリー VAXmas
+
+=for advent_author Jerrad Pierce
+
+After a few hundred years one's memory starts to go, and it's easy to forget
+the ins and outs of your favorite language, especially if one tends to be
+preoccupied with whether or not little Suzy is a sleep and just how good
+Daryl has been this year. M<App::perlzonji|perlzonji> is an extensible wrapper
+around C<perldoc> (clones). Its plugins maps keywords entered on the command
+line into the appropriate manual page for you to reference, so although you
+might not remember where I<__WARN__> lives, M<App::perlzonji|perlzonji> can direct you to
+F<perlvar>
+
+=begin pre
+
+% perldoc __DATA__
+No documentation found for "__DATA__".
+% perlzonji __DATA__
+SelfLoader(3)            User Contributed Perl Documentation           SelfLoader(3)
+
+
+
+NAME
+       SelfLoader - load functions only on demand
+
+SYNOPSIS
+           package FOOBAR;
+           use SelfLoader;
+
+           ... (initializing code)
+
+           __DATA__
+           sub {....
+
+=end pre
+
+Obviously some of the mappings aren't quite what one would expect,
+and because it uses perldoc to do the heavy lifting it is not able
+to mimic the B<-f> behavior of only showing the relevant part of
+the documentation for the supplied keyword, or jumping to it.
+However, the plugin structure is simple enough:
+
+=begin code
+
+use 5.008;
+use strict;
+use warnings;
+
+package App::perlzonji::Plugin::VMS;
+$VERSION = 12.25;
+
+# ABSTRACT: Plugin for labels
+use App::perlzonji;
+App::perlzonji->add_trigger(
+    'matches.add' => sub {
+        my ($class, $word, $matches) = @_;
+
+	#Create $RE here for funny functions on VMS
+
+        if ($word =~ /^$RE$/) { push @$matches, 'perlvms' }
+    }
+) if $^O eq 'VMS';
+1;
+
+=end code
+
+=cut

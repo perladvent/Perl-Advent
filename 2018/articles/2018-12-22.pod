@@ -1,0 +1,285 @@
+Title: Validation
+Topic: Method::ParamValidator
+Author: Mohammad S Anwar <mohammad.anwar@yahoo.com>
+
+Today I want to talk about L<Method::ParamValidator> - yet another validator for
+method parameters.
+
+Why another validator? I was looking for param validators that can be shared among various
+Google API interfaces that I have worked on. None of the existing solutions
+worked for me. So I decided to create simple, yet easily configurable, param
+validator. The best part of this solution is that you can add the param
+validation programmatically as well as in a configuration file.
+
+I think the Christmas Elves would find this flexibility really useful when
+working on Santa's codebase.
+
+=head2 Configuring Validation
+
+There are two core methods C<add_field()> and C<add_method()> that can be used
+to setup a LMethod::ParamValidator validator.
+
+=head3 add_field(\%params)
+
+First step in creating a validator is to add the fields that can be shared by
+one or many methods in a validator. You can provide the following keys to add
+new field.
+
+=for :html
+<table border=1 frame=void rules=rows>
+<tr>
+<td><b>name</b></td>
+<td>unique field name (required).</td>
+</tr>
+<tr>
+<td><b>format</b></td>
+<td>data type of the field (optional), possible values are 's' (for string) and 'd' (for digits). Default is 's'.</td>
+</tr>
+<tr>
+<td><b>check</b></td>
+<td>code ref for custom check of the field (optional).</td>
+</tr>
+<tr>
+<td><b>source</b></td>
+<td>lookup hashref for the acceptable values for the field (optional).</td>
+</tr>
+<tr>
+<td><b>message</b></td>
+<td>test message (optional).</td>
+</tr>
+</table>
+
+=head3 add_method(\%params)
+
+After adding fields to the validator, it is time to add method to be validated.
+You can setup method by providing the following keys.
+
+=for :html
+<table border=1 frame=void rules=rows>
+<tr><td><b>name</b></td><td>unique method name (required).</td></td>
+<tr><td><b>fields<b></td><td>hashref with field names.</td></tr>
+</table>
+
+=head2 Example
+
+Suppose our elves want to validate the parameters for a method called
+C<add_child()>.  It requires parameters passed as a hashref with required keys
+C<firstname>, C<lastname> and C<age> and it also accepts an optional key
+C<notes> as well. We will first add all the fields first and then we will add
+the method the method that uses these fields.
+
+    #!perl
+    use Method::ParamValidator;
+    my $validator = Method::ParamValidator->new;
+
+    # Add fields
+    $validator->add_field({ name => 'firstname', format => 's' });
+    $validator->add_field({ name => 'lastname',  format => 's' });
+    $validator->add_field({ name => 'age',       format => 'd' });
+    $validator->add_field({ name => 'notes',     format => 's' });
+
+    # Add method
+    $validator->add_method({
+        name => 'add_child',
+        fields => {
+            firstname => 1,
+            lastname  => 1,
+            age       => 1,
+            notes     => 0
+        }
+    });
+
+We can alternatively setup the validator using a configuration file.
+If we wanted the same checks as above we could create a JSON
+file like so:
+
+    #!vim javascript
+    { "fields"  : [ { "name" : "firstname", "format" : "s" },
+                    { "name" : "lastname",  "format" : "s" },
+                    { "name" : "age",       "format" : "d" },
+                    { "name" : "notes",     "format" : "s" }
+                  ],
+      "methods" : [ { "name"  : "add_child",
+                      "fields": { "firstname" : "1",
+                                  "lastname"  : "1",
+                                  "age"       : "1",
+                                  "notes"     : "0"
+                                }
+                    }
+                  ]
+    }
+
+And now when we instanciate our Method::ParamValidator instance 
+we can simply pass in the name of the configuraton file C<config.json>.
+
+    #!perl
+    use Method::ParamValidator;
+    my $validator = Method::ParamValidator->new({ config => "config.json" });
+
+=head2 Using Our Validator
+
+Our validator is very simple to use;  A call to C<validate> passing in the method
+name and the parameters will simply throw an exception if the validation fails.
+We can either let these exceptions terminate our program, or we can catch them
+using Perl's exception handling (for example with L<Try::Tiny>'s C<try>/C<catch>
+blocks or even with the inbuilt C<eval> keyword.)
+
+Let's demonstrate what kind of error messages the elves are going to get
+with a test suite.  L<Test::Exception> expects an exception to be thrown
+inside a C<throws_ok> block and conversely fails if one is thrown inside
+a C<lives_ok> block.
+
+    #!perl
+    use Test::More;
+    use Test::Exception;
+
+    throws_ok { $validator->validate('get_xyz')  } qr/Invalid method name received/;
+    throws_ok { $validator->validate('add_child') } qr/Missing parameters/;
+    throws_ok { $validator->validate('add_child', []) } qr/Invalid parameters data structure/;
+    throws_ok { $validator->validate('add_child', { firstname => 'F', lastname => 'L', age => 'A' }) } qr/Parameter failed check constraint/;
+    throws_ok { $validator->validate('add_child', { firstname => 'F', lastname => 'L', age => 10, notes => 's' }) } qr/Parameter failed check constraint/;
+    throws_ok { $validator->validate('add_child', { firstname => 'F', lastname => 'L' }) } qr/Missing required parameter/;
+    throws_ok { $validator->validate('add_child', { firstname => 'F', lastname => undef, age => 10 }) } qr/Undefined required parameter/;
+    throws_ok { $validator->validate('add_child', { firstname => 'F' }) } qr/Missing required parameter/;
+    throws_ok { $validator->validate('add_child', { firstname => 'F', lastname => 'L', age => 40, location => 'X' })  } qr/Parameter failed check constraint/;
+    lives_ok  { $validator->validate('add_child', { firstname => 'F', lastname => 'L', age => 40, location => 'UK' }) };
+    lives_ok  { $validator->validate('add_child', { firstname => 'F', lastname => 'L', age => 40, location => 'uk' }) };
+
+    done_testing();
+
+=head2 Custom Checks
+
+Up until this point we've used very simple inbuilt checks: Is this a string?
+Is this digits?  Are the required parameters passed?  But what if we want to
+define something more complicated?
+
+When adding field to a validator, you can hookup your own checks. Below we are
+adding new field C<location> with a custom check
+
+    #!perl
+    my $LOCATION = { 'USA' => 1, 'UK' => 1 };
+
+    # Add field with custom check
+    $validator->add_field({
+        name   => 'location',
+        format => 's',
+        check  => sub {
+            exists $LOCATION->{ uc($_[0]) }
+        },
+    });
+
+    # Add method using the new field with custom check
+    $validator->add_method({ name => 'check_location', fields => { location => 1 }});
+
+While we can't create custom Perl code in our configuration file we
+can create a limited custom check as above:
+
+    #!vim javascript
+    {
+        "fields"  : [{ "name" : "location", "format" : "s", "source": [ "USA", "UK" ] } ],
+        "methods" : [{ "name" : "check_location", "fields": { "location" : "1" } } ]
+    }
+
+The array under the C<source> key lists all the values that the C<location> field can
+have whenever the value is uppercased.
+
+We can demonstrate what kind of error messages our elves are going to see with
+another test script:
+
+    #!perl
+    use Test::More;
+    use Test::Exception;
+
+    throws_ok { $validator->validate('check_location', { location => 'X' }) } qr/Parameter failed check constraint/;
+    done_testing();
+
+=head2 Extend Moo Package
+
+So we've seen how we can call the validation up manually, but is there an easy
+way to add it to multiple methods in a class without having to change the method
+code?
+
+If you want to plug the validator into an existing C<Moo> package it's easy. For
+an example let's create package C<Calculator>.
+
+    #!perl
+    package Calculator;
+
+    use Moo;
+
+    sub calc {
+        my ($self, $param) = @_;
+
+        if ($param->{op} eq 'add') {
+            return ($param->{a} + $param->{b});
+        }
+        elsif ($param->{op} eq 'sub') {
+            return ($param->{a} - $param->{b});
+        }
+        elsif ($param->{op} eq 'mul') {
+            return ($param->{a} * $param->{b});
+        }
+    }
+
+Now it is time to create configuration file C<calc.json> for validator.
+
+    #!vim javascript
+    { "fields"  : [ { "name" : "op", "format" : "s", "source": [ "add", "sub", "mul" ] },
+                    { "name" : "a",  "format" : "d" },
+                    { "name" : "b",  "format" : "d" }
+                  ],
+      "methods" : [ { "name"  : "calc",
+                      "fields": { "op" : "1",
+                                  "a"  : "1",
+                                  "b"  : "1"
+                                }
+                    }
+                  ]
+    }
+
+Add the following lines to plug the validator.
+
+    #!perl
+    use Method::ParamValidator;
+
+    has 'validator' => (
+        is      => 'ro',
+        default => sub { Method::ParamValidator->new(config => "calc.json") }
+    );
+
+    foreach my $method (qw/calc/) {
+        before $method => sub {
+            my ($self, $param) = @_;
+            $self->validator->validate($method, $param);
+        };
+    }
+
+For the love of TDD, lets define the unit test.
+
+    #!perl
+    use Test::More;
+    use Test::Exception;
+    use Calculator;
+
+    my $calc = Calculator->new;
+
+    is($calc->calc({ op => 'add', a => 4, b => 2 }), 6);
+    is($calc->calc({ op => 'sub', a => 4, b => 2 }), 2);
+    is($calc->calc({ op => 'mul', a => 4, b => 2 }), 8);
+
+    throws_ok { $calc->calc({ op => 'add' }) } qr/Missing required parameter. \(a\)/;
+    throws_ok { $calc->calc({ op => 'add', a => 1 }) } qr/Missing required parameter. \(b\)/;
+    throws_ok { $calc->calc({ op => 'x', a => 1, b => 2 }) } qr/Parameter failed check constraint. \(op\)/;
+    throws_ok { $calc->calc({ op => 'add', a => 'x', b => 2 }) } qr/Parameter failed check constraint. \(a\)/;
+    throws_ok { $calc->calc({ op => 'add', a => 1, b => 'x' }) } qr/Parameter failed check constraint. \(b\)/;
+
+    done_testing();
+
+=head2 Conclusion
+
+I have used L<Method::ParamValidator> to one of my Google API interface
+L<WWW::Google::Places>. Any help to extend the validator would be highly
+appreciated. Or if you have any suggestions please raise them at
+L<GitHub|https://github.com/manwar/Method-ParamValidator>.
+
+=cut

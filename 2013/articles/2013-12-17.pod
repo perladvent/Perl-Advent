@@ -1,0 +1,127 @@
+Title: How many days until Christmas?
+Topic: Time::Duration
+Author: Ricardo Signes <rjbs@cpan.org>
+
+I find myself writing a lot of code to measure time.  How long until Christmas?
+How long since the last release of Perl?  How far apart between my kid's
+birthday and my sister's kids birthday?  How long did that program take to run?
+How long until this next program finishes?
+
+Like almost any right-thinking programmer, I deal with time as epoch seconds.
+Every time value is a reference to a fixed moment in history, and it's easy to
+get a difference between the two.  I don't mean a L<DateTime::Duration>, of
+course, I just mean a number.  Christmas is at 1387947600.  How long until
+then?  Six hundred ninety-six thousand eighty-three seconds.
+
+This is the kind of horrible answer that I used to get from my programs.
+
+  Job entered queue 10201s ago.  Completion in 9108s.  696083s to Christmas.
+
+Seconds are nice, sometimes.  I like them up to, say, an hour's worth.  After
+that, it gets fuzzy.  Then maybe we'll switch to sexagesimal.  To what?  You
+know:
+
+  Job entered queue 2:50:01s ago.  Completion in 2:31:48s.  193:21:23s to Christmas.
+
+Well, that's okay, up until the end, there.  What I really want is something
+that I can read and understand and move on.  That's what L<Time::Duration> is
+for.  It formats durations (by which I mean numbers of seconds) in a bunch of
+ways that are useful to humans.
+
+  #!perl
+  use Time::Duration;
+
+  my $now = 1387251517;
+  my $enqueued   = 1387241316;
+  my $completion = 1387260625;
+  my $christmas  = 1387947600;
+
+  printf "Job entered queue %s.  Completion %s.  %s to Christmas.\n",
+    ago( $now - $enqueued ),
+    from_now( $completion - $now ),
+    duration( $christmas - $now );
+
+Prints:
+
+  Job entered queue 2 hours and 50 minutes ago.  Completion 2 hours and 32
+  minutes from now.  8 days and 1 hour to Christmas.
+
+Not only does it produce human-readable durations, but it rounds them, too.  By
+default, it rounds to two units, so the fuzziness is on a scale appropriate to
+the magnitude of the value.  We could've used the "exact" forms:
+
+  #!perl
+  printf "Job entered queue %s.  Completion %s.  %s to Christmas.\n",
+    ago_exact( $now - $enqueued ),
+    from_now_exact( $completion - $now ),
+    duration_exact( $christmas - $now );
+
+…to get…
+
+  Job entered queue 2 hours, 50 minutes, and 1 second ago.  Completion 2 hours,
+  31 minutes, and 48 seconds from now.  8 days, 1 hour, 21 minutes, and 23
+  seconds to Christmas.
+
+Or we could ask for less precision by passing the extra "precision" argument:
+
+  #!perl
+  printf "Job entered queue %s.  Completion %s.  %s to Christmas.\n",
+    ago( $now - $enqueued, 1),
+    from_now( $completion - $now, 1),
+    duration( $christmas - $now, 3);
+
+Prints:
+
+  Job entered queue 3 hours ago.  Completion 3 hours from now.  8 days, 1 hour,
+  and 21 minutes to Christmas.
+
+...and if we want to save space, you can pass the output of any of
+Time::Duration's functions to C<concise> to pack it up into a shorter form
+that's still quite human-readable:
+
+  #!perl
+  printf "Job entered queue %s.  Completion %s.  %s to Christmas.\n",
+    concise(ago_exact( $now - $enqueued )),
+    concise(from_now_exact( $completion - $now )),
+    concise(duration_exact( $christmas - $now ));
+
+…for…
+
+  Job entered queue 2h50m1s ago.  Completion 2h31m48s from now.  8d1h21m23s to
+  Christmas.
+
+Time::Duration isn't an amazing piece of software engineering, but it's really
+useful to make your software friendlier.  I use it in very simple one-offs,
+because it's so easy to use and so helpful.
+
+=head2 Time::Duration's Little Helpers
+
+There are two other related libraries that I use much less often, but they're
+still quite useful.
+
+L<Time::Duration::Object> lets you turn a value (in seconds) into a duration
+object on which formatting methods can be called later.
+
+  #!perl
+  use Time::Duration::Object;
+  my $dur = Time::Duration::Object->new( 695012 );
+
+  say $dur->duration;                # 8 days and 1 hour
+  say $dur->duration_exact;          # 8 days, 1 hour, 3 minutes, and 32 seconds
+  say $dur->duration_exact->concise; # 8d1h3m32s
+
+L<Time::Duration::Parse> takes the strings produced by Time::Duration and turns
+it into a count of seconds.
+
+  #!perl
+  use Time::Duration::Parse;
+  say parse_duration('8 days and 1 hour'); # 694800
+  say parse_duration('8 days, 1 hour, 3 minutes, and 32 seconds'); # 695012
+  say parse_duration('8d1h3m32s'); # 695012
+
+=head1 See Also
+
+=for :list
+* L<Time::Duration>
+* L<Time::Duration::Object>
+* L<Time::Duration::Parse>

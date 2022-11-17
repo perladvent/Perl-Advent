@@ -1,0 +1,615 @@
+Title: Winter Platypus
+Topic: FFI::Platypus
+Author: Graham Ollis <plicease@cpan.org>
+
+=pod
+
+The boss (Mr. Claus) asked me to whip up some decorations for the 
+Christmas party, and since this is a modern outfit (as you know we have 
+the the largest toy and child database in the world), cutting some paper 
+snowflakes just wasn't going to impress.
+
+=for html
+  <center><img src="screenshot800.png"/></center>
+
+I decided to write a little Perl program to render these three dimensional
+snowflakes and make them spin around on screen.
+
+=head2 Roles
+
+The first step was to create a class that represented a snowflake, and knew how
+to draw it.  As the rendering of the snowflake is distinct from the actual
+attributes of the snowflake itself, I decided to create separate roles for the
+model and drawing code and combine these together in the end into one concrete
+snowflake class.
+
+So, starting with a model to represent the physical characteristics of each
+snowflake, using a Moose role:
+
+ #!perl
+ package SnowflakeModel;
+ 
+ use Moose::Role;
+   
+ has num_twigs => (
+   is => 'ro', 
+   isa => 'Num', 
+   default => sub { int(rand 4) + 3 },
+ );
+ 
+ has pinkie_length => (
+   is => 'ro',
+   isa => 'Num',
+   default => sub { 0.5 + (rand)/2.0 }
+ );
+ 
+ has branch_length => (
+   is => 'ro',
+   isa => 'Num',
+   default => sub { 1.0 + (rand) },
+ );
+   
+ has segments => (
+   is => 'ro',
+   isa => 'Int',
+   default => sub { int(rand 4) + 2 },
+ );
+   
+ has $_ => (is => 'rw', isa => 'Num', default => 0.0 )
+   for qw( x y z );
+   
+ has $_ => (is => 'rw', isa => 'Num', default => 0.0 )
+   for qw( xspin yspin zspin );
+ 
+ 1;
+
+The model keeps track of the number of branches, and twigs (it would be 
+the "leaf" node, but this being a winter party the leaves have 
+obviously fallen).
+
+The next step was to write some code to draw the snowflake.  After some 
+tweaking, I decided on a recursive algorithm using OpenGL.
+
+ #!perl
+ package SnowflakeDraw;
+ 
+ use 5.010;
+ use Moose::Role;
+ use GL;
+ use GLUT;
+   
+ requires qw( 
+   num_twigs pinkie_length branch_length segments
+   x y z xspin yspin zspin
+ );
+   
+ sub draw_twig {
+   my($self, $base, $height, $sides) = @_;
+   glPushMatrix();
+     glRotated(-90.0, 1.0, 0.0, 0.0);
+     glutSolidCone($base, $height, $sides, 5);
+   glPopMatrix();
+ }
+   
+ sub draw_branch {
+   my($self, $size, $left, $segments) = @_;
+   $segments //= $self->segments;
+     
+   glPushMatrix();
+     glPushMatrix();
+       glRotated(30, 0.0, 0.0, 1.0);
+       $self->draw_branch($size/1.5, $size, int($segments/2)) if $segments > 1;
+       $self->draw_twig(0.025, $size, 6);
+       glRotated(-60, 0.0, 0.0, 1.0);
+       $self->draw_branch($size/1.5, $size, int($segments/2)) if $segments > 1;
+       $self->draw_twig(0.025, $size, 6);
+     glPopMatrix();
+     glTranslated(0.0, $left/($segments*.75), 0.0);
+     $self->draw_branch(
+       $size / 1.5,
+       $left-$left/($segments*.75), 
+       int($segments-1)
+     ) if $segments > 1;
+   glPopMatrix();
+ }
+ 
+ sub draw {
+   my($self) = @_;
+     
+   glPushMatrix();
+     glTranslated($self->x, $self->y, $self->z);
+     glRotated($self->xspin, 1.0, 0.0, 0.0);
+     glRotated($self->yspin, 0.0, 1.0, 0.0);
+     glRotated($self->zspin, 0.0, 0.0, 1.0);
+       
+     glEnable(GL_COLOR_MATERIAL);
+     glEnable(GL_BLEND);
+     glColor4d(0.60, 0.86, 1.0, 0.35);
+ 
+     for(1..$self->num_twigs) {
+       glPushMatrix();
+         glRotated(360/$self->num_twigs*($_-1), 0.0, 0.0, 1.0);
+         $self->draw_branch(
+           $self->pinkie_length/1.25, 
+           $self->branch_length/1.25,
+         );
+         $self->draw_twig(0.05, $self->branch_length/1.25, 12);
+       glPopMatrix();
+     }
+       
+     glPushMatrix();
+       glRotated(90, 1.0, 0.0, 0.0);
+       $self->draw_branch($self->pinkie_length/1.25, $self->branch_length/1.25);
+       glRotated(90, 0.0, 1.0, 0.0);
+       $self->draw_branch($self->pinkie_length/1.25, $self->branch_length/1.25);
+       $self->draw_twig(0.05, $self->branch_length/1.25, 12);
+           
+       glRotated(-180, 1.0, 0.0, 0.0);
+       $self->draw_branch($self->pinkie_length/1.25, $self->branch_length/1.25);
+       glRotated(90, 0.0, 1.0, 0.0);
+       $self->draw_branch($self->pinkie_length/1.25, $self->branch_length/1.25);
+       $self->draw_twig(0.05, $self->branch_length/1.25, 12);
+     glPopMatrix();
+ 
+     glDisable(GL_BLEND);
+     glDisable(GL_COLOR_MATERIAL);
+   glPopMatrix();
+ }
+ 
+ 1;
+
+OpenGL is a portable API for drawing 3D graphics with fancy effects.  Now
+I can combine the model and the draw logic into a single Moose class.
+
+ #!perl
+ package Snowflake;
+ 
+ use Moose;
+ with ('SnowflakeModel', 'SnowflakeDraw');
+ 
+ sub spin {
+   my($self, $xdelta, $ydelta, $zdelta) = @_;
+   $self->xspin( $self->xspin + $xdelta );
+   $self->yspin( $self->yspin + $ydelta );
+   $self->zspin( $self->zspin + $zdelta );
+ }
+ 
+ 1;
+
+I've been working on this team for a number of years, and we have 
+frequently had to switch vendors and change implementations many times 
+for various projects.  If I have to replace the OpenGL code in the 
+future, this separation of concerns helps ease the transition because 
+the model and draw logic are in separate files, reducing the temptation 
+of mixing them.
+
+=head2 OpenGL and Perl
+
+In order to use the GL functions from Perl, I wrote a partial set of GL 
+bindings for Perl using FFI.  FFI is a technique for calling code in 
+dynamic libraries from a scripting language like Perl without writing 
+XS, which is tied closely to the internal implementation of Perl itself.
+
+We here at North Pole Inc. are big users of FFI because we don't have 
+many XS programmers, and we often need to call into libraries written in 
+other languages which don't have XS bindings yet.  Last year we were 
+using L<FFI::Raw>, which at the time was the only practical FFI 
+available on CPAN.
+
+Over our long summer break this year, an aquatic mammal who was 
+visiting from down under introduced us to L<FFI::Platypus>.  We liked it 
+so much we have largely migrated to it for all of our existing FFI code. 
+Here are my bindings for the base OpenGL library.
+
+ #!perl
+ package GL;
+ 
+ use strict;
+ use warnings;
+ use FFI::Platypus;
+ use FFI::CheckLib qw( find_lib_or_die );
+ use base qw( Exporter );
+  
+ # standard constants defined with Perl
+
+ use constant {
+   GL_SMOOTH              => 0x1D01,
+   GL_DEPTH_TEST          => 0x0B71,
+   GL_BLEND               => 0x0BE2,
+   GL_TRUE                => 0,
+   GL_FALSE               => 0,
+   GL_LIGHTING            => 0x0B50,
+   GL_LIGHT0              => 0x4000,
+   GL_DIFFUSE             => 0x1201,
+   GL_POSITION            => 0x1203,
+   GL_COLOR_BUFFER_BIT    => 0x00004000,
+   GL_DEPTH_BUFFER_BIT    => 0x00000100,
+   GL_CULL_FACE           => 0x0B44,
+   GL_PROJECTION          => 0x1701,
+   GL_MODELVIEW           => 0x1700,
+   GL_SRC_ALPHA           => 0x0302,
+   GL_ONE_MINUS_SRC_ALPHA => 0x0303,
+   GL_COLOR_MATERIAL      => 0x0B57,
+ };
+
+ # wire up FFI::Platypus directly to the binary OpenGL libraries
+ # (using FFI::CheckLib to find them wherever they are on our system)
+
+ our $ffi = FFI::Platypus->new(
+   lib => [
+     $^O eq 'darwin' ? (
+       "/System/Library/Frameworks/OpenGL.framework/Libraries/libGL.dylib",
+       "/System/Library/Frameworks/OpenGL.framework/Libraries/libGLU.dylib",
+       "/System/Library/Frameworks/GLUT.framework/GLUT",
+     ) : (
+       find_lib_or_die(lib => 'glut'),
+       find_lib_or_die(lib => 'GLU'),
+       find_lib_or_die(lib => 'GL'),
+     )
+   ],
+ );
+
+ # declare named shortcuts for the in-built c-types
+
+ $ffi->type('unsigned int' => 'GLenum');
+ $ffi->type('unsigned char' => 'GLboolean');
+ $ffi->type('int' => 'GLint');
+ $ffi->type('double' => 'GLdouble');
+ $ffi->type('float[]' => 'GLfloat_array');
+ $ffi->type('unsigned int' => 'GLbitfield');
+ $ffi->type('int' => 'GLsizei');
+ 
+ # declare the functions and how their parameters and return
+ # values should be mapped to Perl scalars
+
+ $ffi->attach( glShadeModel => ['GLenum'] => 'void' );
+ $ffi->attach( glEnable     => ['GLenum'] => 'void' );
+ $ffi->attach( glDisable    => ['GLenum'] => 'void' );
+ $ffi->attach( glPushMatrix => [] => 'void' );
+ $ffi->attach( glPopMatrix  => [] => 'void' );
+ $ffi->attach( glFlush      => [] => 'void' );
+ $ffi->attach( glRotated    => [ 'GLdouble', 'GLdouble', 
+                                 'GLdouble', 'GLdouble' ] => 'void' );
+ $ffi->attach( glTranslated => ['GLdouble', 'GLdouble', 
+                                'GLdouble' ] => 'void' );
+ $ffi->attach( glColor4d    => [ 'GLdouble', 'GLdouble', 
+                                 'GLdouble', 'GLdouble' ] => 'void' );
+ $ffi->attach( glColor3d    => [ 'GLdouble', 'GLdouble', 
+                                 'GLdouble' ] => 'void' );
+ $ffi->attach( glLightfv    => [ 'GLenum', 'GLenum', 
+                                 'GLfloat_array' ] => 'void' );
+ $ffi->attach( glClear      => [ 'GLbitfield' ] => 'void' );
+ $ffi->attach( glScaled     => [ 'GLdouble', 'GLdouble', 
+                                 'GLdouble' ] => 'void' );
+ $ffi->attach( glClearColor => ['float', 'float', 
+                                'float', 'float' ] => 'void' );
+ $ffi->attach( glMatrixMode => [ 'GLenum' ] => 'void' );
+ $ffi->attach( glViewport   => [ 'GLint', 'GLint', 
+                                 'GLsizei', 'GLsizei' ] => 'void' );
+ $ffi->attach( glBlendFunc  => [ 'GLenum', 'GLenum' ] => 'void' );
+ $ffi->attach( glLoadIdentity => [] => 'void' );
+ $ffi->attach( gluPerspective => ['GLdouble','GLdouble',
+                                  'GLdouble','GLdouble'] => 'void' );
+
+ # export those functions to the caller
+
+ our @EXPORT = (grep /^(gl|GL_)/i, keys %GL::);
+ 
+ 1;
+
+After the usual module imports, you can see the first thing that I've 
+defined are a number of constants which are used by OpenGL.  These 
+constants are usually defined in C header (.h) files.  This can be 
+problematic if the constants change frequently, but so long as the 
+library is stable and the implementers are not feeling cruel this can be 
+okay.
+
+The next piece of code creates an instance of L<FFI::Platypus> which we 
+will use to create the bindings to the library:
+
+ #!perl
+ our $ffi = FFI::Platypus->new(
+   lib => [
+     $^O eq 'darwin' ? (
+       "/System/Library/Frameworks/OpenGL.framework/Libraries/libGL.dylib",
+       "/System/Library/Frameworks/OpenGL.framework/Libraries/libGLU.dylib",
+       "/System/Library/Frameworks/GLUT.framework/GLUT",
+     ) : (
+       find_lib_or_die(lib => 'glut'),
+       find_lib_or_die(lib => 'GLU'),
+       find_lib_or_die(lib => 'GL'),
+     )
+   ],
+ ); 
+
+We need to tell Platypus which dynamic libraries to search in order to 
+find functions, so we are using L<FFI::CheckLib>, which is a portable 
+way of searching for libraries in the usual system locations.  It 
+provides a similar interface to the like-named L<Devel::CheckLib>, but 
+is smarter about finding I<dynamic> libraries.  We have a mixed 
+environment of OS X and Linux for toy deliveries and testing, so it
+had to work on both platforms.  Although L<FFI::CheckLib> generally 
+works well in Windows, Linux, OS X (and others), the OpenGL libraries on 
+OS X are part of what they call a "framework", which isn't supported by 
+L<FFI::CheckLib> yet, so I hard coded the location of the libraries on 
+that platform.
+
+The next part of the code defines the types used by the library:
+
+ #!perl
+ $ffi->type('unsigned int' => 'GLenum');
+ ...
+
+This line defines C<GLenum> used throughout the GL library.  Although 
+you could just use C<'unsigned int'> throughout your code where GLenum 
+is called for, this makes my code more readable, and it is easier to fix 
+the type in one place if I make a mistake with C<GLenum>.
+
+In general, the type system for Platypus is a bit different than other 
+FFI implementations that I've used.  Instead of providing only basic 
+hardware types like "sixteen bit signed integer", Platypus encourages 
+the use of language and platform specific types--typically the same 
+types that are understood by your library interface specifications (In C 
+the header file).  For example C<long> is a 32 or 64 bit signed integer 
+depending on your platform and C<char> might be either signed or 
+unsigned!  You can even tell Platypus that you are working with Fortran 
+or Rust and use the native types of those languages in your bindings.
+
+Finally in the meat of the module we attach the functions from the 
+library into the GL namespace:
+
+ #!perl
+ $ffi->attach( glEnable => ['GLenum'] => 'void' );
+ ...
+ # which is called thusly:
+ glEnable(GL_LIGHT0);
+
+The C<attach> method takes a function defined in the dynamic library and 
+attaches it as a real Perl subroutine.  The advantage to this approach 
+is that the code that calls our GL library doesn't need to know or care 
+that it is using an FFI implementation or an XS one.  It just looks like 
+Perl.
+
+I needed some higher level types, like arrays (Platypus supports a 
+number of higher level types like this):
+
+ #!perl
+ $ffi->type('float[]' => 'GLfloat_array');
+ ...
+ $ffi->attach( glLightfv    => [ 'GLenum', 'GLenum',
+                                 'GLfloat_array' ] => 'void' );
+ ...
+ glLightfv(GL_LIGHT0, GL_DIFFUSE, [.9, .9, 1.0, 1.0]);
+ glLightfv(GL_LIGHT0, GL_POSITION, [1.0, 1.0, 1.0, 0.0]);
+
+To do this sort of thing, many FFI implementations require you to create 
+an array object and pass that in as an argument.  Unfortunately there is 
+an overhead to creating objects for single use calls like this, and it 
+also exposes unnecessary complexity to your caller.
+
+Finally, this module uses Exporter to export all of its functions to the 
+caller's namespace:
+
+ #!perl
+ use base qw( Exporter );
+ ...
+ our @EXPORT = (grep /^(gl|GL_)/i, keys %GL::);
+
+Many libraries implement hundreds of functions and keeping C<@EXPORT> in 
+sync with functions as we add them is very tedious.  Instead we use 
+C<%GL::> which is a special hash that keeps track of the data structures 
+(including subroutines) in the GL namespace.  It has to be put at the 
+bottom of the module because C<%GL::> won't be populated until the 
+C<attach> calls are made.
+
+The last module we need provides the Glut bindings.  Glut provides a 
+simple and portable OpenGL focused event loop for applications that do 
+not require anything more complicated.
+
+ #!perl
+ package GLUT;
+ 
+ use strict;
+ use warnings;
+ use 5.010;
+ use GL ();
+ use base qw( Exporter );
+   
+ use constant {
+   GLUT_RGB      => 0x0000,
+   GLUT_DOUBLE   => 0x0002,
+   GLUT_DEPTH    => 0x0010,
+ };
+ 
+ my $ffi = $GL::ffi;
+   
+ $ffi->load_custom_type('FFI::Platypus::Type::StringArray' => 'string_array');
+ 
+ $ffi->attach( glutInit => ['int*', 'string_array' ] => 'void' => sub {
+   my($xsub, @args) = @_;
+   my $size = scalar @args;
+   $xsub->(\$size, \@args);
+ });
+   
+ $ffi->attach( glutInitDisplayMode => ['unsigned int'] => 'void' );
+ $ffi->attach( glutInitWindowSize  => ['int', 'int']   => 'void' );
+ $ffi->attach( glutCreateWindow    => ['string']       => 'int'  );
+ $ffi->attach( glutMainLoop        => [ ] => 'void' );
+ $ffi->attach( glutSwapBuffers     => [] => 'void' );
+ $ffi->attach( glutPostRedisplay   => [] => 'void' );
+ $ffi->attach( glutSolidCone        => [ 'GLdouble', 'GLdouble', 
+                                         'GLint', 'GLint' ] => 'void' );
+   
+ $ffi->attach( glutDisplayFunc => [ '()->void' ] => 'void' => sub {
+   my($xsub, $callback) = @_;
+   state $closure = $ffi->closure($callback);
+   $xsub->($closure);
+ });
+ 
+ $ffi->attach( glutIdleFunc => [ '()->void' ] => 'void' => sub {
+   my($xsub, $callback) = @_;
+   state $closure = $ffi->closure($callback);
+   $xsub->($closure);
+ });
+ 
+ $ffi->attach( glutReshapeFunc => [ '(int,int)->void' ] => 'void' => sub {
+   my($xsub, $callback) = @_;
+   state $closure = $ffi->closure($callback);
+   $xsub->($closure);
+ });
+   
+ our @EXPORT = (grep /^(GLUT_|glut)/i, keys %GLUT::);
+ 
+ 1;
+
+A few things are interesting here.  Firstly, the C<glutInit()> takes an 
+array of C strings as its second argument.
+
+ #!perl
+ $ffi->load_custom_type('FFI::Platypus::Type::StringArray' => 'string_array');
+
+ $ffi->attach( glutInit => ['int*', 'string_array' ] => 'void' => sub {
+   my($xsub, @args) = @_;
+   my $size = scalar @args;
+   $xsub->(\$size, \@args);
+ });
+
+Platypus' type system provides most of the common basic types that you 
+will need.  A few more specialized types, like arrays of C strings
+require the use of custom types.  Here we are using 
+L<FFI::Platypus::Type::StringArray> which is frequently useful and 
+available on CPAN, but not part of the Platypus core.
+
+Also interesting here is that we are using a wrapper (the last argument 
+to the C<attach>) call.  This is to hide some of the messy differences 
+between C and Perl.  In C when you pass a dynamic array into a function 
+you have to provide the size of the array as an additional parameter.  In
+Perl, arrays already know how many elements they have.  Basically the 
+above code is a short cut for this:
+
+ #!perl
+ $ffi->attach( [ glutInit => '_glutInit'] => 
+               ['int*', 'string_array'  ] => 'void');
+ 
+ sub glutInit {
+   my(@args) = @_;
+   my $size = scalar @args;
+   _glutInit(\$size, \@args);
+ }
+
+In this second version we attach C<glutInit> with a different name in 
+Perl and call it from the "real" C<glutInit>.
+
+Also the size of the array is passed in as a pointer to an integer so 
+that Glut can alter its value.  Although in this particular case we 
+ignore any changes made by Glut, the scalar C<$size> B<is> updated if 
+C<glutInit> makes a change.  This is frequently useful, because a common 
+pattern in C is to pass variables by reference by passing a pointer to 
+that variable.
+
+The last thing that I want to point out is the use of closures:
+
+ #!perl
+ $ffi->attach( glutDisplayFunc => [ '()->void' ] => 'void' => sub {
+   my($xsub, $callback) = @_;
+   state $closure = $ffi->closure($callback);
+   $xsub->($closure);
+ });
+
+Or calling back into Perl from C.  This is extremely useful, but it is 
+also a little tricky, because of the different ways that Perl and C 
+manage memory.  In C you must explicitly allocate and deallocate all 
+memory.  The convention is that the module that allocates a particular 
+object will be responsible for deallocating it as well.  In Perl the 
+language itself takes responsibility for deallocating objects when they 
+are no longer used anywhere in the Perl runtime.  Unfortunately when we 
+create a closure and pass it into Glut code, there is no way for Perl to 
+keep track of whether or not the closure is still in use by Glut!  In 
+order to prevent Perl from reclaiming the subroutine before Glut is done 
+with it, I save the closure into a C<state> variable, which will keep it
+in scope for the life of the program.
+
+=head2 Bringing It All Together
+
+Now that we have all the ingredients, we can write out main script:
+
+ #!perl
+ use strict;
+ use warnings;
+ use GL;
+ use GLUT;
+ use Snowflake;
+ 
+ glutInit(@ARGV);
+ glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+ glutInitWindowSize(1500,500);
+ glutCreateWindow('snowflake');
+ glLightfv(GL_LIGHT0, GL_DIFFUSE, [.9, .9, 1.0, 1.0]);
+ glLightfv(GL_LIGHT0, GL_POSITION, [1.0, 1.0, 1.0, 0.0]);
+ glEnable(GL_LIGHT0);
+ glEnable(GL_LIGHTING);
+ glEnable(GL_CULL_FACE);
+ glShadeModel(GL_SMOOTH);
+ glClearColor(1.0, 1.0, 1.0, 0.0);
+ glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+ 
+ glEnable(GL_DEPTH_TEST);
+ 
+ my @flakes = map { Snowflake->new(z => -5.0, x => $_) } ( 2.0, 0.0, -2.0 );
+ 
+ sub display {
+ 
+   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+   glLoadIdentity();
+ 
+   $_->draw for @flakes;
+ 
+   glFlush();
+   glutSwapBuffers();
+ }
+ 
+ sub idle {
+   $flakes[0]->spin(0.3, 0.6, 0.0);
+   $flakes[1]->spin(0.3, 0.0, 0.6);
+   $flakes[2]->spin(0.0, 0.3, 0.6);
+   glutPostRedisplay();
+ }
+ 
+ sub reshape {
+   my($x, $y) = @_;
+   exit if $x == 0 || $y == 0;
+ 
+   glMatrixMode(GL_PROJECTION);
+   glLoadIdentity();
+   gluPerspective(30.0, $x / $y, 0.5, 20.0);
+   glMatrixMode(GL_MODELVIEW);
+   glViewport(0, 0, $x, $y);
+ }
+ 
+ glutDisplayFunc(\&display);
+ glutIdleFunc(\&idle);
+ glutReshapeFunc(\&reshape);
+ glutMainLoop();
+ 
+ 
+Notice that thanks to the care of L<FFI::Platypus> and a few wrappers in 
+the C<GLUT> module, our main script doesn't have to know or care that it 
+is using FFI.
+
+I have three pretty snowflakes for the holiday party.
+
+=for html
+  <center><img src="screenshot800.png"/></center>
+
+My coworker android friend Mr. Lore also enjoyed it since it reminded 
+him of his friend The Crystalline Entity.
+
+=head1 SEE ALSO
+
+=for :list
+* L<FFI::Platypus>
+* L<FFI::CheckLib>
+* L<FFI::Raw>
+* L<https://www.opengl.org/>
+
+=cut

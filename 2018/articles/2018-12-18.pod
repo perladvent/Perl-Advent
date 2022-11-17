@@ -1,0 +1,200 @@
+Title: Test/Compare Your Excel
+Topic: Test::Excel
+Author: Mohammad S Anwar <mohammad.anwar@yahoo.com>
+
+Santa's elves have to deal with a wide range of suppliers throughout the year in order to get
+all the parts for the toys they assemble at the North Pole.  Each one of these seems to have
+their own particular workflow.
+
+Spruce Glowchaser was dealing with a supplier that needed an Excel spreadsheet filled out and
+emailed to them.  Over the last few weeks he'd painstakingly written the automation code to
+generate the spreadsheet using L<Spreadsheet::WriteExcel>. He I<thought> he'd managed to
+faithfully reproduce the example sheet from the supplier - that was until the QA department
+had kicked back his output with numerous bugs.
+
+"What you need to do", the Wise Old Elf had chagrined him, "is write some tests"
+
+=head1 Introducing Test::Excel
+
+L<Test::Excel> was first published to CPAN on 13th Aug 2010, a module for visual
+comparison of Excel files.  Test::Excel was my first contribution ever and is
+very close to my heart.
+
+When understanding how Test::Excel works it is important to understand the term
+"visually". The comparisons it offers compare the data structure in each of the
+Excel files and ignore components such as embedded fonts, images, forms and
+annotations.
+
+The package Test::Excel exports the following functions:
+
+=over 4
+
+=item cmp_excel_ok($got, $exp, \%$rule, $message)
+
+The params C<$got> and C<$exp> can either be a path to the two Excel files being compared or they can each be an object
+of type L<Spreadsheet::Read>. The param C<\%rule> is optional. The final param C<$message> is the
+test message that will be associated with the test when its run (which is optional as well). The function is ideal for use in unit test as below:
+
+    #!perl
+    use strict; use warnings;
+    use Test::More;
+    use Test::Excel;
+
+    # do the two files foo.xls and bar.xls contain the same data?
+    cmp_excel_ok('foo.xls', 'bar.xls');
+
+    done_testing();
+
+Test::Excel also exports a C<cmp_excel()> function that acts identially to C<cmp_excel_ok()>.
+
+=item cmp_execel_not_ok($got, $exp, \%$rule, $message)
+
+This function is just the reverse of C<cmp_excel_ok()> - it passes if the data structures
+in the two excel files don't match each other. It is ideal for use in unit test as below:
+
+    #!perl
+    use strict; use warnings;
+    use Test::More;
+    use Test::Excel;
+
+    # do the two files foo.xls and bar.xls contain different data?
+    cmp_excel_not_ok('foo.xls', 'bar.xls');
+
+    done_testing();
+
+=item compare_excel($got, $exp, \%$rule)
+
+This is the core function that does all the underlying comparisons that C<cmp_excel_ok> and C<cmp_excel_not_ok>
+rely upon. It can be used as standalone function outside of test environment and doesn't create the
+C<ok 1> type test output that the previous functions do.
+
+    #!perl
+    use strict; use warnings;
+    use Test::Excel;
+
+    print "Excel files are identical.\n" if compare_excel("foo.xls", "bar.xls");
+
+=back
+
+=head2 Spruce's Dilemma
+
+"I did try to use that module", Spruce explained to the Wise Old Elf, "but it didn't work for me."
+
+"Oh?"
+
+"The spreadsheet I'm producing isn't exactly the same as the test example.  It only has to
+be identical in these particular cells on this particular page - everything else can change."
+
+"Did you look at the optional C<%rule> argument?", the Wise Old Elf questioned.
+
+=head2 Rules Specification
+
+If you noticed above, all the methods accept an optional parameter C<\%rule>. So what is this all about?
+You can finetune the comparison rule used by the comparison functions to control exactly what must
+match, and how it must match.
+
+=over 4
+
+=item spec
+
+Path to specification file that can control which parts of the sheet match.
+With this you can define which ranges will match.
+
+=item sheet
+
+The name of the sheet that the module should compare.  Multiple sheets can be
+specified in a single string by using a C<|> delimiter.
+
+=item tolerance
+
+Tolerance amount acceptable. Applicable to all except on 'sheet' or 'spec'
+
+=item sheet_tolerance
+
+Tolerance amount acceptable. Applicable only to 'sheet' or 'range' in the spec file.
+
+=item swap_check
+
+Boolean 0 or 1, whether row swapping check is on or off.
+
+=item error_limit
+
+Limit the number of errors acceptable. Default is 0.
+
+=back
+
+=head1 The Specification File
+
+The spcification file contains space separated key value pair per line. It can have the following keys:
+
+=over 4
+
+=item sheet
+
+Sheet name in the Excel file.
+
+=item range
+
+Cell range.
+
+=item ignorerange
+
+Cell range to ignore when comparing.
+
+=back
+
+For example:
+
+    Sheet Parts
+    Range B3:B5
+    Sheet Spares
+    Range B5:B6
+
+=head2 It all went wrong?
+
+"This test is just failing", Spruce complained, "and I just can't work out why!"
+
+"Did you read the part of the manual about debugging?" the Wise Old Elf asked.
+"You can set the C<DEBUG> environment variable and you'll get copious output out
+about what's actually going on under the hood."
+
+=head2 DEBUG output
+
+Indeed, setting the DEBUG flag from the command line can be I<very> useful
+in figuring out what's going on.
+
+    bash$ DEBUG=1 perl t/01xls.t
+    1..6
+    INFO: Excel comparison [t/got-4.xls] [t/exp-4.xls]
+    INFO: [MySheet1]:[0][0]:[6][2]
+    INFO: [MySheet1]:[0][0]:[6][2]
+    INFO: [STRING]:[MySheet1]:[STD][1][1]:[Name][Name] ... [PASS]
+    INFO: [STRING]:[MySheet1]:[STD][1][2]:[Value][Value] ... [PASS]
+    INFO: [STRING]:[MySheet1]:[STD][3][1]:[GBP][GBP] ... [PASS]
+    INFO: [NUMBER]:[MySheet1]:[SPC][3][2]:[1.2345][1.2345] ... [PASS]
+    INFO: [STRING]:[MySheet1]:[STD][4][1]:[USD][USD] ... [PASS]
+    INFO: [NUMBER]:[MySheet1]:[SPC][4][2]:[0.8922][0.9122] ... [PASS]
+    INFO: [STRING]:[MySheet1]:[STD][5][1]:[INR][INR] ... [PASS]
+    INFO: [NUMBER]:[MySheet1]:[SPC][5][2]:[1.45][1.567] ... [PASS]
+    INFO: [STRING]:[MySheet1]:[STD][6][1]:[EUR][EUR] ... [PASS]
+    INFO: [NUMBER]:[MySheet1]:[STD][6][2]:[2.5][2.5] ... [PASS]
+    INFO: [MySheet1]: ..... [OK].
+    INFO: [MySheet2]:[0][0]:[6][2]
+    INFO: [MySheet2]:[0][0]:[6][2]
+    INFO: [STRING]:[MySheet2]:[STD][1][1]:[Name][Name] ... [PASS]
+    INFO: [STRING]:[MySheet2]:[STD][1][2]:[Value][Value] ... [PASS]
+    INFO: [STRING]:[MySheet2]:[STD][3][1]:[XYZ][XYZ] ... [PASS]
+    INFO: [NUMBER]:[MySheet2]:[STD][3][2]:[0.12334][0.12334] ... [PASS]
+    INFO: [STRING]:[MySheet2]:[STD][4][1]:[ABC][ABC] ... [PASS]
+    INFO: [NUMBER]:[MySheet2]:[STD][4][2]:[1.864][1.864] ... [PASS]
+    INFO: [STRING]:[MySheet2]:[STD][5][1]:[PQR][PQR] ... [PASS]
+    INFO: [NUMBER]:[MySheet2]:[SPC][5][2]:[1.99][2.014] ... [PASS]
+    ...
+
+=head1 Futher Examples and Contributing
+
+You can find loads of example in the L<distribution|https://metacpan.org/pod/Test::Excel>.
+
+If you any suggestions for improvement or if you fing bugs in the code then please raise them at L<GitHub|https://github.com/manwar/Test-Excel>.
+
+=cut

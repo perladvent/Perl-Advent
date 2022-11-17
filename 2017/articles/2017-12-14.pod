@@ -1,0 +1,286 @@
+Title: Prereqing around the Christmas Tree
+Topic: Perl::PrereqScanner
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Mincepie Frostystockings was elated.  The Wise Old Elf had just given him
+permission to port a bunch of little scripts that he'd been using on his
+development machine to the main North Pole git repository.  From there they'd
+be deployed to the production machines and available for the entire devops team to
+use to help debug ongoing live issues.
+
+"Just don't forget to make sure the dependencies are installed", were the
+Wise Old Elf's parting words.
+
+Mincepie scratched his chin.  He hadn't exactly been keeping track of
+dependencies when he'd written these scripts.  They'd grown organically
+with him just installing whatever he'd needed to get it work with C<cpanm>.
+
+How was he going to work out exactly what his requirements are?
+
+=head2 Technique 1: Hooking @INC
+
+C<@INC> is a global variable that holds all the locations that perl will look
+for modules when it attempts to load a module
+
+    shell$ /usr/bin/perl -E 'say for @INC'
+    /Library/Perl/5.18/darwin-thread-multi-2level
+    /Library/Perl/5.18
+    /Network/Library/Perl/5.18/darwin-thread-multi-2level
+    /Network/Library/Perl/5.18
+    /Library/Perl/Updates/5.18.2
+    /System/Library/Perl/5.18/darwin-thread-multi-2level
+    /System/Library/Perl/5.18
+    /System/Library/Perl/Extras/5.18/darwin-thread-multi-2level
+    /System/Library/Perl/Extras/5.18
+    .
+
+When you C<use lib qw(...)> it's this variable that Perl is modifying.
+
+Perl also lets you put other things than simple strings in C<@INC>, for
+example a subroutine reference.  This subroutine reference will be called every
+time a module is required and is given the chance to return the code that
+perl should load (this is how tools like PAR can provide modules directly
+from a zipfile.)
+
+You can abuse this mechanism to provide debugging each time something is
+loaded:
+
+    #!perl
+    # use a BEGIN block so the code is executed before all
+    # the 'use' statements
+    BEGIN {
+        unshift @INC, sub {
+            my (undef, $name) = @_;
+            say $name;
+
+            # don't return anything, meaning Perl will continue
+            # searching through @INC as before
+            return;
+        }
+    }
+
+    use Data::Dumper;
+    use Test::More;
+    use JSON::PP;
+
+This now prints out the following:
+
+    Carp.pm
+    strict.pm
+    warnings.pm
+    Exporter.pm
+    XSLoader.pm
+    constant.pm
+    warnings/register.pm
+    bytes.pm
+    overload.pm
+    overloading.pm
+    Test/More.pm
+    Test/Builder/Module.pm
+    Test/Builder.pm
+    Scalar/Util.pm
+    List/Util.pm
+    Test2/Util.pm
+    Config.pm
+    vars.pm
+    PerlIO.pm
+    Config_heavy.pl
+    Config_git.pl
+    Test2/API.pm
+    Test2/API/Instance.pm
+    Test2/Util/Trace.pm
+    Test2/Util/HashBase.pm
+    mro.pm
+    DynaLoader.pm
+    Test2/API/Stack.pm
+    Test2/Hub.pm
+    Test2/Util/ExternalMeta.pm
+    Test2/Hub/Subtest.pm
+    Test2/Hub/Interceptor.pm
+    Test2/Hub/Interceptor/Terminator.pm
+    Test2/Event/Ok.pm
+    Test2/Event.pm
+    Test2/Event/Diag.pm
+    Test2/Event/Note.pm
+    Test2/Event/Plan.pm
+    Test2/Event/Bail.pm
+    Test2/Event/Exception.pm
+    Test2/Event/Waiting.pm
+    Test2/Event/Skip.pm
+    Test2/Event/Subtest.pm
+    Test2/API/Context.pm
+    Test/Builder/Formatter.pm
+    Test2/Formatter/TAP.pm
+    Test2/Formatter.pm
+    Test/Builder/TodoDiag.pm
+    JSON/PP.pm
+    base.pm
+    B.pm
+
+There's a few things worth noting about this output:
+
+=over
+
+=item The B<filenames> of what we're search for are specified, not the module names.  i.e. C<Foo/Bar.pm> not C<Foo::Bar>
+
+=item It's not just the modules we're requiring directly, but the modules that our modules require.  Test2::Event is listed even though we only required Test::More.
+
+=item Things are only listed once.  Even though Test::More itself loads C<strict> and C<warnings> they're not listed a second time after Data::Dumper required them
+
+=back
+
+You can easily turn this into a module
+
+    #!perl
+    package oreLoadingDebugging;
+    unshift @INC, sub { say $_[1]; return };
+    1;
+
+That you can load from the command line
+
+    perl -MoreLoadingDebugging -c myscript.pl
+
+By using the C<-c> flag our script doesn't actually run past the compiling
+stage meaning (hopefully) the script won't actually do anything.
+
+=head3 The Downsides of This Technique
+
+This is a fairly simple technique that, unfortunately has a few downsides:
+
+=over
+
+=item B<Doesn't find run time dependencies>.  Since we're only running some of the Perl phases of execution, we won't find anything that's conditionally loaded at runtime(e.g. something like C<eval 'use SomethingOptional' if $ENV{FEATURE_NAME}>)
+
+=item B<Totally unsafe>.  Even with the C<-c> flag there's a chance that something bad will happen when you do this - you're actually running Perl code that's one C<BEGIN { system("rm -rf $HOME") }> from deleting everything you care about on your system.  You I<really> don't want to do this with untrusted code!
+
+=item B<Must compile>.  If the code you're using won't compile on the system - probably because you're actually missing some of those dependencies - then you can't effectively use this technique.  Mincepie couldn't analyze the scripts on anything but the setup he'd originally written them on.
+
+=item B<Filename cleanup>.  This technique won't give you a clean set of dependencies you can easily work with.  The list contains things in the wrong form C<Foo/Bar.pm> rather than C<Foo::Bar>, and is peppered with things that are core pragma (C<base.pm>, C<mro.pm>) and core modules that you wouldn't necessarily need to list as a dependency.
+
+=item B<Indirect dependencies>.  The listed dependencies also contains things that are your dependencies' dependencies - your indirect dependencies - and you don't want to necessarily state in your C<cpanfile> that you depend on all of those because they might change as your direct dependencies' dependencies change
+
+=back
+
+=head2 Technique 2: Parsing the source
+
+An alternative approach to executing the code is to attempt to write a program
+that parses it and works out what all the C<use> and C<require> statements are
+attempting to do.  With a dynamic language like Perl it's not possible for a
+program to work out I<every> single possible situation that an elf could
+conceivably write to import code, but its certainly possible to recognize all
+the ways a I<sane> elf might write import statements - even those that aren't
+executed every program run!
+
+To do this Mincepie first tried a module on the CPAN L<Perl::PrereqScanner>
+
+    #!perl
+    use Perl::PrereqScanner;
+    my $scanner = Perl::PrereqScanner->new;
+    my $requirements = $scanner->scan_file('myscript.pl');
+
+The returned C<$requirements> is a L<CPAN::Meta::Requirements> object.  You
+can do a lot with this - including L<graphing it|../2015/2015-12-10.html> -
+but the simplest thing you can do is just dump it out as a hash;
+
+    #!perl
+    use JSON::PP qw(encode_json);
+    print encode_json( $requirements->as_string_hash );
+
+This helpfully prints out in the above example:
+
+    {"Data::Dumper":"0","JSON::PP":"0","Test::More":"0"}
+
+This works on Moose code also:
+
+    #!perl
+    package Rudolph;
+
+    use Moose;
+
+    extends 'SantasReindeer';
+
+    with 'GlowingRedNose';
+    ...
+
+Scanning this correctly shows our dependencies:
+
+    {"GlowingRedNose":"0","Moose":"0","SantasReindeer":"0"}
+
+=head2 Speeding things up with Perl::PrereqScanner::Lite
+
+The only problem with using Perl::PrereqScanner is that it's relatively slow.
+Under the hood it uses PPI, a Perl parsing library that builds a comprehensive
+object tree representing each keyword, symbol, structure, etc of the source
+code.  It's powerful - but slow.
+
+    shell$ time perl scan-moose-example.pl
+    {"Moose":"0","GlowingRedNose":"0","SantasReindeer":"0"}
+    real    0m0.244s
+    user    0m0.215s
+    sys     0m0.027s
+
+This might not seem a lot, but when you're scanning a hundred big files you're
+suddenly taking half a minute or so!
+
+There are alternatives on the CPAN.  For example L<Perl::PrereqScanner::Lite>,
+which from a user point of view is almost the same to use:
+
+    #!perl
+    use Perl::PrereqScanner::Lite;
+    my $scanner = Perl::PrereqScanner::Lite->new;
+    $scanner->add_extra_scanner('Moose'); # add extra scanner for moose style
+    my $result = $scanner->scan_file('Rudolph.pm');
+
+    use JSON::PP qw(encode_json);
+    print encode_json( $result->as_string_hash );
+
+But is much faster:
+
+    $ time perl scan-moose-example-with-lite.pl
+    {"SantasReindeer":"0","Moose":"0","GlowingRedNose":"0"}
+    real    0m0.053s
+    user    0m0.037s
+    sys     0m0.014s
+
+=head2 Finding optional dependencies with Perl::PrereqScanner::NotSoLite
+
+So far our scanners have only found things that our code always depends on.
+What about optional dependencies?  Things we'd I<like> to load, but work around
+if they're not available?
+
+    #!perl
+    if (eval "use Term::ANSIColor; 1") {
+        say STDERR Term::ANSIColor::colored(
+            'STARTING DEBUGGING',
+            'red on_yellow'
+        );
+    } else {
+        say STDERR 'STARTING DEBUGGING';
+    }
+
+Both Perl::PrereqScanner and Perl::PrereqScanner::Lite won't detect the
+dependency on Term::ANSIColor since it's loaded inside the C<eval> string.
+However, L<Perl::PrereqScanner::NotSoLite> will:
+
+    #!perl
+    use Perl::PrereqScanner::NotQuiteLite;
+    my $scanner = Perl::PrereqScanner::NotQuiteLite->new( suggests => 1 );
+    my $result = $scanner->scan_file('Rudolph.pm');
+
+    use JSON::PP qw(encode_json);
+    say 'requires: '.encode_json( $result->requires->as_string_hash );
+    say 'suggests: '.encode_json( $result->suggests->as_string_hash );
+
+We get B<two> hashes out, our hard requirements and things we suggest:
+
+    requires: {"Reindeer":"0","GlowingRedNose":"0","Moose":"0"}
+    suggests: {"Term::ANSIColor":"0"}
+
+=head2 Frostystocking's List
+
+Mincepie Frostystockings had spend a good few hours scanning all his scripts
+till he was 100% sure that he'd identified everything that they needed to
+work correctly.
+
+Now all he had to do was try and work out what the heck L<Acme::Damn> was, and
+why his code was using it...

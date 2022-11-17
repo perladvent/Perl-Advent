@@ -1,0 +1,177 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2012 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2012.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2012 - 
+Checking Out Your Data Structures
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2012</a></h1>
+        </div>
+
+        <p id="tagline">2012 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Checking Out Your Data Structures</h1>
+<div class='subtitle'>Data::Printer - 2012-12-06</div>
+
+<div class='pod'><h2 id="Have-Your-Variables-Been-Naughty-or-Nice">Have Your Variables Been Naughty or Nice?</h2>
+
+<p>Every once in a while you expect your variables to contain a certain value, only to realize, sometimes a bit too late, that something&#39;s off. We&#39;ve all been there, and having a way to quickly and neatly view the contents of your variables can make all the difference in the world.</p>
+
+<p>Enter <a href="https://metacpan.org/module/Data::Printer">Data::Printer</a>, a module that formats and prints your data structures on screen, in a way that lets you easily check them and spot errors. Its output is colored by default, and it also contains several filters to help you debug objects.</p>
+
+<p>Using it couldn&#39;t be simpler: Data::Printer exports a <code>p()</code> function to your namespace that you use to dump your data to STDERR (or <a href="https://metacpan.org/module/Data::Printer#Changing-output-targets">anywhere else</a> in fact):</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Data::Printer</span><span class="structure">;</span><br /><br /><span class="operator">...</span><br /><br /><span class="word">p</span> <span class="symbol">$some_variable</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Since it&#39;s a debugging module you&#39;ll likely be turning it on and off everywhere in your code. If that&#39;s the case, a common idiom is to simply add this line when you need to check some data:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">DDP</span><span class="structure">;</span> <span class="word">p</span> <span class="symbol">$some_variable</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Which takes advantage of <a href="https://metacpan.org/module/DDP">DDP</a>, a shorter alias for Data::Printer.</p>
+
+<h2 id="Optimized-for-Humans">Optimized for Humans</h2>
+
+<p>Now, if you were using it to view the content of a complex data structure, this is what you might get:</p>
+
+<table class="code-listing">
+<tbody>
+ <tr>
+  <td class="code" style="font-weight:normal">
+\ [
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#fff">[0]</span> "<span style="color:#ff7">/path/from/env</span>" <span style="color:#b11">(TAINTED)</span>,
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#fff">[1]</span> [
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#fff">[0]</span> "<span style="color:#ff7">foo</span>",
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#fff">[1]</span> "<span style="color:#ff7">bar</span>"
+&nbsp;&nbsp;&nbsp;&nbsp;],
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#fff">[2]</span> {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#b40486">name</span> &nbsp;&nbsp;&nbsp;&nbsp;"",
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#b40486">gifts</span> &nbsp;&nbsp;&nbsp;<span style="background-color:#f00;color:#ccc">var[1]</span>
+&nbsp;&nbsp;&nbsp;&nbsp;},
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#fff">[3]</span> \ "<span style="color:#ff7">Some string reference</span>" <span style="color:#01dfa5">(weak)</span>
+]
+  </td>
+ </tr>
+</tbody>
+</table>
+
+<p>Did you see what just happened? Not only did Data::Printer show you the contents of your variable in a clear, colored and indented fashion, it also let you see array indices, know about circular references, tainted data, and weak references, and it can detect and describe many more facts about your data!</p>
+
+<p>But enough about plain data structures. Let&#39;s try it with an object:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">My::Class</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">new</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$class</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="word">bless</span> <span class="structure">{</span> <span class="word">num</span> <span class="operator">=&gt;</span> <span class="number">42</span> <span class="structure">}</span><span class="operator">,</span> <span class="symbol">$class</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="structure">}</span><br /><br />&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">foo</span> <span class="structure">{}</span><br />&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">bar</span> <span class="structure">{}</span><br />&nbsp;&nbsp;<span class="keyword">sub</span> <span class="word">_baz</span> <span class="structure">{}</span><br /><span class="structure">};</span></code><br />&nbsp;</td></table>
+
+<p>If you use Data::Printer on an instance of the class defined above, you&#39;ll see something like this when you dump it:</p>
+
+<table class="code-listing">
+<tbody>
+ <tr>
+  <td class="code" style="font-weight:normal">
+<span style="color:#5f5">My::Class</span> {
+&nbsp;&nbsp;&nbsp;&nbsp;public methods (3) : <span style="color:#5f5">bar</span>,<span style="color:#5f5">foo</span>,<span style="color:#5f5">new</span>
+&nbsp;&nbsp;&nbsp;&nbsp;private methods (1) : <span style="color:#5f5">_baz</span>
+&nbsp;&nbsp;&nbsp;&nbsp;internals: {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#b40486">num</span> &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#0a4bac">42</span>
+&nbsp;&nbsp;&nbsp;&nbsp;}
+}
+  </td>
+ </tr>
+</tbody>
+</table>
+
+<p>Pretty neat, huh? It would even show inheritance if we had any =)</p>
+
+<h2 id="Filters">Filters</h2>
+
+<p>Another of Data::Printer&#39;s strenghts lies in how it lets you easily filter Perl types and classes. The basic distribution includes formatters for some popular modules like <a href="https://metacpan.org/module/DateTime">DateTime</a>, <a href="https://metacpan.org/module/Digest">Digest</a> and <a href="https://metacpan.org/module/DBI">DBI</a>, so if you have enabled them in your <a href="https://metacpan.org/module/Data::Printer#CUSTOMIZATION">settings</a>, then this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$data</span> <span class="operator">=</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">datetime</span> <span class="operator">=&gt;</span> <span class="word">DateTime</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span> <span class="word">year</span> <span class="operator">=&gt;</span> <span class="number">2012</span><span class="operator">,</span> <span class="word">month</span> <span class="operator">=&gt;</span> <span class="number">12</span><span class="operator">,</span> <span class="word">day</span> <span class="operator">=&gt;</span> <span class="number">25</span> <span class="structure">)</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">dbh</span>      <span class="operator">=&gt;</span> <span class="word">DBI</span><span class="operator">-&gt;</span><span class="word">connect</span><span class="structure">(</span><span class="symbol">$dsn</span><span class="operator">,</span> <span class="symbol">$user</span><span class="operator">,</span> <span class="symbol">$pass</span><span class="structure">)</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">digest</span>   <span class="operator">=&gt;</span> <span class="word">Digest::MD5</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">,</span><br /><span class="structure">};</span><br /><br /><span class="keyword">use</span> <span class="word">DDP</span><span class="structure">;</span> <span class="word">p</span> <span class="symbol">$data</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Might show you something like this:</p>
+
+<table class="code-listing">
+<tbody>
+ <tr>
+  <td class="code" style="font-weight:normal">
+\ {
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#b40486">datetime</span>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#5f5">2012-12-25T00:00:00 [floating]</span>,
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#b40486">dbh</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;mysql Database Handle (<span style="color:#5f5">connected</span>) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;database: mydb
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Auto Commit: 1
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Statement Handles: 0
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Last Statement: <span style="color:#ff7">-</span>
+&nbsp;&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#b40486">digest</span>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#5f5">d41d8cd98f00b204e9800998ecf8427e [reset]</span>,
+}
+  </td>
+ </tr>
+</tbody>
+</table>
+
+<p>Notice how, in this example, Data::Printer showed you:</p>
+
+<ul>
+
+<li><p>DateTime objects as formatted strings with the timezone (in this case, &#39;floating&#39;);</p>
+
+</li>
+<li><p>Database handles with information regarding connection, current database, amount of active statement handles, last run statement and even extra properties that might influence your program (like <code>AutoCommit</code>);</p>
+
+</li>
+<li><p>Digest objects (like <a href="https://metacpan.org/module/Digest::MD5">Digest::MD5</a>) as formatted hexdumps, including a mention when, like in the example above, the digest is actually is the one of a reset (empty) element.</p>
+
+</li>
+</ul>
+
+<p>There are <a href="https://metacpan.org/module/Data::Printer::Filter#EXISTING-FILTERS">several different filters available on CPAN</a> and you can make some new ones yourself!</p>
+
+<h2 id="In-Short">In Short</h2>
+
+<p><a href="https://metacpan.org/module/Data::Printer">Data::Printer</a> is a shiny tool for your Perl utility belt that not only pretty-prints variables, but also provides very useful information regarding your data. It is also extremely easy to tweak to suit your own taste and debugging needs, from colors to formatting to new filters.</p>
+
+<p>If you&#39;re not using it already, give it a go!</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/14c751a7de307f3f50a2cb67b38a6796?r=g&s=80&d=retro />
+This article contributed by: Breno G. de Oliveira &lt;garu@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Reindeer Games" href="2012-12-05.html">Previous</a></li>
+
+    <li class="next"><a title="Is your code&hellip; Safe?" href="2012-12-07.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,122 @@
+Title: Extracting more value out of your script's comments
+Topic: Smart::Comments
+Author: Neil Bowers <neil@bowers.com>
+
+=pod
+
+'Twas the day before Christmas Eve and Blink the elf had just
+had a call telling him that he'd been reassigned to the NOC
+(North-Pole Operations Centre).
+"It's an emergency, get over there pronto!"
+
+He quickly learned about the realities of the systems running Santa's
+operation. Many of them created by different teams who rarely talked
+to each other, and who used whatever language and frameworks were
+hot at the time their project started. A mixture of command-line tools,
+SOAP-based web services, RESTful APIS, and so on.
+
+"It's all glued together by Perl scripts that Jack wrote;
+when things go wrong he always knows how to get things running again.
+But Jack's sick,
+so we need a Perl hacker to help us through tomorrow!
+Someone told me that you're the elf who wrote the Prancer web framework,
+so I asked the Boss for you personally".
+
+It turned out there was a collection of scripts, but the biggest complaint
+in the NOC was that no-one knew what they were doing as they were running
+("when something goes wrong it's always been Jack who works out what needs
+restarting, and at what step").
+When Blink started looking at the scripts, his heart initially sank:
+they were enormous, and he only had a few hours before they had to be in use!
+But at least there were I<some> comments, describing what was going on:
+
+    #!perl
+    # get list of children
+    ... pile of code
+
+    # look them up in the Good Register
+    ... pile of code
+
+    # get scanned images of letters to the Boss
+    ... even more code
+
+Blink remembered L<Smart::Comments>,
+one of Damian Conway's modules,
+and realised it might help him out.
+Blink added C<use Smart::Comments> and modified the highest level comments:
+
+    #!perl
+    use Smart::Comments;
+
+    ### get list of children
+    ... code
+    ### looking children up in the Good Register
+    ...
+
+Any comments that started with three or more hash characters (C<"#">)
+were printed out as the script ran.
+
+The NOC elves thought this was great, but there were some parts of the
+scripts that took quite a while to run,
+so the next thing for Blink to do was to give a bit more detail.
+There were a lot of places where code looped over countries,
+so first he wanted to print out the country being processed:
+
+    #!perl
+    foreach my $country (@countries) {
+        #### Processing country: $country
+    }
+
+Any perl expession can be put after the colon, so Blink was quickly
+able to display a country name, which Santa was assigned, as so on.
+On this next level of comments Blink used four hashes.
+When using C<Smart::Comments>
+he could specify what level of comments should be handled:
+
+    #!perl
+    use Smart::Comments '###', '####';
+
+This let the NOC decide how verbose the various scripts were when running.
+Blink then added the C<-ENV> option:
+
+    #!perl
+    use Smart::Comments -ENV, '###', '####';
+
+This let the NOC specify the what level of diagnostics they wanted,
+just by setting the C<Smart_Comments> environment variable:
+
+    export Smart_Comments='###:####'
+
+The NOC can also set this environment variable to C<0> to turn
+off the diagnostics completely.
+
+There were still a lot of places where the scripts would iterate
+over large numbers of things, like children. Here it wasn't feasible to
+display each child's name, but they wanted some indication of progress.
+Blink used C<Smart::Comments>'s progress meters for these situations:
+
+    #!perl
+    for my $child (@children) {   ### OCR [===|     ] % done
+        ocr_letter($child);
+    }
+
+This displays a progress bar and a completion percentage.
+It will also track how long each step takes and estimate the time
+remaining, telling the NOC when a loop was close to finishing:
+
+    OCR [=================|  ] 91% done  (about 20 seconds remaining)
+
+After adding these three types of smart comments to all of the scripts,
+the NOC elves were very happy.
+Together they were able to get through Christmas Eve with no major mishaps.
+
+The chief NOC elf asked Blink if he'd
+like to join the NOC full time, to work on a new microservices architecture.
+"Don't do it", whispered one of the junior NOC elves;
+"he says something like that I<every> year.
+Why do you think Jack pulled a sickie?"
+
+=head1 SEE ALSO
+
+=for :list
+* L<Smart::Comments>

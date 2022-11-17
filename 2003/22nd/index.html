@@ -1,0 +1,333 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2003 Advent Calendar: LWP::Simple</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2003 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 22nd day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">LWP::Simple</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../21st/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../23rd/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>Though I've used this module countless times over the years in code
+examples though-out the advent calendar, I've never given it it's own
+whole day.  Well, today's the day that LWP::Simple comes into it's own.</p>
+<p>Any module that can download a web page into a scalar, or a variable
+with a single command has to be worth looking at.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?LWP::Simple">[Read the documentation for LWP::Simple on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Simple modules, are well, simple.  Let's download a web page using
+the get method:</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # define all the handy functions 
+  use LWP::Simple;</pre>
+
+<pre>  my $document = get("http://news.bbc.co.uk/")
+    or die "Couldn't download the BBC news";</pre>
+
+<pre>  if ($document =~ /terror/i)
+   { print "Don't panic Mr Mannering! Don't Panic!" }</pre>
+
+<p>The get method returns the content on success, and undef on
+failure.  It's that simple.  It doesn't do multiplexing.  It doesn't
+do setting up of complex user agents.  It doesn't even do proper
+error handling (it either got the document or it didn't) but it 
+just works.  It's great.</p>
+<p>One of the things I do when I write my code is to use LWP::Simple
+at first, importing the <code>get</code> method into my code, and then at 
+a later date I can replace it with something that does more or less
+exactly what I want with custom code.  For example, I start off with
+something like this:</p>
+<pre>  use LWP::Simple qw(get);</pre>
+
+<p>And then later I'll remove that line completely and go to the lengths
+of setting up my own user agent, writing better error checking, etc,
+etc.</p>
+<p>Even if you don't want to go the the lengths described here it's often
+considered good manners to modify your agent to properly identify
+itself.  This is useful in case you make a mistake in your program and
+accidentally leave your program, unawares to you, to go wreak havoc on
+some unsuspecting site.</p>
+<p>LWP lets you access the <i>UserAgent</i>, the module that actually represents
+the abstract web browser, by asking <code>$ua</code> to be exported into your
+namespace:</p>
+<pre>  use LWP::Simple qw(get $ua);</pre>
+
+<p>You can then call methods directly on the object that set useful
+identification settings.</p>
+<pre>  # set a useful id string
+  $ua-&gt;agent(q{Mark's Agent (mark@twoshortplanks.com)}),</pre>
+
+<pre>  # explicitly use the defined header where people can
+  # complain if they're getting hit by the agent too often
+  $ua-&gt;from('mark@twoshortplanks.com');</pre>
+
+<p>You can also set other options, like the time a request should
+run for before timing out:</p>
+<pre>  # time out after a minute
+  $ua-&gt;timeout(60);</pre>
+
+<h2>Keeping Local Files Up To Date</h2>
+<p>These days, it's fairly common for frequently updated websites to have
+their content syndicated by RSS feeds, a simple XML RDF file format
+that contains some of the content of the site that people could
+download every so often (say every hour or so.) </p>
+<p>What we need to do is write a script that downloads that file
+and stores a local copy on the disk on my laptop.  My first attempt
+makes use of <b>LWP::Simple</b>'s get method</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # get the data
+  use LWP::Simple;
+  my $rss = get("http://perladvent.org/perladvent.rdf")
+    or die "Mark probably broke the server again!\n";</pre>
+
+<pre>  # write the data out to file
+  use IO::File;
+  my $fh = IO::File-&gt;new("&gt;perladvent.rdf")
+    or die "Can't open perladvent.rdf for writing: $!";
+  print $fh $rss;</pre>
+
+<p>The action of getting a file and saving it to file is actually
+so common that there's a shortcut here, the <code>getstore</code> routine.</p>
+<pre>  #!/usr/bin/perl
+                                                        
+  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  my $url  = "http://perladvent.org/perladvent.rdf";
+  my $file = "perladvent.rdf";
+ 
+  # get the data
+  use LWP::Simple;
+  is_success(getstore($url, $file))
+    or die "Mark probably broke the server again!\n";</pre>
+
+<p>The <code>getstore</code> method writes it's output directly to the file.  It
+returns a HTTP response code.  We're all familiar with the code 404
+which means a page isn't found, or 500 which means the CGI didn't work
+but there's a whole other range of these things indicating various
+things.  The easiest way to check if the code represents something
+good or bad is to use the <code>is_success</code> or <code>is_error</code> functions which
+return true if what they're testing is correct.</p>
+<h2>RSS Feeds and Bandwidth</h2>
+<p>When RSS started out the content was very minimal, only containing
+the title of pages, the page's URLs, and if you were very luckily a
+small paragraph summarising the page.  However, more and more these
+days people are putting the majority - if not all - of their content
+into these RSS feeds as an alternative delivery system to using HTML.</p>
+<p>While this is a very nice thing to do, as it allows people with RSS
+aggregators like NetNewsWire or Timesink to read the meaningful content
+from the site without having to ever visit a real webpage, it does
+incur huge bandwidth costs for popular sites.  Especially as clients
+tend to essentially suck down the entire contents of the site every
+hour (or more often if they're not paying attention to the standards)
+even if no new content has been posted.  This is very bad for all
+concerned, but most of all if the people who are running the site are
+paying by the kilobyte (for the record, my bandwidth is unmetered, so
+I don't care about people doing it to me, just accidentally doing it
+to other people.)2A</p>
+<p>What we really need to do is only get the content if the page has
+been updated.</p>
+<p>For example The Perl Advent Calendar's main RSS is actually a static
+file that's created by a Perl script at midnight or whenever I update
+the script in between.  As I write this it's timestamp reflects that I
+last made a change to the order of the modules to be published about
+quarter past eleven last night:</p>
+<pre>  mark@gan:/virtual/perladvent.org/www/html$ ls -l perladvent.rdf 
+  -rw-r--r--    1 mark     mark         1062 Dec 20 23:14 perladvent.rdf</pre>
+
+<p>The problem is that the code I wrote above above is downloading the
+entire site every time it's executed.  If it's run every hour it
+downloads the file each hour, irrespective of how often it changes.
+What we want to do is compare the filetime of the local file we have
+on the hard drive with that of the file on the server before we get the
+whole content delivered to us.</p>
+<h2>head</h2>
+<p>The normal way to see if a file has been updated or not is to use a
+HEAD request.  This request is essentially similar to the normal 
+GET request we make with <code>get</code>, but we ask only header information to
+be sent without the content.  From the command line:</p>
+<pre>  servalan:~ mark$ lwp-request -m head perladvent.org/perladvent.rdf
+  200 OK
+  Connection: close
+  Date: Sun, 21 Dec 2003 23:03:59 GMT
+  Accept-Ranges: bytes
+  Server: thttpd/2.23beta1 26may2002
+  Content-Length: 1062
+  Content-Type: text/plain; charset=iso-8859-1
+  Last-Modified: Sat, 20 Dec 2003 23:14:16 GMT
+  Client-Date: Sun, 21 Dec 2003 23:04:00 GMT
+  Client-Peer: 195.82.114.51:80
+  Client-Response-Num: 1</pre>
+
+<p>From this we can see that the feed was last updated on Saturday just
+before midnight - it's just the time from the file listing above.  We
+can also see that thttpd's sending the wrong content-type for an XML
+file, but that's a whole other issue ;-).</p>
+<p>So one thing we can do is make a HEAD request inside our script before
+we make a GET request, thus meaning we don't have to download the
+whole RSS feed if it hasn't changed.</p>
+<pre>  #!/usr/bin/perl
+                                                        
+  # turn on perl's safety features
+  use strict;
+  use warnings;
+ 
+  my $url  = "http://perladvent.org/perladvent.rdf";
+  my $file = "perladvent.rdf";</pre>
+
+<pre>  # get the remote modification time
+  use LWP::Simple;
+  my ($content_type, $document_length,
+       $modified_time, $expires, $server) = head($url);
+  
+  # get the local modification time
+  my $local_modified_time = (stat $file)[9];</pre>
+
+<pre>  # check the modification times
+  if ($modified_time &gt; $local_modified_time)
+  { 
+    # and get the content if we need to
+    is_success(getstore($url, $file))
+      or die "Mark probably broke the server again!\n";
+  }</pre>
+
+<h2>The Bigger Solution</h2>
+<p>While this is a good solution, and works quite well if we were mainly
+concerned in just seeing if the content had been updated or not, what
+we really need to do is actually make a proper GET request and send
+along the modification time of our local copy of the file is, and have
+the <i>webserver</i> decide if it needs to send us full data or not.</p>
+<p>The normal way to do this with LWP is crafting a HTTP::Request object
+which you then hand to your user agent that contains all the
+information about your request (what URL you want to get, your
+modification time, what content types you can accept, etc, etc.)
+LWP::Simple can simplify this process by using the <code>mirror</code> function.
+This method takes the same arguments as get_store, however it examines
+the existing file before it sends it and sends extra information along
+with it, including the If-Modified-Since header, to allow the server
+to simply reply, via the status code, that the local copy doesn't need
+updating.</p>
+<pre>  #!/usr/bin/perl
+                                                        
+  # turn on perl's safety features
+  use strict;
+  use warnings;
+ 
+  my $url  = "http://perladvent.org/perladvent.rdf";
+  my $file = "perladvent.rdf";</pre>
+
+<pre>  # update the content
+  use LWP::Simple;
+  my $status = mirror($url, $file);</pre>
+
+<pre>  # check the response
+  if (is_error($status))
+    { die "Mark probably broke the server again!\n" }
+ 
+  # tell us if the content hasn't changed
+  print "Content not changed\n"
+   if $status == RC_NOT_MODIFIED;</pre>
+
+<h2>Conclusion</h2>
+<p>LWP::Simple gives you a lot of bang for your buck, and each of the four
+functions I've discussed here can download and do something useful with
+a page (put it in a scalar, put it on disk, just get the header information,
+get content if it's updated).  It can easily let you write code to simply
+do what is a complicated task, and importantly it allows you to easily
+make sure your code does the right thing and respects other people's
+code.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/dist/libwww-perl/lib/HTTP/Status.pm">HTTP::Status</a></li>
+<li><a href="http://search.cpan.org/dist/libwww-perl/lib/LWP/UserAgent.pm">HTTP::UserAgent</a></li>
+<li><a href="http://www.oreilly.com/catalog/perllwp/index.html">Perl &amp; LWP, published by O'Reilly</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:56 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

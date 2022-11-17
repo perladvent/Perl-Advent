@@ -1,0 +1,93 @@
+Naughty or Nice - Which CPAN authors will not have a heating problem?
+
+=pod
+
+=for advent_year 2008
+
+=for advent_day 11
+
+=for advent_title Should I expect help with my heating bill from Santa?
+
+=for advent_author David Westbrook
+
+One of the powers of Perl lays in F<CPAN> and the vast functionality within.
+What's truly under the hood when we're C<use>-ing any particular module?
+M<Module::ScanDeps> answers precisely that by recursively delving into their
+innards. In even the simplest script, there's a lot of activity behind the
+scenes:
+
+=begin code
+
+$ scandeps.pl -e 'use strict; print "Hello World"'
+'Exporter'        => '5.63',
+'AutoLoader'      => '5.67',
+'Exporter::Heavy' => '5.63',
+'List::Util'      => '1.19',
+'threads::shared' => '1.27',
+'XSLoader'        => '0.10',
+'Scalar::Util'    => '1.19',
+
+=end code
+
+Once a script (or module) starts using other modules, and those modules use other modules,
+there's an entire treeN<cpantesters> of code in use which cause be from any number of authors.
+So, which of those authors have been I<naughty>, and which have been I<nice>?
+
+First, we need to scan all the dependencies (lines 1-3).
+Next, we'll need to create (lines 5-11) a look-up hash of the module names to authors -- this we obtain from a copy of the F<02packages.details.txt.gz> from a F<CPAN> mirror.
+
+With those two hashes in hand, we can loop over (line 14) the modules,
+exclude (line 15) the extraneous info,
+and note what other modules this module uses (line 16).
+And we also (lines 18-21) obtain the author for our look-up hash.
+
+Now we can record an author as naughty if the module does neither C<use strict> nor C<use warnings>, and as nice if the modules does both. (Just one is neutral.)
+For the lists, any author with any module with neither is naughty, and any non-naughty author with at least one with both is nice.
+
+Using this against a 'random' module:
+
+=begin code
+
+$ perl mod11.pl /my/path/Pod/Advent.pm
+
+=end code
+
+We obtain the following:
+
+=begin pre
+
+Authors that have been nice (Red Ryder):
+        JDHEDDEN
+        DAVIDRW
+        CHORNY
+        GBARR
+
+Authors that have been naughty (coal):
+        FERREIRA
+        GAAS
+        RGARCIA
+        HANK
+        unknown
+        SAPER
+        ILYAZ
+        ARANDAL
+
+=end pre
+
+Finally, a year without coal for me! :)
+
+=sourcedcode mod11.pl
+
+=begin footnote cpantesters
+
+Elegantly displayed by the
+A<http://deps.cpantesters.org/?module=Pod%3A%3AAdvent&perl=any+version&os=any+OS|http://deps.cpantesters.org>
+service.
+
+=end footnote
+
+=begin eds
+
+This module might also be useful in compiling a list to A<../10/|Bundle>.
+
+=end eds

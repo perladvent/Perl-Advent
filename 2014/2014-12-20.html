@@ -1,0 +1,142 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+Dumb In-struct-ions
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Dumb In-struct-ions</h1>
+<div class='subtitle'>Struct::Dumb - 2014-12-20</div>
+
+<div class='pod'><p>Do you ever find yourself using plain hash references to store little collections of data, always with the same fields, internally in your code? Or maybe you return them to callers to represent little collections of information?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">get_reindeers</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="word">name</span> <span class="operator">=&gt;</span> <span class="double">&quot;Rudolph&quot;</span><span class="operator">,</span> <span class="word">nose</span> <span class="operator">=&gt;</span> <span class="double">&quot;red&quot;</span><span class="operator">,</span> <span class="word">height</span> <span class="operator">=&gt;</span> <span class="float">1.25</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">{</span> <span class="word">name</span> <span class="operator">=&gt;</span> <span class="double">&quot;Comet&quot;</span><span class="operator">,</span> <span class="word">nose</span> <span class="operator">=&gt;</span> <span class="double">&quot;green&quot;</span><span class="operator">,</span> <span class="word">height</span> <span class="operator">=&gt;</span> <span class="float">1.27</span> <span class="structure">}</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;<span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Convenient as these are, they always run the risk that just spelling a key name wrong (or inventing new key names by mistake) doesn&#39;t cause an immediate error - either you&#39;ll end up reading undef, or worse, you&#39;ll create a new field in the structure.</p>
+
+<p>Of course you could create an entire object class for these, but an entire class in its own file just for a few pieces of structural data with no &quot;exciting behaviour&quot; methods seems somewhat overkill.</p>
+
+<h3 id="Enter-Struct::Dumb">Enter Struct::Dumb</h3>
+
+<p>In this sort of situation when you just have dumb structural data with no other methods you can use Struct::Dumb to represent them.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Struct::Dumb</span> <span class="single">'struct'</span><span class="structure">;</span><br /><br /><span class="word">struct</span> <span class="word">Reindeer</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="words">qw( name nose height )</span><span class="structure">];</span></code><br />&nbsp;</td></table>
+
+<p>This helpful little one line of code creates a constructor function which returns objects having all those fields:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">get_reindeers</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Reindeer</span><span class="structure">(</span><span class="double">&quot;Rudolph&quot;</span><span class="operator">,</span> <span class="double">&quot;red&quot;</span><span class="operator">,</span> <span class="float">1.25</span><span class="structure">)</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">Reindeer</span><span class="structure">(</span><span class="double">&quot;Comet&quot;</span><span class="operator">,</span> <span class="double">&quot;green&quot;</span><span class="operator">,</span> <span class="float">1.27</span><span class="structure">)</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="operator">...</span><br />&nbsp;&nbsp;&nbsp;<span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Your caller can now read the fields of the struct as if they were methods on an object:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@reindeer</span> <span class="operator">=</span> <span class="word">get_reindeers</span><span class="structure">();</span><br /><span class="word">say</span> <span class="double">&quot;A reindeer called &quot;</span> <span class="operator">.</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">name</span> <span class="word">foreach</span> <span class="symbol">@reindeer</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Though just like hash references these fields are updatable. They act as lvalue methods:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$rudolph</span> <span class="operator">=</span> <span class="symbol">$reindeer</span><span class="structure">[</span><span class="number">0</span><span class="structure">];</span><br /><span class="symbol">$rudolph</span><span class="operator">-&gt;</span><span class="word">height</span> <span class="operator">*=</span> <span class="number">2</span><span class="structure">;</span><br /><br /><span class="word">say</span> <span class="symbol">$rudolph</span><span class="operator">-&gt;</span><span class="word">name</span><span class="operator">,</span> <span class="double">&quot; is now twice as tall&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>However, unlike hash references instances give a helpful error if you try to access a field that doesn&#39;t exist:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">say</span> <span class="symbol">$reindeer</span><span class="structure">[</span><span class="number">0</span><span class="structure">]</span><span class="operator">-&gt;</span><span class="word">weight</span><span class="structure">;</span><br /><br /><span class="word">main::Reindeer</span> <span class="word">does</span> <span class="operator">not</span> <span class="word">have</span> <span class="word">a</span> <span class="single">'weight'</span> <span class="word">field</span> <span class="word">at</span> <span class="word">foo</span><span class="operator">.</span><span class="word">pl</span> <span class="word">line</span> <span class="float">123.</span></code><br />&nbsp;</td></table>
+
+<p>This makes them just as convenient as plain hash references for internal data inside your modules or classes.</p>
+
+<h3 id="Read-Only-Structs">Read-Only Structs</h3>
+
+<p>If you want to create structures that cannot be mutated after construction, you can instead use <code>readonly_struct</code> to declare them:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Struct::Dumb</span> <span class="single">'readonly_struct'</span><span class="structure">;</span><br /><span class="word">readonly_struct</span> <span class="word">Reindeer</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="words">qw( name nose height )</span><span class="structure">];</span><br /><br /><span class="keyword">my</span> <span class="symbol">$vixen</span> <span class="operator">=</span> <span class="word">Reindeer</span><span class="structure">(</span><span class="double">&quot;Vixen&quot;</span><span class="operator">,</span> <span class="double">&quot;silver&quot;</span><span class="operator">,</span> <span class="float">1.19</span><span class="structure">);</span><br /><br /><span class="comment"># try to change it<br /></span><span class="symbol">$vixen</span><span class="operator">-&gt;</span><span class="word">name</span> <span class="operator">=</span> <span class="double">&quot;VIXEN&quot;</span><span class="structure">;</span><br /><br /><span class="word">Can't</span> <span class="word">modify</span> <span class="word">non-lvalue</span> <span class="word">subroutine</span> <span class="word">call</span> <span class="word">at</span> <span class="word">foo</span><span class="operator">.</span><span class="word">pl</span> <span class="word">line</span> <span class="float">123.</span></code><br />&nbsp;</td></table>
+
+<h3 id="Constructor-Cleverness">Constructor Cleverness</h3>
+
+<p>The constructor function helpfully reminds you of missing fields if you invoked it incorrectly:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">return</span> <span class="word">Reindeer</span><span class="structure">(</span><span class="double">&quot;Dancer&quot;</span><span class="operator">,</span><span class="double">&quot;grey&quot;</span><span class="structure">)</span><br /><br /><span class="label">usage:</span> <span class="word">main::Reindeer</span><span class="structure">(</span><span class="symbol">$name</span><span class="operator">,</span> <span class="symbol">$nose</span><span class="operator">,</span> <span class="symbol">$height</span><span class="structure">)</span> <span class="word">at</span> <span class="word">foo</span><span class="operator">.</span><span class="word">pl</span> <span class="word">line</span> <span class="float">123.</span></code><br />&nbsp;</td></table>
+
+<p>Of course, this doesn&#39;t help you if you pass the right number of arguments but mix up the order of them:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$rudy</span> <span class="operator">=</span> <span class="word">Reindeer</span><span class="structure">(</span><span class="double">&quot;Rudolph&quot;</span><span class="operator">,</span> <span class="float">1.25</span><span class="operator">,</span> <span class="double">&quot;red&quot;</span><span class="structure">);</span><br /><span class="word">say</span> <span class="symbol">$rudy</span><span class="operator">-&gt;</span><span class="word">height</span><span class="structure">;</span>  <span class="comment"># prints &quot;red&quot;, ooops</span></code><br />&nbsp;</td></table>
+
+<p>One thing that can help here is to instead have Struct::Dumb create a constructor that uses named parameters rather than positional arguments - in other words instead of passing in an ordered list of parameters you pass in key/value pairs much more like traditional hash creation. This looks something like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">struct</span> <span class="word">Reindeer</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="words">qw( name nose height )</span><span class="structure">]</span><span class="operator">,</span> <span class="word">named_constructor</span> <span class="operator">=&gt;</span> <span class="number">1</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$rudy</span> <span class="operator">=</span> <span class="word">Reindeer</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">name</span> <span class="operator">=&gt;</span> <span class="double">&quot;Rudolph&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">height</span> <span class="operator">=&gt;</span> <span class="float">1.25</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">nose</span> <span class="operator">=&gt;</span> <span class="double">&quot;red&quot;</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>It&#39;s even possible to enable defaulting to named parameters on a per-package basis:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Struct::Dumb</span> <span class="word">-named_constructors</span><span class="operator">,</span> <span class="single">'struct'</span><span class="structure">;</span><br /><br /><span class="word">struct</span> <span class="word">Reindeer</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="words">qw( name nose height )</span><span class="structure">];</span><br /><br /><span class="keyword">my</span> <span class="symbol">$rudy</span> <span class="operator">=</span> <span class="word">Reindeer</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="word">name</span> <span class="operator">=&gt;</span> <span class="double">&quot;Rudolph&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">height</span> <span class="operator">=&gt;</span> <span class="float">1.25</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">nose</span> <span class="operator">=&gt;</span> <span class="double">&quot;red&quot;</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h3 id="Space-Efficiency">Space Efficiency</h3>
+
+<p>Under the hood Struct::Dumb uses arrays to store the data. This means that these data structures can be much smaller:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Struct::Dumb</span> <span class="word">-named_constructors</span><span class="operator">,</span> <span class="single">'struct'</span><span class="structure">;</span><br /><span class="word">struct</span> <span class="word">Reindeer</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="words">qw( name nose height )</span><span class="structure">];</span><br /><br /><span class="keyword">my</span> <span class="symbol">@args</span> <span class="operator">=</span> <span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">name</span> <span class="operator">=&gt;</span> <span class="double">&quot;Rudolph&quot;</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">height</span> <span class="operator">=&gt;</span> <span class="float">1.25</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">nose</span> <span class="operator">=&gt;</span> <span class="double">&quot;red&quot;</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="keyword">use</span> <span class="word">Devel::Size</span> <span class="words">qw(total_size)</span><span class="structure">;</span><br /><span class="word">say</span> <span class="word">total_size</span><span class="structure">({</span><span class="symbol">@args</span><span class="structure">});</span><br /><span class="word">say</span> <span class="word">total_size</span><span class="structure">(</span><span class="word">Reindeer</span><span class="structure">(</span><span class="symbol">@args</span><span class="structure">));</span></code><br />&nbsp;</td></table>
+
+<center><img src="space.png"></center>
+
+<p>If you&#39;re using a vast number of identically keyed hashes then Struct::Dumb can save a significant amount of memory.</p>
+
+<h3 id="In-Conclusion">In Conclusion</h3>
+
+<p>In certain situations Struct::Dumb can provide a more strict and smaller alternative to simple hash usage with minimal code overhead. With a pure Perl implementation requiring no dependencies, there&#39;s very little reason you shouldn&#39;t start using it in your code today.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Struct::Dumb">Struct::Dumb</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Devel::Size">Devel::Size</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/2cbbae354bb4f5f320b93ab3ad4b0fa1?r=g&s=80&d=retro />
+This article contributed by: Paul &quot;LeoNerd&quot; Evans &lt;leonerd@leonerd.org.uk&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Wrapping output " href="2014-12-19.html">Previous</a></li>
+
+    <li class="next"><a title="Beyond Grep" href="2014-12-21.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,136 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2011 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2011.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2011 - 
+It Boiled Plate So You Don&#39;t Have To!
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2011</a></h1>
+        </div>
+
+        <p id="tagline">2011 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>It Boiled Plate So You Don&#39;t Have To!</h1>
+<div class='subtitle'>Params::Util - 2011-12-23</div>
+
+<div class='pod'><h2 id="ref-reftype-overload-and-isa">ref, reftype, overload, and isa</h2>
+
+<p>&quot;The <code>process_foos</code> method accepts either something that does the Foo role, an arrayref of such things, or a callback that should return one of the previous options.&quot;</p>
+
+<p>This kind of behavior is pretty common in Perl. It&#39;s pretty convenient, too! The problem is that it is <i>incredibly</i> ambiguous because Perl can behave in so many ways. We might write an implementation like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">process_foos</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$arg</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">_process_one_foo</span><span class="structure">(</span><span class="symbol">$arg</span><span class="structure">)</span> <span class="word">if</span> <span class="symbol">$arg</span><span class="operator">-&gt;</span><span class="word">DOES</span><span class="structure">(</span><span class="single">'Foo'</span><span class="structure">);</span><br />&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">_process_foo_arr</span><span class="structure">(</span><span class="symbol">$arg</span><span class="structure">)</span> <span class="word">if</span> <span class="word">ref</span> <span class="symbol">$arg</span> <span class="operator">eq</span> <span class="single">'ARRAY'</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">process_foos</span><span class="structure">(</span><span class="symbol">$arg</span><span class="operator">-&gt;</span><span class="structure">())</span> <span class="word">if</span> <span class="word">ref</span> <span class="symbol">$arg</span> <span class="operator">eq</span> <span class="single">'CODE'</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>How many problems are there here, though? Well&hellip;</p>
+
+<p>First off, that <code>-&gt;DOES</code> call is no good. It will blow up if we pass in an arrayref, because you can&#39;t call <code>DOES</code> or <code>isa</code> (or any other method) on an unblessed reference. So, the <i>incredibly unfortunate</i> way people dealt with this in the past was:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">_process_one_foo</span><span class="structure">(</span><span class="symbol">$arg</span><span class="structure">)</span> <span class="word">if</span> <span class="word">UNIVERSAL::isa</span><span class="structure">(</span><span class="symbol">$arg</span><span class="operator">,</span> <span class="single">'Foo'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Notice how I devolved back from <code>DOES</code> to <code>isa</code>? That&#39;s because <code>UNIVERSAL::DOES</code> detects and objects to this kind of abuse &ndash; but it doesn&#39;t give you a safe way to check it in one step, so now the new <i>incredibly unfortunate</i> way people deal with this is:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">_process_one_foo</span><span class="structure">(</span><span class="symbol">$arg</span><span class="structure">)</span> <span class="word">if</span> <span class="word">blessed</span> <span class="symbol">$arg</span> <span class="operator">and</span> <span class="symbol">$arg</span><span class="operator">-&gt;</span><span class="word">DOES</span><span class="structure">(</span><span class="single">'Foo'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>This is fine, if you really wanted a Foo <i>object</i>, but sometimes a <i>class</i> is just as good, if it has the right interface. The whole thing about classes and instances sharing the same set of methods is kind of its own problem&hellip; so let&#39;s just say &quot;this is a mess&quot; and keep going.</p>
+
+<p>So, this one seems less <i>obviously</i> bad:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">_process_foo_arr</span><span class="structure">(</span><span class="symbol">$arg</span><span class="structure">)</span> <span class="word">if</span> <span class="word">ref</span> <span class="symbol">$arg</span> <span class="operator">eq</span> <span class="single">'ARRAY'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>&hellip;but it&#39;s still not perfect. For one thing, some chucklehead might have blessed his object into <code>ARRAY</code>. Frankly, I think that if you&#39;ve got that going on in your code base, you probably deserve what you get, but you can protect against it, any many do, with:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">_process_foo_arr</span><span class="structure">(</span><span class="symbol">$arg</span><span class="structure">)</span> <span class="word">if</span> <span class="word">reftype</span> <span class="symbol">$arg</span> <span class="operator">eq</span> <span class="single">'ARRAY'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Now we&#39;re really checking the underlying reference type, not just the return of <code>ref</code>, which has <i>two</i> jobs. That&#39;s better, except <i>not really</i>. See, <code>reftype</code> is bypassing <code>ref</code> &ndash; which seemed like a good thing when <code>ref</code> sometimes returned <code>ARRAY</code> but now it means we don&#39;t know whether the thing was blessed! So you have a couple options. One is:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">_process_foo_arr</span><span class="structure">(</span><span class="symbol">$arg</span><span class="structure">)</span><br />&nbsp;&nbsp;<span class="word">if</span> <span class="operator">!</span> <span class="word">blessed</span> <span class="symbol">$arg</span> <span class="operator">and</span> <span class="word">reftype</span> <span class="symbol">$arg</span> <span class="operator">eq</span> <span class="single">'ARRAY'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Okay, that&#39;s not too, too bad. Let&#39;s stick with it for now.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">process_foos</span><span class="structure">(</span><span class="symbol">$arg</span><span class="operator">-&gt;</span><span class="structure">())</span> <span class="word">if</span> <span class="word">ref</span> <span class="symbol">$arg</span> <span class="operator">eq</span> <span class="single">'CODE'</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Yup, this one has the same problem as the above. So, maybe you want to use the same solution!</p>
+
+<pre><code>  return $self-&gt;process_foos( $arg-&gt;() )
+    if ! blessed $arg and reftype $arg eq &#39;CODE&#39;;</code></pre>
+
+<p>Unfortunately, the astute abuse-o-philes will remember, here, &quot;Wait! What if you provided an <i>object</i> that is <i>overloaded for <code>&amp;{}</code></i>!?&quot; And you know what? I&#39;m going to take a step back and just say what I think: <i>that isn&#39;t even abuse!</i> Closures and objects are closely related concepts, and the idea that your object can behave like a closure &ndash; at least by providing a subref-like calling interface &ndash; is totally reasonable. I have done it, I enjoyed it, and I would do it again!</p>
+
+<p>So, what did you really need to test for?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="structure">(</span> <span class="word">reftype</span><span class="structure">(</span><span class="symbol">$arg</span><span class="structure">)</span> <span class="operator">||</span> <span class="single">''</span> <span class="structure">)</span> <span class="operator">eq</span> <span class="single">'CODE'</span><br /><span class="operator">||</span><br /><span class="word">blessed</span><span class="structure">(</span><span class="symbol">$arg</span><span class="structure">)</span> <span class="operator">and</span> <span class="word">overload::Method</span><span class="structure">(</span><span class="symbol">$arg</span><span class="operator">,</span><span class="single">'&amp;{}'</span><span class="structure">)</span></code><br />&nbsp;</td></table>
+
+<p>Yes. <i>Of course</i> I think it&#39;s ridiculous, too. Even better, you have to do it for the <code>ARRAY</code> bit above, because somebody might have overloaded <code>@{}</code>.</p>
+
+<h2 id="Help">Help!!</h2>
+
+<p>Don&#39;t worry! There&#39;s help!</p>
+
+<p><a href="https://metacpan.org/module/Params::Util">Params::Util</a> provides a treatment for this madness.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Params::Util</span> <span class="single">':ALL'</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">process_foos</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$arg</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">_process_one_foo</span><span class="structure">(</span><span class="symbol">$arg</span><span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">if</span> <span class="word">_CLASSISA</span><span class="structure">(</span><span class="symbol">$arg</span><span class="operator">,</span> <span class="single">'Foo'</span><span class="structure">)</span> <span class="operator">||</span> <span class="word">_INSTANCE</span><span class="structure">(</span><span class="symbol">$arg</span><span class="operator">,</span> <span class="single">'Foo'</span><span class="structure">);</span><br /><br />&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">_process_foo_arr</span><span class="structure">(</span><span class="symbol">$arg</span><span class="structure">)</span> <span class="word">if</span> <span class="word">_ARRAYLIKE</span><span class="structure">(</span> <span class="symbol">$arg</span> <span class="structure">);</span><br /><br />&nbsp;&nbsp;<span class="keyword">return</span> <span class="symbol">$self</span><span class="operator">-&gt;</span><span class="word">process_foos</span><span class="structure">(</span><span class="symbol">$arg</span><span class="operator">-&gt;</span><span class="structure">())</span> <span class="word">if</span> <span class="word">_CODELIKE</span><span class="structure">(</span> <span class="symbol">$arg</span> <span class="structure">);</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>(Note that I had to use <code>_CLASSISA</code>, which as the name implies uses <code>-&gt;isa</code> &ndash; Params::Util does not <i>yet</i> have <code>_CLASSDOES</code>.)</p>
+
+<p>These funky, hard-to-miss functions encapsulate all these kinds of checks, but they do them <i>the right way</i>. There&#39;s <code>_SCALAR</code> to check for a plain, defined, unblessed scalar of nonzero length &ndash; and if you want a plain, defined, unblessed scalar length and have no problem with zero length, there&#39;s <code>_SCALAR0</code>. There are routines for hashrefs, non-empty hashrefs, or things that can act like hashrefs if you want. There are tests for numberness, positive integerhood, and non-negative integerhood. If you look at list of its routines, you can probably guess what almost all of them do, and you can start using them immediately, replacing the code you have that&#39;s just waiting to get tickled by some stupid edge case.</p>
+
+<p>Here&#39;s that list:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>_STRING     _IDENTIFIER<br />_CLASS      _CLASSISA   _SUBCLASS  _DRIVER<br />_NUMBER     _POSINT     _NONNEGINT<br />_SCALAR     _SCALAR0<br />_ARRAY      _ARRAY0     _ARRAYLIKE<br />_HASH       _HASH0      _HASHLIKE<br />_CODE       _CODELIKE<br />_INVOCANT   _REGEX      _INSTANCE<br />_SET        _SET0<br />_HANDLE</code><br />&nbsp;</td></table>
+
+<p>My only parting advice? Avoid <code>_STRING</code>. It accepts globs!</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Params::Util">Params::Util</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/cec6b9b88295ead26c65f8747a76561b?r=g&s=80&d=retro />
+This article contributed by: Ricardo Signes &lt;rjbs@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Less Tedium, More Transactions" href="2011-12-22.html">Previous</a></li>
+
+    <li class="next"><a title="Where Does He Get Those Wonderful Codepoints?" href="2011-12-24.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

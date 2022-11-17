@@ -1,0 +1,462 @@
+Title: Now With Added Interactivity
+Topic: Mojo::Transaction::Websocket
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+The Wise Old Elf had locked himself in his office for
+several days.  The other elves were starting to get worried.
+
+It had all started after helping Buster Stripytights with
+a L<command line script that launched a browser based web app|http://perladvent.org/2019/2019-12-09.html>.
+Then one of the elves had heard him muttering about something
+that Fir Cidergift had been working on to use Mojo::AsyncAwait to
+L<handle awating like JavaScript does|http://perladvent.org/2019/2019-12-10.html>.
+Apparently something about these two ideas had inspired the elf into
+a deep coding session.
+
+The furious typing noises emanating from behind the door stopped.
+Suddenly The Wise Old Elf burst out of his office waving his arms.
+
+"Eureka! Eureka!" he shouted (which as we all know is elf for "this
+bath water is too hot") "Just take a look at this".
+
+Crowding around the elves watched the Wise Old Elf type at the
+terminal:
+
+   $ ./merry.pl
+
+No sooner had he hit return then a browser window popped up on the
+screen showing a dialog.
+
+=for :html
+  <img src="dialog.jpg" alt="dialog with input and Ok and Cancel buttons" width="720" height="384">
+
+The wise old elf pressed a "OK" and back at the terminal the Perl
+script printed out the text from the text field.
+
+    $ ./merry.pl
+    Merry Christmas, Wise Old Elf
+
+"That's not the impressive bit", the Wise Old Elf explained.
+"The impressive bit is how I got it to do that".  He opened
+the his editor and brought up the source code.
+
+    #!perl
+    #!/user/bin/perl
+
+    use QuickBrowserGUI;
+    use Mojo::AsyncAwait;
+
+    callback 'ok_clicked' => async sub {
+        my $name = await call_javascript('getFormTextFieldValue');
+        print "Merry Christmas, $name\n";
+
+        await call_javascript('close');
+    };
+
+    callback 'cancel_clicked' => async sub {
+        await call_javascript('close');
+    };
+
+    start();
+
+    __DATA__
+
+    @@ content.html.ep
+
+    <h1>Who?</h1>
+
+    <div class="form-group">
+    <input  id='string' class="form-control" value="Santa">
+    </div>
+
+    <div class="form-group">
+    <button id='ok'     class="btn btn-primary clickable">OK</button>
+    <button id='cancel' class="btn btn-danger  clickable">Cancel</button>
+    </div>
+
+    <script>
+    function getFormTextFieldValue() {
+        return $('#string').val();
+    }
+    </script>
+
+Perl code is being triggered from JavaScript (in this case
+automatically when the buttons are pressed) and we can also see
+the Perl code calling JavaScript code and asynchronously
+awaiting for the return value to be returned to it.
+
+=head2 Under the Hood
+
+Under the hood the Wise Old Elf had tied Perl and JavaScript
+together with a websocket.  He'd dressed the whole thing up
+with a wrapper of Bootstrap to make it pretty.  And he'd
+taken advantage of the promises and await syntax to 
+produce code that had virtually hidden the complexity of
+having to await for Perl and JavaScript to talk over a socket.
+
+    #!perl
+    package QuickBrowserGUI;
+
+    # Switch back to modifying the main package directly
+    # This is normally a really bad idea, but considering how this is
+    # meant to be used in one-off scripts and how much we'd have to
+    # export (everything) this is actually the cleanest way to do it.
+    package main;
+
+    use Mojolicious::Lite;
+
+    use Browser::Open qw( open_browser );
+    use Mojo::JSON qw( encode_json decode_json );
+    use Net::EmptyPort qw( empty_port );
+
+    my $port = empty_port();
+
+    # these are the only two HTTP routes.  All other communication occurs
+    # via the websocket
+    get '/' => sub {
+        my $c = shift;
+
+        $c->render(
+            'index',
+
+            # The address of the websocket we're going to connect on.
+            # Use "encode_json" out of habit (any data you need to render
+            # in a JavaScript should be encoded to JSON with a <script>
+            # safe JSON encoding library like Mojo::JSON)
+            websocket_address => encode_json("ws://127.0.0.1:$port/perl"),
+        );
+    };
+    post '/exit' => sub { exit };
+
+    # global state
+
+    # named code that will be executed whenever called from JavaScript
+    # via the websocket.  Can be declared as 'callback foo => sub { ... };'
+    my %callbacks;
+    sub callback ($$) {
+        my $name = shift;
+        my $callback = shift;
+        $callbacks{ $name } = $callback;
+    }
+
+    # on ready handlers that are called (in order) when the JavaScript
+    # document is ready and the websocket has been connected.  Can
+    # be declared as 'on_ready sub { ... };'
+    my @on_ready;
+    sub on_ready(&) {
+        push @on_ready, shift;
+    }
+
+    # Whenever we call JavaScript from Perl we store a promise here
+    # which will be resolved once the JavaScript sends the results back
+    # down the websocket to Perl
+    my %websocket_resolvable_promises;
+
+    # this websocket is the guts of the communication between the
+    # browser and the perl code
+    my $websocket_tx;
+    websocket '/perl' => sub {
+        my $self = shift;
+
+        # $websocket_tx is the transaction we can use to send data to the
+        # websocket.  Normally when writing a webserver we'd have
+        # to worry about one of these per websocket connection, but
+        # as we control both the server and client here we know for
+        # sure there's only ever one websocket connection
+        $websocket_tx = $self->tx;
+
+        $self->on( message => sub {
+            my (undef, $message) = @_;
+            my $data = decode_json($message);
+
+            # TYPE 'ready'
+            # the JS is sending a ready message meaning that we need
+            # to call all of the on_ready handlers in @on_ready
+            if ($data->{type} eq 'ready') {
+                $_->() for @on_ready;
+                return;
+            }
+
+            # TYPE 'callback'
+            # the JS is sending a callback message (either directly because
+            # someone executed 'perlCallback("name", arg, arg..)' or implicitly
+            # because someone clicked on a '.clickable' button.  Note
+            # that these callbacks cannot return anything to JavaScript.
+            # They're called in a blocking fashion so they should not block,
+            # but obviously they can await with async/await as normal and
+            # call JavaScript functions via 'call_javascript' to pass
+            # control back to the JS code.
+            if ($data->{type} eq 'callback') {
+                my $name = $data->{payload}{name};
+                my $args = $data->{oayload}{args};
+
+                my $cb = $callbacks{ $name } or return;
+                $cb->(@{ $args });
+            }
+
+            # type 'response'
+            # the JS is sending the result of a call from Perl to JS
+            # this includes the id of the promise that must be resolved
+            # with whatever the JavaScript function returned
+            if ($data->{type} eq 'response') {
+                my $id = $data->{id};
+                my $promise_to_resolve = $websocket_resolvable_promises{ $id }
+                    or return;
+                $promise_to_resolve->resolve( $data->{payload} );
+            }
+        });
+    };
+
+    # this code calls the JavaScript routine on the client in an
+    # async manner via the websocket, serializing and deserializing the
+    # data you pass via JSON.
+    sub call_javascript ($@) {
+        my $name = shift;
+        my @args = @_;
+
+        # each call needs a unique id
+        state $id = 0;
+        $id++;
+
+        # send the request to call the JavaScript over the websocket
+        $websocket_tx->send({
+            json => {
+                type => 'call',
+                id => $id,
+                payload => {
+                    name => $name,
+                    args => \@args,
+                },
+            },
+        });
+
+        # create a promise that our websocket handler will resolve when
+        # it gets the result from JavaScript back over the websocket
+        my $promise = Mojo::Promise->new();
+        $websocket_resolvable_promises{ $id } = $promise;
+        return $promise;
+    };
+
+    # starting up the webserver on the correct port, opening the browser
+    # and suppressing logs.  This is the same as described in
+    # http://perladvent.org/2019/2019-12-09.html
+    app->log->level('warn');
+    my $base_url = "http://127.0.0.1:$port";
+    app->hook(before_server_start => sub {
+        my $server = shift;
+        $server->silent(1);
+        open_browser($base_url);
+    });
+    sub start { app->start('daemon','--listen', $base_url ); }
+
+    # also include these templates plus whatever is in the main script
+    BEGIN { push @{ app->renderer->classes }, 'QuickBrowserGUI' };
+    package QuickBrowserGUI;
+    __DATA__
+
+    @@ index.html.ep
+
+    <html>
+
+    % # load jquery, bootstrap, etc.
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+    <script>
+    % # when the page is closed have the browser send a POST
+    % # to /exit to tell Mojolicious to shut down
+    window.addEventListener(
+        "unload",
+        () => navigator.sendBeacon("/exit"),
+        false
+    )
+    </script>
+
+    <body>
+
+    <script>
+        var ws = new WebSocket(<%== $websocket_address %>);
+
+        // handle messages from Perl
+        ws.onmessage = (msg) => {
+            var data = JSON.parse(msg.data)
+
+            // perl called us, call the named function and send the
+            // results back over the websocket
+            if (data.type == 'call') {
+                var result = window[data.payload.name](...data.payload.args)
+                ws.send(JSON.stringify({
+                    'type'    : 'response',
+                    'id'      : data.id,
+                    'payload' : result
+                }));
+            }
+        }
+
+        // trigger the on_ready events perl side when the connection
+        // has been established
+        ws.onopen = () => ws.send('{"type":"ready"}')
+
+        function perlCallback(name, ...args) {
+            ws.send(JSON.stringify({
+                'type'    : 'callback',
+                'payload' : {
+                    'name' : name, 
+                    'args' : args
+                }
+            }))
+        }
+    </script>
+
+    % # include the per script html
+    <main role="main" class="container">
+    %= include 'content'
+    </main>
+
+    <script>
+    $(() => {
+        // anything 'clickable' will call the 'id_clicked' callback
+        // in perl space when clicked (i.e. something with the id of
+        // "foo" will call the "foo_clicked" callback)
+        $('.clickable').on('click', function () {
+            var name = this.id + '_clicked'
+            perlCallback(name)
+        })
+    });
+    </script>
+
+    </body>
+    </html>
+
+=head2 Writing Something More Powerful
+
+I've got a directory full of plain text files containing all the
+notes I've been collecting for that last five years or so.
+By now a lot of these are out of date.
+
+What I need to do is write a GUI application that will allow me
+to view one note at a time, starting with the oldest first, and
+let me either trash the note or modify the title and body of
+the note to bring it up to date.
+
+Maybe I can use the Wise Old Elf's tool to write that?  What
+we want is something that looks like this:
+
+=for :html
+   <center><img src="noteeditor.jpg" alt="Note Editor" width="500" height="309"></center>
+
+Finding the oldest file in the notes directory is easy with
+L<List::UtilBy>.  It returns the item from the passed list
+for which the code in the C<{ ... }> produced the smallest
+value.
+
+    #!perl
+    $file = min_by { $_->stat->mtime } $notes_dir->children;
+
+Once we have that we can just pass the title and contents of
+the file through to JavaScript
+
+    #!perl
+    my $title            = $file->basename(qr/.txt/);
+    my $contents_of_file = $file->slurp_utf8;
+    await call_javascript('updateNote', $title, $contents_of_file);
+
+Where it can update the forms:
+
+    #!vim javascript 
+    function updateNote(title,contents) {
+        $('#title').val(title);
+        $('#contents').val(contents);
+    }
+
+And that's about it for the smarts.  The rest is just simply
+reacting to button presses and writing out / moving the files.
+
+Here's the full script - the entire application is no more than
+sixty lines of actual code.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use QuickBrowserGUI;
+    use Mojo::AsyncAwait;
+    use Path::Tiny    qw( path );
+    use List::UtilsBy qw( min_by );
+    use File::Copy    qw( move );
+
+    # where the files are kept
+    my $notes_dir   = path($ENV{HOME}, 'notes');
+    my $archive_dir = path($ENV{HOME}, '.archived-notes');
+
+    # this is the current file we're working on
+    my $file;
+
+    async next_note => sub () {
+        # find the oldest file to work on 
+        $file = min_by { $_->stat->mtime } $notes_dir->children;
+
+        # update the form in the browser
+        # title is the filename (without dir nor extension)
+        my $title = $file->basename(qr/.txt/);
+        my $contents_of_file = $file->slurp_utf8;
+        await call_javascript('updateNote', $title, $contents_of_file);
+    };
+
+    callback 'save_clicked' => async sub {
+        my $new_data = await call_javascript('noteData');
+
+        # write the note out, possibly in a new location
+        path( $notes_dir, $new_data->{title} . '.txt')->spew_utf8(
+            $new_data->{contents},
+        );
+
+        # if we renamed the note delete the old note
+        if ($new_data->{title} ne $file->basename(qr/.txt/)) {
+            unlink $file;
+        }
+
+        next_note();
+    };
+
+    callback 'archive_clicked' => async sub {
+        move($file, "$ENV{HOME}/.notes-archive");
+        next_note();
+    };
+
+    on_ready async sub { next_note() };
+    start();
+
+    __DATA__
+
+    @@ content.html.ep
+
+    <h1>Edit Notes</h1>
+
+    <div class="form-group">
+    <input id='title' class="form-control">
+    </div>
+
+    <div class="form-group">
+    <textarea id='contents' class="form-control"></textarea>
+    </div>
+
+    <div class="form-group">
+    <button id='save'    class="btn btn-primary clickable float-right">Save</button>
+    <button id='archive' class="btn btn-danger  clickable">Archive</button>
+    </div>
+
+    <script>
+    function noteData() {
+        return {
+            'title'     : $('#title').val(),
+            'contents'  : $('#contents').val(),
+        }
+    }
+    function updateNote(title,contents) {
+        $('#title').val(title);
+        $('#contents').val(contents);
+    }
+    </script>
+

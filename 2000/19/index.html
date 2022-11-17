@@ -1,0 +1,440 @@
+<html>
+<head>
+<title>A Perl Module Advent Calendar</title></head>
+<body bgcolor="#281093" text="white" link="yellow" vlink="yellow">
+
+
+
+
+
+<p><img src="../../images/2000/19th.jpg" alt="19th" border="0" width="100" height="75">
+<hr>
+
+
+
+
+<A NAME="__index__"></A>
+<!-- INDEX BEGIN -->
+
+<UL>
+
+	<LI><A HREF="#name">NAME</A></LI>
+	<LI><A HREF="#synopsis">SYNOPSIS</A></LI>
+	<LI><A HREF="#description">DESCRIPTION</A></LI>
+	<LI><A HREF="#memory store">MEMORY STORE</A></LI>
+	<LI><A HREF="#advisory locking">ADVISORY LOCKING</A></LI>
+	<LI><A HREF="#speed">SPEED</A></LI>
+	<LI><A HREF="#canonical representation">CANONICAL REPRESENTATION</A></LI>
+	<LI><A HREF="#error reporting">ERROR REPORTING</A></LI>
+	<LI><A HREF="#wizards only">WIZARDS ONLY</A></LI>
+	<UL>
+
+		<LI><A HREF="#hooks">Hooks</A></LI>
+		<LI><A HREF="#predicates">Predicates</A></LI>
+		<LI><A HREF="#recursion">Recursion</A></LI>
+		<LI><A HREF="#deep cloning">Deep Cloning</A></LI>
+	</UL>
+
+	<LI><A HREF="#examples">EXAMPLES</A></LI>
+	<LI><A HREF="#warning">WARNING</A></LI>
+	<LI><A HREF="#bugs">BUGS</A></LI>
+	<LI><A HREF="#credits">CREDITS</A></LI>
+	<LI><A HREF="#translations">TRANSLATIONS</A></LI>
+	<LI><A HREF="#author">AUTHOR</A></LI>
+	<LI><A HREF="#see also">SEE ALSO</A></LI>
+</UL>
+<!-- INDEX END -->
+
+<HR>
+<P>
+<H1><A NAME="name">NAME</A></H1>
+<P>Storable - persistency for perl data structures</P>
+<P>
+<HR>
+<H1><A NAME="synopsis">SYNOPSIS</A></H1>
+<PRE>
+ use Storable;
+ store \%table, 'file';
+ $hashref = retrieve('file');</PRE>
+<PRE>
+ use Storable qw(nstore store_fd nstore_fd freeze thaw dclone);</PRE>
+<PRE>
+ # Network order
+ nstore \%table, 'file';
+ $hashref = retrieve('file');   # There is NO nretrieve()</PRE>
+<PRE>
+ # Storing to and retrieving from an already opened file
+ store_fd \@array, \*STDOUT;
+ nstore_fd \%table, \*STDOUT;
+ $aryref = fd_retrieve(\*SOCKET);
+ $hashref = fd_retrieve(\*SOCKET);</PRE>
+<PRE>
+ # Serializing to memory
+ $serialized = freeze \%table;
+ %table_clone = %{ thaw($serialized) };</PRE>
+<PRE>
+ # Deep (recursive) cloning
+ $cloneref = dclone($ref);</PRE>
+<PRE>
+ # Advisory locking
+ use Storable qw(lock_store lock_nstore lock_retrieve)
+ lock_store \%table, 'file';
+ lock_nstore \%table, 'file';
+ $hashref = lock_retrieve('file');</PRE>
+<P>
+<HR>
+<H1><A NAME="description">DESCRIPTION</A></H1>
+<P>The Storable package brings persistency to your perl data structures
+containing SCALAR, ARRAY, HASH or REF objects, i.e. anything that can be
+convenientely stored to disk and retrieved at a later time.</P>
+<P>It can be used in the regular procedural way by calling <CODE>store</CODE> with
+a reference to the object to be stored, along with the file name where
+the image should be written.
+The routine returns <CODE>undef</CODE> for I/O problems or other internal error,
+a true value otherwise. Serious errors are propagated as a <CODE>die</CODE> exception.</P>
+<P>To retrieve data stored to disk, use <CODE>retrieve</CODE> with a file name,
+and the objects stored into that file are recreated into memory for you,
+a <EM>reference</EM> to the root object being returned. In case an I/O error
+occurs while reading, <CODE>undef</CODE> is returned instead. Other serious
+errors are propagated via <CODE>die</CODE>.</P>
+<P>Since storage is performed recursively, you might want to stuff references
+to objects that share a lot of common data into a single array or hash
+table, and then store that object. That way, when you retrieve back the
+whole thing, the objects will continue to share what they originally shared.</P>
+<P>At the cost of a slight header overhead, you may store to an already
+opened file descriptor using the <CODE>store_fd</CODE> routine, and retrieve
+from a file via <CODE>fd_retrieve</CODE>. Those names aren't imported by default,
+so you will have to do that explicitely if you need those routines.
+The file descriptor you supply must be already opened, for read
+if you're going to retrieve and for write if you wish to store.</P>
+<PRE>
+        store_fd(\%table, *STDOUT) || die &quot;can't store to stdout\n&quot;;
+        $hashref = fd_retrieve(*STDIN);</PRE>
+<P>You can also store data in network order to allow easy sharing across
+multiple platforms, or when storing on a socket known to be remotely
+connected. The routines to call have an initial <CODE>n</CODE> prefix for <EM>network</EM>,
+as in <CODE>nstore</CODE> and <CODE>nstore_fd</CODE>. At retrieval time, your data will be
+correctly restored so you don't have to know whether you're restoring
+from native or network ordered data.  Double values are stored stringified
+to ensure portability as well, at the slight risk of loosing some precision
+in the last decimals.</P>
+<P>When using <CODE>fd_retrieve</CODE>, objects are retrieved in sequence, one
+object (i.e. one recursive tree) per associated <CODE>store_fd</CODE>.</P>
+<P>If you're more from the object-oriented camp, you can inherit from
+Storable and directly store your objects by invoking <CODE>store</CODE> as
+a method. The fact that the root of the to-be-stored tree is a
+blessed reference (i.e. an object) is special-cased so that the
+retrieve does not provide a reference to that object but rather the
+blessed object reference itself. (Otherwise, you'd get a reference
+to that blessed object).</P>
+<P>
+<HR>
+<H1><A NAME="memory store">MEMORY STORE</A></H1>
+<P>The Storable engine can also store data into a Perl scalar instead, to
+later retrieve them. This is mainly used to freeze a complex structure in
+some safe compact memory place (where it can possibly be sent to another
+process via some IPC, since freezing the structure also serializes it in
+effect). Later on, and maybe somewhere else, you can thaw the Perl scalar
+out and recreate the original complex structure in memory.</P>
+<P>Surprisingly, the routines to be called are named <CODE>freeze</CODE> and <CODE>thaw</CODE>.
+If you wish to send out the frozen scalar to another machine, use
+<CODE>nfreeze</CODE> instead to get a portable image.</P>
+<P>Note that freezing an object structure and immediately thawing it
+actually achieves a deep cloning of that structure:</P>
+<PRE>
+    dclone(.) = thaw(freeze(.))</PRE>
+<P>Storable provides you with a <CODE>dclone</CODE> interface which does not create
+that intermediary scalar but instead freezes the structure in some
+internal memory space and then immediatly thaws it out.</P>
+<P>
+<HR>
+<H1><A NAME="advisory locking">ADVISORY LOCKING</A></H1>
+<P>The <CODE>lock_store</CODE> and <CODE>lock_nstore</CODE> routine are equivalent to <CODE>store</CODE>
+and <CODE>nstore</CODE>, only they get an exclusive lock on the file before
+writing.  Likewise, <CODE>lock_retrieve</CODE> performs as <CODE>retrieve</CODE>, but also
+gets a shared lock on the file before reading.</P>
+<P>Like with any advisory locking scheme, the protection only works if
+you systematically use <CODE>lock_store</CODE> and <CODE>lock_retrieve</CODE>.  If one
+side of your application uses <CODE>store</CODE> whilst the other uses <CODE>lock_retrieve</CODE>,
+you will get no protection at all.</P>
+<P>The internal advisory locking is implemented using Perl's <CODE>flock()</CODE> routine.
+If your system does not support any form of flock(), or if you share
+your files across NFS, you might wish to use other forms of locking by
+using modules like LockFile::Simple which lock a file using a filesystem
+entry, instead of locking the file descriptor.</P>
+<P>
+<HR>
+<H1><A NAME="speed">SPEED</A></H1>
+<P>The heart of Storable is written in C for decent speed. Extra low-level
+optimization have been made when manipulating perl internals, to
+sacrifice encapsulation for the benefit of a greater speed.</P>
+<P>
+<HR>
+<H1><A NAME="canonical representation">CANONICAL REPRESENTATION</A></H1>
+<P>Normally Storable stores elements of hashes in the order they are
+stored internally by Perl, i.e. pseudo-randomly.  If you set
+<CODE>$Storable::canonical</CODE> to some <CODE>TRUE</CODE> value, Storable will store
+hashes with the elements sorted by their key.  This allows you to
+compare data structures by comparing their frozen representations (or
+even the compressed frozen representations), which can be useful for
+creating lookup tables for complicated queries.</P>
+<P>Canonical order does not imply network order, those are two orthogonal
+settings.</P>
+<P>
+<HR>
+<H1><A NAME="error reporting">ERROR REPORTING</A></H1>
+<P>Storable uses the ``exception'' paradigm, in that it does not try to workaround
+failures: if something bad happens, an exception is generated from the
+caller's perspective (see <EM>Carp</EM> and <CODE>croak()</CODE>).  Use eval {} to trap
+those exceptions.</P>
+<P>When Storable croaks, it tries to report the error via the <CODE>logcroak()</CODE>
+routine from the <CODE>Log::Agent</CODE> package, if it is available.</P>
+<P>Normal errors are reported by having <CODE>store()</CODE> or <CODE>retrieve()</CODE> return <CODE>undef</CODE>.
+Such errors are usually I/O errors (or truncated stream errors at retrieval).</P>
+<P>
+<HR>
+<H1><A NAME="wizards only">WIZARDS ONLY</A></H1>
+<P>
+<H2><A NAME="hooks">Hooks</A></H2>
+<P>Any class may define hooks that will be called during the serialization
+and deserialization process on objects that are instances of that class.
+Those hooks can redefine the way serialization is performed (and therefore,
+how the symetrical deserialization should be conducted).</P>
+<P>Since we said earlier:</P>
+<PRE>
+    dclone(.) = thaw(freeze(.))</PRE>
+<P>everything we say about hooks should also hold for deep cloning. However,
+hooks get to know whether the operation is a mere serialization, or a cloning.</P>
+<P>Therefore, when serializing hooks are involved,</P>
+<PRE>
+    dclone(.) &lt;&gt; thaw(freeze(.))</PRE>
+<P>Well, you could keep them in sync, but there's no guarantee it will always
+hold on classes somebody else wrote.  Besides, there is little to gain in
+doing so: a serializing hook could only keep one attribute of an object,
+which is probably not what should happen during a deep cloning of that
+same object.</P>
+<P>Here is the hooking interface:</P>
+<DL>
+<DT><STRONG><A NAME="item_STORABLE_freeze_obj%2C_cloning"><CODE>STORABLE_freeze</CODE> <EM>obj</EM>, <EM>cloning</EM></A></STRONG><BR>
+<DD>
+The serializing hook, called on the object during serialization.  It can be
+inherited, or defined in the class itself, like any other method.
+<P>Arguments: <EM>obj</EM> is the object to serialize, <EM>cloning</EM> is a flag indicating
+whether we're in a <CODE>dclone()</CODE> or a regular serialization via <CODE>store()</CODE> or freeze().</P>
+<P>Returned value: A LIST <CODE>($serialized, $ref1, $ref2, ...)</CODE> where $serialized
+is the serialized form to be used, and the optional $ref1, $ref2, etc... are
+extra references that you wish to let the Storable engine serialize.</P>
+<P>At deserialization time, you will be given back the same LIST, but all the
+extra references will be pointing into the deserialized structure.</P>
+<P>The <STRONG>first time</STRONG> the hook is hit in a serialization flow, you may have it
+return an empty list.  That will signal the Storable engine to further
+discard that hook for this class and to therefore revert to the default
+serialization of the underlying Perl data.  The hook will again be normally
+processed in the next serialization.</P>
+<P>Unless you know better, serializing hook should always say:</P>
+<PRE>
+    sub STORABLE_freeze {
+        my ($self, $cloning) = @_;
+        return if $cloning;         # Regular default serialization
+        ....
+    }</PRE>
+<P>in order to keep reasonable <CODE>dclone()</CODE> semantics.</P>
+<P></P>
+<DT><STRONG><A NAME="item_STORABLE_thaw_obj%2C_cloning%2C_serialized%2C_%2E%"><CODE>STORABLE_thaw</CODE> <EM>obj</EM>, <EM>cloning</EM>, <EM>serialized</EM>, ...</A></STRONG><BR>
+<DD>
+The deserializing hook called on the object during deserialization.
+But wait. If we're deserializing, there's no object yet... right?
+<P>Wrong: the Storable engine creates an empty one for you.  If you know Eiffel,
+you can view <CODE>STORABLE_thaw</CODE> as an alternate creation routine.</P>
+<P>This means the hook can be inherited like any other method, and that
+<EM>obj</EM> is your blessed reference for this particular instance.</P>
+<P>The other arguments should look familiar if you know <CODE>STORABLE_freeze</CODE>:
+<EM>cloning</EM> is true when we're part of a deep clone operation, <EM>serialized</EM>
+is the serialized string you returned to the engine in <CODE>STORABLE_freeze</CODE>,
+and there may be an optional list of references, in the same order you gave
+them at serialization time, pointing to the deserialized objects (which
+have been processed courtesy of the Storable engine).</P>
+<P>When the Storable engine does not find any <CODE>STORABLE_thaw</CODE> hook routine,
+it tries to load the class by requiring the package dynamically (using
+the blessed package name), and then re-attempts the lookup.  If at that
+time the hook cannot be located, the engine croaks.  Note that this mechanism
+will fail if you define several classes in the same file, but <CODE>perlmod(1)</CODE>
+warned you.</P>
+<P>It is up to you to use these information to populate <EM>obj</EM> the way you want.</P>
+<P>Returned value: none.</P>
+<P></P></DL>
+<P>
+<H2><A NAME="predicates">Predicates</A></H2>
+<P>Predicates are not exportable.  They must be called by explicitely prefixing
+them with the Storable package name.</P>
+<DL>
+<DT><STRONG><A NAME="item_Storable%3A%3Alast_op_in_netorder"><CODE>Storable::last_op_in_netorder</CODE></A></STRONG><BR>
+<DD>
+The <CODE>Storable::last_op_in_netorder()</CODE> predicate will tell you whether
+network order was used in the last store or retrieve operation.  If you
+don't know how to use this, just forget about it.
+<P></P>
+<DT><STRONG><A NAME="item_Storable%3A%3Ais_storing"><CODE>Storable::is_storing</CODE></A></STRONG><BR>
+<DD>
+Returns true if within a store operation (via STORABLE_freeze hook).
+<P></P>
+<DT><STRONG><A NAME="item_Storable%3A%3Ais_retrieving"><CODE>Storable::is_retrieving</CODE></A></STRONG><BR>
+<DD>
+Returns true if within a retrieve operation, (via STORABLE_thaw hook).
+<P></P></DL>
+<P>
+<H2><A NAME="recursion">Recursion</A></H2>
+<P>With hooks comes the ability to recurse back to the Storable engine.  Indeed,
+hooks are regular Perl code, and Storable is convenient when it comes to
+serialize and deserialize things, so why not use it to handle the
+serialization string?</P>
+<P>There are a few things you need to know however:</P>
+<UL>
+<LI>
+You can create endless loops if the things you serialize via <CODE>freeze()</CODE>
+(for instance) point back to the object we're trying to serialize in the hook.
+<P></P>
+<LI>
+Shared references among objects will not stay shared: if we're serializing
+the list of object [A, C] where both object A and C refer to the SAME object
+B, and if there is a serializing hook in A that says freeze(B), then when
+deserializing, we'll get [A', C'] where A' refers to B', but C' refers to D,
+a deep clone of B'.  The topology was not preserved.
+<P></P></UL>
+<P>That's why <CODE>STORABLE_freeze</CODE> lets you provide a list of references
+to serialize.  The engine guarantees that those will be serialized in the
+same context as the other objects, and therefore that shared objects will
+stay shared.</P>
+<P>In the above [A, C] example, the <CODE>STORABLE_freeze</CODE> hook could return:</P>
+<PRE>
+        (&quot;something&quot;, $self-&gt;{B})</PRE>
+<P>and the B part would be serialized by the engine.  In <CODE>STORABLE_thaw</CODE>, you
+would get back the reference to the B' object, deserialized for you.</P>
+<P>Therefore, recursion should normally be avoided, but is nonetheless supported.</P>
+<P>
+<H2><A NAME="deep cloning">Deep Cloning</A></H2>
+<P>There is a new Clone module available on CPAN which implements deep cloning
+natively, i.e. without freezing to memory and thawing the result.  It is
+aimed to replace Storable's <CODE>dclone()</CODE> some day.  However, it does not currently
+support Storable hooks to redefine the way deep cloning is performed.</P>
+<P>
+<HR>
+<H1><A NAME="examples">EXAMPLES</A></H1>
+<P>Here are some code samples showing a possible usage of Storable:</P>
+<PRE>
+        use Storable qw(store retrieve freeze thaw dclone);</PRE>
+<PRE>
+        %color = ('Blue' =&gt; 0.1, 'Red' =&gt; 0.8, 'Black' =&gt; 0, 'White' =&gt; 1);</PRE>
+<PRE>
+        store(\%color, '/tmp/colors') or die &quot;Can't store %a in /tmp/colors!\n&quot;;</PRE>
+<PRE>
+        $colref = retrieve('/tmp/colors');
+        die &quot;Unable to retrieve from /tmp/colors!\n&quot; unless defined $colref;
+        printf &quot;Blue is still %lf\n&quot;, $colref-&gt;{'Blue'};</PRE>
+<PRE>
+        $colref2 = dclone(\%color);</PRE>
+<PRE>
+        $str = freeze(\%color);
+        printf &quot;Serialization of %%color is %d bytes long.\n&quot;, length($str);
+        $colref3 = thaw($str);</PRE>
+<P>which prints (on my machine):</P>
+<PRE>
+        Blue is still 0.100000
+        Serialization of %color is 102 bytes long.</PRE>
+<P>
+<HR>
+<H1><A NAME="warning">WARNING</A></H1>
+<P>If you're using references as keys within your hash tables, you're bound
+to disapointment when retrieving your data. Indeed, Perl stringifies
+references used as hash table keys. If you later wish to access the
+items via another reference stringification (i.e. using the same
+reference that was used for the key originally to record the value into
+the hash table), it will work because both references stringify to the
+same string.</P>
+<P>It won't work across a <CODE>store</CODE> and <CODE>retrieve</CODE> operations however, because
+the addresses in the retrieved objects, which are part of the stringified
+references, will probably differ from the original addresses. The
+topology of your structure is preserved, but not hidden semantics
+like those.</P>
+<P>On platforms where it matters, be sure to call <CODE>binmode()</CODE> on the
+descriptors that you pass to Storable functions.</P>
+<P>Storing data canonically that contains large hashes can be
+significantly slower than storing the same data normally, as
+temprorary arrays to hold the keys for each hash have to be allocated,
+populated, sorted and freed.  Some tests have shown a halving of the
+speed of storing -- the exact penalty will depend on the complexity of
+your data.  There is no slowdown on retrieval.</P>
+<P>
+<HR>
+<H1><A NAME="bugs">BUGS</A></H1>
+<P>You can't store GLOB, CODE, FORMLINE, etc... If you can define
+semantics for those operations, feel free to enhance Storable so that
+it can deal with them.</P>
+<P>The store functions will <CODE>croak</CODE> if they run into such references
+unless you set <CODE>$Storable::forgive_me</CODE> to some <CODE>TRUE</CODE> value. In that
+case, the fatal message is turned in a warning and some
+meaningless string is stored instead.</P>
+<P>Setting <CODE>$Storable::canonical</CODE> may not yield frozen strings that
+compare equal due to possible stringification of numbers. When the
+string version of a scalar exists, it is the form stored, therefore
+if you happen to use your numbers as strings between two freezing
+operations on the same data structures, you will get different
+results.</P>
+<P>When storing doubles in network order, their value is stored as text.
+However, you should also not expect non-numeric floating-point values
+such as infinity and ``not a number'' to pass successfully through a
+<CODE>nstore()/retrieve()</CODE> pair.</P>
+<P>As Storable neither knows nor cares about character sets (although it
+does know that characters may be more than eight bits wide), any difference
+in the interpretation of character codes between a host and a target
+system is your problem.  In particular, if host and target use different
+code points to represent the characters used in the text representation
+of floating-point numbers, you will not be able be able to exchange
+floating-point data, even with nstore().</P>
+<P>
+<HR>
+<H1><A NAME="credits">CREDITS</A></H1>
+<P>Thank you to (in chronological order):</P>
+<PRE>
+        Jarkko Hietaniemi &lt;jhi@iki.fi&gt;
+        Ulrich Pfeifer &lt;pfeifer@charly.informatik.uni-dortmund.de&gt;
+        Benjamin A. Holzman &lt;bah@ecnvantage.com&gt;
+        Andrew Ford &lt;A.Ford@ford-mason.co.uk&gt;
+        Gisle Aas &lt;gisle@aas.no&gt;
+        Jeff Gresham &lt;gresham_jeffrey@jpmorgan.com&gt;
+        Murray Nesbitt &lt;murray@activestate.com&gt;
+        Marc Lehmann &lt;pcg@opengroup.org&gt;
+        Justin Banks &lt;justinb@wamnet.com&gt;
+        Jarkko Hietaniemi &lt;jhi@iki.fi&gt; (AGAIN, as perl 5.7.0 Pumpkin!)
+        Salvador Ortiz Garcia &lt;sog@msg.com.mx&gt;
+        Dominic Dunlop &lt;domo@computer.org&gt;
+        Erik Haugan &lt;erik@solbors.no&gt;</PRE>
+<P>for their bug reports, suggestions and contributions.</P>
+<P>Benjamin Holzman contributed the tied variable support, Andrew Ford
+contributed the canonical order for hashes, and Gisle Aas fixed
+a few misunderstandings of mine regarding the Perl internals,
+and optimized the emission of ``tags'' in the output streams by
+simply counting the objects instead of tagging them (leading to
+a binary incompatibility for the Storable image starting at version
+0.6--older images are of course still properly understood).
+Murray Nesbitt made Storable thread-safe.  Marc Lehmann added overloading
+and reference to tied items support.</P>
+<P>
+<HR>
+<H1><A NAME="translations">TRANSLATIONS</A></H1>
+<P>There is a Japanese translation of this man page available at
+<A HREF="http://member.nifty.ne.jp/hippo2000/perltips/storable.htm">http://member.nifty.ne.jp/hippo2000/perltips/storable.htm</A> ,
+courtesy of Kawai, Takanori &lt;<A HREF="mailto:kawai@nippon-rad.co.jp">kawai@nippon-rad.co.jp</A>&gt;.</P>
+<P>
+<HR>
+<H1><A NAME="author">AUTHOR</A></H1>
+<P>Raphael Manfredi <EM>&lt;<A HREF="mailto:Raphael_Manfredi@pobox.com">Raphael_Manfredi@pobox.com</A>&gt;</EM></P>
+<P>
+<HR>
+<H1><A NAME="see also">SEE ALSO</A></H1>
+<P>Clone(3).</P>
+
+
+
+</body>
+</html>

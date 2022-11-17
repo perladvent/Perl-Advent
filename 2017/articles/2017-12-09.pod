@@ -1,0 +1,134 @@
+Title: Matching the NaughtyNice Formula
+Topic: Recursive Regular Expressions with Named Groups
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+Back in the day, you were either Naughty or Nice, and you either got coal or
+presents from Santa.  But Santa had decided that this was a little too all or
+nothing.  So he had tasked his Elf R&D department to develop an application that
+could determine on a case by case basis if the the child had been I<good> enough
+for I<that particular gift>.
+
+For example, a child who couldn't sit still when asked probably shouldn't get
+that eighty pound bar of chocolate that they wanted no matter how often they'd
+tidied their room.  The new art supplies that little Suzy wanted shouldn't
+really go to the girl that had doodled over the dining room table with the
+permanent marker.  It was a I<complicated> issue.
+
+The elves had decided that each gift should have a NaughtyNice Formula
+associated with it - an expression stored in the database that could be used to
+decide if the child deserved that item.
+
+Sugarplum Stripyboughs had been tasked with building the web forms that acted as
+a front end for the database that all the pointy eared Elves over in the
+Niceness Assurance Department could use to enter the formula.
+
+The bit she was stuck on was validating the formulas that the Elves were
+entering in the web app - that they were semantically correct and okay to store
+in the database.  A typical formula might look like this:
+
+     (number_of_tantrums/6)+(age/12*(teeth_brushes_this_year+flosses_this_year))/2
+
+That is to say some variables, some integers, stuck together with brackets
+and the standard four arithmetic operators (C<+>, C<->, C<*>, and C</>).
+
+Writing a regular expression to match this kind of expression without worring
+about those brackets is fairly straight forward stuff.  But those brackets have
+to match each other.  Sugarplum needed to be able to tell that:
+
+     (number_of_a_grades-number_of_c_grades+(days_missed_of_school)
+
+Just wasn't a valid formula - it's missing the last closing C<)>.
+
+The trouble is that expressions like this aren't a "Type-3"
+grammar on the Chomsky hierarchy - the type of grammars a traditional regular
+expression engine can match.  Simply: To match the number of closing brackets
+with the number of opening brackets, you need to keep count of the number of
+times you saw an opening bracket, and a traditional regular expression engine
+can't do that.
+
+Perl, on the other hand, has a more powerful regular expression engine that
+can handle these kinds of matches.
+
+=head2 Backus-Naur Form
+
+BNF is a way of specifying a grammar formally.  Sugarplum quickly whipped up
+one for the formulas she was trying to match.
+
+ <letter>     ::= "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" |
+                  "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" |
+                  "u" | "v" | "w" | "x" | "y" | "z"
+ <unders>     ::= <letter> | "_" | <letter> <unders> | "_" <unders>
+ <variable>   ::= <letter> | <letter> <unders>
+
+ <digit>      ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+ <startdigit> ::= "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+ <digits>     ::= <digit> | <digit> <digits>
+ <number>     ::= <startdigit> | <startdigit> <digits>
+
+ <oper>       ::= "+" | "-" | "*" | "/"
+ <bracket>    ::= "(" <expression> ")"
+ <thing>      ::= <number> | <variable> | <bracket>
+ <expression> ::= <thing> | <thing> <oper> <expression>
+
+That was...better?  She decided to make it a bit more readable by turning
+some of the overly wordy bits into standard regular expression syntax
+
+    <variable>   ::= qr/[a-z][a-z_]*/
+    <number>     ::= qr/[1-9][0-9]*/
+    <oper>       ::= qr/[+*/-]/
+    <bracket>    ::= "(" <expression> ")"
+    <thing>      ::= <number> | <variable> | <bracket>
+    <expression> ::= <thing> | <thing> <oper> <expression>
+
+Okay, that's a lot clearer.  Now to turn this into a Perl regular expression!
+
+=head2 Named Capture Groups
+
+In Perl you can create named capture groups in your regular expressions:
+
+    #!perl
+    "James Bond" =~ /^ (?<first>\S+) \s* (?<last>\S+) $/x;
+    say "The name's $+{last}, $+{first} $+{last}"
+
+It's actually possible to use named capture blocks to create a sort of library
+of reusable named regular expressions inside a regular expression:
+
+    #!perl
+    say "Matches" if $string =~ m{
+        (?(DEFINE)
+            (?<wise> Melchior | Caspar | Balthazar )
+            (?<gift> gold | frankincense | myrrh )
+        )
+
+        (?:
+            (?&wise) [ ] (brought|gave) [ ](?&gift) |
+            (?&gift) [ ] was [ ] (brought|given) [ ] by [ ] (?&wise)
+        )
+    }x;
+
+Everything within the C<(?(DEFINE) ... )> block isn't actually matched until
+the various named blocks are called with the C<(?&block_name)> syntax.
+
+While having this sort of library of named parts of a regular expression is nice
+from a readability point of view, the real power comes from the fact that these
+definitions can themselves reference other named capture blocks recursively.
+This allowed Sugarplum to basically directly port the BNF into a Perl regular
+expression:
+
+    #!perl
+    say "Matches" if $string =~ m{
+      (?(DEFINE)
+        (?<variable>    [a-z][_a-z]* )
+        (?<number>      [1-9][0-9]* )
+        (?<oper>        [+*/-] )
+        (?<bracket>     [(] (?&expression) [)] )
+        (?<thing>       (?&number) | (?&variable) | (?&bracket) )
+        (?<expression>  (?&thing) | (?&thing) (?&oper) (?&expression) )
+      )
+
+      \A (?&expression) \z
+    }x;
+
+With that regular expression written Sugarplum was done with the hard
+part...unless someone wanted her to write code to execute the formula that is...
+(to be continued)

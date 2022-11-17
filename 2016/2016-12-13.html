@@ -1,0 +1,121 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2016 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2016.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2016 - 
+Getting Drunk with Mojolicious and Memoize
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2016</a></h1>
+        </div>
+
+        <p id="tagline">2016 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Getting Drunk with Mojolicious and Memoize</h1>
+<div class='subtitle'>Memoize - 2016-12-13</div>
+
+<div class='pod'><p>I&#39;ve always wondered what Santa Claus and the elves do after the Christmas Eve&#39;s work. Perhaps they&#39;d go get smashed afterwards with a pub crawl finding the best egg milk punch all over the world, then perhaps spend the rest of the night recovering in a nearby hotel? If they ever do though, I think I could help them a bit, being the naughty boy and all...</p>
+
+<p>You see, last October, a friend and I joined a <a href="http://www.booking.com/promotions/hah-manila.en-gb.html">hackathon</a> that let me play around a couple of hotel <i>and</i> microbrewery information APIs: the result is The Drunkery, a webapp that Santa (and everyone else) can use to (hopefully) get inebriated. For this, I used the awesome <a href="https://metacpan.org/module/Mojolicious">Mojolicious</a> framework for the backend API, powering a <a href="http://reactjs.org">React</a> frontend showing a Google Map with pins to hotels in a given city, with the nearest pubs or breweries. We ran out of time trying to set up paths between the pins to visualize a pub crawl, but nevertheless we won, and hopefully we can get to improve it on the next stage :D</p>
+
+<p>In this story, let me tell you about a couple of things that we learned and used for this app:</p>
+
+<h3 id="A-matter-of-search">A matter of search</h3>
+
+<p>To start, writing the backend part with Mojolicious was the <i>easiest</i> part, but only so when <i>much thought</i> was put into the design of the backend&#39;s interface. I ended up with providing only <i>two</i> API endpoints for my partner&#39;s frontend:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Mojolicious::Lite</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Mojo::URL</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Drunkery::Search</span><span class="structure">;</span><br /><br /><span class="word">helper</span> <span class="word">search</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="word">state</span> <span class="symbol">$search</span> <span class="operator">=</span> <span class="word">Drunkery::Search</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span> <span class="word">ua</span> <span class="operator">=&gt;</span> <span class="core">shift</span><span class="operator">-&gt;</span><span class="word">ua</span> <span class="structure">);</span><br /><span class="structure">};</span><br /><br /><span class="word">get</span> <span class="single">'/search_by_city'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="operator">...</span><span class="structure">;</span><br /><span class="structure">};</span><br /><br /><span class="word">get</span> <span class="single">'/search_by_endpoint'</span> <span class="operator">=&gt;</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="operator">...</span><span class="structure">;</span><br /><span class="structure">};</span><br /><br /><span class="word">app</span><span class="operator">-&gt;</span><span class="word">start</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>These routes provide my JavaScript frontend a way to search for hotels and and breweries in either a given city, or a given geolocation endpoint, by making simple AJAX-style GET requests and receiving JSON back. Both these routes emit an array containing a city object, a list of nearby breweries, and a list of nearby hotels, and are powered via a <code>search</code> helper that uses the logic in <code>Drunkery::Search</code>.</p>
+
+<p>Well, <i>logic</i> might not be the right word. At the time of the hackathon, the package was just as simple as this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Drunkery::Search</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Mojo::Base</span> <span class="word">-base</span><span class="structure">;</span><br /><br /><span class="word">has</span> <span class="words">qw(ua)</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">fetch</span> <span class="structure">{</span> <span class="core">shift</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">(</span><span class="core">shift</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">res</span><span class="operator">-&gt;</span><span class="word">json</span> <span class="structure">}</span><br /><br /><span class="number">1</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Yep! The search helper is just simply making a HTTP request to the Booking.com API, and then feeding the parsed results back unchanged to the caller.</p>
+
+<h3 id="A-matter-of-caching">A matter of caching</h3>
+
+<p>One of the problems I dealt with during this hackathon was the issue of making the Perl backend respond faster to the frontend. The first implementation I showed above simply had the backend fetch the hotel and brewery information every time it was requested: in short, we needed to have caching. I was loathe to set up another service like SQLite or Redis though, as I thought I didn&#39;t have enough time to wire those to the backend...</p>
+
+<p>Enter the real star of this story, <a href="https://metacpan.org/module/Memoize">Memoize</a>!</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Drunkery::Search</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Memoize</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">normalize_url</span> <span class="structure">{</span> <span class="core">shift</span><span class="operator">-&gt;</span><span class="word">to_string</span> <span class="structure">}</span><br /><br /><span class="word">memoize</span><span class="structure">(</span> <span class="single">'fetch;, NORMALIZER =&gt; '</span><span class="word">normalize_url</span><span class="single">' );</span></code><br />&nbsp;</td></table>
+
+<p>This effectively gave me caching at nearly no cost (thanks, <a href="http://hop.perl.plover.com/">Higher Order Perl</a> for reminding me!) Granted, it was imperfect (for starters, it was only an in-memory cache,) but at the time, it made sense.</p>
+
+<p>As you might remember Memoize is a module that can replace any function with a function that does the same thing, but every time you call it remembers the result for any given parameters and if it&#39;s called again with those same parameters returns the same result without having to re-run the main body of the original function - i.e. if you call the function with the same URL, it doesn&#39;t have to go use the Booking.com API a second time!</p>
+
+<p>The slight wrinkle is that Memoize has to be able to recognize that the arguments the function is being called with are the same - and our <code>fetch</code> function is being called with a URI object which will look to memoize to be a different object - and therefore different argument - each time it&#39;s called even if that URI object represents the same underlying URL each time. To address this we use a <code>NORMALIZER</code> function to turn our arguments - our URI object - into something that memoize can compare: We turn the URI objects into strings so that two function calls arguments for the same URL can be compared as identical.</p>
+
+<h3 id="But-why-or-what-more-could-be-done">But why? (or, what more could be done?)</h3>
+
+<p>I joined this hackathon on a whim, with nary an idea for what to build at all, so instead of going all-out serious, I decided to wing this the <a href="http://o-fun.github.io/">-Ofun</a> way. Indeed, it was very funny (and easy) to build a Perl backend in such a short time, with still room for improvements.</p>
+
+<h4 id="Saving-Memoized-results">Saving Memoized results</h4>
+
+<p>Fast forward to late November, where a succeeding Booking hackathon also had me use Memoize yet again for keeping API responses. This time, I tried to keep saved responses to disk by making use of <a href="https://metacpan.org/module/DB_File">DB_File</a>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">DB_File</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Memoize</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">fetch</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span> <span class="symbol">$c</span><span class="operator">,</span> <span class="symbol">$url</span> <span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="symbol">$c</span><span class="operator">-&gt;</span><span class="word">ua</span><span class="operator">-&gt;</span><span class="word">get</span><span class="structure">(</span><span class="symbol">$url</span><span class="structure">)</span><span class="operator">-&gt;</span><span class="word">res</span><span class="operator">-&gt;</span><span class="word">body</span><span class="structure">;</span><br /><span class="structure">}</span><br /><br /><span class="keyword">sub</span> <span class="word">normalize_url</span> <span class="structure">{</span> <span class="core">shift</span><span class="structure">;</span> <span class="core">shift</span><span class="operator">-&gt;</span><span class="word">to_string</span> <span class="structure">}</span><br /><br /><span class="word">tie</span> <span class="word">my</span> <span class="symbol">%cache</span> <span class="operator">=&gt;</span> <span class="single">'DB_File'</span><span class="operator">,</span> <span class="single">'cache'</span><span class="operator">,</span> <span class="word">O_RDWR</span> <span class="operator">|</span> <span class="word">O_CREAT</span><span class="operator">,</span> <span class="octal">0666</span><span class="structure">;</span><br /><span class="word">memoize</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="single">'fetch'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">NORMALIZER</span>   <span class="operator">=&gt;</span> <span class="single">'normalize_url'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">SCALAR_CACHE</span> <span class="operator">=&gt;</span> <span class="structure">[</span> <span class="word">HASH</span> <span class="operator">=&gt;</span> <span class="cast">\</span><span class="symbol">%cache</span> <span class="structure">]</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">LIST_CACHE</span>   <span class="operator">=&gt;</span> <span class="single">'FAULT'</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>By having <code>memoize</code> cache the results into a tied hash that saves any changes to the hash to file on disk the cache lasts longer than just the runtime of the demo application.</p>
+
+<h2 id="SEE-ALSO">SEE ALSO</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Mojolicious">Mojolicious</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Memoize">Memoize</a></p>
+
+</li>
+<li><p><a href="http://reactjs.org">React</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/1acb364f7c878280ad453a069f1ece4a?r=g&s=80&d=retro />
+This article contributed by: Zak B. Elep &lt;zakame@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Trying for a Happy Christmas" href="2016-12-12.html">Previous</a></li>
+
+    <li class="next"><a title="Using PPI for static analysis" href="2016-12-14.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

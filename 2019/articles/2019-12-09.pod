@@ -1,0 +1,343 @@
+Title: Command Line Browser Apps
+Topic: Net::EmptyPort
+Author: Mark Fowler <mark@twoshortplanks.com>
+
+=for :html
+    <script src="https://cdn.jsdelivr.net/npm/chart.xkcd@1.1/dist/chart.xkcd.min.js"></script>
+    <svg class="chart"></svg>
+    <script>
+        const chartElement = document.querySelector('.chart');
+        const lineChart = new chartXkcd.Line(
+            chartElement,
+            {
+                title: "Thousands Of Toys Produced",
+                xLabel: "Week",
+                data: {"datasets":[{"data":["36","43","65","77","115","129","143","157","182","196","225","245","258","270","302","327","329","349","369","392","417","427","443","472","499","511","527","543","562","578","607","627","642","660","677","703","719","743","752","780","788","809"],"label":"Electronics"},{"data":["92","136","214","227","267","303","307","328","340","376","360","380","398","392","390","393","393","405","390","391","404","412","409","399","432","423","397","431","403","409","406","426","434","423","433","436","424","435","436","431","421","424"],"label":"Classic"},{"data":["98","139","145","162","187","130","164","161","197","231","236","244","288","341","337","348","407","438","429","401","500","448","475","569","500","524","571","559","639","657","614","631","671","757","775","778","776","826","760","788","865","897"],"label":"Transport"},{"data":["609","446","592","546","511","441","497","544","420","604","606","427","600","603","507","485","422","518","548","516","436","594","425","573","486","601","436","590","460","603","518","475","589","539","436","605","454","541","576","503","434","467"],"label":"Soft"},{"data":["1073","1123","1145","1033","1175","912","918","1085","986","949","1009","925","951","1074","1007","1080","911","903","1089","1080","1003","1150","1111","936","951","1133","1131","1167","1088","1176","965","922","1151","1068","1078","1173","973","1044","1023","952","1116","965"],"label":"Candy"},{"data":["0","0","0","0","0","0","0","0","0","0","5","100","121","212","232","234","242","256","278","300","412","812","900","901","906","904","961","980","456","0","0","0","43","981","990","1023","1203","1501","1988","2012","2024","2054"],"label":"Novelty"}],"labels":["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29","30","31","32","33","34","35","36","37","38","39","40","41","42"]},
+                options: {
+                    yTickCount: 3,
+                    legendPosition: chartXkcd.config.positionType.upLeft
+                }
+            }
+        );
+    </script>
+
+The weeks leading up to Christmas is a stressful time for most elves
+at the North Pole.  Not so for Buster Stripytights. No...I<every> week
+was stressful for him.
+
+You see, Buster's job is nothing short of making sure that enough
+toys are produced throughout the year.  Every week it's his
+job to compute how production is going, if they were ahead or
+behind schedule, and if Santa was going to have enough toys to
+make every good child happy, or if it was going to be a disaster
+this year.  It hasn't happened yet, but it's only thanks to the
+diligent work of Mr Stripytights that any issue has been
+detected and dealt with before it became a real problem.
+
+As you can imagine, this involves a lot of number crunching and
+What-If type predictions.  Most importantly, it involves a lot
+of quick data visualization.
+
+A few years ago Buster had despaired about getting the kind of
+interactive output he needed from his Perl data crunching
+scripts.  That was before the Wise Old Elf had stepped in.
+
+=head2 The Plan
+
+Some people like to wield the terminal.  Others like to have
+an interactive web page to control things.
+
+However, the Wise Old Elf is...wise.  He likes the best of both worlds:
+Being able to jump from the command line into the browser and then
+quickly back to the terminal again, and onto the next command.
+
+For the task Buster needed he suggested making a script to immediately
+display the output of crunching the data in a web browser.
+
+When the script was executed from the terminal the Perl script should:
+
+=for :html
+  <ul>
+    <li>Do the initial processing of data</li>
+    <li>Finds a random unused port on localhost</li>
+    <li>Open a web server on that unused port</li>
+    <li>Open the browser to point at that port</li>
+    <li>Finally when the browser window is closed, quit the script</li>
+  </ul>
+
+Simple! Let's break down how to do that!
+
+=head2 The Start of our Web Application
+
+Using a web server to pass the output to the browser has several
+advantages over writing out temporary files.  We don't have to figure
+out a way to periodically clear up those files.  We can pause execution
+of subsequent commands in the terminal till the browser window is
+closed.  We can control all files the browser has to load.  And we have
+the full potential to pass information back and forward to Perl as the
+user interacts with the contents of the browser window.
+
+The start of our interactive tool is a L<Mojolicious> web app (using
+the L<Mojolicious::Lite> framework).
+
+    #!perl
+    #!/usr/bin/perl
+
+    use Mojolicious::Lite;
+    use experimental 'signatures';
+
+    get '/' => 'index';
+
+    our $message = "Merry Christmas from the script!";
+
+    app->start('daemon');
+
+    __DATA__
+    @@ index.html.ep
+    <html>
+    <body>
+    <%= $main::message %>
+    </body>
+    </html>
+
+Running the script shows it starts up a server on the 
+
+    $ ./script.pl
+    [2019-11-23 10:20:42.21211] [19502] [info] Listening at "http://*:3000"
+
+We defined just one route (C</>) that renders the C<index>
+template in the C<DATA> section, which will dynamically include
+data from our Perl code.
+
+=head2 Picking a Random Port
+
+At the moment our server will always open on the standard
+Mojolicious development port, port 3000.  But Buster needs
+to be able to display more than one graph on the screen
+at any one time!  Each of these servers are going to have
+to pick their own port to run on.
+
+This is actually quite simple with the help of the
+L<Net::EmptyPort> module which can find a random port that nothing
+else is using for us:
+
+    #!perl
+    use Net::EmptyPort qw( empty_port );
+    my $base_url = 'http://127.0.0.1:' . empty_port();
+    app->start('daemon','--listen', $base_url );
+
+=head2 Opening The Page Automatically
+
+To make this more like an "app" we don't want Buster
+to have to copy any paste the URL from the terminal
+into his browser after the program starts up.  We
+want the web page just to immediately open up as
+soon as the script is ready to display something to the user.
+
+This can be achieved by hooking the C<before_server_start>
+Mojolicious event.  We'll have it call the C<open_browser> function
+from the ever-so-handy L<Browser::Open> module as soon as
+Mojolcious is ready to serve web pages.
+
+While we're at it we don't need Mojolicious to
+print URLs or debug information out to the console anymore,
+so we suppress all of that:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use Mojolicious::Lite;
+    use experimental 'signatures';
+
+    use Net::EmptyPort qw( empty_port );
+    use Browser::Open qw( open_browser );
+
+    get '/' => 'index';
+
+    # stop logging out when we visit URLs
+    app->log->level('warn');
+
+    # open the browser as soon as we start
+    my $base_url = 'http://127.0.0.1:' . empty_port();
+    app->hook(before_server_start => sub ($server, @) {
+        $server->silent(1);  # don't display "Server available..."
+        open_browser($base_url);
+    });
+
+    app->start('daemon','--listen', $base_url );
+    ...
+
+=head2 Quitting Time
+
+To make this like a real application we don't want Buster to have
+to remember to head back to the terminal and ctrl-C the command
+line program when he's done with the graph.  There must be
+some way to automatically quit the script as soon as the
+browser window closes!
+
+We can hook the C<unload> event in JavaScript fairly easily:
+
+    #!vim javascript
+    window.addEventListener( "unload", ... );
+
+But what should we have that do?  Ideally we'd like to send a HTTP
+request back to the browser, but doing this via AJAX is
+unreliable: The page might complete closing before the
+asynchronous web request gets far enough along.  Never
+fear!  We're running a faily modern web browser, so we
+can make use of I<beacons>.
+
+The Beacon API is a fire-and-forget non-blocking way to
+tell the browser to make a HTTP POST request
+I<as soon as it is able to> and we don't care about
+the result.  This means we can make a simple call like
+so:
+
+    #!vim javascript
+    navigator.sendBeacon("/exit")
+
+And the browser will continue to make the call to our
+backend even after its closed the window with our
+webpage in it.
+
+    #!perl
+    #!/usr/bin/perl
+
+    use Mojolicious::Lite;
+    use experimental 'signatures';
+
+    ...
+
+    get '/' => 'index';
+
+    # when our beacon notifies us, just quit right away
+    post '/exit' => sub { exit };
+
+    ...
+
+    __DATA__
+    @@ index.html.ep
+    <html>
+    <script>
+    // when the page is closed have the browser send a POST
+    // to /exit to tell Mojolicious to shut down
+    window.addEventListener(
+        "unload",
+        () => navigator.sendBeacon("/exit"),
+        false
+    );
+    </script>
+    <body>
+    <%= $main::message %>
+    </body>
+    </html>
+
+=head2 Putting It All Together
+
+Now we can put all of this together into building a script that
+dynamically shows any CSV as a graph:
+
+    #!perl
+    #!/usr/bin/perl
+
+    use Mojolicious::Lite;
+    use experimental 'signatures';
+
+    use Net::EmptyPort qw( empty_port );
+    use Browser::Open qw( open_browser );
+    use Text::CSV_XS ();
+
+    ##########################################################
+
+    my $filename = shift;
+
+    my $csv = Text::CSV_XS->new({ binary => 1, auto_diag => 1 });
+    open my $fh, "<:encoding(utf8)", $filename or die "$filename: $!";
+
+    my $data = {};
+    my $titles = $csv->getline($fh);
+    my $xlabel = shift @{ $titles };
+    $data->{labels} = [];
+    $data->{datasets} = [
+        map { +{ label => $_, data => [] } } @{ $titles }
+    ];
+
+    while (my $row = $csv->getline($fh)) {
+        push @{ $data->{labels} }, shift @{ $row };
+        push @{ $data->{datasets}[ $_ ]{data} }, $row->[ $_ ]
+            for 0..(scalar(@{ $row })-1);
+    }
+
+    close $fh or die "$filename: $!";
+
+    ##########################################################
+
+    get '/' => sub ($c, @) {
+        $c->render(
+            'index',
+            title  => $filename =~ s/[.]csv$//r,
+            xlabel => $xlabel,
+            cols   => $data,
+        );
+    };
+    post '/exit' => sub { exit };
+
+    app->log->level('warn');
+
+    my $base_url = 'http://127.0.0.1:' . empty_port();
+    app->hook(before_server_start => sub ($server, @) {
+        $server->silent(1);
+        open_browser($base_url);
+    });
+
+    app->start('daemon','--listen', $base_url );
+
+    __DATA__
+    @@ index.html.ep
+    % # This pages includes output directly in the  <script>...</script>
+    % # tags.  Note that this is only safe because:
+    % 
+    % #   (a) I'm using to_json which outputs characters not bytes so
+    % #       when Mojolicious does the final byte encoding everything will
+    % #        work out and not be double encoded, and
+    % 
+    % #   (b) Mojo::JSON (unlike many other JSON libraries) *also* escapes
+    % #       any '/' as '\/' meaning that a rogue '</script>' in the data
+    % #       won't terminate the script tags and present a possible
+    % #       JavaScript injection attack
+    % 
+    % use Mojo::JSON qw( to_json );
+    <html>
+    <script>
+    // when the page is closed have the browser send a POST
+    // to /exit to tell Mojolicious to shut down
+    window.addEventListener(
+        "unload",
+        () => navigator.sendBeacon("/exit"),
+        false
+    );
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.xkcd@1.1/dist/chart.xkcd.min.js"></script>
+    <body>
+        <svg class="chart"></svg>
+        <script>
+            const chartElement = document.querySelector('.chart');
+            const lineChart = new chartXkcd.Line(
+                chartElement,
+                {
+                    title: <%== to_json( $title ) %>,
+                    xLabel: <%== to_json( $xlabel ) %>,
+                    data: <%== to_json( $cols ) %>,
+                    options: {
+                        legendPosition: chartXkcd.config.positionType.upLeft
+                    }
+                }
+            );
+        </script>
+    </body>
+    </html>
+
+Of course, we could go further than all of this, making a completely
+interactive application with Perl and JavaScript passing information
+back and forward to each other...but that's a project for another day.
+

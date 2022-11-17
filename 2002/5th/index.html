@@ -1,0 +1,276 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: Image::Size</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 5th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Image::Size</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../4th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../6th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><b>Image::Size</b> does what any good module really should do - one thing,
+and one thing well, and that thing in this example is finding the size
+of an image.</p>
+<p>How many times have you created a webpage, linked to an image, and
+simply have forgotten to include the width="" and height="" attributes
+in the img tag?  Web browsers use these tags to determine how the
+image should be shown, and although by default they will show it at
+it's normal size (which is almost certainly what you want) they can't
+work this out this <i>until they've loaded the image</i>.  That means that
+your page can't display properly - if at all - until all the images
+have loaded.</p>
+<p>With <b>Image::Size</b> you can quickly and easily find out the size of an
+image, and with the help of a little scripting you can add the image
+sizes to your webpage.</p>
+<p>There are many good reasons for using the <b>Image::Size</b> over other
+Perl graphics libraries such as <b>Image::Magick</b> and <b>GD</b>.  Firstly,
+and foremostly, it's easier to install.  It doesn't require any
+external libraries.  Secondly, when it examines an image,
+<b>Image::Size</b> is <b>only</b> looking for the image size, often meaning
+all it has to do is read the first few bytes of the image, whereas a
+'proper' image library like <b>GD</b> would try and be more general
+purpose and load the entire image - a much less efficient approach.</p>
+<p>Thirdly, and most importantly, <b>Image::Size</b> caches the size of
+each image it loads for you.  This means that if you use one script to
+run over all your pages then each image only has to be loaded once,
+which will make the whole process a lot quicker.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Image::Size">[Read the documentation for Image::Size on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Using image size is simplicity itself.  The easiest way to use it
+is simply to pass it a filename of an image and it will return
+the height and width</p>
+<pre>   use Image::Size;</pre>
+
+<pre>   # get the image size, and print it out
+   my ($width, $height) = imgsize("image.jpg");
+   print "The image is $width by $height";</pre>
+
+<p>Of course, image size is able to use an open file handle</p>
+<pre>   use Image::Size;
+   use IO::File;</pre>
+
+<pre>   # open the file in binary mode
+   my $filehandle = IO::File-&gt;new("image.jpg")
+     or die "coundn't open 'image.jpg': $!";
+   binmode $filehandle;</pre>
+
+<pre>   # get the image size, and print it out
+   my ($width, $height) = imgsize($filehandle);
+   print "The image is $width by $height";</pre>
+
+<p>Or even a image that's already been read into memory;</p>
+<pre>   use Image::Size;
+   use IO::File;</pre>
+
+<pre>   # open a file in binary mode 
+   my $filehandle = IO::File-&gt;new("image.jpg")
+     or die "coundn't open 'image.jpg': $!";
+   binmode $filehandle;</pre>
+
+<pre>   # read in the entire file into $image_data
+   my $image_data;
+   {
+     local $/;   # set it so &lt;&gt; reads all the file at once
+     $image_data = &lt;$filehandle&gt;;  # read in the file
+   }</pre>
+
+<pre>   # get the image size and print it out
+   my ($width, $height) = imgsize($image_data);
+   print "The image is $width by $height";</pre>
+
+<p>This is all very useful, but nine times out of ten the real reason
+you'll want to use Image::Size is because you want to fill in the
+width and height attributes of a HTML <code>&lt;IMG&gt;</code> tag.  Luckly
+the writers of <b>Image::Size</b> provided a couple of convenience 
+methods that allow us to really easily create parts of HTML.</p>
+<p>The first of these convenience methods is able to automatically
+produce the string containing both attributes.  It's not exported
+by default from the <b>Image::Size</b> module, so to access it you need
+to pass the 'html_imgsize' parameter to the use call.</p>
+<pre>  # load the module, and import 'html_imgsize'
+  use Image::Size qw(html_imgsize);</pre>
+
+<pre>  # load the cross platform file operations module
+  # (which will allow us to use the 'catfile' function)  
+  use File::Spec::Functions;</pre>
+
+<pre>  sub img_tag
+  {
+    # get the name of the image passed in 
+    my $img_name = shift;</pre>
+
+<pre>    # return a tag with the image name width and height
+    return qq{&lt;img src="/imgs/$img_name" } .
+           html_imgsize(catfile(DOCROOT, "imgs", $img_name)) .
+           qq{&gt;}
+  }</pre>
+
+<p>Where <code>DOCROOT</code> is where the <code>imgs</code> directory is kept on your local
+hard drive.  An example call later on that script to generate an image
+tag might look like:</p>
+<pre>  print "&lt;p&gt;And this is a picture of us inside&lt;/p&gt;"
+  print img_tag("us_inside.jpg");</pre>
+
+<p>This is fine technique if we're creating the HTML 'by hand'.  But what
+if we're using the <b>CGI</b> module to automatically output the html for
+us.  The normal way to create an image ref with the <b>CGI</b> module is:</p>
+<pre>  use CGI qw(:html);</pre>
+
+<pre>  print img(-src    =&gt; "imgs/$imgname",
+	    -width  =&gt; 40,
+            -height =&gt; 20,);</pre>
+
+<p>Now of course if we had function that returned a list containing <code>-width =&gt; 40, -height=&gt;20</code> then we could substitute it in for the
+subject parameters themselves.  Luckly, this is exactly what the
+<code>attr_imgsize</code> function does:</p>
+<pre>  use CGI qw(:html);
+  use Image::Size qw(attr_imgsize);</pre>
+
+<pre>  print img(-src =&gt; "img/$imgname",
+            attr_imgsize(catfile(DOCROOT,"img",$imgname)));</pre>
+
+<p>Note again that this function is not automatically exported by
+<b>Image::Size</b> and how we have to import it manually within the use
+statement.</p>
+<p>Now we've seen all the ways we can use <b>Image::Size</b> lets end
+with a bigger example.  This following script takes existing files,
+parses them with one of the <b>HTML::Parser</b> modules (in this case
+<b>HTML::TokeParser::Simple</b>) and change the <code>img</code> tags as we go to
+have the correct dimensions.</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load the modules we need
+  use HTML::TokeParser::Simple;
+  use Image::Size;
+  use IO::AtomicFile;</pre>
+
+<pre>  # for each html page passed on the command line
+  foreach my $htmlfile (@ARGV)
+  {
+    # create a parser to decode that file
+    my $parser = HTML::TokeParser::Simple-&gt;new($htmlfile);</pre>
+
+<pre>    # open temp file that will be copied to the original
+    # file once we're done.
+    my $fh = IO::AtomicFile-&gt;new($htmlfile,"&gt;")
+      or die "Can't open '$htmlfile.TMP': $!";</pre>
+
+<pre>    # process each bit of the file
+    while (my $token = $parser-&gt;get_token())
+    {
+      # is it an img tag?
+      if ($token-&gt;is_start_tag('img'))
+      {
+        # get the attributes (the src="" etc)
+        my $attr = $token-&gt;return_attr;</pre>
+
+<pre>        # change the width and height
+        ($attr-&gt;{width}, $attr-&gt;{height})
+	  = imgsize(url2file($attr-&gt;{src}));</pre>
+
+<pre>        # now recreate the tag
+        print {$fh} "&lt;img";
+        print {$fh} map { qq{ $_="$attr-&gt;{$_}"} } keys %$attr;
+        print {$fh} "&gt;";
+      }
+      else
+      {
+        # something else?  Print it as is without changes
+        print {$fh} $token-&gt;as_is;
+      }
+    }
+  }</pre>
+
+<pre>  # A function that converts urls into file paths.
+  # (since I'm on unix and all my image locations are relative,
+  # this just returns what it was originally passed.)
+  sub url2file { return $_[0] }</pre>
+
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/author/GAAS/Image-Info/Info.pm.tmpl">Image::Info, an alternative module for doing the same thing</a></li>
+<li><a href="http://search.cpan.org/author/OVID/HTML-TokeParser-Simple/Simple.pm">HTML::TokeParser::Simple</a></li>
+<li><a href="http://search.cpan.org/author/JCRISTY/PerlMagick/Magick.pm">Image::Magick</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:52 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

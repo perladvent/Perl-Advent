@@ -1,0 +1,170 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2019 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2019.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2019 - 
+Going for Perl
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2019</a></h1>
+        </div>
+
+        <p id="tagline">2019 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Going for Perl</h1>
+<div class='subtitle'>FFI::Platypus and Go - 2019-12-04</div>
+
+<div class='pod'><h3 id="Go-On">Go On</h3>
+
+<p>Many people thought that Wise Old Elf, being, well, old, wouldn&#39;t be much for these brand new programming languages. But, they forget... the Wise Old Elf isn&#39;t just Old, he is Wise too. So he knew that you have to use the best tool for the job.</p>
+
+<p>More recently the Wise Old Elf had been running a small team of elves that had been experimenting with writing some of their more speed critical code in Go. Previously at the North Pole they&#39;d resorted to using C code - often called via Inline::C - when their beloved Perl just wasn&#39;t fast enough. But they&#39;d had a lot of problems with that - dealing with memory management, having to often delve into the dark arts of XS coding, so the Wise Old Elf had started his experiment with something a little more <i>modern</i>.</p>
+
+<p>And thus the Wise Old Elf suddenly found himself with a bunch of Go code that he would love the main North Pole codebase to be able to make use of without having to rewrite any of their battle-tested Perl code in Go. What he really needed was a way to call the new Go code from within Perl.</p>
+
+<h3 id="Shared-Library-Time">Shared Library Time</h3>
+
+<p>The Wise Old Elf decided he should have an experiment of his own. So he set himself a challenge: Write some trivial Go code and get it executed from within Perl.</p>
+
+<p>Go is perfectly capable of producing a shared library. Here&#39;s a &quot;Hello, World&quot; type example for this time of the year.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>package main<br /><br />import &quot;fmt&quot;<br /><br />func main() {<br />&nbsp;&nbsp;&nbsp;&nbsp;WishMerryChristmas()<br />}<br /><br />func WishMerryChristmas() {<br />&nbsp;&nbsp;&nbsp;&nbsp;fmt.Println(&quot;We wish you a Merry Christmas&quot;);<br />}</code><br />&nbsp;</td></table>
+
+<p>To make this into a shared library we need to make a few scant changes.</p>
+
+<p><li>Add an <code>import "C"</code> statement</li> <li>Empty out the <code>main()</code> func</li> <li>Add <code>//export</code> decorators on what we want to export</li>
+
+</p>
+
+
+
+<p>Even with these changes the code looks mostly the same:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>package main<br /><br />import &quot;C&quot;<br /><br />import &quot;fmt&quot;<br /><br />func main() {}<br /><br />//export WishMerryChristmas<br />func WishMerryChristmas() {<br />&nbsp;&nbsp;&nbsp;&nbsp;fmt.Println(&quot;We wish you a Merry Christmas&quot;);<br />}</code><br />&nbsp;</td></table>
+
+<p>We can now compile this on the command line</p>
+
+<pre><code>    $ go build -o merrychristmas.so -buildmode=c-shared
+    $ ls merrychristmas*
+    -rw-r--r-- 1 wiseold wiseold 1.3K Nov 19 00:27 merrychristmas.h
+    -rw-r--r-- 1 wiseold wiseold 2.0M Nov 19 00:27 merrychristmas.so</code></pre>
+
+<p>We&#39;ve got two new files, the header file (the <code>merrychristmas.h</code>) and the shared object file (the <code>merrychristmas.so</code> file.) We can safely discard the header file since we&#39;re not going to use the traditional C linking route here - we&#39;re going to use one of Perl&#39;s excellent Foreign Function Interface libraries to access the shared object instead.</p>
+
+<p>As an aside you&#39;ll notice that <code>merrychristmas.so</code> is huge for a library that has a single function that prints a simple string in it. That&#39;s because it&#39;s not just that - it also contains all of the Go runtime and packages also! We&#39;re able to distribute that shared object along with our Perl code without any other Go scaffolding or support files.</p>
+
+<h3 id="Bring-On-The-Platypus">Bring On The Platypus</h3>
+
+<p>So, now we have a shared object from our Go code, how can we access it from Perl? With <a href="https://metacpan.org/module/FFI::Platypus">FFI::Platypus</a> of course!</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment">#!/usr/bin/perl<br /></span><br /><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">warnings</span><span class="structure">;</span><br /><br /><span class="comment"># load our chosen FFI interface module<br /></span><span class="keyword">use</span> <span class="word">FFI::Platypus</span><span class="structure">;</span><br /><br /><span class="comment"># configure it to talk to our shared object library<br /></span><span class="keyword">my</span> <span class="symbol">$ffi</span> <span class="operator">=</span> <span class="word">FFI::Platypus</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span> <span class="word">api</span> <span class="operator">=&gt;</span> <span class="number">1</span> <span class="structure">);</span><br /><span class="symbol">$ffi</span><span class="operator">-&gt;</span><span class="word">lib</span><span class="structure">(</span> <span class="single">'./merrychristmas.so'</span> <span class="structure">);</span><br /><br /><span class="comment"># bind the exported &quot;WishMerryChristmas&quot; to the<br /># &quot;WishMerryChristmas&quot; function in Perl space, and<br /># declare that it takes no args and returns nothing<br /></span><span class="symbol">$ffi</span><span class="operator">-&gt;</span><span class="word">attach</span><span class="structure">(</span><span class="word">WishMerryChristmas</span> <span class="operator">=&gt;</span> <span class="structure">[]);</span><br /><br /><span class="comment"># call it!<br /></span><span class="word">WishMerryChristmas</span><span class="structure">();</span></code><br />&nbsp;</td></table>
+
+<p>And does it work?</p>
+
+<pre><code>    $ perl merry.pl 
+    We Wish You a Merry Christmas</code></pre>
+
+<p>It&#39;s a Christmas miracle!</p>
+
+<h3 id="In-Out-Shake-It-All-About">In, Out, Shake It All About</h3>
+
+<p>Okay, so how about something more complicated. Let&#39;s modify the go function to print out the message a number of times:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>//export WishMerryChristmas<br />func WishMerryChristmas(n int) {<br />&nbsp;&nbsp;&nbsp;&nbsp;for i := 0; i &lt; n; i++ {<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;fmt.Println(&quot;We wish you a Merry Christmas&quot;);<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br />}</code><br />&nbsp;</td></table>
+
+<p>Now in our Perl script we can modify it to specify that we can pass in an argument:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$ffi</span><span class="operator">-&gt;</span><span class="word">attach</span><span class="structure">(</span><span class="word">MerryChristmas</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'long'</span><span class="structure">]);</span><br /><span class="word">WishMerryChristmas</span><span class="structure">(</span><span class="number">3</span><span class="structure">);</span><br /><span class="word">print</span> <span class="double">&quot;And a Happy New Year\n&quot;</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>And that works:</p>
+
+<pre><code>    $ perl merry.pl
+    We wish you a Merry Christmas
+    We wish you a Merry Christmas
+    We wish you a Merry Christmas
+    And a Happy New Year</code></pre>
+
+<p>But hang on, why did we specify <code>long</code> when we declared <code>WhichMerryChristmas</code> to take an <code>int</code>? That&#39;s because we&#39;re not specifying the <b>Go</b> type to FFI::Platypus, but the <code>C</code> type. And a Go <code>int</code> is represented by a C <code>long</code>.</p>
+
+<p>We can make this a whole lot clearer if we teach FFI::Platypus about a <i>type alias</i> for Go ints:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># declare a type alias<br /></span><span class="symbol">$ffi</span><span class="operator">-&gt;</span><span class="word">type</span><span class="structure">(</span> <span class="word">long</span> <span class="operator">=&gt;</span> <span class="single">'go_int'</span> <span class="structure">);</span><br /><br /><span class="comment"># then make use of it idiomatically when we attach<br /></span><span class="symbol">$ffi</span><span class="operator">-&gt;</span><span class="word">attach</span><span class="structure">(</span><span class="word">MerryChristmas</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'go_int'</span><span class="structure">]);</span></code><br />&nbsp;</td></table>
+
+<p>This mismatch between C types and Go types becomes even clearer if we change our function to take a string:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>//export WishMerryChristmas<br />func WishMerryChristmas(who string) {<br />&nbsp;&nbsp;&nbsp;&nbsp;fmt.Printf(&quot;We wish you a Merry Christmas, %s\n&quot;, who);<br />}</code><br />&nbsp;</td></table>
+
+<p>And then naively call it from Perl:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># this code is wrong...<br /></span><span class="symbol">$ffi</span><span class="operator">-&gt;</span><span class="word">attach</span><span class="structure">(</span><span class="word">WishMerryChristmas</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'string'</span><span class="structure">]);</span><br /><span class="word">WishMerryChristmas</span><span class="structure">(</span><span class="single">'Santa'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>We get junk out:</p>
+
+<pre><code>    $ perl merry.pl 
+    We wish you a Merry Christmas, SantapV</code></pre>
+
+<p>That&#39;s because we&#39;re calling the Go code with a C string (i.e. a null terminated array of bytes) rather than the Go string structure it expects which should look somewhat like this in C space:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synType">typedef</span> <span class="synType">struct</span>{<span class="synType">const</span> <span class="synType">char</span> *p; go_int len;} go_str;</code><br />&nbsp;</td></table>
+
+<h3 id="A-Record-Solution">A Record Solution</h3>
+
+<p>There&#39;s several approaches we can take to help cross the divide. The simplest solution is to define in Perl space a wrapper for the struct we need to pass in</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">GoString</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">FFI::Platypus::Record</span><span class="structure">;</span><br /><br /><span class="comment"># this is the same as<br /># typedef struct{const char *p; go_int len;} go_str;<br /></span><span class="word">record_layout_1</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'string rw'</span> <span class="operator">=&gt;</span> <span class="single">'p'</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="single">'long'</span>      <span class="operator">=&gt;</span> <span class="single">'len'</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br />&nbsp;<br />&nbsp;<span class="word">And</span> <span class="word">now</span> <span class="word">with</span> <span class="word">a</span> <span class="word">suitable</span> <span class="word">argument</span> <span class="word">declaration</span> <span class="word">we</span> <span class="word">can</span> <span class="word">call</span> <span class="word">it</span> <span class="word">from</span> <span class="word">Perl</span><br /><br /><span class="comment">#!perl<br /></span><span class="symbol">$ffi</span><span class="operator">-&gt;</span><span class="word">attach</span><span class="structure">(</span><span class="word">WishMerryChristmas</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'record(GoString)'</span><span class="structure">]);</span><br /><span class="keyword">my</span> <span class="symbol">$stirng</span> <span class="operator">=</span> <span class="single">'Santa'</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$go_string</span> <span class="operator">=</span> <span class="word">GoString</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">p</span> <span class="operator">=&gt;</span> <span class="symbol">$string</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">len</span> <span class="operator">=&gt;</span> <span class="word">length</span><span class="structure">(</span><span class="symbol">$string</span><span class="structure">)</span><span class="operator">,</span><br /><span class="structure">);</span><br /><span class="word">WishMerryChristmas</span><span class="structure">(</span><span class="symbol">$go_string</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>We finally get the output we wanted all along:</p>
+
+<pre><code>    $ perl merry.pl 
+    We wish you a Merry Christmas, Santa</code></pre>
+
+<p>We can further simplify this by passing the <code>attach</code> method a <i>wrapper function</i> that does the conversion for us:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="symbol">$ffi</span><span class="operator">-&gt;</span><span class="word">attach</span><span class="structure">(</span> <span class="word">WishMerryChristmas</span> <span class="operator">=&gt;</span> <span class="structure">[</span><span class="single">'record(GoString)'</span><span class="structure">]</span> <span class="operator">=&gt;</span> <span class="single">'void'</span><span class="operator">,</span> <span class="keyword">sub</span> <span class="structure">{</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$real_function</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$string</span> <span class="operator">=</span> <span class="core">shift</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="symbol">$real_function</span><span class="operator">-&gt;</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">GoString</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">p</span> <span class="operator">=&gt;</span> <span class="symbol">$string</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="word">len</span> <span class="operator">=&gt;</span> <span class="word">length</span><span class="structure">(</span><span class="symbol">$string</span><span class="structure">)</span><span class="operator">,</span><br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">)</span><br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="structure">)</span><br /><span class="structure">});</span><br /><br /><span class="word">WishMerryChristmas</span><span class="structure">(</span><span class="single">'Santa'</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>So a Merry Christmas to you too - from multiple programming languages!</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Two Factor Elfication" href="2019-12-03.html">Previous</a></li>
+
+    <li class="next"><a title="Christmas Lights" href="2019-12-05.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

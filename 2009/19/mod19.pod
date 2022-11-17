@@ -1,0 +1,144 @@
+=pod
+
+=for advent_year 2009
+
+=for advent_day 19
+
+=for advent_title The children were smartly dressed in matching attire for the holidays
+
+=for advent_author Jerrad Pierce
+
+Even though Santa's still stuck in the days of Perl 5.6, he too can have
+a little Perl 6 for Christmas with the magic of M<Match::Smart>. With
+M<Match::Smart> you get a a function called C<smart_match()>&mdash;instead of a
+C<~~> operator&mdash;for all sorts of DWIMy equality testing. With it, we can
+implement a simple switch statement in our sample code to assign gifts based on kids' behavior:
+
+=begin pre
+
+nick@north# perl mod19.pl
+Bob gets a pony
+Zack gets a lump of coal
+Jerrad gets a pair of socks
+Eve gets a lump of coal
+Alice gets a pony
+
+=end pre
+
+
+Just for fun, Santa decided to try to run the Perl 5.10.0 tests for C<~~>
+with C<smart_match()> and found that it passed 109 of 144 testsN<test>.
+Not bad, but he noticed some patterns and after reading the documentation
+more carefully he discovered that many of the failures were due to the fact
+that the module had been written against
+A<http://www.perl.com/pub/a/2002/01/15/apo4.html?page=2#table%201:%20matching%20a%20switch%20value%20against%20a%20case%20value|Apocalypse 4>
+which debuted in 2002, and the relevant specification has since been superseded
+by A<http://perlcabal.org/syn/S03.html#Smart_matching|Synopsis 3>.
+
+After consulting A<http://perldoc.perl.org/perlsyn.html#Smart-matching-in-detail|perlsyn>
+and making a few simple changesN<patch>, he was able to get
+an A<Smart.pm|updated F<Smart.pm>> that only failed 5 tests:
+
+=begin pre
+
+nick@north# perl -Mlib=lib smartmatch_.t | & grep not
+not ok 5 - smart_match(\&foo, \&bar): 2
+not ok 89 - smart_match([qw(1foo 2bar)], "2"): 1
+not ok 90 - smart_match("2", [qw(1foo 2bar)]): 1
+not ok 99 - smart_match(2, "2bananas"): 1
+not ok 100 - smart_match("2bananas", 2): 1
+
+=end pre
+
+The first failed test seems reasonable enough, since the tests are run in
+pairs, each with the operands in opposite order and of course C<&foo(\&bar)>
+is different from C<&bar(\&foo)>.N<commutative>
+
+The other tests fail due to an apparent inconsistency in Perl 5.10.
+The tests are written to expect an I<inability> to match, even though
+C<2 == "2bananas"> and C<"2" == "2bar">N<numish>. So, with M<Match::Smart>
+you get a more useful tool than the native feature in 5.10.
+
+
+Indeed, even though the operand table for (the updated) M<Match::Smart>
+is more difficult to read than that of Perl 5.10,
+it also specifies an interesting behavior for objects:
+
+=begin pre
+
+   OBJECT   STRING   $val1->can($val2) && $val1->$val2
+
+=end pre
+
+i.e; smart match of an object and a string will invoke the object's
+method specified by the value of the string if available. Perl 5.10
+on the other hand requires that C<~~> be overloaded to get any behavior
+beyond what is defined for arrays, hashes, scalars and regexps.
+
+One of the handy things about smart matching, is that it ignores one level
+of referencing so that C<\@a ~~ @a> is true, which could&mdash;for
+instance&mdash;allow you to handle subroutine arguments of greater variety
+with less code. Of course, since C<smart_match(@goodboys, @badboys)>
+doesn't work quite the same as C<@goodboys ~~ @badboys> since the arrays
+are flattened into a single list, you should instead pass referenced arguments
+like C<smart_match(\@goodboys, \@badboys)>.N<prototype>
+
+
+=sourcedcode mod19.pl
+
+
+=begin footnote test
+
+This required a few modifications to F<op/smartmatch.t> though:
+
+=sourcedcode smartmatch_t.patch
+
+=end footnote
+
+
+=begin footnote patch
+
+Santa's A<Smart_pm.patch|patch> includes corrections for the following changes
+between Apocalypse 4 and Synopsis 3:
+
+=over
+
+=item hash-hash key intersection &rarr; hash keys equality
+
+=item array-array intersection &rarr; array equality
+
+=item hash slice element truth &rarr; hash slice element existence
+
+=item array indexed value truth &rarr; array contains matching element
+
+=back
+
+and requires a A<smart_match.t|modified test> to get to only 5 failures.
+
+=end footnote
+
+
+=begin footnote commutative
+
+Somehow, the test passes in 5.10 though&hellip;
+
+=end footnote
+
+
+=begin footnote numish
+
+Numerical operations in Perl treat strings that begin with numbers as the
+leading number. This is why C<("0 but true" && "0 but true" == 0) == 1>.
+
+=end footnote
+
+
+=begin footnote prototype
+
+It's possible to get a C<smart_match> that I<will> accept two arrays with
+prototypes, but C<smart_match> also needs to accept two hashes, a hash
+and an array, a hash and a scalar, etc.
+
+=end footnote
+
+=cut

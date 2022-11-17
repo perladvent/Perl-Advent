@@ -1,0 +1,138 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2014 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2014.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2014 - 
+Foreign Function Interface and Perl
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2014</a></h1>
+        </div>
+
+        <p id="tagline">2014 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Foreign Function Interface and Perl</h1>
+<div class='subtitle'>FFI::Raw - 2014-12-10</div>
+
+<div class='pod'><p><code>libffi</code> is a Foreign Function Interface (FFI) used by a number of scripting languages and virtual machine platforms to call native code. It doesn&#39;t require a compiler, and as long as dynamic libraries can be found, development packages aren&#39;t necessary either.</p>
+
+<p>For Perl, this means that FFI::Raw (Perl bindings for <code>libffi</code>) provides a viable alternative to the traditional Foreign Function Interface, known as XS. There are lots of reasons why you might not want to implement something using XS. For me the motivation is not having to delve into perlapi or perlxs, both of which are a fine prescription for madness. There are even some good reasons why you might <i>want</i> to use <code>libffi</code> instead of XS; it should work with any language that generates machine code, so go ahead and write your extensions in assembly or rust!</p>
+
+<h3 id="Calling-a-function">Calling a function</h3>
+
+<p>FFI::Raw has a constructor that takes the name of the library, the name of the function that you want to bind to, the return type for that function, and a list of the argument types. For example, I can call the C <code>puts</code> function on my Linux system like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">FFI::Raw</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$lib</span> <span class="operator">=</span> <span class="single">'/lib/x86_64-linux-gnu/libc.so.6'</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$puts</span> <span class="operator">=</span> <span class="word">FFI::Raw</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="symbol">$lib</span><span class="operator">,</span> <span class="single">'puts'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">FFI::Raw::int</span><span class="operator">,</span>  <span class="comment"># return value type</span><br />&nbsp;&nbsp;<span class="word">FFI::Raw::str</span><span class="operator">,</span>  <span class="comment"># argument types</span><br /><span class="structure">);</span><br /><br /><span class="symbol">$puts</span><span class="operator">-&gt;</span><span class="word">call</span><span class="structure">(</span><span class="double">&quot;hello world&quot;</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>I usually put the return value type and argument types on separate lines, as above, to differentiate them.</p>
+
+<p>Recent versions of FFI::Raw have a shortcut where if you pass <code>undef</code> as the library argument it will search the currently running process for symbols. This is a good way to call functions in the standard C library, which usually has a different name on every platform.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$puts</span> <span class="operator">=</span> <span class="word">FFI::Raw</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="core">undef</span><span class="operator">,</span> <span class="single">'puts'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">FFI::Raw::int</span><span class="operator">,</span>  <span class="comment"># return value type</span><br />&nbsp;&nbsp;<span class="word">FFI::Raw::str</span><span class="operator">,</span>  <span class="comment"># argument types</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h3 id="Finding-a-library">Finding a library</h3>
+
+<p>For the rest of this article I am going to use <code>libmagic</code> as an example of how to create useful bindings. This library is commonly available on Unix systems and it provides an interface for determining the type of a file by its contents.</p>
+
+<p>The first thing that we need to do is find the path to the libmagic library. To do that we will use FFI::CheckLib.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">FFI::CheckLib</span><span class="structure">;</span><br /><span class="keyword">my</span><span class="structure">(</span><span class="symbol">$lib</span><span class="structure">)</span> <span class="operator">=</span> <span class="word">find_lib</span><span class="structure">(</span> <span class="word">lib</span> <span class="operator">=&gt;</span> <span class="single">'magic'</span> <span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h3 id="The-bindings">The bindings</h3>
+
+<p>Now we need to create the bindings for the <code>libmagic</code> library like we did for <code>puts</code> before.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$open</span> <span class="operator">=</span> <span class="word">FFI::Raw</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="symbol">$lib</span><span class="operator">,</span> <span class="single">'magic_open'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">FFI::Raw::ptr</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">FFI::Raw::int</span><span class="operator">,</span><br /><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$load</span> <span class="operator">=</span> <span class="word">FFI::Raw</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="symbol">$lib</span><span class="operator">,</span> <span class="single">'magic_load'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">FFI::Raw::int</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">FFI::Raw::ptr</span><span class="operator">,</span> <span class="word">FFI::Raw::str</span><span class="operator">,</span><br /><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$buffer</span> <span class="operator">=</span> <span class="word">FFI::Raw</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="symbol">$lib</span><span class="operator">,</span> <span class="single">'magic_buffer'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">FFI::Raw::str</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">FFI::Raw::ptr</span><span class="operator">,</span> <span class="word">FFI::Raw::ptr</span><span class="operator">,</span> <span class="word">FFI::Raw::int</span><span class="operator">,</span><br /><span class="structure">);</span><br /><span class="keyword">my</span> <span class="symbol">$close</span> <span class="operator">=</span> <span class="word">FFI::Raw</span><span class="operator">-&gt;</span><span class="word">new</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="symbol">$lib</span><span class="operator">,</span> <span class="single">'magic_close'</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">FFI::Raw::void</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="word">FFI::Raw::ptr</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>We also need some constants that are defined in <code>magic.h</code>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">constant</span> <span class="word">MAGIC_NONE</span> <span class="operator">=&gt;</span> <span class="hex">0x000</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="pragma">constant</span> <span class="word">MAGIC_MIME</span> <span class="operator">=&gt;</span> <span class="hex">0x410</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Unfortunately there is no getting around this. Since we are not using a compiler, there is no reliable way of parsing the C header files, except for by implementing a C parser. Also requiring the C header files may mean installing development packages (if you recall one of the advantages of <code>libffi</code> is that we don&#39;t need those installed).</p>
+
+<p>If the library that you are targeting changes its constants frequently then FFI::Raw may not be the tool that you want to use. On the other hand, if your library is frequently changing its interface like that then that library may not be the tool that you want to use either.</p>
+
+<h3 id="Using-the-bindings">Using the bindings</h3>
+
+<p>Now we can write a useful program using the bindings that we have created.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;<br />16:&nbsp;<br />17:&nbsp;<br />18:&nbsp;<br />19:&nbsp;<br />20:&nbsp;<br />21:&nbsp;<br />22:&nbsp;<br />23:&nbsp;<br />24:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># Create a handle for interacting with libmagic<br /># replace MAGIC_NONE with MAGIC_MIME to get the<br /># mime type instead of a description<br /></span><span class="keyword">my</span> <span class="symbol">$magic</span> <span class="operator">=</span> <span class="symbol">$open</span><span class="operator">-&gt;</span><span class="word">call</span><span class="structure">(</span><span class="word">MAGIC_NONE</span><span class="structure">);</span><br /><br /><span class="comment"># Load the magic definitions file.  undef gets<br /># translated into NULL, which means use the <br /># system default.<br /></span><span class="symbol">$load</span><span class="operator">-&gt;</span><span class="word">call</span><span class="structure">(</span><span class="symbol">$magic</span><span class="operator">,</span> <span class="core">undef</span><span class="structure">);</span><br /><br /><span class="comment"># read in the content of a file and convert it<br /># into a pointer<br /></span><span class="word">open</span> <span class="word">my</span> <span class="symbol">$fh</span><span class="operator">,</span> <span class="single">'&lt;'</span><span class="operator">,</span> <span class="double">&quot;unknownfiletype&quot;</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$content</span> <span class="operator">=</span> <span class="word">do</span> <span class="structure">{</span> <span class="keyword">local</span> <span class="magic">$/</span><span class="structure">;</span> <span class="readline">&lt;$fh&gt;</span> <span class="structure">};</span><br /><span class="word">close</span> <span class="symbol">$fh</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$ptr</span> <span class="operator">=</span> <span class="word">FFI::Raw::MemPtr</span><span class="operator">-&gt;</span><span class="word">new_from_buff</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="symbol">$content</span><span class="operator">,</span> <span class="word">length</span> <span class="symbol">$content</span><span class="operator">,</span><br /><span class="structure">);</span><br /><br /><span class="comment"># pass the buffer into libmagic and print the results!<br /></span><span class="word">say</span> <span class="symbol">$buffer</span><span class="operator">-&gt;</span><span class="word">call</span><span class="structure">(</span><span class="symbol">$magic</span><span class="operator">,</span> <span class="symbol">$ptr</span><span class="operator">,</span> <span class="word">length</span> <span class="symbol">$content</span><span class="structure">);</span><br /><br /><span class="comment"># free up the resources used by the magic handle<br /></span><span class="symbol">$close</span><span class="operator">-&gt;</span><span class="word">call</span><span class="structure">(</span><span class="symbol">$magic</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>In this example we use FFI::Raw::MemPtr to construct a memory pointer and copy the content of the file into that pointer. If you know that the library that you are using is not going to do any funny busines, like write into your buffer, then you can also skip the memory copy by using <a href="https://metacpan.org/module/FFI::Util">FFI::Util</a>&#39;s <code>scalar_to_buffer</code> function:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span><span class="structure">(</span><span class="symbol">$ptr</span><span class="operator">,</span> <span class="symbol">$size</span><span class="structure">)</span> <span class="operator">=</span> <span class="word">scalar_to_buffer</span><span class="structure">(</span><span class="symbol">$content</span><span class="structure">);</span><br /><span class="word">say</span> <span class="symbol">$buffer</span><span class="operator">-&gt;</span><span class="word">call</span><span class="structure">(</span><span class="symbol">$magic</span><span class="operator">,</span> <span class="symbol">$ptr</span><span class="operator">,</span> <span class="symbol">$size</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>It returns a pointer to the data stored by the scalar and the size of the data stored.</p>
+
+<h3 id="Speed">Speed</h3>
+
+<p>FFI::Raw provides a less complicated, more portable method for calling machine code from Perl. Any FFI (calling one language from an other) will inherently involve extra overhead, when you cross the language barrier. Because FFI::Raw is implemented itself in XS, you are taking a hit from both XS and <code>libffi</code> every time you call a function in your target library. Both XS and <code>libffi</code> are relatively fast, but XS will frequently be somewhat faster assuming you tune your XS correctly. The question that you should ask yourself: is the time spent debugging code, tuning XS and reading <a href="https://metacpan.org/module/perlapi">perlapi</a> really worth it? If more time is being spent in the library you are calling than in crossing the language barrier, then you should definitely consider FFI::Raw and save yourself some programmer time at the expense of a comparably small amout of CPU time.</p>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/FFI::Raw">FFI::Raw</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/FFI::Raw::MemPtr">FFI::Raw::MemPtr</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/FFI::Util">FFI::Util</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/FFI::CheckLib">FFI::CheckLib</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/Archive::Libarchive::FFI">Archive::Libarchive::FFI</a></p>
+
+</li>
+<li><p><a href="https://github.com/merrilymeredith/p5-FFI-Sweet">FFI::Sweet</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/0640fb1c0a5e82f5a777f2306efcac77?r=g&s=80&d=retro />
+This article contributed by: Graham Ollis &lt;plicease@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Async PostgreSQL with Mojo::Pg" href="2014-12-09.html">Previous</a></li>
+
+    <li class="next"><a title="A Tiny But Powerful Type System" href="2014-12-11.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

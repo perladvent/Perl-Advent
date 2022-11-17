@@ -1,0 +1,434 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2004 Advent Calendar: Module::Pluggable</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2004 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 6th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">Module::Pluggable</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../5th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../7th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>When we write some code to do something, we often find another use for
+the same code later on.  We want the code to be extensible, changeable,
+and easily modifiable.  To this end most software packages has the
+concept of plugins, hooks for extra code that can be installed to add
+functionality to an existing piece of software.</p>
+<p>While plugin frameworks aren't hard to write, they are tedious and
+it's all too easy to use this as an excuse not to provide such a
+system - which is a real shame, as if there's anything we've learned
+from the Internet it's that people will take existing tools and do
+wonderful and totally unexpected things with them if given half the
+chance.</p>
+<p>Removing this excuse is <b>Module::Pluggable</b> - a very simple, but very
+effective, framework for providing plugin support to your code which
+can be added with the minimum of fuss to your application.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?Module::Pluggable">[Read the documentation for Module::Pluggable on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>I want to create a little language for drawing graphics.  A simple
+script like this:</p>
+<pre>  # create the image
+  create 400 300</pre>
+
+<pre>  # draw a rectangle
+  color white
+  rect 10 10 380 280</pre>
+
+<pre>  # save the image
+  save test.png</pre>
+
+<p>The script consists of comments, blanks lines or lines with commands
+on them.  The first word of a command line is the command and the following
+words after it are the arguments.  We start writing our interpreter by
+giving it a constructor and a get/set method for the image and colour we're
+currently drawing in:</p>
+<pre>  package Image::MiniLib;</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # create a few methods
+  use base qw(Class::Accessor::Chained);
+  __PACKAGE__-&gt;mk_accessors(qw( image color ));</pre>
+
+<pre>  # and the accessor
+  sub new
+  {
+    my $class = shift;
+    my $self = bless {}, $class;
+    $self-&gt;init;
+    return $self;
+  }</pre>
+
+<pre>  # and a (for now) empty init routine
+  sub init {}</pre>
+
+<p>We then write a couple of methods to parse a string containing the
+script and break it up into lines, and then break those lines up into
+words, and call the method for each command:</p>
+<pre>  sub parse_string
+  {
+     my $self   = shift;
+     my $string = shift;</pre>
+
+<pre>     # for each line of the script
+     foreach my $line (split /\n/, $string)
+     {
+       # ignore whitespace and comments
+       next if $line =~ /^\s*$/;
+       next if $line =~ /^\s*#/;</pre>
+
+<pre>       # process the line
+       $self-&gt;process_args(split /\s+/, $line);
+     }
+  }</pre>
+
+<pre>  sub process_args
+  {
+    my $self = shift;
+    my $command = shift;</pre>
+
+<pre>    # commands are implemented by methods named after
+    # the commands prepended with 'command_'
+    my $method = "command_$method";</pre>
+
+<pre>    # do we have a method with the right name?
+    unless ($self-&gt;can($method))
+      { die "Don't understand command '$command'" }</pre>
+
+<pre>    # run the method for that command
+    $self-&gt;$method(@_);
+  }</pre>
+
+<p>Finally we need to implement the commands themselves.  We add a bunch
+of methods starting with <code>command_</code> to indicate that they're commands
+we can run.  The actual graphics work is done by the <code>Imager</code> module.</p>
+<pre>  # create &lt;width&gt; &lt;height&gt;
+  sub command_create
+  {
+    my $self = shift;</pre>
+
+<pre>    my $width = shift;
+    my $height = shift;</pre>
+
+<pre>    $self-&gt;image(Imager-&gt;new(xsize =&gt; $width, ysize =&gt; $height));
+  }</pre>
+
+<pre>  # save &lt;filename&gt;
+  sub command_save
+  {
+    my $self = shift;</pre>
+
+<pre>    my $filename = shift;</pre>
+
+<pre>    $self-&gt;image-&gt;write(file =&gt; $filename)
+      or die $self-&gt;image-&gt;errstr;
+  }</pre>
+
+<pre>  my $cols = {
+    white =&gt; Imager::Color-&gt;new(255,255,255),
+    red   =&gt; Imager::Color-&gt;new(255,0,0),
+    green =&gt; Imager::Color-&gt;new(0,255,0),
+    blue  =&gt; Imager::Color-&gt;new(0,0,255),
+    black =&gt; Imager::Color-&gt;new(0,0,0),
+  };</pre>
+
+<pre>  # color &lt;name&gt;
+  sub command_color
+  {
+    my $self = shift;
+    my $col  = shift;</pre>
+
+<pre>    die "Uknown color '$col'"
+      unless $cols-&gt;{ $col };</pre>
+
+<pre>    $self-&gt;color($cols-&gt;{ $col });
+  }</pre>
+
+<pre>  # rect &lt;x&gt; &lt;y&gt; &lt;width&gt; &lt;height&gt;
+  sub command_rect
+  {
+    my $self = shift;
+    my ($x, $y, $w, $h) = @_;</pre>
+
+<pre>    $self-&gt;image-&gt;box(
+      xmin  =&gt; $x,      ymin =&gt; $y,
+      xmax  =&gt; $x + $w, ymax =&gt; $y + $h,
+      color =&gt; $self-&gt;color,
+    );
+  }</pre>
+
+<p>And we're done.  A simple perl program can be written to read the
+input from STDIN and pass it to the module</p>
+<pre>  #!/usr/bin/perl</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # load the module, and pass STDIN to it
+  use Image::MiniLib;
+  Image::MiniLib-&gt;new-&gt;parse_string(join '', &lt;&gt;));</pre>
+
+<h2>Extending the Scripting Language</h2>
+<p>Let's face it, the ability to just create images with boxes on it
+isn't that interesting.  Let's write another module - a plugin - when
+loaded adds extra commands to the set.  In this example we're going
+to implement a logo type command set, meaning we can move a cursor
+around by screen by rotating and moving forward and back.</p>
+<pre>  package Image::MiniLib::Plugin::Logo;
+  use base qw(Class::Accessor::Chained);</pre>
+
+<pre>  # turn on perl's safety features
+  use strict;
+  use warnings;</pre>
+
+<pre>  # create some new accessor methods directly in the
+  # Image::MiniLib namespace
+  Image::MiniLib-&gt;mk_accessors(qw(logo_x logo_y logo_angle logo_pen_up));</pre>
+
+<pre>  # and one for the angle that makes sure the angle wraps round
+  # between 0 and 360 degrees
+  sub Image::MiniLib::logo_angle
+  {
+    my $self = shift;
+    return $self-&gt;{logo_angle} || 0 unless @_;</pre>
+
+<pre>    # set the angle, making sure it's in bounds
+    my $angle = shift;
+    $angle += 360 while $angle &lt; 0;
+    $angle -= 360 while $angle &gt; 360;
+    $self-&gt;{logo_angle} = $angle;
+  } </pre>
+
+<p>Now we need to create a whole bunch of commands for moving the turtle:</p>
+<pre>  # rotate right: rt &lt;angle&gt;
+  sub Image::MiniLib::command_rt
+  {
+    my $self = shift;
+    $self-&gt;logo_angle($self-&gt;logo_angle(shift))
+  }</pre>
+
+<pre>  # rotate left: lt &lt;angle&gt;
+  sub Image::MiniLib::command_lt
+  {
+    my $self = shift;
+    $self-&gt;command_rt(- shift); # opposite of right
+  }</pre>
+
+<pre>  # turn off drawing: pu
+  sub Image::MiniLib::command_pu
+  {
+    my $self = shift;
+    $self-&gt;logo_pen_up(1);
+  }</pre>
+
+<pre>  # turn on drawing: pd
+  sub Image::MiniLib::command_pd
+  {
+    my $self = shift;
+    $self-&gt;logo_pen_up(0);
+  }</pre>
+
+<pre>  use constant PI =&gt; 3.141;</pre>
+
+<pre>  # move the turtle forward
+  # fd &lt;pixels&gt;
+  sub Image::MiniLib::command_fd
+  {
+    my $self = shift;
+    my $pixels = shift;</pre>
+
+<pre>    print $self-&gt;logo_angle, "\n";</pre>
+
+<pre>    # work out the new location
+    my $new_x = $self-&gt;logo_x + $pixels * cos($self-&gt;logo_angle / 180 * PI );
+    my $new_y = $self-&gt;logo_y + $pixels * sin($self-&gt;logo_angle / 180 * PI );</pre>
+
+<pre>    # draw unless the pen's up
+    unless ($self-&gt;logo_pen_up)
+    {
+      print "no $new_x $new_y\n";
+      $self-&gt;image-&gt;line(
+        color =&gt; $self-&gt;color,
+        x1 =&gt; $self-&gt;logo_x, y1 =&gt; $self-&gt;logo_y,
+        x2 =&gt; $new_x,        y2 =&gt; $new_y,
+      );
+    }</pre>
+
+<pre>    # move the 'turtle' to the new location
+    $self-&gt;logo_x($new_x);
+    $self-&gt;logo_y($new_y);
+  }</pre>
+
+<pre>  # move the turtle backwards
+  # bk &lt;pixels&gt;
+  sub Image::MiniLib::command_bk
+  {
+    my $self = shift;
+    $self-&gt;command_fd(- shift);  # opposite of forwards
+  }</pre>
+
+<p>Finally we need to have some new init code to set the default
+values for the turtle location or angle.</p>
+<pre>  sub init
+  {
+    my $self = shift;
+    $self-&gt;logo_x(0);
+    $self-&gt;logo_y(0);
+    $self-&gt;logo_angle(0);
+  }</pre>
+
+<p>Right, now we need to plumb this in.  The simplest thing to do would
+be to explicitly code a bunch of code in <b>Image::MiniLib</b></p>
+<pre>  package Image::MiniLib;</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  # load the module
+  use Image::MiniLib::Plugin::Logo;</pre>
+
+<pre>  # and change init so that we 
+  sub init
+  {
+    my $self = shift;
+    $self-&gt;Image::MiniLib::Plugin::Logo::init(@_);
+    return $self;
+  }</pre>
+
+<pre>  ...</pre>
+
+<p>Of course this is a bad idea.  We'll have to do this alteration for
+each and every module that we write that adds a command.  This means
+that if I release this to CPAN then someone wanting to add any module
+of extra commands will need me to make changes to my code before their
+extension would be generally useful.  Not exactly quick and easy and
+will stifle development.</p>
+<p>Instead what we need to do is take advantage of <b>Module::Pluggable</b>.
+Using <b>Module::Pluggable</b> in your code exports a method <code>plugins</code>
+in your code:</p>
+<pre>  package Foo;
+  use Module::Pluggable;
+  print join "\n",__PACKAGE__-&gt;plugins;</pre>
+
+<p>This prints a list of all modules that are installed on the system
+that are called <b>Foo::Plugin::*</b>.  We can even tell <b>Module::Pluggable</b>
+to load all the modules by using the require flag;</p>
+<pre>  package Foo;
+  use Module::Pluggable require =&gt; 1;
+  __PACKAGE__-&gt;plugins;</pre>
+
+<p>So let's make the changes we need to make to our code.  We want to
+load all our plugins automatically, and we want all the init methods
+for all the plugins to be called for each and every module we're
+creating:</p>
+<pre>   package Image::MiniLib;</pre>
+
+<pre>   ...</pre>
+
+<pre>   # load all the modules
+   use Module::Pluggable require =&gt; 1;</pre>
+
+<pre>   sub init
+   {
+     my $self = shift;</pre>
+
+<pre>     # call all the inits (if defined) in all our 
+     # plugins so they can all set up their defaults
+     foreach my $plugin ($self-&gt;plugins)
+     {
+       my $init = $plugin . "::init";
+      $self-&gt;$init if defined &amp;$init;
+     }
+   }</pre>
+
+<pre>   ...</pre>
+
+<p>And there we go.  Now whenever someone installs a plugin it will
+automatically be used by the main <code>Image::MiniLib</code> code, and it's
+init method will be called for each new object.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/perldoc?Module::Pluggable::Ordered">Module::Pluggable::Ordered</a></li>
+<li><a href="http://search.cpan.org/perldoc?Imager">Imager</a></li>
+<li><a href="http://el.media.mit.edu/logo-foundation/">Logo Foundation</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:57 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

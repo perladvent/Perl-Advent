@@ -1,0 +1,133 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2017 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2017.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2017 - 
+Matching the NaughtyNice Formula
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2017</a></h1>
+        </div>
+
+        <p id="tagline">2017 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Matching the NaughtyNice Formula</h1>
+<div class='subtitle'>Recursive Regular Expressions with Named Groups - 2017-12-09</div>
+
+<div class='pod'><p>Back in the day, you were either Naughty or Nice, and you either got coal or presents from Santa. But Santa had decided that this was a little too all or nothing. So he had tasked his Elf R&amp;D department to develop an application that could determine on a case by case basis if the the child had been <i>good</i> enough for <i>that particular gift</i>.</p>
+
+<p>For example, a child who couldn&#39;t sit still when asked probably shouldn&#39;t get that eighty pound bar of chocolate that they wanted no matter how often they&#39;d tidied their room. The new art supplies that little Suzy wanted shouldn&#39;t really go to the girl that had doodled over the dining room table with the permanent marker. It was a <i>complicated</i> issue.</p>
+
+<p>The elves had decided that each gift should have a NaughtyNice Formula associated with it - an expression stored in the database that could be used to decide if the child deserved that item.</p>
+
+<p>Sugarplum Stripyboughs had been tasked with building the web forms that acted as a front end for the database that all the pointy eared Elves over in the Niceness Assurance Department could use to enter the formula.</p>
+
+<p>The bit she was stuck on was validating the formulas that the Elves were entering in the web app - that they were semantically correct and okay to store in the database. A typical formula might look like this:</p>
+
+<pre><code>     (number_of_tantrums/6)+(age/12*(teeth_brushes_this_year+flosses_this_year))/2</code></pre>
+
+<p>That is to say some variables, some integers, stuck together with brackets and the standard four arithmetic operators (<code>+</code>, <code>-</code>, <code>*</code>, and <code>/</code>).</p>
+
+<p>Writing a regular expression to match this kind of expression without worring about those brackets is fairly straight forward stuff. But those brackets have to match each other. Sugarplum needed to be able to tell that:</p>
+
+<pre><code>     (number_of_a_grades-number_of_c_grades+(days_missed_of_school)</code></pre>
+
+<p>Just wasn&#39;t a valid formula - it&#39;s missing the last closing <code>)</code>.</p>
+
+<p>The trouble is that expressions like this aren&#39;t a &quot;Type-3&quot; grammar on the Chomsky hierarchy - the type of grammars a traditional regular expression engine can match. Simply: To match the number of closing brackets with the number of opening brackets, you need to keep count of the number of times you saw an opening bracket, and a traditional regular expression engine can&#39;t do that.</p>
+
+<p>Perl, on the other hand, has a more powerful regular expression engine that can handle these kinds of matches.</p>
+
+<h3 id="Backus-Naur-Form">Backus-Naur Form</h3>
+
+<p>BNF is a way of specifying a grammar formally. Sugarplum quickly whipped up one for the formulas she was trying to match.</p>
+
+<pre><code> &lt;letter&gt;     ::= &quot;a&quot; | &quot;b&quot; | &quot;c&quot; | &quot;d&quot; | &quot;e&quot; | &quot;f&quot; | &quot;g&quot; | &quot;h&quot; | &quot;i&quot; | &quot;j&quot; |
+                  &quot;k&quot; | &quot;l&quot; | &quot;m&quot; | &quot;n&quot; | &quot;o&quot; | &quot;p&quot; | &quot;q&quot; | &quot;r&quot; | &quot;s&quot; | &quot;t&quot; |
+                  &quot;u&quot; | &quot;v&quot; | &quot;w&quot; | &quot;x&quot; | &quot;y&quot; | &quot;z&quot;
+ &lt;unders&gt;     ::= &lt;letter&gt; | &quot;_&quot; | &lt;letter&gt; &lt;unders&gt; | &quot;_&quot; &lt;unders&gt;
+ &lt;variable&gt;   ::= &lt;letter&gt; | &lt;letter&gt; &lt;unders&gt;
+
+ &lt;digit&gt;      ::= &quot;0&quot; | &quot;1&quot; | &quot;2&quot; | &quot;3&quot; | &quot;4&quot; | &quot;5&quot; | &quot;6&quot; | &quot;7&quot; | &quot;8&quot; | &quot;9&quot;
+ &lt;startdigit&gt; ::= &quot;1&quot; | &quot;2&quot; | &quot;3&quot; | &quot;4&quot; | &quot;5&quot; | &quot;6&quot; | &quot;7&quot; | &quot;8&quot; | &quot;9&quot;
+ &lt;digits&gt;     ::= &lt;digit&gt; | &lt;digit&gt; &lt;digits&gt;
+ &lt;number&gt;     ::= &lt;startdigit&gt; | &lt;startdigit&gt; &lt;digits&gt;
+
+ &lt;oper&gt;       ::= &quot;+&quot; | &quot;-&quot; | &quot;*&quot; | &quot;/&quot;
+ &lt;bracket&gt;    ::= &quot;(&quot; &lt;expression&gt; &quot;)&quot;
+ &lt;thing&gt;      ::= &lt;number&gt; | &lt;variable&gt; | &lt;bracket&gt;
+ &lt;expression&gt; ::= &lt;thing&gt; | &lt;thing&gt; &lt;oper&gt; &lt;expression&gt;</code></pre>
+
+<p>That was...better? She decided to make it a bit more readable by turning some of the overly wordy bits into standard regular expression syntax</p>
+
+<pre><code>    &lt;variable&gt;   ::= qr/[a-z][a-z_]*/
+    &lt;number&gt;     ::= qr/[1-9][0-9]*/
+    &lt;oper&gt;       ::= qr/[+*/-]/
+    &lt;bracket&gt;    ::= &quot;(&quot; &lt;expression&gt; &quot;)&quot;
+    &lt;thing&gt;      ::= &lt;number&gt; | &lt;variable&gt; | &lt;bracket&gt;
+    &lt;expression&gt; ::= &lt;thing&gt; | &lt;thing&gt; &lt;oper&gt; &lt;expression&gt;</code></pre>
+
+<p>Okay, that&#39;s a lot clearer. Now to turn this into a Perl regular expression!</p>
+
+<h3 id="Named-Capture-Groups">Named Capture Groups</h3>
+
+<p>In Perl you can create named capture groups in your regular expressions:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="double">&quot;James Bond&quot;</span> <span class="operator">=~</span> <span class="match">/^ (?&lt;first&gt;\S+) \s* (?&lt;last&gt;\S+) $/x</span><span class="structure">;</span><br /><span class="word">say</span> <span class="double">&quot;The name's $+{last}, $+{first} $+{last}&quot;</span></code><br />&nbsp;</td></table>
+
+<p>It&#39;s actually possible to use named capture blocks to create a sort of library of reusable named regular expressions inside a regular expression:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">say</span> <span class="double">&quot;Matches&quot;</span> <span class="word">if</span> <span class="symbol">$string</span> <span class="operator">=~</span> <span class="match">m{<br />&nbsp;&nbsp;&nbsp;&nbsp;(?(DEFINE)<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(?&lt;wise&gt; Melchior | Caspar | Balthazar )<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(?&lt;gift&gt; gold | frankincense | myrrh )<br />&nbsp;&nbsp;&nbsp;&nbsp;)<br /><br />&nbsp;&nbsp;&nbsp;&nbsp;(?:<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(?&amp;wise) [ ] (brought|gave) [ ](?&amp;gift) |<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(?&amp;gift) [ ] was [ ] (brought|given) [ ] by [ ] (?&amp;wise)<br />&nbsp;&nbsp;&nbsp;&nbsp;)<br />}x</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Everything within the <code>(?(DEFINE) ... )</code> block isn&#39;t actually matched until the various named blocks are called with the <code>(?&amp;block_name)</code> syntax.</p>
+
+<p>While having this sort of library of named parts of a regular expression is nice from a readability point of view, the real power comes from the fact that these definitions can themselves reference other named capture blocks recursively. This allowed Sugarplum to basically directly port the BNF into a Perl regular expression:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">say</span> <span class="double">&quot;Matches&quot;</span> <span class="word">if</span> <span class="symbol">$string</span> <span class="operator">=~</span> <span class="match">m{<br />&nbsp;&nbsp;(?(DEFINE)<br />&nbsp;&nbsp;&nbsp;&nbsp;(?&lt;variable&gt;    [a-z][_a-z]* )<br />&nbsp;&nbsp;&nbsp;&nbsp;(?&lt;number&gt;      [1-9][0-9]* )<br />&nbsp;&nbsp;&nbsp;&nbsp;(?&lt;oper&gt;        [+*/-] )<br />&nbsp;&nbsp;&nbsp;&nbsp;(?&lt;bracket&gt;     [(] (?&amp;expression) [)] )<br />&nbsp;&nbsp;&nbsp;&nbsp;(?&lt;thing&gt;       (?&amp;number) | (?&amp;variable) | (?&amp;bracket) )<br />&nbsp;&nbsp;&nbsp;&nbsp;(?&lt;expression&gt;  (?&amp;thing) | (?&amp;thing) (?&amp;oper) (?&amp;expression) )<br />&nbsp;&nbsp;)<br /><br />&nbsp;&nbsp;\A (?&amp;expression) \z<br />}x</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>With that regular expression written Sugarplum was done with the hard part...unless someone wanted her to write code to execute the formula that is... (to be continued)</p>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/5d71b5f0c61e97cd452d625cc24a4c82?r=g&s=80&d=retro />
+This article contributed by: Mark Fowler &lt;mark@twoshortplanks.com&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Constantly Merry" href="2017-12-08.html">Previous</a></li>
+
+    <li class="next"><a title="Evaluating the NaughtyNice Formula" href="2017-12-10.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

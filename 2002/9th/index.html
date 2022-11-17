@@ -1,0 +1,378 @@
+<html>
+
+<!-- page copyright Mark Fowler 2002-2004 -->
+<!-- all rights reserved -->
+
+<head>
+ <title>Perl 2002 Advent Calendar: XML::SAX</title>
+<link rel="stylesheet" href="../style.css" type="text/css" /></head>
+<body bgcolor="#ff7f00">
+
+
+<div class="bigheading">The 2002 Perl Advent Calendar</div>
+<div class="externalnav"><a href="../../FAQ-2shortplanks.html">[about]</a> | <a href="../../archives.html">[archives]</a> | <a href="../../contact.html">[contact]</a> | <a href="../../">[home]</a></div>
+<br />
+
+
+<div class="box">
+<div class="onthe">
+On the 9th day of Advent my True Language brought to me..
+</div>
+<div class="modtitle">XML::SAX</div>
+
+<!-- ooh look, a table.  Someone *please* tell me how to do this with css -->
+<!-- also, i.e. totally doesn't dtr if I say width="100%" here -->
+<center>
+<table width="300"  cellpadding="0" cellspacing="0">
+<tr>
+
+<td width="33%">
+
+<div align="left" class="internalnav"><a href="../8th/">[previous]</a></div>
+</td>
+
+
+<td width="33%">
+<div align="center" class="internalnav">
+<a href="../">[calendar]</a>
+</div>
+</td>
+
+<td width="33%">
+
+<div align="right" class="internalnav"><a href="../10th/">[next]</a></div>
+
+</td>
+
+</tr>
+</table>
+</center>
+
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p>There are many ways of looking as XML.  One way is to think of it as a
+big tree of nodes, each node holding other nodes that are either text,
+tag nodes (that in turn can hold other nodes and so on and so on,) or
+other things like comment.  The trouble with treating the XML as a
+simple tree like this is that you have to hold the entire thing in
+memory at once in order to deal with it.  This is simple when it's
+something like an XHTML web page, but somewhat more problematic when
+the data is something huge like an XML document with embedded mpeg
+encoded movies.</p>
+<p>The alternative is to think of the XML as a stream of nodes rather
+than a tree, where each time your code is called it gets told just one
+thing, that it's found one item - a start of a tag, a lump of text -
+and you code gets one chance to hand back modified XML.  This is the
+SAX system.  This whole approach is a lot more simple - and arguably a
+whole lot less powerful, but it does have one good thing going for it.
+Because of it's simplicity it's really easy to produce very small
+chunks of code that can be easily plugged together filtering you XML.</p>
+<p>When you start plugging together bits of code like this it makes doing
+complicated things quite easy to do.  You can build more and more
+complex tools that can be tested and evaluated in their own.  In
+addition you can easily build tools that extend other people's tools -
+much like we did yesterday with the AxPoint example.</p>
+<p>Like many ideas - like XML itself, by limiting yourself in a simple
+way and defining a common standard, you allow cooperation between
+things that would have been previously hard to do.  SAX takes this
+idea and runs with it - to the stage that even non-XML data can be
+easily altered with a SAX pipeline by temporally constraining it into
+the SAX API.</p>
+</div>
+<div class="mylink"><a href="http://search.cpan.org/perldoc?XML::SAX">[Read the documentation for XML::SAX on search.cpan.org]</a></div>
+</div>
+
+
+
+<div class="box">
+<div class="doc"><p>Consider the XML parsing process with a SAX parsing stream.</p>
+<p>Your parser is like someone reading out the XML over the phone to you.
+"There's an opening body tag" it says "then an opening p tag, then
+some text that says 'hello'...".  and you repeat what they say and
+your friend with the bit paper sitting next to you writes down what
+you say and he ends up with an identical copy of the XML.</p>
+<p>Now the clever bit is that you don't have to say what you heard...you
+can change the tags you repeat and your friend will end up writing
+down an altered version of the XML.  Or your friend, instead of
+writing it down, can tell to the person with whom he's on the phone the XML
+you said - but of course she can in turn change it too so her scribe
+ends up with a version that both you and she changed, and so on and so
+on.  Now why this is really useful is that none of the people really
+need to know what the others are up to - as long as they get the right
+XML in they'll read out the right altered XML.  So by swapping the
+order of who calls who you can really quickly set up new ways of
+muddling with your data.</p>
+<p>And of course the really shocking thing is the people at the start and end
+doesn't even really have to be reading from an existing XML document
+of writing out XML - as long as they keep to themselves all the people
+in the middle just think they're dealing with XML, when really they're
+taking in a description of a directory structure and turning it into
+a PDF presentation.</p>
+<h2>An Example</h2>
+<p>I knew when I started writing this that I would have so much to write
+here I couldn't possible hope to code it all.  That's why I sneakily snuck
+in a big example <li><a href="http://www.perladvent.org/2002/8th/">yesterday</a></li>.</p>
+<p>Let's start with most basic <b>XML::Filter</b>, the 'do nothing' filter</p>
+<pre>  package XML::Filter::DoNothing;</pre>
+
+<pre>  # inherit all the standard event handles from the base class
+  use base qw(XML::SAX::Base);</pre>
+
+<pre>  # turn on all the safety features
+  use strict;
+  use warnings;
+ 
+  # return true
+  1;</pre>
+
+<p>This is the most basic class.  It inherits all methods from
+<b>XML::SAX::Base</b>, so it does nothing but pass events on unfiltered.
+In order to alter the XML, we need to override some events.  Here's a
+simple class that skips nodes.</p>
+<pre>  package XML::Filter::SkipNodes
+  use base qw(XML::SAX::Base);</pre>
+
+<pre>  use strict;
+  use warnings;</pre>
+
+<pre>  # when a '&lt;foo&gt;' is seen
+  sub start_element
+  {
+     my $this = shift;
+     my $tag = shift;</pre>
+
+<pre>     # is it one we're skipping?
+     return undef
+        if $this-&gt;{skip} eq $tag-&gt;{LocalName};</pre>
+
+<pre>     # call the super class to properly handle the event
+     return $this-&gt;SUPER::start_element($tag)
+  }</pre>
+
+<pre>  # when a '&lt;/foo&gt;' is seen
+  sub end_element
+  {
+     my $this = shift;
+     my $tag = shift;</pre>
+
+<pre>     # is it one we're skipping?
+     return undef
+        if $this-&gt;{skip} eq $tag-&gt;{LocalName};</pre>
+
+<pre>     # call the super class to properly hadnle the event
+     return $this-&gt;SUPER::end_element($tag)
+  }</pre>
+
+<pre>  1;</pre>
+
+<p>Okay, so what are the notable features of our example <b>XML::Filter</b>
+Firstly, note that we didn't create a <code>new</code> method, yet the <code>skip</code>
+option, like all configuration options passed to the
+constructor, is automatically stored in the object hash by the
+inherited constructor.</p>
+<p>It's also worth noting how events are handled.  The <code>start_element</code>
+and <code>end_element</code> are called whenever they see the start or end of a
+tag (or one straight after the other for tags like <code>&lt;br/&gt;</code>.)  The
+tag is passed in as a hash with various values, which are covered
+later.  All events get this - but each event's hash contains different
+data depending on the type of event it is.</p>
+<p>These tags need to be returned at the end of the routine but returning
+them but only <b>after</b> we have called the <code>SUPER</code> method of the same
+name as we're in.  This is vitally important to both allow chaining to
+work properly.  It might still work in some situations if you return
+directly, but trust me on this one, sooner or later you'll get
+yourself into a bad situation.</p>
+<p>A instance of our class can be created like this:</p>
+<pre>  use XML::Filter::SkipNodes;
+  my $filter = XML::Filter::SkipNodes-&gt;new( skip =&gt; 'blink' );</pre>
+
+<p>And used in a pipeline like this:</p>
+<pre>  # load the classes
+  use XML::SAX::Machines qw(:all);
+  use XML::Filter::SkipNodes;</pre>
+
+<pre>  # create a pipeline that filters out blinks and marquee and then
+  # prints out the XML to the screen
+  my $pipeline = Pipeline( 
+    XML::Filter::SkipNodes-&gt;new( skip =&gt; 'blink' ),
+    XML::Filter::SkipNodes-&gt;new( skip =&gt; 'marquee' ),
+    \*STDOUT
+  );</pre>
+
+<pre>  # parse the file
+  $pipeline-&gt;parse_uri("index.xhtml");</pre>
+
+<p>In the pipeline construct we can see the implementation of the multiple
+people on phones mentioned earlier.  The first filter takes out the <code>blink</code>
+tags, and then passes it on.  The second takes out the <code>marquee</code>.  Note
+that a XML parser is automatically created for us and we don't have to do
+anything special.  This is one of the handy features of <b>XML::SAX</b>.
+Through some clever tricks, it can transparently use any XML parser that you
+subsequently install on the system, and it also ships with a pure Perl
+based parser that's pretty good, albeit a little slow, so it always has
+one at hand.</p>
+<p>The <b>XML::SAX::Machines</b> have a whole set of other 'Machines' that can
+be used to run various filters together rather than running tags one
+after the other in various situations, none of which I'll go over here.
+I find that the <code>Pipeline</code> is simple enough for most basic situations.</p>
+<h2>How are the tags made up?</h2>
+<p>The key to processing the tags is knowing which events are available and
+what they're passed.  This is all documented in the
+<b>XML::SAX::Base</b> documentation, but the three events that you're probably
+most interested in will be <code>start_element</code> (when you see an opening XML
+tag), <code>end_element</code> (when you see a closing XML tag) and <code>characters</code>
+(where text is shown.)  You might also be interested in the <code>start_document</code>
+and <code>end_document</code> for indications at the start and end of everything.</p>
+<p>First, text nodes are the easiest thing to deal with.  They are made up
+of hashes that just have the one key - <code>Data</code>.</p>
+<pre>  package XML::Filter::UppercaseBuffy;
+ 
+  use strict;
+  use warnings;</pre>
+
+<pre>  sub characters
+  {
+    my $this  = shift;
+    my $chars = shift;</pre>
+
+<pre>    # make sure that Buffy is captilised.
+    $chars-&gt;{Data} =~ s/buffy/Buffy/;</pre>
+
+<pre>    # return it to the parent class
+    return $this-&gt;SUPER::characters($chars);
+  }</pre>
+
+<pre>  1;</pre>
+
+<p>One subtle point is that parsers don't always send text through as
+continuous lumps, and may break sections of text up into two or more
+distinct blocks calling <code>characters</code> multiple times when you'd
+normally expect it to just call it once.  To avoid that happening you
+can place an instance of <b>XML::Filter::BufferText</b> before your filter
+in the pipeline, which will bunch up all the events for you.</p>
+<p>The <code>start_element</code> event has a much more complicated tag passed
+though to it.  All the various points are declared in the spec, but
+rather than forcing you to look though that it's easier just to look
+at a <b>Data::Dumper</b> style output from one of the nodes.  For example</p>
+<pre> &lt;p align="center"&gt;</pre>
+
+<p>hands the following structure to a <code>start_element</code> event handler
+as it's second argument:</p>
+<pre> {
+   'Name'         =&gt; 'p',
+   'LocalName'    =&gt; 'p',
+   'Prefix'       =&gt; '',
+   'NamespaceURI' =&gt; ''
+   'Attributes'   =&gt; {
+      '{}align'      =&gt; {
+         'Name'         =&gt; 'align',
+         'LocalName'    =&gt; 'align',
+         'Prefix'       =&gt; '',
+         'Value'        =&gt; 'center',
+         'NamespaceURI' =&gt; ''
+       }
+     },
+ };</pre>
+
+<p>As you can see, that's a pretty verbose structure.  Because of this
+it's often easier to change an existing data structure you've been
+handed and return that rather than create a new one from scratch.
+You just have to be careful to be consistent - for example, if you
+change the <code>Name</code> of the tag you also have to change the <code>LocalName</code></p>
+<p>You might be wondering what's with the <code>{}</code> in the attribute name.
+This is so called <li><a href="http://www.jclark.com/xml/xmlns.htm">James Clark notation</a></li>
+and it's to do with namespaces.  Namespaces are a way of having multiple
+tags with the same name in the same document with different meanings.</p>
+<p>The <code>{}</code> is where the the namespace is inserted before the
+attribute name if there is one.  Let's look at an example with
+namespaces:</p>
+<pre>  &lt;perladvent:foo xmlns:perladvent="http://perladvent.org/foo" 
+            perladvent:bar="bazz" /&gt;</pre>
+
+<p>Prints out this mammoth structure (with added comments by me)</p>
+<pre> {
+   # Name is the name, including the namespace prefix
+   'Name'         =&gt; 'perladvent:foo',   </pre>
+
+<pre>   # LocalName is the bit after the namespace
+   'LocalName'    =&gt; 'foo',</pre>
+
+<pre>   # Prefix is the namespace prefix, the namespace's 'name'
+   'Prefix'       =&gt; 'perladvent',</pre>
+
+<pre>   # The URL that makes the namespace unique
+   'NamespaceURI' =&gt; 'http://perladvent.org/foo'</pre>
+
+<pre>   # the attributes, keyed by name
+   'Attributes' =&gt; {</pre>
+
+<pre>      # the declaration of the namespace
+      '{http://www.w3.org/2000/xmlns/}perladvent' =&gt; {
+         'Name'         =&gt; 'xmlns:perladvent',
+         'LocalName'    =&gt; 'perladvent',
+         'Prefix'       =&gt; 'xmlns',
+         'Value'        =&gt; 'http://perladvent.org/foo',
+         'NamespaceURI' =&gt; 'http://www.w3.org/2000/xmlns/'
+      },</pre>
+
+<pre>      # the 'bar' attribute
+      '{http://perladvent.org/foo}bar' =&gt; {
+         'Name'         =&gt; 'perladvent:bar',
+         'LocalName'    =&gt; 'bar',
+         'Prefix'       =&gt; 'perladvent',
+         'Value'        =&gt; 'bazz',
+         'NamespaceURI' =&gt; 'http://perladvent.org/foo'
+      },
+   };</pre>
+
+<p>Yes, I know this is confusing, but rather than worrying about it too
+much you can make your life simple by remembering a simple rule:</p>
+<p>If you're not using namespaces at all, then all you need to remember
+is to prefix attributes names with a <code>{}</code> when looking them up in the
+<code>Attributes</code> hash.</p>
+<h2>Existing Modules</h2>
+<p>I'm not going to talk too much about the various extensions, but quite
+a few already exist.  Try searching the CPAN for XML::Filter and XML::Generator
+modules.</p>
+</div>
+</div>
+
+
+
+
+<div class="box">
+<div class="doc"><p><li><a href="http://search.cpan.org/author/MSERGEANT/XML-SAX/XML-SAX-Base/README">XML::SAX::Base</a></li>
+<li><a href="http://search.cpan.org/author/RBS/XML-SAX-Machines/lib/XML/SAX/Machines.pm">XML::SAX::Machines</a></li>
+<li><a href="http://search.cpan.org/author/RBS/XML-SAX-Machines/lib/XML/SAX/Pipeline.pm">XML::SAX::Pipeline</a></li>
+<li><a href="http://london.pm.org/tech_talks/21_nov_2002/dom/XMLSAX.pdf">Dom's London.pm lightning talk on SAX (pdf)</a></li>
+<li><a href="http://www.xml.com/pub/a/2002/02/13/sax-machines.html">Understanding XML::SAX::Machines Part One on XML.com</a></li>
+<li><a href="http://www.xml.com/pub/a/2002/03/20/machines.html">Understanding XML::SAX::Machines Part Two on XML.com</a></li>
+<li><a href="http://www.xml.com/pub/a/2001/10/10/sax-filters.html">Transforming XML Wit SAX Filters on XML.com</a></li>
+<li><a href="http://www.xml.com/pub/a/2001/09/19/sax-non-xml-data.html">Writing SAX Drivers for Non-XML Data on XML.com</a></li></p>
+</div>
+</div>
+
+
+
+
+ 
+
+
+
+
+<!-- Created 2004-12-21T18:29:52 -->
+
+<br/>
+
+<div class="copyright">
+Copyright 2000-2004 Mark Fowler, all rights reserved.<br/>
+This documentation may be distributed under the <a href="http://www.opensource.org/licenses/academic.php">Academic Free License</a><br/>
+Comments/Complaints/Suggestions re this site: <a href="../../contact.html">webmaster</a>
+</div>
+
+</body>
+</html>

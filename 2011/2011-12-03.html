@@ -1,0 +1,142 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2011 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2011.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2011 - 
+Keep it Clean
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2011</a></h1>
+        </div>
+
+        <p id="tagline">2011 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Keep it Clean</h1>
+<div class='subtitle'>namespace::autoclean - 2011-12-03</div>
+
+<div class='pod'><h2 id="The-Big-Mess">The Big Mess</h2>
+
+<p>Perl object orientation is a nice&sup1; simple toolkit. You just put some subroutines into a package and they become methods:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">MyClass</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">do_stuff</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$argument</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br />&nbsp;&nbsp;<span class="word">say</span> <span class="double">&quot;$self method 'do_stuff' received argument $argument&quot;</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>The problem is, we&#39;re adding subroutines to packages all the time that probably shouldn&#39;t be methods:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">MyClass</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">File::ShareDir</span> <span class="words">qw(dist_dir)</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">String::Truncate</span> <span class="words">qw(trunc)</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">do_stuff</span> <span class="structure">{</span> <span class="operator">...</span> <span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>...and then much later...</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="word">MyClass</span><span class="operator">-&gt;</span><span class="word">new</span><span class="operator">-&gt;</span><span class="word">trunc</span><span class="structure">(</span><span class="number">5</span><span class="structure">);</span> <span class="comment"># equivalent to trunc( MyClass-&gt;new, 5 );</span></code><br />&nbsp;</td></table>
+
+<p>See, the problem is that when you import subroutines into your class, they become methods. The ones above might not seem too bad, but quite often these non-method imports can lead to confusion:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">Date</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Moose</span><span class="structure">;</span><br /><br /><span class="keyword">sub</span> <span class="word">comes_before</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">$other_date</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><span class="comment">  # returns true if the date $self comes before $other_date on the calendar<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>...but later, someone misremembers the name of <code>comes_before</code> and writes this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">if</span> <span class="structure">(</span><span class="symbol">$date</span><span class="operator">-&gt;</span><span class="word">before</span><span class="structure">(</span> <span class="symbol">$other_date</span> <span class="structure">))</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>This does something bizarre, because <code>before</code> ends up referring to Moose&#39;s <code>before</code>, used to apply method modifiers to a method.</p>
+
+<p>To avoid these kinds of mistakes, one policy &ndash; and one to which I often adhere &ndash; is to not import anything. So, don&#39;t write this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">String::Truncate</span> <span class="words">qw(trunc)</span><span class="structure">;</span><br /><span class="word">trunc</span><span class="structure">(</span><span class="symbol">$str</span><span class="operator">,</span> <span class="number">5</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Instead, write:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">String::Truncate</span> <span class="structure">();</span> <span class="comment"># don't even call -&gt;import</span><br /><span class="word">String::Truncate::trunc</span><span class="structure">(</span><span class="symbol">$str</span><span class="operator">,</span> <span class="number">5</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>This makes it very clear where the routines live, but it&#39;s also a real drag to type, especially if you&#39;re going to use <code>trunc</code> over and over. Another solution is to use <a href="http://advent.rjbs.manxome.org/2009/2009-12-01.html">Sub::Exporter</a> or, if the module you&#39;re importing from uses Exporter, to use <a href="http://advent.rjbs.manxome.org/2010/2010-12-02.html">Sub::Import</a>. Then you could say something like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">String::Truncate</span> <span class="word">trunc</span> <span class="operator">=&gt;</span> <span class="structure">{</span> <span class="word">-as</span> <span class="operator">=&gt;</span> <span class="single">'_trunc'</span> <span class="structure">};</span><br /><span class="word">_trunc</span><span class="structure">(</span><span class="symbol">$str</span><span class="operator">,</span> <span class="number">5</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>With this formula, <code>$obj-&gt;_trunc</code> will still work as a method call, but at least you can blame the programmer who tried calling a private method on your object... but remember that it might be you.</p>
+
+<h2 id="Cleaning-Up">Cleaning Up</h2>
+
+<p>Rather than just never import, though, you can take an alternate route: you can delete the imported subroutines from the symbol table after you&#39;ve bound to them. In other words:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;<br />13:&nbsp;<br />14:&nbsp;<br />15:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">package</span> <span class="word">MyClass</span><span class="structure">;</span><br /><br /><span class="keyword">use</span> <span class="word">String::Truncate</span> <span class="words">qw(trunc)</span><span class="structure">;</span><br /><br /><span class="word">delete</span> <span class="symbol">$MyClass::</span><span class="structure">{</span><span class="word">trunc</span><span class="structure">};</span> <span class="comment"># or one of many other ways to do it</span><br /><br /><span class="keyword">sub</span> <span class="word">real_method</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$self</span><span class="operator">,</span> <span class="symbol">@arg</span><span class="structure">)</span> <span class="operator">=</span> <span class="magic">@_</span><span class="structure">;</span><br /><br /><span class="comment">  # ...<br /></span><br />&nbsp;&nbsp;<span class="symbol">$str</span> <span class="operator">=</span> <span class="word">trunc</span><span class="structure">(</span><span class="symbol">$str</span><span class="operator">,</span> <span class="number">10</span><span class="structure">);</span><br /><br /><span class="comment">  # ...<br /></span><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>If you do this, then later, <code>$obj-&gt;trunc</code> will fail, finding no method. The call to <code>trunc</code> inside <code>real_method</code> still works, though, because the symbol <code>trunc</code> (at line 12) is bound to the installed routine at <i>compile</i> time, but the <code>delete</code> (at line 5) is not executed until <i>run time</i>. This is a big drag, though, because you have to account for all the stuff you imported and delete it all again.</p>
+
+<p>That&#39;s why we have <a href="https://metacpan.org/module/namespace::clean">namespace::clean</a>. We could replace the delete in the code above with <code>use namespace::clean</code>. It would make a note that once the compile phase was over, all the subroutines defined before the <code>use</code> would get deleted. That means that if you put all your subroutine-importing <code>use</code> statements above namespace::clean, they&#39;d all be purged and wouldn&#39;t be callable as methods.</p>
+
+<p>Unfortunately, you might be importing some stuff that <i>should</i> be a method. Going back to Moose, for example, you don&#39;t want the <code>meta</code> method that you get from <code>use Moose</code> to get cleaned up. It would break... well, pretty much everything. Further, if you&#39;re going to have to purge more than one hunk of imports, you have to start doing some annoying accounting and use of <code>no namespace::clean</code>. See the <a href="https://metacpan.org/module/namespace::clean#SYNOPSIS">namespace::clean synopsis</a> for a short example.</p>
+
+<p>So, the next upgrade from namespace::clean is <a href="https://metacpan.org/module/namespace::autoclean">namespace::autoclean</a>. Once you use it anywhere in your program, it will wait around until the compile phase is over, and will then look at <i>all</i> the subroutines in the package. It decides&sup2; which ones are methods and which ones are not, and then purges all the non-methods. This makes it much better at just doing the right thing without making you think about it. It won&#39;t purge <code>meta</code>, it won&#39;t get confused because you accidentally move one of your subroutine-importing <code>use</code> statements below it. The down side is that because it uses Class::MOP, it&#39;s got a decent-sized memory and compile-speed overhead. I&#39;m almost always using Moose, though, so the cost is tiny compared to the sanity it provides.</p>
+
+<h2 id="Importing-Methods">Importing Methods</h2>
+
+<p>Finally, I should note that sometimes you <i>do</i> want to import something so that it can be called as a method. Maybe you&#39;re using a library that exports subroutines that expect to be methods &ndash; <a href="https://metacpan.org/module/Data::Section">Data::Section</a>, for example. In these cases, if you&#39;re using namespace::autoclean, you&#39;ll need to make sure the subroutines get installed properly so that they won&#39;t be purged. <a href="https://metacpan.org/module/Sub::Exporter::ForMethods">Sub::Exporter::ForMethods</a> exists for just this reason:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Sub::Exporter::ForMethods</span> <span class="words">qw( method_installer )</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">Data::Section</span> <span class="structure">{</span> <span class="word">installer</span> <span class="operator">=&gt;</span> <span class="word">method_installer</span> <span class="structure">}</span><span class="operator">,</span> <span class="word">-setup</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<h3 id="Footnotes">Footnotes</h3>
+
+<ol>
+
+<li><p>Well, not everyone agrees it&#39;s nice.</p>
+
+</li>
+<li><p>It uses the logic in <a href="https://metacpan.org/module/Class::MOP::Mixin::HasMethods">Class::MOP::Mixin::HasMethods</a>&#39;s <code>_code_is_mine</code>, if you want to start seeing how it works &ndash; but that&#39;s a private method and might move around or change.</p>
+
+</li>
+</ol>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/namespace::autoclean">namespace::autoclean</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/namespace::clean">namespace::clean</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/cec6b9b88295ead26c65f8747a76561b?r=g&s=80&d=retro />
+This article contributed by: Ricardo Signes &lt;rjbs@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Keeping up with the Joneses" href="2011-12-02.html">Previous</a></li>
+
+    <li class="next"><a title="Warn Different" href="2011-12-04.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

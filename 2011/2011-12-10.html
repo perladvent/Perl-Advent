@@ -1,0 +1,167 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2011 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2011.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2011 - 
+A Big List of Stuff You Want
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2011</a></h1>
+        </div>
+
+        <p id="tagline">2011 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>A Big List of Stuff You Want</h1>
+<div class='subtitle'>List::Util &amp; Friends - 2011-12-10</div>
+
+<div class='pod'><h2 id="Perl-Is-Not-Enough">Perl Is Not Enough</h2>
+
+<p>Perl has lots of useful built-in functions. Everybody loves <code>grep</code>, right?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@coal_kids</span> <span class="operator">=</span> <span class="word">grep</span> <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">is_naughty</span> <span class="structure">}</span> <span class="symbol">@children</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>Maybe we only want the first element, though. There&#39;s more than one way to do it &ndash; here are two:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;<br />11:&nbsp;<br />12:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># This works just fine, but you might be waiting a while, since it's going to<br /># evaluate the block for every item in the list.<br /></span><span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$first_coal_goes_to</span><span class="structure">)</span> <span class="operator">=</span> <span class="word">grep</span> <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">is_naughty</span> <span class="structure">}</span> <span class="symbol">@children</span><span class="structure">;</span><br /><br /><span class="comment"># This is a lot more efficient to run, but not to write.  Worse, it's not<br /># anywhere near as efficient to skim.<br /></span><span class="keyword">my</span> <span class="symbol">$first_coal_goes_to</span><span class="structure">;</span><br /><span class="keyword">for</span> <span class="structure">(</span><span class="symbol">@children</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="word">next</span> <span class="word">unless</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">is_naughty</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="symbol">$first_coal_goes_to</span> <span class="operator">=</span> <span class="magic">$_</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="word">last</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Fortunately, we&#39;ve got <a href="https://metacpan.org/module/List::Util">List::Util</a>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">List::Util</span> <span class="words">qw(first)</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$first_coal_goes_to</span> <span class="operator">=</span> <span class="word">first</span> <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">is_naughty</span> <span class="structure">}</span> <span class="symbol">@children</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>It&#39;s easy to read, easy to write, and works efficiently, stopping at the first hit.</p>
+
+<p>List::Util has a bunch of useful stuff like this. It has routines for summing up numbers, or finding maxima and minima. It&#39;s got a <code>shuffle</code> routine for randomizing lists, which you should use. I can&#39;t tell you how many <i>horrible</i> reimplementations of List::Util&#39;s shuffle I&#39;ve deleted over the years.</p>
+
+<p>Even more importantly, though, it provides a <code>reduce</code> method. <code>reduce</code> is a really common higher-order function, often called <code>fold</code>. You can use it to build lots of other really useful behavior. For example, we might use it to reimplement <code>sum</code>, since the one that comes with List::Util stinks&sup1;.</p>
+
+<p><code>reduce</code> is called with a function (usually written as a block) and a list of inputs. If there&#39;s only one item in the list, it returns that. Otherwise, it calls the function with the first two items and makes the result the new head of the list. Confused?</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">@numbers</span> <span class="operator">=</span> <span class="word">get_numbers</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$sum</span>     <span class="operator">=</span> <span class="word">reduce</span> <span class="structure">{</span> <span class="symbol">$a</span> <span class="operator">+</span> <span class="symbol">$b</span> <span class="structure">}</span> <span class="structure">(</span><span class="number">0</span><span class="operator">,</span> <span class="symbol">@numbers</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>If <code>@numbers</code> is empty, we return 0. If <code>@numbers</code> contains (1, 2, 3), this is what happens:</p>
+
+<ol>
+
+<li><p>We have more than one item in the list! Our input is (0, 1, 2, 3)</p>
+
+</li>
+<li><p>Shift off 0 and 1, and unshift the result back onto the input.</p>
+
+</li>
+<li><p>Now our input is (1, 2, 3)</p>
+
+</li>
+<li><p>Shift off 1 and 2, and unshift the result back onto the input.</p>
+
+</li>
+<li><p>Now our input is (3, 3)</p>
+
+</li>
+<li><p>Shift off 3 and 3, and unshift the result back onto the input.</p>
+
+</li>
+<li><p>Now our input is (6)</p>
+
+</li>
+<li><p>There&#39;s only one input! Return it!</p>
+
+</li>
+</ol>
+
+<p><i>Lots</i> of stuff can get implemented in terms of <code>reduce</code>. Knowing how (and when) to use it is really useful. In fact, the List::Util documentation points out how several of its functions could have been written as folding constructs instead.</p>
+
+<h2 id="List::Util-is-Not-Enough">List::Util is Not Enough</h2>
+
+<p>List::Util&#39;s documentation also lists a few things that people have proposed for inclusion over the years, like <code>any</code>:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">sub</span> <span class="word">any</span> <span class="structure">{</span> <span class="magic">$_</span> <span class="operator">&amp;&amp;</span> <span class="keyword">return</span> <span class="number">1</span> <span class="word">for</span> <span class="magic">@_</span><span class="structure">;</span> <span class="number">0</span> <span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>The docs say that <code>any</code> has been omitted because it&#39;s so easy to write inline (especially if you have <code>first</code>). Still, why not make them available? <a href="https://metacpan.org/module/List::MoreUtils">List::MoreUtils</a> does just that, providing all the routines List::Util declined to and <i>much</i> more.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># Note that you couldn't do this as easily with first, because it would<br /># return undef on both success and failure.  Also note that List::MoreUtil's<br /># &quot;any&quot; takes a block, not just a list.<br /></span><span class="keyword">if</span> <span class="structure">(</span><span class="word">any</span> <span class="structure">{</span> <span class="operator">!</span> <span class="core">defined</span> <span class="structure">}</span> <span class="symbol">@input_values</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="operator">...</span><br /><span class="structure">}</span><br /><br /><span class="comment"># Get every element until the block returns true.<br /></span><span class="keyword">my</span> <span class="symbol">@first_half_alphabet</span> <span class="operator">=</span> <span class="word">before</span> <span class="structure">{</span> <span class="magic">$_</span><span class="operator">-&gt;</span><span class="word">last_name</span> <span class="operator">=~</span> <span class="match">/^N/i</span> <span class="structure">}</span> <span class="symbol">@children</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>List::MoreUtils also helps get rid of many occurances of <code>%seen</code>, one of my least favorite often-seen variables:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># Don't write:<br /></span><span class="keyword">my</span> <span class="symbol">@unique_guesses</span> <span class="operator">=</span> <span class="word">do</span> <span class="structure">{</span> <span class="keyword">my</span> <span class="symbol">%seen</span> <span class="operator">=</span> <span class="word">map</span> <span class="structure">{;</span> <span class="magic">$_</span> <span class="operator">=&gt;</span> <span class="number">1</span> <span class="structure">}</span> <span class="symbol">@guesses</span><span class="structure">;</span> <span class="word">keys</span> <span class="symbol">%seen</span> <span class="structure">};</span><br /><br /><span class="comment"># Write:<br /></span><span class="keyword">my</span> <span class="symbol">@unique_guesses</span> <span class="operator">=</span> <span class="word">uniq</span> <span class="symbol">@guesses</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>And it provides the terribly-named <code>natatime</code> for processing <i>n</i> elements at a time:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">my</span> <span class="symbol">$iterator</span> <span class="operator">=</span> <span class="word">natatime</span> <span class="number">2</span><span class="operator">,</span> <span class="symbol">@pairs</span><span class="structure">;</span><br /><span class="keyword">while</span> <span class="structure">(</span><span class="keyword">my</span> <span class="structure">(</span><span class="symbol">$k</span><span class="operator">,</span> <span class="symbol">$v</span><span class="structure">)</span> <span class="operator">=</span> <span class="symbol">$iterator</span><span class="operator">-&gt;</span><span class="structure">())</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="word">print</span> <span class="double">&quot;$key has value $v&quot;</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<h2 id="Theres-a-Lot-More">There&#39;s a Lot More</h2>
+
+<p>I&#39;ve only given a very thin gloss over List::Util, and barely scratched the surface of List::MoreUtils. The point is that these two libraries are useful all the time. If you haven&#39;t used them yet, it&#39;s almost certain that you could&#39;ve saved time by using them a few times. Learn what&#39;s in them, and consider them a tool you can reach for without thinking about it.</p>
+
+<p>In fact, to help you not have to think about it, don&#39;t use either of them! Instead, use <a href="https://metacpan.org/module/List::AllUtils">List::AllUtils</a>, which provides all the routines of the other two, combined into one library so you don&#39;t have to try to remember whether <code>minmax</code> is from Util or MoreUtils&sup2;.</p>
+
+<h2 id="Footnotes">Footnotes</h2>
+
+<ol>
+
+<li><p>List::Util&#39;s sum returns undef, instead of 0, for an empty input list.</p>
+
+</li>
+<li><p><code>min</code> and <code>max</code> are from Util, but <code>minmax</code> is from MoreUtils</p>
+
+</li>
+</ol>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/List::Util">List::Util</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/List::MoreUtils">List::MoreUtils</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/List::AllUtils">List::AllUtils</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/cec6b9b88295ead26c65f8747a76561b?r=g&s=80&d=retro />
+This article contributed by: Ricardo Signes &lt;rjbs@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Taming Search with Data::SearchEngine" href="2011-12-09.html">Previous</a></li>
+
+    <li class="next"><a title="Mojolicious as a client" href="2011-12-11.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

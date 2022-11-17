@@ -1,0 +1,138 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2015 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2015.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2015 - 
+No More Leaking Glue
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2015</a></h1>
+        </div>
+
+        <p id="tagline">2015 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>No More Leaking Glue</h1>
+<div class='subtitle'>Process::Status - 2015-12-17</div>
+
+<div class='pod'><p>Perl is often used as a &quot;glue language&quot;. You have a bunch of other programs that you want to automate from one place, so you use Perl. You put the programs carefully in position, grab the bottle of Krazy Glue, drizzle it everywhere, and bask in the glow of what you&#39;ve accomplished.</p>
+
+<p>Only then, inevitably, you can&#39;t put down the glue bottle. It&#39;s not that you&#39;ve gone mad with a need to automate all the things - although that&#39;s a possibility, too. This time, though, you&#39;ve glued the glue bottle to your hand, and no matter what those people on the GlueGaffes subreddit tell you, the only way to get that bottle off your hands is to become some sort of snake monster and shed your skin. This, presumably, is how Python programmers come to be.</p>
+
+<p>Well, the abstraction leak in our Perl glue layer might not be so bad, but it&#39;s still a big annoyance. It&#39;s all those places where Perl reminds you, &quot;Hey! Hey! Lots of me is just a little wrapper around C library stuff!&quot; Isn&#39;t that great? This is why you end up with <code>stat</code> returning a thirteen element list, for example. (Wait, the Perl Advent Calendar has never featured an article on <a href="https://metacpan.org/module/File::stat">File::stat</a>? Well, check it out later, because that&#39;s not the problem we&#39;re talking about right now.)</p>
+
+<p>Right now the problem we&#39;re talking about is running subprocesses. There are a number of ways to do this; You might use <code>system</code>. You might use <code>open</code>. You might use <code>fork</code>. They all have one thing in common: when the process you started via those means exits, you get its exit status in the same place: <code>$?</code></p>
+
+<p><code>$?</code> (known by devotees of the <a href="http://www.amazon.com/Perl-Best-Practices-Damian-Conway/dp/0596001738">Way of the Dog</a> as <code>$CHILD_STATUS</code>) is a global variable that gets populated with the numeric status of the ex-process. It&#39;s supposed to be easy to remember <code>$?</code> because it&#39;s the same name as in shell programming...but in the shell, <code>$?</code> is the exit value of the program. If a program exits 75, then <code>$?</code> is 75. In Perl, that would be 19200...and now you just glued your finger to the keyboard.</p>
+
+<p>Perl is leaking the way that status code is packed into the status integer in C: eight bits of exit value, seven bits of signal identifier, and one bit to flag whether the process dumped core. Instead of giving you three variables, you get one number between 0 and 65535. Great!</p>
+
+<p>In C, there are macros for getting the data you wanted.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>exit_status = WEXITSTATUS(status);<br />signal      = WTERMSIG(status);<br />exit_status = WCOREDUMP(status);</code><br />&nbsp;</td></table>
+
+<p>In Perl, you typically find people using bit-shift operators to extract the part of the return code they care about:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">return</span> <span class="word">unless</span> <span class="word">system</span><span class="structure">(</span><span class="symbol">$some_command</span><span class="structure">);</span><br /><span class="word">die</span> <span class="word">sprintf</span> <span class="double">&quot;program exited %i&quot;</span><span class="operator">,</span> <span class="magic">$?</span> <span class="operator">&lt;&lt;</span> <span class="number">8</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>...which the hardened Perl programmer tends to recognize at a glance (and doesn&#39;t even notice how ridiculous it is to type this all the time).</p>
+
+<p>Speaking of things even we Perl veterans fail to notice: When the code accidentally uses <code>&lt;&lt;</code> instead of <code>&gt;&gt;</code>. Ooops. Did you notice I should have actually written the above code as:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">return</span> <span class="word">unless</span> <span class="word">system</span><span class="structure">(</span><span class="symbol">$some_command</span><span class="structure">);</span><br /><span class="word">die</span> <span class="word">sprintf</span> <span class="double">&quot;program exited %i&quot;</span><span class="operator">,</span> <span class="magic">$?</span> <span class="operator">&gt;&gt;</span> <span class="number">8</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>But that&#39;s the problem when you&#39;re using non-obvious syntax. It&#39;s non-obvious! And even when someone does a proper code review they don&#39;t catch that kind of thing.</p>
+
+<p>We <i>also</i> also probably don&#39;t catch the situations where we might care about the signal but then we totally forget to check or print it in our code. Why did we fail to do that? Maybe because it was more work, and maybe because we have a quota of one bitwise operation allowed per Perl program per day and we hit it with the first one.</p>
+
+<p>Of course, we can eliminate these stupid errors with everyone&#39;s favorite core module... POSIX!</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="comment"># ARGH MY EYES<br /></span><span class="keyword">use</span> <span class="word">POSIX</span> <span class="words">qw(WEXITSTATUS)</span><span class="structure">;</span><br /><br /><span class="keyword">return</span> <span class="word">unless</span> <span class="word">system</span><span class="structure">(</span><span class="symbol">$some_command</span><span class="structure">);</span><br /><span class="word">die</span> <span class="word">sprintf</span> <span class="double">&quot;program exited %i&quot;</span><span class="operator">,</span> <span class="word">WEXITSTATUS</span><span class="structure">(</span><span class="magic">$?</span><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<p>Ha ha just kidding. I mean, you <i>could</i> do that, but then you&#39;d be using POSIX.pm, and you&#39;d have to hold down the shift keys a whole lot when typing, <i>and</i> you&#39;d have to remember to add that code for signals! Also, seriously, <i>POSIX.pm</i>.</p>
+
+<p>This is why Process::Status exists. It&#39;s such a useful module that Ruby stole it from us, then travelled back in time 15 years to make it look like they wrote it first.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="word">Process::Status</span><span class="structure">;</span><br /><br /><span class="word">system</span><span class="structure">(</span><span class="symbol">$some_command</span><span class="structure">);</span><br /><span class="word">Process::Status</span><span class="operator">-&gt;</span><span class="word">assert_ok</span><span class="structure">;</span></code><br />&nbsp;</td></table>
+
+<p>If your program exited 0, nothing happens. If it exited non-zero, you get an exception like:</p>
+
+<pre><code>  program exited 13, caught SIGWOOP; dumped core at line...</code></pre>
+
+<p>There are a bunch of other useful methods for finer-grained handling, but for the most part the only three you need to know are self-explanatory:</p>
+
+<ul>
+
+<li><p>as_string</p>
+
+</li>
+<li><p>assert_ok</p>
+
+</li>
+<li><p>is_success</p>
+
+</li>
+</ul>
+
+<p>If you ever run subprocesses from Perl, use Process::Status.</p>
+
+<p>If you don&#39;t ever run subprocesses from Perl, I don&#39;t even understand your life.</p>
+
+<h2 id="SEE-ALSO">SEE ALSO</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/Process::Status">Process::Status</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/File::stat">File::stat</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/POSIX">POSIX</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/cec6b9b88295ead26c65f8747a76561b?r=g&s=80&d=retro />
+This article contributed by: Ricardo SIGNES &lt;rjbs@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="Building Santa&#39;s Naughty and Nice List with Stepford" href="2015-12-16.html">Previous</a></li>
+
+    <li class="next"><a title="Christmas Wishes" href="2015-12-18.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

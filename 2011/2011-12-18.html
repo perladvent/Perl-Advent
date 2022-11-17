@@ -1,0 +1,124 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="WWW::AdventCalendar v1.112" />
+    <link rel="alternate" title="Perl Advent Calendar 2011 XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <link rel="stylesheet" href="2011.css" type="text/css" />
+    <title>
+Perl Advent Calendar 2011 - 
+Munge All the Filenames!
+
+</title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <div id="header">
+            <h1><a href="index.html">Perl Advent Calendar 2011</a></h1>
+        </div>
+
+        <p id="tagline">2011 twenty four merry days of Perl
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <div id="content">
+          
+
+<h1 class='title'>Munge All the Filenames!</h1>
+<div class='subtitle'>rename - 2011-12-18</div>
+
+<div class='pod'><h2 id="A-Shameful-Admission">A Shameful Admission</h2>
+
+<p>It has come to pass many times that I&#39;ve needed to rename a bunch of files. I had a bunch of strategies for doing this, and I never picked one and stuck to using it. I <i>certainly</i> never build a reusable tool for it, which meant that every time I did it, I screwed things up in a new and exciting way.</p>
+
+<p>Sometimes a one-liner in shell would do it:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synStatement">for</span> f <span class="synStatement">in</span> *.txt; <span class="synSpecial">{</span> <span class="synStatement">mv</span> <span class="synStatement">&quot;</span><span class="synPreProc">$f</span><span class="synStatement">&quot;</span> <span class="synStatement">&quot;</span><span class="synPreProc">$f</span><span class="synConstant">.old</span><span class="synStatement">&quot;</span> <span class="synSpecial">}</span></code><br />&nbsp;</td></table>
+
+<p>Or maybe:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="synStatement">for</span> f <span class="synStatement">in</span> *.txt; <span class="synSpecial">{</span> <span class="synIdentifier">BASE</span>=<span class="synPreProc">$(</span><span class="synSpecial">basename </span><span class="synPreProc">$f</span><span class="synSpecial"> .txt</span><span class="synPreProc">)</span><span class="synStatement">;</span> <span class="synStatement">mv</span> <span class="synStatement">&quot;</span><span class="synPreProc">$f</span><span class="synStatement">&quot;</span> <span class="synStatement">&quot;</span><span class="synPreProc">$BASE</span><span class="synConstant">.yaml</span><span class="synStatement">&quot;</span> <span class="synSpecial">}</span></code><br />&nbsp;</td></table>
+
+<p>Other times, I&#39;d resort to Perl:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">autodie</span> <span class="words">qw(rename)</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">@files</span>   <span class="operator">=</span> <span class="word">grep</span> <span class="structure">{</span> <span class="operator">-f</span> <span class="structure">}</span> <span class="operator">&lt;*&gt;</span><span class="structure">;</span><br /><span class="keyword">for</span> <span class="keyword">my</span> <span class="symbol">$file</span> <span class="structure">(</span><span class="symbol">@files</span><span class="structure">)</span> <span class="structure">{</span><br />&nbsp;&nbsp;<span class="keyword">my</span> <span class="symbol">$new</span> <span class="operator">=</span> <span class="symbol">$file</span> <span class="operator">=~</span> <span class="substitute">s/^([0-9]+)/sprintf '%4u', $1/e</span><span class="structure">;</span><br />&nbsp;&nbsp;<span class="word">rename</span> <span class="symbol">$file</span> <span class="operator">=&gt;</span> <span class="symbol">$new</span><span class="structure">;</span><br /><span class="structure">}</span></code><br />&nbsp;</td></table>
+
+<p>Actually, I am relieved to note that I can&#39;t even easily show what I usually did, which was just deplorable. I&#39;d run Vim and do something like <code>:r !find . -type f</code> to get a list of files, then do some <code>:v/.../d</code> to delete files I didn&#39;t care to rename, then maybe put it in a <code>__DATA__</code> section to iterate over or maybe use a block yank-and-put to build up a file that looked like this:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>file1.pdf         &quot;File 01.pdf&quot;<br />file2.pdf         &quot;File 02.pdf&quot;<br />file10.pdf        &quot;File 10.pdf&quot;<br />file18.pdf        &quot;File 18.pdf&quot;</code><br />&nbsp;</td></table>
+
+<p>Then I could just <code>:%s/^/mv /</code> to put a <code>mv</code> at the front of every line and pipe it through <code>sh</code>! Seriously, <i>I did this</i>. But I&#39;ve gotten better. Now I use <a href="https://metacpan.org/module/rename">rename</a>.</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code>rename &#39;$_ = ucfirst; s/([0-9]+)/sprintf &quot;%02u&quot;, $1/e;&#39; *.pdf</code><br />&nbsp;</td></table>
+
+<p>I love writing one-liners, but I always get them wrong. For example, that one above has a bug. With lots of one-liners, I can just run them over and over until I get it right. When renaming files, though, you don&#39;t want to actually do it until you have it right &ndash; so there&#39;s the <code>-n</code> switch to do a dry run:</p>
+
+<pre><code>  ~$ rename -n &#39;$_ = ucfirst; s/([0-9]+)/sprintf &quot;%02u&quot;, $1/e;&#39; *.pdf
+  rename file1.pdf File01.pdf
+  rename file10.pdf File10.pdf
+  rename file18.pdf File18.pdf
+  rename file2.pdf File02.pdf</code></pre>
+
+<p>Oops. I need to add whitespace.</p>
+
+<pre><code>  ~$ rename -n &#39;$_ = ucfirst; s/ *([0-9]+)/sprintf &quot; %02u&quot;, $1/e;&#39; *.pdf
+  rename file1.pdf File 01.pdf
+  rename file10.pdf File 10.pdf
+  rename file18.pdf File 18.pdf
+  rename file2.pdf File 02.pdf</code></pre>
+
+<p>Great! Drop the <code>-n</code> and our files get renamed!</p>
+
+<p>If you need to do something more complicated &ndash; like keep a counter to number your files, you can write a whole subroutine in a &quot;real&quot; program:</p>
+
+<table class='code-listing'><tr><td class='line-numbers'><br /><code>1:&nbsp;<br />2:&nbsp;<br />3:&nbsp;<br />4:&nbsp;<br />5:&nbsp;<br />6:&nbsp;<br />7:&nbsp;<br />8:&nbsp;<br />9:&nbsp;<br />10:&nbsp;</code><br />&nbsp;</td><td class='code'><br /><code><span class="keyword">use</span> <span class="pragma">strict</span><span class="structure">;</span><br /><span class="keyword">use</span> <span class="word">File::Rename</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">@files</span> <span class="operator">=</span> <span class="symbol">@ARGV</span> <span class="operator">||</span> <span class="word">die</span> <span class="double">&quot;no files given!&quot;</span><span class="structure">;</span><br /><br /><span class="keyword">my</span> <span class="symbol">$i</span>     <span class="operator">=</span> <span class="number">1</span><span class="structure">;</span><br /><span class="keyword">my</span> <span class="symbol">$width</span> <span class="operator">=</span> <span class="word">length</span> <span class="word">scalar</span> <span class="symbol">@files</span><span class="structure">;</span><br /><span class="word">File::Rename::rename</span><span class="structure">(</span><br />&nbsp;&nbsp;<span class="symbol">@files</span><span class="operator">,</span><br />&nbsp;&nbsp;<span class="keyword">sub</span> <span class="structure">{</span> <span class="substitute">s/^/sprintf '%0*u - ', $width, $i++/e</span> <span class="structure">}</span><span class="operator">,</span><br /><span class="structure">);</span></code><br />&nbsp;</td></table>
+
+<h2 id="See-Also">See Also</h2>
+
+<ul>
+
+<li><p><a href="https://metacpan.org/module/rename">rename</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/File::Rename">File::Rename</a></p>
+
+</li>
+<li><p><a href="https://metacpan.org/module/mfn">mfn</a> is a specialized renamer for dealing in bulk with terrible filenames</p>
+
+</li>
+<li><p><a href="https://socialtext.net/perl5/prename">a list of other Perl renamers</a></p>
+
+</li>
+</ul>
+
+</div>
+
+<div id='author'>
+<img alt='Gravatar Image' style='vertical-align:middle' src=http://www.gravatar.com/avatar/cec6b9b88295ead26c65f8747a76561b?r=g&s=80&d=retro />
+This article contributed by: Ricardo Signes &lt;rjbs@cpan.org&gt;
+</div>
+
+
+<ul id="pager">
+    <li class="previous"><a title="There is No Try" href="2011-12-17.html">Previous</a></li>
+
+    <li class="next"><a title="Process ALL the FILES!" href="2011-12-19.html">Next</a></li>
+</ul>
+<div style="clear: both"></div>
+
+        </div>
+
+    </div>
+
+
+
+</body>
+</html>
+
+
+
+
+

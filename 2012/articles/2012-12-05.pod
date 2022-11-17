@@ -1,0 +1,181 @@
+Title: Reindeer Games
+Topic: Dancer
+Author: Yanick Champoux <yanick@cpan.org>
+
+=encoding utf8
+
+L<Dancer|http://perldancer.org> is a Perl micro-web framework originally based
+on Ruby's L<Sinatra|http://www.sinatrarb.com>. Its status as a micro-framework
+means, amongst other things, that it is a very nimble creature, and can be thus
+showed many nifty tricks.
+
+=head1 Have Your Party MC'ed by One of Santa's Close Collaborator
+
+It doesn't take a lot of boilerplate to create a minimalistic web service with
+C<Dancer>. For example, want to have a web service returning a random song in
+the current directory to help the party's DJ? There we go:
+
+    #!perl
+    #!/usr/bin/perl
+    use strict;
+    use warnings;
+
+    use autodie;
+
+    use Dancer;
+
+    use List::Util qw/ shuffle /;
+    use MP3::Info;
+
+    get '/song' => sub {
+        opendir my $dir, '.';
+
+        my ( $file ) = shuffle grep { /\.mp3$/ } readdir $dir;
+
+        my $song = MP3::Info->new($file);
+
+        return sprintf "%s (%s)", $song->title, $song->artist;
+    };
+
+    dance;
+
+The result is bare-bone, but oh-so-wonderfully functional:
+
+    $ perl next_song.pl
+    >> Dancer 1.311 server 6046 listening on http://0.0.0.0:3000
+    == Entering the development dance floor ...
+
+    # meanwhile, on the DJ side
+    $ curl http://localhost:3000/song
+    01 A Tap Dancer's Dilemma (DIABLO SWING ORCHESTRA)
+
+=head1 Shorter!
+
+Can we make this shorter? You bet we can. For example, to be able to create
+mini-web services that only answer to their index route, we can create the
+module F<C.pm>:
+
+    #!perl
+    package C;
+
+    use Dancer;
+
+    { package ::main; use Dancer ':syntax'; }
+
+    END {
+        get '/' => \&::index if defined &::index;
+        dance;
+    }
+
+    1;
+
+And voilà, make room for your new MC:
+
+    $ perl -MC -MMP3::Info -e'sub index{@s=<*.mp3>;$s[rand@s];}'
+    >> Dancer 1.311 server 6046 listening on http://0.0.0.0:3000
+    == Entering the development dance floor ...
+
+    # meanwhile, on the DJ side
+    $  curl http://localhost:3000/
+    01 - 01 A Tap Dancer's Dilemma.mp3
+
+=head1 Even shorter!
+
+Can we make this even shorter? Maybe slurp on simple scripts present in
+sub-directories and convert them into web service routes? My, but of course:
+
+    #!perl
+    package C;
+
+    use 5.10.0;
+
+    use Dancer;
+    use Path::Class qw/ dir /;
+
+    { package ::main; use Dancer ':syntax'; }
+
+    dir('.')->traverse( sub{
+        my( $child, $cont ) = @_;
+
+        return $cont->() if -d $child;
+
+        my( $route, $method ) = $child =~ /^(.*)\.(get|post|put)$/ or return;
+
+        $route =~ s/^\.// or $route =~ s#^#/#;
+        $route =~ s/SPLAT/*/g;
+
+        say "adding route '$route'";
+
+        eval <<"END_ROUTE";
+    $method '$route' => sub {
+        \@_ = \@ARGV = splat;
+        local \*STDOUT;
+        open STDOUT, '>', \\my \$output;
+
+        { @{[ $child->slurp ]} };
+
+        return \$output;
+    };
+    END_ROUTE
+
+        die "couldn't compile route '$child': $@" if $@;
+    });
+
+    END { dance; }
+
+    1;
+
+And with that MC on steroid, we can now have auto-web-serviceable perl
+scripts:
+
+    $ cat song.get
+    use List::Util qw/ shuffle /;
+    use MP3::Info;
+
+    opendir my $dir, '.';
+    my ( $file ) = shuffle grep { /\.mp3$/ } readdir $dir;
+    my $song = MP3::Info->new($file);
+
+    printf "%s (%s)", $song->title, $song->artist;
+
+    $ cat request/SPLAT.put
+    use 5.10.0;
+
+    open my $request_fh, '>>', 'requests';
+
+    my $song = shift;
+
+    say {$request_fh} $song;
+
+    say "song '$song' added to the list";
+
+which can be used from the command-line:
+
+    $ perl song.get
+    01 A Tap Dancer's Dilemma (DIABLO SWING ORCHESTRA)
+
+    $ perl request/SPLAT.put "Rudoplh The Red-Nosed Reindeer"
+    song 'Rudoplh The Red-Nosed Reindeer' added to the list
+
+and, once the MC is roused,
+
+    $ perl -MC -e1
+    adding route '/request/*'
+    adding route '/song'
+    >> Dancer 1.311 server 6586 listening on http://0.0.0.0:3000
+    == Entering the development dance floor ...
+
+the Holidays are suddenly all Web 2.0-ified:
+
+    $ curl http://localhost:3000/song
+    01 A Tap Dancer's Dilemma (DIABLO SWING ORCHESTRA)
+
+    $ curl -X PUT http://localhost:3000/request/Rudolf_the_red_nosed_reindeer
+    song 'Rudolf_the_red_nosed_reindeer' added to the list
+
+=head1 See Also
+
+=for :list
+* L<Dancer>
+* L<the 2012 Perl Dancer Advent Calendar|http://advent.perldancer.org/2012>
+
