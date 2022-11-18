@@ -36,6 +36,7 @@ unless( @ARGV ) {
 	# make fancier later
 	my $y = join ',', 2011 .. 2022;
 	@ARGV = glob( "{$y}/articles/*.pod" );
+	push @ARGV, glob( "{$y}/incoming/*.pod");
 	}
 
 foreach my $path ( @ARGV ) {
