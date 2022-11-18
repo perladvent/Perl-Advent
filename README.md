@@ -44,7 +44,7 @@ $ sudo cpanm WWW::AdventCalendar
 
 Then build all recent calendars
 ```bash
-$ for year in 2011 2012 2013 2014 2015 2016 2017 2018 2019 2020; do cd $year && advcal -c advent.ini -o `pwd` && cd ..; done
+$ for year in 2011 2012 2013 2014 2015 2016 2017 2018 2019 2020 2021; do cd $year && advcal -c advent.ini -o `pwd` && cd ..; done
 ```
 
 ### 3. Test (locally)
