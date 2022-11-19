@@ -1,6 +1,7 @@
 use strict;
 use warnings;
 
+requires 'Text::Markdown';
 requires 'WWW::AdventCalendar';
 requires 'YAML::XS';
 
