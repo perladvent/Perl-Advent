@@ -23,21 +23,37 @@ Binky raised an eyebrow. With that kind of care, it was a Christmas Miracle this
 
 I<"Huh.">, the elf frowned. Reindeers were controlled by complex L<Moose> classes, but method modifiers such as 'before', 'after' and 'around' were pretty standard. It made no sense that "after" was not defined.  Line 1225 of christmas.pl, was also pretty straightforward:
 
+=begin perl
+
 	$reindeer->dash_away();
+
+=end perl
 
 Binky and Santa spent a little while staring at the source code. Everything looked fine, but the code was still failing. Finally, Binky broke the silence: I<< "Did you try dumping C<$reindeer> before that call?" >> she suggested. I<"I did, but look!">, the old man scrolled up the terminal window and pointed at a line that said:
 
+=begin perl
+
 	$VAR1 = bless( {}, 'Reindeer::Prancer' );
+
+=end perl
 
 I<"It's just showing the bless() command, an empty hash reference and the class name. How am I supposed to work with that?"> Santa whimpered. I<"That's because you're using Data::Dumper, boss."> A faint smile crept into Binky's lips. It wasn't every day she was able to teach Father Christmas himself something new. She continued. I<< "Data::Dumper is best for serializing. If you want to inspect the data yourself, you should use L<Data::Printer> instead." >>
 
 Santa Claus' eyes widened. I<"Data::Printer? What kind of sorcery is that?"> The elf signaled him to scooch over so she could reach the keyboard herself.  As she typed C<cpanm Data::Printer>, she said: I<"It's a module that dumps variables in a way meant to be read by an actual human trying to debug code. Don't worry, it's super light and fast - zero deps and all. See? It's already installed."> Then she fired up the editor and replaced the line that said:
 
+=begin perl
+
 	use Data::Dumper; say Dumper($reindeer);
+
+=end perl
 
 with:
 
+=begin perl
+
 	use DDP; p $reindeer;
+
+=end perl
 
 They gave it another go and the result was quite different: 
 
@@ -47,7 +63,11 @@ They gave it another go and the result was quite different:
 
 The terminal lit up like a Christmas Tree. They could see the full class hierarchy, applied roles, attributes, public and private methods - everything! Santa's eyes sparkled. I<"Ho! Ho! Ho! I know what's wrong."> He pointed at the line that said C<< after  dash_away: <undefined coderef> >> in bright red. They searched the source code for C<< 'after "dash_away"' >> and quickly found the only entry, that read:
 
+=begin perl
+
 	after 'dash_away' => \&lifftoff;
+
+=end perl
 
 They took another look at the Data::Printer output searching for that method. Santa quickly spotted it coming from the C<FlyingMagic> role, but it was written differently. I<"A typo! Someone was naughty on that code review."> They fixed the typo and ran it again. It worked! One by one the reindeers started whirring. Santa was about to jump on the sleigh for a final test-drive when the elf interrupted the program. I<"What is it, B?"> the old man asked.
 
@@ -88,11 +108,19 @@ Santa was puzzled. I<"10 refcounts on the sleigh? We must have a circular refere
 Santa sighed. I<"If only that Data::Printer of yours could signal weak references...">  Binky's eyes widened as she stared at him. I<"Nick, you're a genius!"> The old man chuckled. I<"Me? What did I do?"> The elf went on. I<"Data::Printer DOES show when it's looking at a weak ref. The fact that we don't see it means that Sleigh object right there was NOT weakened.">
 They opened the reindeer class in the editor and replaced the line that read:
 
+=begin perl
+
 	has 'sleigh', is => 'rw', isa => 'Sleigh';
 
-with
+=end perl
+
+with:
+
+=begin perl
 
 	has 'sleigh', is => 'rw', isa => 'Sleigh', weak_ref => 1;
+
+=end perl
 
 They fired up the program again. The reindeers whirred and clanked for a few seconds, then Rudolph's nose lit up, signaling the restart was complete and they were all ready to fly. Santa's heartbeat kicked up a notch as Binky opened the logs to see what it showed:
 
