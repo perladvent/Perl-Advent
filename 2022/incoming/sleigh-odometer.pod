@@ -1,0 +1,105 @@
+Author: Thibault DUPONCHELLE <thibault.duponchelle@gmail.com>
+Title: The Sleigh odometer
+Topic: state
+
+=encoding utf8
+
+=head1 Sleigh Odometer
+
+=head2 Customize the Sleigh
+
+It's already December and elves are working hard to produce all of the toys for Christmas.
+
+On the other side, Santa is preparing his sleigh, cleaning or customizing.
+ 
+This year, in addition to a temperature sensor, Santa asked to install an odometer to his sleigh so that he can count each delivery.
+For the record, the distance unit is neither kilometers nor miles nor inches but "elf little toe"... but it does not change what follows :)
+
+In order to implement the counter of the odometer, an elf came up with this code:
+
+=begin perl
+
+#!/usr/bin/env perl
+use 5.010;
+
+sub count() {
+        my $distance = 0;
+        return ++$distance;
+}
+
+count(); count(); count(); count(); 
+say count();
+
+=end perl
+
+But sadly it does not work as expected because the distance is reset at each C<count()> call :/
+
+=head2 Asking Experienced Elves
+
+After asking some more experienced elves, the elf decided to implement a persistent variable via a "lexical trick":
+
+=begin perl
+
+#!/usr/bin/env perl 
+use 5.010;
+
+{
+    my $distance = 0;
+    sub count {
+        return ++$distance;
+    }
+}
+
+count(); count(); count(); count();
+say count();
+
+=end perl
+
+And it worked!
+
+Some other experienced elf proposed to use a "closure" that he perceived as "more elegant": 
+
+=begin perl
+
+#!/usr/bin/env perl 
+use 5.010;
+
+sub make_counter() {
+    my $distance = 0;
+    return sub {
+        return ++$distance;
+    }
+}
+
+my $counter = make_counter();
+
+$counter->(); $counter->(); $counter->(); $counter->();
+say $counter->();
+
+=end perl
+
+=head2 Final Word from Santa
+
+These 2 previous pieces of code work well, but there is definitely a simpler way! 
+
+As usual, the final word came from Santa who decided to use L<state|https://perldoc.perl.org/functions/state>:
+
+=begin perl
+
+#!/usr/bin/env perl
+use 5.010;
+
+sub count() {
+        state $distance = 0;
+        return ++$distance;
+}
+
+count(); count(); count(); count();
+
+say count();
+
+=end perl
+
+=head2 References
+
+See L<Perl Maven "static and state variables in perl"|https://perlmaven.com/static-and-state-variables-in-perl>
