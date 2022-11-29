@@ -1,0 +1,147 @@
+Author: Thibault DUPONCHELLE <thibault.duponchelle@gmail.com>
+Title: The Delivery Map
+Topic: GraphViz2
+
+=encoding utf8
+
+Santa has started to get more absent-minded lately. Year after year he tends to forget a few more things. Just little things like where he left the keys to the sled, or to put his red Santa hat on before he leaves the house.
+
+To give you an idea, in 2021, Santa completely forgot to deliver presents to the Johnson family in Birmingham. He had to come back later to fix it, and nearly got caught by the children!
+
+This kind of mistake takes time and is tiring for Santa. His right-hand elf, worried about Santa's well being, just came up with a solution. 
+
+He started to design "TODO-Maps" for his boss.
+
+For this purpose, he decided to use the L<GraphViz2> Perl module, to build a graph of families to deliver to.
+
+L<GraphViz|https://graphviz.org/> is a well known graph visualization software and is easy to use, and the elf was able to come up with a first graph in a matter of minutes:
+
+=begin perl
+
+#!/usr/bin/env perl
+
+use GraphViz2;
+
+my $graph = GraphViz2->new(graph => {rankdir => "LR"});
+
+$graph->add_edge(from => "Anderson", to => "Johnson");
+$graph->add_edge(from => "Johnson", to => "Taylor");
+$graph->add_edge(from => "Taylor", to => "Williams");
+
+$graph->run(format => "svg", output_file => "simple.svg");
+
+=end perl
+
+And got this nice result:
+
+=begin html
+
+<center><img src="../share/static/simple.svg" alt="A simple delivery map"></center>
+
+=end html
+
+=head2 Make it a Bit Better
+
+It was already a nice help for Santa, but the elf wanted to make it a bit better.
+
+First, to materialize the direction using C<< directed => 1 >>, and second, to change the node shape to house using C<< shape => "house" >> because after all, these families live in houses!
+
+=begin perl
+
+#!/usr/bin/env perl
+
+use GraphViz2;
+
+my $graph = GraphViz2->new(
+	global => {name => "Birmingham", directed => 1},
+	graph  => {rankdir => "LR"},
+);
+
+$graph->default_node(
+	shape  => "house",
+	width  => "2",
+	height => "2",
+);
+
+$graph->add_edge(from => "Anderson", to => "Johnson");
+$graph->add_edge(from => "Johnson", to => "Taylor");
+$graph->add_edge(from => "Taylor", to => "Williams");
+
+$graph->run(format => "svg", output_file => "better.svg");
+
+=end perl
+
+And got this result:
+
+=begin html
+
+<center><img src="../share/static/better.svg" alt="A better delivery map"></center>
+
+=end html
+
+=head2 The Full Procedure for Santa
+
+Santa was already happy with this map but wanted to go even a bit further.
+
+If the map could also display the chores he would do to get ready for the day, it would be perfect for Santa!
+
+To give you a better idea, this is what Santa's typical day looked like: he would leave his home, head to the shop for some chocolate bars to sustain him on his travels, then walk over to the sled's garage and then finally start his tour (can be a delivery tour if it's Christmas day, or it can be visiting toy crafters to discover new products).
+
+=begin perl
+
+#!/usr/bin/env perl
+
+use GraphViz2;
+
+my $graph = GraphViz2->new(
+	global => {name => "Birmingham", directed => 1},
+	graph  => {rankdir => "LR"},
+);
+
+$graph->default_node(
+	shape  => "house",
+	width  => "2",
+	height => "2",
+);
+
+$graph->push_subgraph(name => 'cluster_NorthPole', graph => {
+	label => 'North Pole',
+});
+$graph->add_node(name => "Santa's house");
+$graph->add_node(name => "Supermarket");
+$graph->add_node(name => "Sleds' garage");
+$graph->pop_subgraph;
+
+
+$graph->push_subgraph(name => 'cluster_Birmingham', graph => {
+	label => 'Birmingham',
+});
+$graph->add_node(name => "Anderson");
+$graph->add_node(name => "Johnson");
+$graph->add_node(name => "Taylor");
+$graph->add_node(name => "Williams");
+$graph->pop_subgraph;
+
+$graph->add_edge(from => "Santa's house", to => "Supermarket");
+$graph->add_edge(from => "Supermarket", to => "Sleds' garage");
+$graph->add_edge(from => "Sleds' garage", to => "Anderson");
+$graph->add_edge(from => "Anderson", to => "Johnson");
+$graph->add_edge(from => "Johnson", to => "Taylor");
+$graph->add_edge(from => "Taylor", to => "Williams");
+
+$graph->run(format => "svg", output_file => "final.svg");
+
+=end perl
+
+It resulted in this graph:
+
+=begin html
+
+<center><img src="../share/static/final.svg" alt="Final delivery map" width='1200'></center>
+
+=end html
+
+Elves started to print these kinds of maps for every tour Santa has to do, and Christmas was once again a success!
+
+More L<examples|https://graphviz-perl.github.io/> of L<GraphViz2>
+
