@@ -1,0 +1,170 @@
+Author: oodler@cpan.org
+Title:  St. Nick's Reindeers Need H2O!
+Topic: Util::H2O
+
+=encoding utf8
+
+Reindeer are generally hardy creatures, but the ones Santa chooses
+must also be of the I<heartiest> character. Though they spend only
+24 hours of the whole year I<in flight>, it is during this marathon
+that they must cheerfully give all they have. And Santa makes sure
+that they have all the hydration and other essentials their bodies
+need. Recently St. Nick's head reindeer trainer has purchased a new
+set of I<Camelbak> personal H2O delivery systems that is highly
+tuned for use I<in flight>, which have 3 reservoirs rather than
+the standard 1, so that they don't get too parched.
+
+Being one who obviously dabbles in Perl in the off season, Santa
+was reminded of a module he recently added to the "Good List". It
+is called L<Util::H2O> and it a relatively new addition to the
+growing list of Perl modules on CPAN that turn C<HASH> references to
+blessed references with automatically generated accessor methods.
+
+Santa has, in fact, been sorely tempted to move this module to
+the C<Very Good Module List> since he's found it so handy with all
+of the Perl programming he does that involves C<HASH> references. He
+finds it particularly useful when wrangling results from L<DBI>'s
+C<selectall_hashref> method, the results produced from his web
+scraping activities using L<Web::Scraper>, or the C<HASH> reference
+he gets after C<decode_json>'ing a block of JSON data from the
+different web API he uses to track the online activities everyone
+on his various I<watch> lists based on a new I<goodness> metric
+Mrs. Claus has been affectionately calling it, I<Santa's Credit Score>.
+
+Just recently, Santa created this script that uses L<Util::H2O> to
+add accessors to data I<in flight> in order to make it easier to
+manage the response C<HASH> reference returned by L<HTTP::Tiny>.
+
+=begin perl
+
+use strict;
+use warnings;
+use JSON       qw//;
+use HTTP::Tiny qw//;
+use Util::H2O; # only exports 'h2o'
+
+=end perl
+  
+Santa can slip C<h2o> inline to his C<GET> request with more ease
+than he's able to slip into a chimney! Can I<you> spot the addition
+of C<h2o>?
+
+=begin perl
+
+# give's Santa "$response->content", "$response->status", "$response->success", etc
+# from HTTP::Tiny's response object (pure HASH)
+  
+my $http = HTTP::Tiny->new;
+my $response = h2o $http->get(q{https://jsonplaceholder.typicode.com/users});
+
+=end perl
+
+Checking for success is clean and easy,
+
+=begin perl
+
+# check for unsuccessful web request
+
+if (not $response->success) {
+    print STDERR qq{Can't get list of online persons to watch!\n};
+    printf STDERR qq{Web request responded with with HTTP status: %d\n}, $response->status;
+    exit 1;
+}
+
+=end perl
+
+The JSON C<content> in the I<HTTP> call is also easily accessed so
+that it may be turned into a Perl data structure via C<JSON::decode_json>.
+
+  # decode JSON from response content
+  my $json_array_ref = JSON::decode_json($response->content); # $json is an ARRAY reference
+
+In this case and after referencing the API response specification,
+Santa can see that he gets an C<ARRAY> of C<HASH> references:
+
+  # [
+  #  {
+  #    "id": 1,
+  #    "name": "Leanne Graham",
+  #    "username": "Bret",
+  #    "email": "Sincere@april.biz",
+  #    "address": {
+  #      "street": "Kulas Light",
+  #      "suite": "Apt. 556",
+  #      "city": "Gwenborough",
+  #      "zipcode": "92998-3874",
+  #      "geo": {
+  #        "lat": "-37.3159",
+  #        "lng": "81.1496"
+  #      }
+  #    }
+  #  },
+  # ...
+  # ]
+  
+And even though C<h2o> only works on C<HASH> references, this
+provides I<yet another> opportunity for Santa to use C<h2o> on each
+I<item> in the C<ARRAY>, which makes dealing with each person's
+record much more jolly:
+  
+=begin perl
+
+print qq{lat, lng, name, username\n};
+
+foreach my $person (@$json_array_ref) {
+
+    # -recurse creates deep accessors, e.g.,
+    #  $person->address->geo->lat;
+    
+    h2o -recurse, $person;
+
+    printf qq{%5.4f, %5.4f, %s, %s\n},
+             $person->address->geo->lat,   # deep chain of accessors from '-recurse'
+             $person->address->geo->lng,   # deep chain of accessors from '-recurse'
+             $person->name,
+             $person->username;
+}
+
+=end perl
+
+Santa thinks this is such a nice interface for Perl C<HASH>
+references, he might even be able to convince the Easter bunny to
+finally get off His cotton tail and finally create that centralized
+database they and the Tooth Fairy can use all year long ... yanno,
+for distributing good stuff I<only>.
+
+=head1 Conclusion
+  
+With St. Nick's list now complete with online usage profiles for
+all people, he now sets his mind on more jolly thoughts; not sugar
+plums and candy canes, but all the applications for which he may
+use C<Util::H2O> to make working with C<HASH> references I<in
+flight> more pleasant:
+
+=over 4
+
+=item L<DBI>
+
+=item L<HTTP::Tiny>
+
+=item L<Web::Scraper>
+
+=item L<Config::Tiny>
+
+=item L<JSON>
+
+
+=item L<Getopt::Long> (with L<Util::H2O::More>'s C<opt2h2o>)
+
+=back
+
+He may even check out using the C<bless> replacement, C<baptise>,
+which is contained in L<Util::H2O::More> and is like C<bless>, but
+gives you the ability to create accessors too!
+
+Don't get on Santa's I<Naughty List> by using cumbersome and chunky
+Perl I<OOP> frameworks when all you really need is a little H2O.
+Go check out L<Util::H2O> and see if it's right for your next Perl
+project or can be used to tidy up existing code!
+
+Merry Christmas to All, and to All a Good Night!
