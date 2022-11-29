@@ -1,0 +1,116 @@
+Author: brian d foy  <briandfoy@pobox.com>
+Title: CPAN::Audit
+Topic: cpan
+
+=encoding utf8
+
+=head1 CPAN::Audit
+
+How do you know that you are up-to-date on security advisories for perl
+and CPAN modules? L<CPAN::Audit> and its C<cpan-audit> can do that for
+you:
+
+	% cpan-audit installed
+
+If you are interested in a particular module, you can check that too.
+For example, L<DBI> has a long standing issue with symlinks:
+
+	% cpan-audit module DBI
+
+	  * CPANSA-DBI-2014-01
+		DBD::File drivers open files from folders other than
+		specifically passed using the f_dir attribute.
+
+		Affected range: <1.632
+		Fixed range: >=1.632
+
+		References:
+		https://metacpan.org/changes/distribution/DBI
+		https://rt.cpan.org/Public/Bug/Display.html?id=99508
+
+	  * CPANSA-DBI-2020-01
+		A buffer overflow was found in perl-DBI < 1.643 in DBI.xs. A
+		local attacker who is able to supply a string longer than 300
+		characters could cause an out-of-bounds write, affecting the
+		availability of the service or integrity of data.
+
+		Affected range: <1.643
+		Fixed range: >=1.643
+
+		CVEs: CVE-2020-14393
+
+		References:
+		https://metacpan.org/changes/distribution/DBI
+		https://bugzilla.redhat.com/show_bug.cgi?id=1877409
+
+	... many more advisories ...
+
+	Total advisories found: 9
+
+That's all the advisories for DBI for the entire history of the
+Universe. Specify a version to see advisories for that version or later.
+The current version of DBI, 1.643 as I write this, has no advisories:
+
+	% cpan-audit module DBI 1.643
+	No advisories found
+
+When you check a range, you probably need to quote that range to avoid
+shell redirection:
+
+	% cpan-audit module DBI '>1.600'
+	... eight advisories ...
+	Total advisories found: 8
+
+Command-line use is nice, but you're likely to use this in some
+automated program to continuously check your installation. For that,
+you can use the exit code. If you get 0, there are no advisories found.
+If it did find advisories, it adds that number to 64 and uses that for
+the exit value (that will eventually overflow?):
+
+	% cpan-audit module DBI '>1.600'
+	... eight advisories ...
+	Total advisories found: 8
+	% echo $?
+	72
+
+=head2 How it works
+
+L<CPAN::Audit> was created by Вячеслав Тихановский (vti on CPAN). He
+created a way to collate information from MITRE (the repository of CVEs),
+namespace mappings from PAUSE, and version data from MetaCPAN.
+
+The advisory data are actually kept in a separate repository,
+L<cpan-security-advisory|https://github.com/briandfoy/cpan-security-advisory>.
+Each advisory references some vulnerability, notes the affected version,
+and tracks some other information. These are kept in YAML files for
+each distribution.
+
+L<CPAN::Audit> digests those YAML files to create L<CPAN::Audit::DB>
+so that each release contains all of the vulnerability data. Once you
+install L<CPAN::Audit>, perhaps on an isolated machine with no network
+access, you have everything you need.
+
+=head2 What's next
+
+I and some other people have revitalized L<CPAN::Audit>. This tool is
+only useful if it has up-to-date data. A large part of the effort involves
+keeping up-to-date with vulnerabilities. Once we started, Robert Rothenberg
+was quite the hero for this, and you can  If you'd like to help, see the
+L<CONTRIBUTING in cpan-security-advisory|https://github.com/briandfoy/cpan-security-advisory>.
+
+We're also working to figure out some odd situations in L<CPAN::Audit>.
+For example, L<File::Glob>, a core module, has an advisory for its
+problem handling symlinks (see L<CPANSA-File-Glob.yml|https://github.com/briandfoy/cpan-security-advisory/blob/master/cpansa/CPANSA-File-Glob.yml>).
+But, tool is set up to map a module to a distribution, then report all
+of the advisories for that distro. If you look for the advisories for
+L<File::Glob>, you get all the advisories for its distro. That is, you
+get all the advisories for perl itself. Part of this is my fault because
+I expanded the advisories to include core modules rather than only CPAN
+modules (and you can turn that off). We might have to rethink the
+internal database to handle this.
+
+In the example I showed earlier, you saw a text report. Renée Bäcker
+has a pull request to output JSON instead. That's likely more useful, and
+maybe I will have it merged by the time you read this.
+
+=cut
