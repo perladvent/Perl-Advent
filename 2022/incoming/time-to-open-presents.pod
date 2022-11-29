@@ -1,0 +1,191 @@
+Author: oodler@cpan.org
+Title: Wake up! Time to open presents! 
+Topic: $SIG::ALRM, signal handlers, alarm, Try::ALRM
+
+=encoding utf8
+
+=head1 Wake up! Time to open presents!
+
+Clark W. Grisman faced a dilemma, it was the night before
+Christmas; and he found himself up against a programming
+deadline. Why a company at the cutting edge of milk-proof
+cereal coatings required him to write a Perl program,
+Clark can't remember, but he does know that he's trying
+to read from a socket that keeps timing out! 
+
+=head1 Traditional C<alarm> Handling
+
+In the past, whenever Clark wanted to call a procedure inside
+his Perl code that might take too long to return, he always
+simply copied the example in C<perldoc -f alarm>, which at 
+the time of this Advent season looks like the following:
+
+=begin perl
+
+# ...
+
+eval {
+    local $SIG{ALRM} = sub { die "alarm\n" }; # NB: \n required
+    alarm $timeout;
+    my $nread = sysread $socket, $buffer, $size;
+    alarm 0;
+};
+if ($@) {
+    die unless $@ eq "alarm\n";   # propagate unexpected errors
+    # timed out
+}
+else {
+    # didn't
+}
+
+=end perl
+
+If he didn't need it quite so fancy, he'd just nip it down to:
+
+=begin perl
+
+$SIG{ALRM} = sub { die "alarm\n" }; # NB: \n required
+alarm $timeout;
+my $nread = sysread $socket, $buffer, $size;
+alarm 0;
+
+=end perl
+
+Clark never liked using C<alarm> in this latter way because it didn't feel
+very I<perlish>. But he did what he had to, then would just bottle
+up the guilt. That's what the eggnog is for, he'd tell himself.
+
+=head1 C<alarm> Handling Comes to Christmastown
+
+Clark is not only a food scientist by day, but he considers
+himself a Perl artist by night. Realizing this approach seemed
+a little dated, he recalled seeing a module fly by the CPAN radar
+that treats C<alarm>'s C<ALRM> signal as a catchable exception.
+
+After some searching, he found the module. L<Try::ALRM>. Turns
+out there was no need to fiddle with the  C<eval> stuff directly.
+Using this handy module, it can be done in the following way using
+a multi-level block that looks a lot a C<try>/C<catch> construct.
+
+
+=begin perl
+
+use strict;
+use warnings;
+use Try::ALRM;
+# ...
+# thing that can time out
+try_once {
+    my $nread = sysread $socket, $buffer, $size;
+}
+
+# code block locally assigned to $SIG{ALRM}
+ALRM {
+    warn qq{Wake up! `sysread` has timed out!};
+}
+
+# code run after $SIG{ALRM}
+finally {
+    my ($attempt, $successful) = @_;
+    if (not $successful) {
+        # timed out
+    }
+    else {
+        # didn't
+    }
+}
+
+    
+# trailing modifier to set timeout (in seconds)
+timeout => $timeout;
+    
+=end perl
+
+Cleaned up, Clark's code came out to be:
+
+=begin perl
+
+try_once {
+    my $nread = sysread $socket, $buffer, $size;
+}
+# NB: no ALRM block is a localized no-op $SIG{ALRM}!
+finally {
+    my ($attempt, $successful) = @_;
+    if (not $successful) {
+        # timed out
+    }
+    else {
+        # didn't
+    }
+} timeout => $timeout;
+
+=end perl
+
+In the above code, Clark found he didn't even need to define
+the C<ALRM> handler block, so he didn't include it.
+Effectively  the C<$SIG{ALRM}> handler was a I<no-op>.
+
+=head1 C<retry>: I<Never Gonna Give It Up> ...
+
+.. not immediately, anyway.
+
+Clark was not satisfied, since he wanted to add some retries;
+and this is when L<Try::ALRM> I<really> proved its worth. And
+Clark really needed a win. Chicago PD just I<SWAT>'d the Grisman
+home because in a misguided attempt at some Christmas cheer,
+cousin Eddie had, among other things, just emptied the entire
+contents of his RV's septic tank into the neighborhood's drainage
+system.
+
+In all its full glory, Clark finished his code in time to enjoy
+a lot of spiked eggnog before getting some sleep.
+
+=begin perl
+
+use strict;
+use warnings;
+use Try::ALRM;
+
+# ...
+
+retry {
+    my $attempt = shift;
+    my $total_tries = tries;
+    printf qq{Attempt #%d of %d ...\n}, $attempt, $total_tries;
+    my $nread = sysread $socket, $buffer, $size;
+}
+ALRM {
+    my $attempt = shift;
+    my $total_tries = tries;
+    my $msg = sprintf qq{FAILED: Attempt #%d of %d ...\n}, $attempt, $total_tries;
+    warn $msg;
+}
+finally {
+    my ($attempt, $successful) = @_;
+    if (not $successful) {
+        # timed out
+    }
+    else {
+        # didn't
+    }
+} timeout => $timeout, tries => 5;
+
+=end perl
+ 
+=head1 It Was Just A Dream 
+
+... or was it! Clark frantically searched the house for evidence
+of the shenanigans of the night before, but realized that it was all
+a dream. Good thing, because he was really starting to get a 
+hankerin' for the pickle jelly from the Jelly of the Month Club.
+
+Clark did realize that he wished for one part of that dream to
+be true. Something like this L<Try::ALRM> sure would be a blessing 
+for a lot of things! And what to his wondering eyes did appear, after
+searching on I<MetaCPAN>, was L<Try::ALRM> and 8 tiny reindeer!
+
+And just at that moment, he's convinced he heard Santa's bells and a
+jolly old, I<Ho, Ho, Ho! Merrry Christmas!>. He also now sees 8 tiny
+reindeer everywhere and is really worried that Uncle Eddie slipped
+more than bottom shelf Kentucky Bourbon in that eggnog.
+ 
