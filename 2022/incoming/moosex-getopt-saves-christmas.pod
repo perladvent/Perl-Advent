@@ -1,0 +1,168 @@
+Author: Mike Whitaker <mike@altrion.org>
+Title: MooseX::Getopt saves Christmas
+Topic: getopt, moose
+
+=encoding utf8
+
+=head1 MooseX::Getopt saves Christmas
+
+"It's done, sir." An elf that had the fuzzy, out of focus look of a developer who'd been awake since the beginning of Advent stuck their head round Santa's door. "New, uh, present delivery planning script, like you asked. No more gender-specific toys, and naughty or nice checks are now optional. And it feeds the new delivery plotting script or your SledNav."
+
+"Hrm. OK." Santa nodded, distractedly. "I'll take a look later."
+
+They blinked. "OK. I'll just... uh... go crash for a bit." Looking like they 
+would do so before they made it much further down the corridor, they stumbled out.
+
+=head2 Some while later:
+
+Santa brought up a shell prompt. "Hrmmm. Let's see. Ahah."
+
+    $ delivery_plan
+    Usage: delivery_plan [options]
+
+Saint Nick harumphed.
+
+    $ delivery_plan --help
+    Usage: delivery_plan [options]
+
+"ERNEST!"
+
+Santa's right-hand elf hurried in. "Yes boss?"
+
+"What in the name of Christmas am I supposed to do to get this to run?"
+
+Ernest peered over Santa's shoulder. "Is that the new delivery script? I better take a look - the dev is snoring fit to be heard in Bethlehem, and I don't think they'll wake up before New Year."
+
+=head2 Command line options
+
+Ernest sighed, back at his desk. "OK. No marks for hand-rolling the option parsing..." He copied the main script to C<NorthPole/DeliveryPlan.pm> and edited it, removing the crufty command line parsing code and wrapping the remainder of the body of the script in a method.
+
+=begin perl
+
+    package NorthPole::DeliveryPlan;
+    use v5.36;
+    use Moose;
+    with 'MooseX::Getopt';
+
+    use feature 'signatures';
+
+    sub run ($self) {
+        # body of script
+    }
+
+=end perl
+
+Santa's right-hand elf's right-hand elf peered curiously over Ernest's shoulder. "Whatcha doing?" she asked.
+
+He sighed. "Fixing the new delivery planning script. I<Someone> committed it without even basic usage docs." Ernest opened a new C<delivery_plan> file for the script itself. "Here. Watch.".
+
+=begin perl
+
+    use NorthPole::DeliveryPlan;
+    my $app = NorthPole::DeliveryPlan->new_with_options();
+    $app->run;
+
+=end perl
+
+"Ok, so - C<new_with_options> essentially uses the attribute definitions on the class to define how it parses any command line options, and then passes them as constructor arguments to the object. So..." he went back to C<NorthPole::DeliveryPlan> "We can add a C<--nice_check> switch by just adding a C<nice_check> attribute..."
+
+=begin perl
+
+    has 'nice_check' => (is => 'rw', isa => 'Bool');
+
+=end perl
+
+She chuckled. "Oh! Neat. The command line switch value ends up on the attribute, so you can just check it with C<< $self->nice_check >>, right? Let me guess - if you set C<< required => 1 >>, it's a mandatory parameter?" 
+
+Ernest nodded, "In one. And it also gives you C<--no-nice_check> for free because it's a C<Bool>."
+
+She nodded, then went on. "And... Wow, so, ok... waitaminnit... if it's a C<Str> or a C<Num>, then, the parameter takes a value?" Ernest hid a smile and carried on typing.
+
+=begin perl
+
+    has 'country' => (is => 'rw', isa => 'Str', required => 1);
+
+=end perl
+
+"Like that, you mean." He grinned. "Exactly so - that handles C<--country=GB>, for example."
+ 
+She frowned. "Didn't Santa say he wanted to process multiple countries at once?"
+
+Ernest 'mmhm'-ed. "He did, yes. We can do that easily enough." He edited the definition.
+
+=begin perl
+
+    has 'country' => (is => 'rw', isa => 'ArrayRef', required => 1);
+
+=end perl
+
+"There. Just pass C<--country> multiple times and you can pick the results out of C<< $self->country >>." 
+
+She clapped, delightedly. "Neato. Ok, but what about documentation?"
+
+Ernest chuckled. "Ok, fair. That I<was> the original point of this. So. We have C<Getopt::Long::Descriptive> installed anyway, since some people I<do> actually remember to use it, so all you have to do is add C<documentation> to the attribute definition and the role will respond to C<--help>, C<--usage> or C<-?> with the docs for all the options."
+
+=begin perl
+
+    has 'output' => (
+        is            => 'rw',
+        isa           => 'Str',
+        required      => 1,
+        documentation => "output format - one of 'plot' or 'slednav'",
+    );
+
+=end perl
+
+She frowned. "Can't you make it just accept those two values?"
+
+"Oh... yeah. Sure. We'll just create an C<enum> for them, and because that's just a subtype of C<Str> it falls out in the wash."
+
+=begin perl
+
+    use Moose::Util::TypeConstraints;
+
+    enum 'OutputFormat', [ qw/ plot slednav / ];
+    has 'output' => (
+        is            => 'rw',
+        isa           => 'OutputFormat',
+        required      => 1,
+        documentation => "output format - one of 'plot' or 'slednav'",
+    );
+
+=end perl
+
+He added the rest of the documentation, and another option. "And then... here we go."
+
+    $ delivery_plan
+    Mandatory parameter 'country' missing in call to "eval"
+
+    usage: delivery_plan [-?h] [long options...]
+    	-h -? --usage --help  Prints this usage information.
+    	--[no-]nice_check     DEPRECATED: only deliver to those who have been
+    	                      nice.
+    	--[no-]gender         DEPRECATED: gender-specific presents
+    	--country STR...      which countries to deliver to
+    	--output STR          output format - one of 'plot' or 'slednav'
+
+"If its a more complex type and the behaviour on the parent type isn't enough, there's a helper function to update the type map, C<add_option_type_to_map>, but you can read up on that in the module docs yourself." Ernest grinned at her. "And to be fair, some of the type-checking errors are a bit C<Moose>-y, but..."
+
+She laughed. "I know, I know. 'Patches welcome.'"
+
+He laughed "Exactly. Now scoot, while I test this and push it." 
+
+=head2 Epilogue
+
+Ernest fired off an email.
+
+    Hi,
+
+    When you wake up, please check the commit log for the delivery plan script,
+    and learn from it. The Big Red Boss doesn't have time to read source code
+    to figure out what things we give him are meant to do.
+
+    Also, how on Earth did you manage to come up with an O(N) solution
+    to the travelling salesman problem? Magic?
+
+    E.
+
+=cut
