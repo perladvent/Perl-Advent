@@ -1,0 +1,131 @@
+Author: Gavin Hayes <gahayes@cpan.org>
+Title: How to wrap a camel?
+Topic: Perl::Dist::APPerl
+
+=encoding utf8
+
+=head1 How to wrap a camel?
+
+In the elf workshop, elves never knew what to do when they were passed a camel and were instructed to wrap it to put it on Santa's sleigh. Many times the elves skipped wrapping and loaded camels right onto the sleigh. This practice garnered the North Pole many letters from children around the world being unable to install and use their new camel! B<"How do I install Perl?", "cpanm: command not found", "Permission denied", "collect2.exe: error: ld returned 1 exit status", "Can't locate"> they cried out for help. Some gift recipients even refused to install their camel despite their needs and desires, as they didn't want to deal with the difficulties of installing Perl. Claus tasked master elf, Artie, to design a fool-proof way of wrapping a camel for enjoyment by children across the world.
+
+Artie got right to work as they knew from experience that wrapping a camel was not a trivial task. First, Artie attempted to wrap a camel with L<PAR::Packer>, but discovered that the wrapped camel was unusable when the user's glibc version or operating system differed from the one Artie used to wrap. Artie knew Santa had high standards and would want a more robust solution, so they continued to do research. Artie stumbled upon the L<Cosmopolitan Libc|https://github.com/jart/cosmopolitan> and L<Actually Portable Executables|https://justine.lol/ape.html>. What if you built a single binary version of Perl that runs on six operating systems and melded your camel to the binary? Then, everyone can use camels! Artie got to work creating L<Actually Portable Perl (APPerl)|https://computoid.com/posts/Perl-is-Actually-Portable.html> with the L<Perl::Dist::APPerl> package for building APPerl and wrapping camels with it.
+
+Close to Christmas, Artie finally had L<Perl::Dist::APPerl> ready and notified Santa. Santa requested an immediate demonstration to determine if it is a viable way of wrapping camels starting this Christmas season.
+
+=head2 Wrapping Pure Perl camels
+
+Artie created some directories to contain the camel project.
+
+    mkdir -p wrap_camel/src wrap_camel/script
+    cd wrap_camel
+
+Artie created an example script and saved it to C<script/cameltype>:
+
+=begin perl
+
+    sub cancel_christmas { die "$!"; }
+    my $numhumps;
+    while(1) {
+        print "How many humps?\n";
+        $numhumps = <STDIN> or cancel_christmas();
+        chomp $numhumps;
+        last if($numhumps =~ /^\d+$/);
+        print "Your nose ain't too bright, $numhumps is not a number\n";
+    }
+    my %results = (1 => "Dromedary\n", 2 => "Bactrian\n");
+    print($results{$numhumps} // "Maybe a reindeer? Probably not a camel!\n");
+
+=end perl
+
+Artie noted to Santa that Pure Perl scripts can be wrapped with an existing version of APPerl, off the shelf builds of APPerl can be found at L<https://computoid.com/APPerl/#RELEASES> .
+
+Artie picked C<perl-small.com> off the shelf and created an APPerl project:
+
+    wget -O src/perl.com 'https://github.com/G4Vi/Perl-Dist-APPerl/releases/latest/download/perl-small.com'
+    chmod +x src/perl.com
+    apperlm init --name default_config
+
+Artie edited C<default_config> in the newly created C<apperl-project.json> to copy in the C<cameltype> script and set the destination executable name to C<cameltype.com>, the name is important as C<argv[0]> is used to determine what script embedded in APPerl to run.
+
+    "dest" : "cameltype.com",
+    "zip_extra_files" : { "bin" : ["script/cameltype"] },
+
+Artie wrapped the camel and demonstrated the C<cameltype> binary:
+
+    apperlm build
+    ./cameltype.com
+
+Santa said, "Ho, ho, ho. Very impressive, Artie! What about the camels with XS modules?"
+
+=head2 Wrapping camels with XS modules
+
+Artie said, "Camels with XS modules can also be wrapped into APPerl. However, every XS-wrapping elf needs a Linux build environment."
+Santa, a big fan of developing on several platforms, asked, "Why is that required?"
+Artie replied, "While APPerl binaries are also ZIP files, APPerl binaries are statically linked, so there is no way to add binary modules after compilation. To wrap with XS modules, the Cosmopolitan Libc and Perl must be built from scratch."
+Santa was reasonably worried about this and asked Artie to show him once more.
+
+Artie ran some commands to create a new APPerl project and install build dependencies:
+
+    mkdir -p ../wrap_xs_camel/script
+    cd ../wrap_xs_camel
+    apperlm install-build-deps
+    apperlm init --name default_config --base v5.36.0-small-v0.1.0
+
+Artie created C<MerryChristmas.xs>:
+
+=begin code
+
+    #define PERL_NO_GET_CONTEXT
+    #include "EXTERN.h"
+    #include "perl.h"
+    #include "XSUB.h"
+    #include <stdio.h>
+    
+    MODULE = MerryChristmas    PACKAGE = MerryChristmas
+    
+    void
+    merry_christmas()
+        CODE:
+            printf("Merry Christmas from XS!\n");
+
+=end code
+
+Artie created C<MerryChristmas.pm>:
+
+=begin perl
+
+    package MerryChristmas;
+    our $VERSION = '0.0';
+    require XSLoader;
+    XSLoader::load("MerryChristmas", $VERSION);
+    1;
+
+=end perl
+
+Artie created a C<script/merrychristmas> to demo the module:
+
+=begin perl
+
+    use MerryChristmas;
+    MerryChristmas::merry_christmas();
+
+=end perl
+
+Artie edited C<default_config> in C<apperl-project.json> to add the C<MerryChristmas> module to the Perl repo, copy in the script, and set the destination executable name.
+
+    "dest" : "merrychristmas.com",
+    "perl_repo_files" : { "ext/MerryChristmas" : ["MerryChristmas.pm", "MerryChristmas.xs"]},
+    "+MANIFEST" : ["__perlarchlib__/MerryChristmas.pm", "bin/merrychristmas"],
+    "+perl_onlyextensions" : ["MerryChristmas"],
+    "zip_extra_files" : { "bin" : ["script/merrychristmas"] }
+
+Artie checked out the config, configured, built, and tested out the Merry Christmas message contraption:
+
+    apperlm checkout default_config
+    apperlm configure
+    apperlm build
+    ./merrychristmas.com
+
+Santa said, "Great work, now we can wrap camels of all shapes and sizes to spread cheer to the world! I'd like to put this into practice immediately. Artie replied, "Thank you Santa, I'll get to work teaching all the other elves how to wrap a camel."
+
+=cut
