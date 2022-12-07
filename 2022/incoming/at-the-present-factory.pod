@@ -28,10 +28,11 @@ comes from a database or a web scraper. But how to write such a converter script
 
 =head2 Establishing the Pipe
 
-Base examples will be found under L<Chart::Manual::Types>. But the code there
+Basic examples can be found under L<Chart::Manual::Types>. But the code there
 only uses inline data added by the C<add_dataset> method. In our case we 
 have to use C<add_datafile>, which accepts file names or handles and loads
 an entire table of space or tab separated values (empty rows and perl style comments ignored).
+Here a short example with only three data rows:
 
 =begin code
 
@@ -78,31 +79,43 @@ dataset0 .. dataset2. So let's look at the entire code:
 
 =end perl
 
-The last two code lines put the image binary into the command line.
+The last two code lines put the image binary into the command line, so after
+
+=begin perl
+
+    perl ./script.pl data.tsv > chart.png
+
+=end perl
+
+.. we get the chart in an image file of our choosing.
 
 =head2 Data Set Manipulation
 
 To take full advantage of this setup, our script should automatically adapt to
 different data set sizes. For that we have to get hold of the data, transform 
-as needed and put it back in. It is simply a referrence to an array of arrays.
+as needed and put it back in. It is simply a referrence to an I<array of arrays>.
 
 =begin perl
 
-    ..
+    ...
     $g->add_datafile( $file );
     my $data = $g->get_data;
     $g->clear_data;
-    ..
+    ...
     # data transform
-    ..
+    ...
     $g->add_dataset( $_ ) for @$data;
+    ...
+    $g->set(
+    ...
 
 =end perl
 
-This would for instance allow us to create color gradients or wheels with 
-complementary colors of needed size. How this works I already showed in a
-previous calendar leaf. But to give another practical example - wouldn't it
-be nice to have data tables like:
+This for instance would allow us to create color gradients or wheels
+of complementary colors of needed size matching the size of the dataset.
+How this works I already showed in a previous calendar leaf.
+But to give another practical example - wouldn't it be nice to have 
+data tables like:
 
 =begin code
 
@@ -115,16 +128,21 @@ be nice to have data tables like:
 
 The I<o> symbol or any other placeholder is important because C<Chart> gets 
 unhappy quickly when rows are of unequal length - even we pull out the first 
-column before drawing.
+column before drawing. With this little preprocessing the first column
+of our data table is now appearing in the legend of the chart.
 
 =begin perl
 
-    ..
+    ...
+    $g->add_datafile( $file );
+    my $data = $g->get_data;
+    $g->clear_data;
     my @label = map {shift @$_ } @$data;
     shift @label;
-    ..
+    $g->add_dataset( $_ ) for @$data;
     $g->set(
         legend_labels => \@label,
+    ...
 
 =end perl
 
@@ -132,7 +150,8 @@ Voilà, our chart factory is humming away peacefully.
 
 =head2 Conclusion
 
-Charts can be mass produced on the back end of a data pipe.
+Little scripts can produce piles of charts that are well labeled and
+and designer-colored, even if the incoming data sets have various sizes.
 Check all example code and images L<here|https://github.com/lichtkind/Chart/tree/main/dev/example/advent>.
 
 =cut
