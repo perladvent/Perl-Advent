@@ -1,0 +1,156 @@
+Author: lichtkind@cpan.org
+Title: At the Present Factory
+Topic: Chart::Lines
+
+=encoding utf8
+
+Father Christmas is very old-school and so is his Perl code. There are no
+towering software engineering marvels - just a bunch of wonderful scripts:
+small, meticulously written, very readable and changeable.
+And because there are so well organized, his system scales up to billions 
+cheering children.
+
+Reporting about such high volume of numbers has to be graphical - charts are needed.
+They are getting mass produced by scripts that convert one dataset into one chart
+of a particular layout and design by a call like:
+
+=begin code
+
+    perl script.pl data.tsv > chart.png
+
+=end code
+
+This approach allows maximal flexibility since source and target names are set 
+from the outside and the scripts doesn't has to be adapted, even if the data 
+comes from a database or a web scraper. But how to write such a converter script?
+
+=head2 Establishing the Pipe
+
+Basic examples can be found under L<Chart::Manual::Types>. But the code there
+only uses inline data added by the C<add_dataset> method. In our case we 
+have to use C<add_datafile>, which accepts file names or handles and loads
+an entire table of space or tab separated values (empty rows and perl style comments ignored).
+Here a short example with only three data rows:
+
+=begin code
+
+    Peter Paul Mary
+    30    40   80 
+    80    60   30 
+    50    30   60 
+
+=end code
+
+You can produce such files with L<Text::CSV> by setting the porperty C<sep_char>
+to C<' '> (I<0x20>) or C<"\t"> (I<0x09>). Or you update to Chart 2.403.9
+or later and use pure CSV.
+
+The names of the first row are of course X-axis-labels, but C<Chart> takes
+care of that automatically and recognizes the following three rows as 
+dataset0 .. dataset2. So let's look at the entire code:
+
+=begin perl
+
+    use Chart::Lines;
+
+    my $file = shift;
+    my $g = Chart::Lines->new( 600, 600 );
+    $g->add_datafile( $file );
+
+    $g->set(
+        title          => 'Latest Numbers !',
+        include_zero   => 'true',
+        y_grid_lines   => 'true',
+        precision      => 0,
+        colors => {
+            y_grid_lines => 'gray60',
+            misc         => 'gray55',
+            text         => 'gray55',
+            x_label      => 'gray40',
+            y_label      => 'gray40',
+            title        => 'gray20',
+        },
+    );
+
+    binmode STDOUT;
+    print STDOUT $g->scalar_png;
+
+=end perl
+
+The last two code lines put the image binary into the command line, so after
+
+=begin perl
+
+    perl ./script.pl data.tsv > chart.png
+
+=end perl
+
+.. we get the chart in an image file of our choosing.
+
+=head2 Data Set Manipulation
+
+To take full advantage of this setup, our script should automatically adapt to
+different data set sizes. For that we have to get hold of the data, transform 
+as needed and put it back in. It is simply a referrence to an I<array of arrays>.
+
+=begin perl
+
+    ...
+    $g->add_datafile( $file );
+    my $data = $g->get_data;
+    $g->clear_data;
+    ...
+    # data transform
+    ...
+    $g->add_dataset( $_ ) for @$data;
+    ...
+    $g->set(
+    ...
+
+=end perl
+
+This for instance would allow us to create color gradients or wheels
+of complementary colors of needed size matching the size of the dataset.
+How this works I already showed in a previous calendar leaf.
+But to give another practical example - wouldn't it be nice to have 
+data tables like:
+
+=begin code
+
+    o     Peter Paul Mary
+    2020  30    40   80 
+    2021  80    60   30 
+    2020  50    30   60 
+
+=end code
+
+The I<o> symbol or any other placeholder is important because C<Chart> gets 
+unhappy quickly when rows are of unequal length - even we pull out the first 
+column before drawing. With this little preprocessing the first column
+of our data table is now appearing in the legend of the chart.
+
+=begin perl
+
+    ...
+    $g->add_datafile( $file );
+    my $data = $g->get_data;
+    $g->clear_data;
+    my @label = map {shift @$_ } @$data;
+    shift @label;
+    $g->add_dataset( $_ ) for @$data;
+    $g->set(
+        legend_labels => \@label,
+    ...
+
+=end perl
+
+Voilà, our chart factory is humming away peacefully.
+
+=head2 Conclusion
+
+Little scripts can produce piles of charts that are well labeled and
+and designer-colored, even if the incoming data sets have various sizes.
+Check all example code and images L<here|https://github.com/lichtkind/Chart/tree/main/dev/example/advent>.
+
+=cut
+

@@ -1,0 +1,178 @@
+Author: lichtkind@cpan.org
+Title: Looking at the Christmas Numbers
+Topic: Chart::Bars
+
+=encoding utf8
+
+All the elves know: it is mainly about spreading joy. But some numbers need
+to be kept in check - maybe with bar charts.
+
+=head2 Get some code
+
+Because they is no time for a long coding session during the jolly season,
+they just grab some example from L<Chart::Manual::Types>. Every line of it is
+explained there in detail. Once the code is pasted, they change the
+first dataset (animal names => gift recipients) and paste into the following
+sets (rows) the real numbers.
+At last axis and legend need to be labeled properly and a first draft is ready:
+
+=begin perl
+
+    use Chart::Bars;
+    my $g = Chart::Bars->new( 600, 600 );
+    $g->add_dataset( qw/ Peter Paul Mary/ );
+    $g->add_dataset( 30, 40, 80 );
+    $g->add_dataset( 80, 60, 30 );
+    $g->add_dataset( 50, 30, 60 );
+    $g->set(
+        title         => 'Christmas Expenses',
+        x_label       => 'Recipient',
+        y_label       => 'Amount',
+        legend_labels => ['2020', '2021', '2022'],    
+        y_grid_lines  => 'true',
+        min_val       =>  0,
+        precision     =>  0,
+        colors => {
+            y_grid_lines => 'gray70',
+            misc         => 'gray55',
+            text         => 'gray55',
+            x_label      => 'gray40',
+            y_label      => 'gray40',
+            title        => 'gray20',
+        },
+    );
+    $g->png("bars1.png");
+
+=end perl
+
+The values under the Hash-key C<colors> just gray out the less important parts,
+so that the chart is more pleasant.
+
+=begin html
+
+<img src="https://raw.githubusercontent.com/lichtkind/Chart/main/dev/example/advent/bars1.png"    alt="first bar chart"  width="300" height="300">
+
+=end html
+
+
+=head2 Finding Colors
+
+The only issue now are the dataset colors, which are optimized for contrast (they scream).
+Intuitive would be to have shades of the same color to signify that neighbouring
+bars are about the same person, only some numbers are older than others.
+To achieve that let's pick some appealing color from the table in the lower
+half of L<Graphics::Toolkit::Color::Constant>. I like C<'royalblue3'> of
+the I<CSS> standard. It also has the advantage of providing a workable
+gradient (list of shades) for free. So just add:
+
+=begin perl
+
+        colors => { ...
+            dataset0     => 'royalblue4',
+            dataset1     => 'royalblue3',
+            dataset2     => 'royalblue2',
+        },
+
+=end perl
+
+The only counterintuitive part of this code is to understand that the first
+C<add_dataset> only adds X-axis labels and the following C<add_dataset> is 
+C<dataset0>.
+
+=begin html
+
+<img src="https://raw.githubusercontent.com/lichtkind/Chart/main/dev/example/advent/bars2.png"    alt="first bar chart"  width="300" height="300">
+
+=end html
+
+=head2 Customize Colors
+
+Good, but much of the Christmas business reacts to what was last year.
+How do we highlight a certain dataset with a more red'ish color, while
+still keeping saturation and lightness in the targeted scheme of the gradient
+we had before? For that we load the whole toolkit (a direct dependency of C<Chart>)
+and import also the helper function C<color>, to keep it all short and sweet. 
+
+=begin perl
+
+    use Graphics::Toolkit::Color 'color';
+    ...
+
+        colors => { ...
+            color('royalblue3')->add( { Hue => -220 } ),
+
+=end perl
+
+Please make sure to have atleast the version 1.03 installed to use that feature.
+
+=begin html
+
+<img src="https://raw.githubusercontent.com/lichtkind/Chart/main/dev/example/advent/bars3.png"    alt="first bar chart"  width="300" height="300">
+
+=end html
+
+=head2 Open the Color Factory
+
+Normal people would be good now, but what would a super picky designer,
+who just came from the I<New York Fashion Week> say? Maybe something like:
+how lame - I want a gradient from I<Glacier Lake> to I<Harbor Blue>.
+Alright - let's check quickly if L<Graphics::ColorNames::PantoneReport>
+is installed by C<grep> 'ing the result of C<Graphics::ColorNames::all_schemes>
+and if so, create our own three color gradient with the colors from this
+summers I<Pantone Report>. (Other standards like I<X>, I<HTML> or I<VACCC>
+are available too  - just look at L<Bundle::Graphics::ColorNames>).
+
+=begin perl
+
+    my @gradient = color('PantoneReport:Glacier Lake')
+                         ->gradient_to('PantoneReport:Harbor Blue', 3);
+     ...
+        colors => { ...
+            dataset0     => $gradient[0],
+            dataset1     => $gradient[1],
+            dataset2     => $gradient[2],
+
+=end perl
+
+If more datasets are present - just increase the second argument of the 
+method C<gradient_to>.
+
+=begin html
+
+<img src="https://raw.githubusercontent.com/lichtkind/Chart/main/dev/example/advent/bars4.png"    alt="first bar chart"  width="300" height="300">
+
+=end html
+
+When grouping the values by year instead of recipient, we have to 
+switch X-axis and legend labeling and transpose the data. But also change
+the colors since they have now to express the difference between
+people. This does not fit on a linear scale because every human has many
+different qualities. But the colors still have to go together well to 
+create a harmonious chart. For that task you can create complementary
+colors, which are maximally different in hue, but same in lightness and saturation
+(unless the advanced arguments of the method C<complementary> are used).
+
+=begin perl
+
+    my @gradient = color('lapisblue')->complementary( 3 );
+
+=end perl
+
+L<Graphics::Toolkit::Color> still holds some more options,
+but that was enough to get a taste for whats possible.
+
+=begin html
+
+<img src="https://raw.githubusercontent.com/lichtkind/Chart/main/dev/example/advent/bars5.png"    alt="first bar chart"  width="300" height="300">
+
+=end html
+
+=head2 Conclusion
+
+With L<Graphics::Toolkit::Color> you can quickly color you chart after your liking.
+Check all example code and images L<here|https://github.com/lichtkind/Chart/tree/main/dev/example/advent>.
+
+=cut
+
+
+
