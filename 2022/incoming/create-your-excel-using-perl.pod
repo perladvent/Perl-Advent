@@ -1,0 +1,170 @@
+Author: Csaba Simándi <x1m4nd1@gmail.com>
+Title: Create Your Excel using Perl!
+Topic: Excel::Writer::XLSX
+
+=encoding utf8
+
+=head1 Create Your Excel using Perl!
+
+=head2 Intro
+
+A long-long time ago, during the Advent of 2001, there was an article about manipulating Excel spreadsheets using Perl, L<Spreadsheet::WriteExcel|https://perladvent.org/2001/14th/>.
+It's been a while now, so Santa decided to ask the Wise Old Elf to write another article about creating Excel files using Perl. 
+
+There were only 3 days until Advent, with lots of articles missing, so the Wise Old Elf immediately delegated this task to Wunorse Openslae, and he chose wisely - as always. Wunorse was a master of managing Excel files and started to work on that article immediately.
+
+=head2 Preface
+
+Some historical background: The older module L<Spreadsheet::WriteExcel|https://metacpan.org/pod/Spreadsheet::WriteExcel> is for creating Excel files compatible with Excel 97, 2000, 2002, 2003 and 2007, mainly with C<.xls> extension. It is mostly compatible with Excel::Writer::XLSX, so L<migrating to the newer version|https://metacpan.org/pod/Spreadsheet::WriteExcel#Migrating-to-Excel::Writer::XLSX> should be as easy as Christmas pie. However such a migration is more like a heavy Christmas pudding loaded with goodness and lots of issues might arise during the process.
+
+You can use C<Spreasheet::ParseExcel> for reading the older Excel files having C<.xls> extension, on the other hand you should use C<Spreadsheet::ParseXLSX> or C<Spreadsheet::XLSX> to open and manipulate existing Excel files having the C<.xlsx> extension. This article deals with creating Excel files in C<.xlsx> format.
+
+=head2 Basics
+
+First things first: import the module, initialize an C<.xlsx> file, add some worksheets, input some data on them and finally close the file, as you would do with a usual filehandle.
+This looks a bit different, though:
+
+=begin code
+
+	use Excel::Writer::XLSX;
+
+	#Create excel file               
+	my $merry = Excel::Writer::XLSX->new( 'xmas.xlsx' );
+	#create the workbooks
+	my $xmas = $merry->add_worksheet('Merry');
+	my $baking_sheet = $merry->add_worksheet('Xmas');
+	my $stats = $merry->add_worksheet('Everybody!');
+	$xmas->write( 'A1', 'Merry Christmas!' );
+	$merry->close();
+
+=end code
+
+I skipped to display the usual stuff from the beginning of the script, everyone should know by heart: C<use strict; use warnings;>, etc. 
+This will be the skeleton or the Christmas themed frame of our script.
+You can put everything else in between, depending on Santa's needs, a list of Christmas cookies from around Europe in hash format is a good example, including some stats.
+
+=head2 Formatting
+
+To add some format to your cells, use the C<add_format()> method. You can either just call it on your C<$workbook> without parameters or pass a hash of formatting properties to it.
+The rest depends on your choice from the two options. It is more convenient - in my opinion - to create a format object with a hash, rather than calling the formatting methods afterwards.
+But the option is there to call the specific format methods for as you need them. I will demonstrate both ways in the examples.
+
+=begin code
+		
+	#This will create a christmas colored landscape with snow in the background represented as dots.
+	my %props = ( color => 'red',
+		      size => '20',
+		      bg_color => 'green',
+		      pattern => 18,
+		      align => 'center',
+		     );
+		     
+	my $format = $workbook->add_format( %props );
+	#write welcome text with formatting to top left cell
+	$xmas->write( 'A1', 'Merry Christmas!', $format);
+	#Set the column width.
+	$xmas->set_column('A:A', 30);
+
+=end code
+
+You will need to pass the format object to your write method as a parameter:
+
+=begin code
+
+	$merry->write( 'A1', 'Merry Christmas!', $format );
+
+=end code
+
+You might notice the C<set_column()> method,  this takes the column 'coordinates' as a parameter and a number which is the actual width.
+Let's add some more format objects for later.
+
+=begin code
+
+	my $format2 = $merry->add_format();
+
+	#Setting format using formatting methods, red and bold text, green background, center alignment, green background and dotted borders (for the snowflakes)
+
+	$format2->set_color( 'red' );
+	$format2->set_bold();
+	$format2->set_size( 12 );
+	$format2->set_bg_color( 'green' );
+	$format2->set_align( 'center' );
+	$format2->set_border( 4 );
+
+	#Just some snowflakes as border
+	my $format3 = $merry->add_format( border => 4,);
+
+=end code
+
+=head2 Writing data into cells
+
+There are two ways to do that: you can use either the row-column notation or the A1 notation as described in L<Cell notation|https://metacpan.org/pod/Excel::Writer::XLSX#Cell-notation>.
+First of all we need some data so let's compose our cookies list.
+We will use a hash of array refs to do this:
+
+=begin code
+
+	my $cookies = { 
+		      Hungary => [ 'bejgli', 'hólabda' ],
+		      Scandinavia => [ 'Pepparkakor', 'Ruiskakut', 'Lussekatter', 'Krumkake' ],
+		      Netherlands => [ 'Spekulaas', 'Kerstkranjes' ],
+		      Germany => [ 'Lebkuchen', 'Stollen' ],
+		      Switzerland => [ 'Basler Läckerli', 'Brunsli' ],
+		      Italy => [ 'Panettone', 'Pignoli', 'Cannoli' ],
+		      Spain => [ 'Polvorones', 'Mantecados', 'Turrón' ],
+		      Greece => [ 'Melomakarona' ],
+		      };
+		      
+	#Sort the countries alphabetically
+	my @countries = sort keys %$cookies;
+
+	#Add the cookies to the baking sheet, one country per column.
+	$baking_sheet->set_column( 0, scalar keys %$cookies, 15 );
+	$baking_sheet->write( 'A1', \@countries, $format2 );
+
+	my $i = 0;
+	for ( sort keys %$cookies ) {
+	  #Place Your cookies to the baking sheet
+	  $baking_sheet->write( 1, $i, [ $cookies->{$_} ], $format3 );
+	  $i++;
+	}
+
+	#write some statistics about how many types of cookies we have per country
+	$stats->write( 'A1', [ \@countries ], $format2 );
+
+	#Reset the counter
+	$i = 0;
+	#count how many cookies we have country wise.
+	for ( sort keys %$cookies ) {
+	  #Place Your cookies to the baking sheet
+	  $stats->write( $i, 1, scalar @{$cookies->{$_}} , $format3 );
+	  $i++;
+	}
+        
+=end code
+
+Many things are happening here.
+
+First we get a list of countries sorted alphabetically.
+Second we are writing those countries into the first row, alongside some formats, defined above.
+Then comes the first usage of C<write()>, where we are using the A1 notation to start from the top left corner, then comes the reference to the C<@countries> array, followed by the format2.
+When we pass an array reference to C<write()>, it will write the elements of the array in the same row. It is equivalent to write_row().
+If you pass an array ref of array refs to C<write()>, it is the same as calling C<write_col()>, it will write to the columns, as demonstrated in the lines 22 and 27.
+
+For more on C<write()>, please check the L<write section|https://metacpan.org/pod/Excel::Writer::XLSX#write(-$row,-$column,-$token,-$format-)> on the module's page.
+
+=head2 Outro
+
+Santa was cheerful about this guide, especially that it contains the long avaited Christmas cookie statistics. 
+And perhaps the next task will be to extend this report with more Christmas cookies from around the world.
+
+We just scratched the surface of C<Excel::Writer::XLSX> with this short tutorial. You can find a comprehensive guide on CPAN, L<Excel::Writer::XLSX|https://metacpan.org/pod/Excel::Writer::XLSX>.
+This is a very useful and powerful module, which can deal with a range of tasks from the basics of generating reports to the heavy lifting of the work with VBA in Excel.
+To cover all of its features would take a whole book.
+
+You can find the whole script on my Github L<cookies_test.pl|https://github.com/x1mandi/padvent_code/blob/main/cookies_test.pl>, so that you can test it on your own and play with the module.
+Merry Christmas!
+
+
+
+ 
