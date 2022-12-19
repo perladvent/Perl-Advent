@@ -1,218 +1,156 @@
-Author: Breno G. de Oliveira <garu@cpan.org>
-Title: Building the Sleigh While Flying It
-Topic: Data::Printer
+Author: lichtkind@cpan.org
+Title: At the Present Factory
+Topic: Chart::Lines
 
 =encoding utf8
 
-=head1 Building the Sleigh While Flying It
+Father Christmas is very old-school and so is his Perl code. There are no
+towering software engineering marvels - just a bunch of wonderful scripts:
+small, meticulously written, very readable and changeable.
+And because there are so well organized, his system scales up to billions 
+cheering children.
 
-I<"B, a little help?"> Santa's voice echoed through the toymaker's headquarters, its pitch a little higher than usual. Binky the Elf left her station and cracked open the boss's door. I<"What's up, Nick?">  she replied, nonchalantly. Santa was squinting at the monitor in front of him, where several lines of error messages kept flooding the terminal.
+Reporting about such high volume of numbers has to be graphical - charts are needed.
+They are getting mass produced by scripts that convert one dataset into one chart
+of a particular layout and design by a call like:
 
-I<"I think there's something wrong with the reindeers.">
+=begin code
 
-The famous Christmas Reindeers are, of course, robots. As a lover of all living things, Santa could never bring himself to force animals into such a strenuous journey each year. Besides, how else do you think they can travel that fast?
+    perl script.pl data.tsv > chart.png
 
-Binky sighed and glanced over Santa's right shoulder. The world population had just surpassed 8 billion, so they had to spend a good part of the year profiling and optimizing the reindeers' code for speed. I<"I thought you tested it back at All Hallows Eve">, the elf cried. Santa looked down, his face redder than his coat. I<"I was going to, but Jack took me trick or treating instead">, he muttered.
+=end code
 
-Binky raised an eyebrow. With that kind of care, it was a Christmas Miracle this code compiled in the first place. Thinking of the kids, she decided not to pursue the argument and instead put her energy into finding and fixing the issue. The error messages were cryptic, at best:
+This approach allows maximal flexibility since source and target names are set 
+from the outside and the scripts doesn't has to be adapted, even if the data 
+comes from a database or a web scraper. But how to write such a converter script?
 
-=begin html
+=head2 Establishing the Pipe
 
-<pre>
-    <code style="display: inline-block;white-space: normal;max-width:95%; word-break:break-all; word-wrap:break-word;">
-    Undefined subroutine &Class::MOP::Class:::after called at /home/santaclaus/.plenv/versions/5.36.0/lib/perl5/site_perl/5.36.0/x86_64-linux/Class/MOP/Method/Wrapped.pm line 57.
-    Reindeer::Prancer::_wrapped_dash_away(Reindeer::Prancer=HASH(0x1383a6160)) called at /home/santaclaus/.plenv/versions/5.36.0/lib/perl5/site_perl/5.36.0/x86_64-linux//Class/MOP/Method/Wrapped.pm line 97
-    Reindeer::Prancer::dash_away(Reindeer::Prancer=HASH(0x1383a6160)) called at christmas.pl line 1225
-    </code>
-</pre>
+Basic examples can be found under L<Chart::Manual::Types>. But the code there
+only uses inline data added by the C<add_dataset> method. In our case we 
+have to use C<add_datafile>, which accepts file names or handles and loads
+an entire table of space or tab separated values (empty rows and perl style comments ignored).
+Here a short example with only three data rows:
 
-=end html
+=begin code
 
-I<"Huh.">, the elf frowned. Reindeers were controlled by complex L<Moose> classes, but method modifiers such as 'before', 'after' and 'around' were pretty standard. It made no sense that "after" was not defined.  Line 1225 of christmas.pl, was also pretty straightforward:
+    Peter Paul Mary
+    30    40   80 
+    80    60   30 
+    50    30   60 
 
-=begin perl
+=end code
 
-	$reindeer->dash_away();
+You can produce such files with L<Text::CSV> by setting the porperty C<sep_char>
+to C<' '> (I<0x20>) or C<"\t"> (I<0x09>). Or you update to Chart 2.403.9
+or later and use pure CSV.
 
-=end perl
-
-Binky and Santa spent a little while staring at the source code. Everything looked fine, but the code was still failing. Finally, Binky broke the silence: I<< "Did you try dumping C<$reindeer> before that call?" >> she suggested. I<"I did, but look!">, the old man scrolled up the terminal window and pointed at a line that said:
-
-	$VAR1 = bless( {}, 'Reindeer::Prancer' );
-
-I<"It's just showing the bless() command, an empty hash reference and the class name. How am I supposed to work with that?"> Santa whimpered. I<"That's because you're using Data::Dumper, boss."> A faint smile crept into Binky's lips. It wasn't every day she was able to teach Father Christmas himself something new. She continued. I<< "Data::Dumper is best for serializing. If you want to inspect the data yourself, you should use L<Data::Printer> instead." >>
-
-Santa Claus' eyes widened. I<"Data::Printer? What kind of sorcery is that?"> The elf signaled him to scooch over so she could reach the keyboard herself.  As she typed C<cpanm Data::Printer>, she said: I<"It's a module that dumps variables in a way meant to be read by an actual human trying to debug code. Don't worry, it's super light and fast - zero deps and all. See? It's already installed."> Then she fired up the editor and replaced the line that said:
-
-=begin perl
-
-	use Data::Dumper; say Dumper($reindeer);
-
-=end perl
-
-with:
+The names of the first row are of course X-axis-labels, but C<Chart> takes
+care of that automatically and recognizes the following three rows as 
+dataset0 .. dataset2. So let's look at the entire code:
 
 =begin perl
 
-	use DDP; p $reindeer;
+    use Chart::Lines;
+
+    my $file = shift;
+    my $g = Chart::Lines->new( 600, 600 );
+    $g->add_datafile( $file );
+
+    $g->set(
+        title          => 'Latest Numbers !',
+        include_zero   => 'true',
+        y_grid_lines   => 'true',
+        precision      => 0,
+        colors => {
+            y_grid_lines => 'gray60',
+            misc         => 'gray55',
+            text         => 'gray55',
+            x_label      => 'gray40',
+            y_label      => 'gray40',
+            title        => 'gray20',
+        },
+    );
+
+    binmode STDOUT;
+    print STDOUT $g->scalar_png;
 
 =end perl
 
-They gave it another go and the result was quite different: 
-
-=begin html
-
-<pre>
-    <code>
-    <span style="color:#C792EA">Reindeer::Prancer</span>  <span style="color:#66D9EF">{</span>
-         <span>parents:</span> <span style="color:#C792EA">Reindeer</span>
-         <span>roles (1):</span> <span style="color:#C792EA">FlyingMagic</span>
-         <span>attributes (2):</span> <span style="color:#82AAFF">name</span>,<span style="color:#82AAFF"> sleigh</span>
-         <span>public methods (24):</span>
-             <span style="color:#82AAFF">dash_away</span>,<span style="color:#82AAFF"> DESTROY</span>,<span style="color:#82AAFF"> meta</span>,<span style="color:#82AAFF"> new</span>
-             <span>Carp:</span>
-                 <span style="color:#82AAFF">confess</span>
-             <span>Class::MOP::Class:</span>
-                 <span style="color:#82AAFF">:after</span>
-             <span>FlyingMagic:</span>
-                 <span style="color:#82AAFF">liftoff</span>
-             <span>Moose:</span>
-                 <span style="color:#82AAFF">after</span>, <span style="color:#82AAFF">around</span>, <span style="color:#82AAFF">augment</span>, <span style="color:#82AAFF">before</span>, <span style="color:#82AAFF">extends</span>, <span style="color:#82AAFF">has</span>, <span style="color:#82AAFF">inner</span>, <span style="color:#82AAFF">override</span>, <span style="color:#82AAFF">super</span>, <span style="color:#82AAFF">with</span>
-             <span>Moose::Object:</span>
-                 <span style="color:#82AAFF">BUILDALL</span>, <span style="color:#82AAFF">BUILDARGS</span>, <span style="color:#82AAFF">DEMOLISHALL</span>, <span style="color:#82AAFF">does</span>, <span style="color:#82AAFF">DOES</span>, <span style="color:#82AAFF">dump</span>
-             <span>Scalar::Util:</span>
-                 <span style="color:#82AAFF">blessed</span>
-         <span>private methods (1):</span> <span style="color:#82AAFF">_build_name</span>
-         <span>method modifiers (1):</span>
-             <span>after dash_away</span> <span style="color:#FF5370">&lt;undefined coderef&gt;</span>
-         <span>internals: </span><span style="color:#66D9EF">{}</span>
-     <span style="color:#66D9EF">}</span>
-  </code>
-</pre>
-
-=end html
-
-The terminal lit up like a Christmas Tree. They could see the full class hierarchy, applied roles, attributes, public and private methods - everything! Santa's eyes sparkled. I<"Ho! Ho! Ho! I know what's wrong."> He pointed at the line that said C<< after  dash_away: <undefined coderef> >> in bright red. They searched the source code for C<< 'after "dash_away"' >> and quickly found the only entry, that read:
+The last two code lines put the image binary into the command line, so after
 
 =begin perl
 
-	after 'dash_away' => \&lifftoff;
+    perl ./script.pl data.tsv > chart.png
 
 =end perl
 
-They took another look at the Data::Printer output searching for that method. Santa quickly spotted it coming from the C<FlyingMagic> role, but it was written differently. I<"A typo! Someone was naughty on that code review."> They fixed the typo and ran it again. It worked! One by one the reindeers started whirring. Santa was about to jump on the sleigh for a final test-drive when the elf interrupted the program. I<"What is it, B?"> the old man asked.
+.. we get the chart in an image file of our choosing.
 
-Binky was staring at the terminal again. I<"It's leaking memory. The way things are, the sleigh will crash before you even reach the Atlantic. Hold on."> The elf added a bunch of C<p()> statements throughout the code. Santa Claus looked bewildered. I<"What are you doing? There will be so much stuff in the output we won't be able to make any of it out!">, he scoffed.
+=head2 Data Set Manipulation
 
-I<"Sure we will."> Binky replied without taking her eyes off the monitor. I<< "We'll control what prints what on L<the .dataprinter file|Data::Printer/"The .dataprinter configuration file">" >>. She created a new file called ".dataprinter" on the root of the project path, then made it look something like this:
-
-=begin html
-
-<pre class="code-listing">
-    <code class="code">
-    <span class="single">show_refcount</span> <span class="operator">=</span> <span class="word">1</span>
-    <span class="single">theme</span> <span class="operator">=</span> <span class="word">Material</span>
-    
-    <span class="symbol">[Sleigh::Engine]</span>
-        <span class="single">class.expand</span> <span class="operator">=</span> <span class="word">0</span>
-    
-    <span class="symbol">[Toys::Storage::MagicBag]</span>
-        <span class="single">filters</span> <span class="operator">=</span> <span class="word">DB</span>
-    
-    <span class="symbol">[Reindeer]</span>
-        <span class="single">class.stringify</span> <span class="operator">=</span> <span class="word">0</span>
-        <span class="single">class.show_wrapped</span> <span class="operator">=</span> <span class="word">0</span>
-        <span class="single">class.inherited</span> <span class="operator">=</span> <span class="word">none</span>
-        <span class="single">output</span> <span class="operator">=</span> <span class="word">/var/log/christmas/reindeer.data</span>
-    </code>
-</pre>
-
-=end html
-
-Binky went on to explain that you could place global settings for Data::Printer at the top of that file, like setting a theme and showing refcounts, then create more specific rules that apply only to certain caller packages. In this case, any C<p()> statements made inside C<Sleigh::Engine> would not expand objects, showing only the class name and (as per the global setting) the refcount.
-On the other hand, calls to C<p()> inside C<Toys::Storage::MagicBag> would be subject to all the filters set on L<Data::Printer::Filters::DB>, useful to see database connection statuses, prepared statements, result sources and sets from DBI, DBIx::Class and more.
-
-Finally, calls to C<p()> made inside C<Reindeer.pm> would not attempt to stringify objects that have a subroutine C<as_string>, C<to_string> or similar, nor will they show wrapped method modifiers or methods inherited from parent classes. Even so, that particular output is in a hot codepath and can get pretty big, so instead of printing to STDERR, it will write to the custom C</var/log/christmas/reindeer.data> file.
-
-I<"We could even put all those settings in a custom profile package and upload it to CPAN or whatever, but right now a .dataprinter file is more than enough."> They tried running the program again and, sure enough, the output read:
-
-=begin html
-
-<pre>
-    <code>
-    <span style="color:#C792EA">Sleigh</span> (refcount: 10)
-    <span style="color:#C792EA">Sleigh</span> (refcount: 10)
-    <span style="color:#C792EA">Sleigh</span> (refcount: 10)
-    </code>
-</pre>
-
-=end html
-
-Santa was puzzled. I<"10 refcounts on the sleigh? We must have a circular reference somewhere. What's going on on that Reindeer log file?"> Binky opened it, but it looked pretty much the same: several reindeer objects just like before, except this time without the inherited methods but with a refcount next to each data, just like they asked:
-
-=begin html
-
-<pre>
-    <code>
-    <span style="color:#C792EA">Reindeer::Vixen</span>  <span style="color:#66D9EF">{</span>
-         <span>parents:</span> <span style="color:#C792EA">Reindeer</span>
-         <span>roles (1):</span> <span style="color:#C792EA">FlyingMagic</span>
-         <span>attributes (2):</span> <span style="color:#82AAFF">name</span>,<span style="color:#82AAFF"> sleigh</span>
-         <span>public methods (4):</span>
-             <span style="color:#82AAFF">dash_away</span>,<span style="color:#82AAFF"> DESTROY</span>,<span style="color:#82AAFF"> meta</span>,<span style="color:#82AAFF"> new</span>
-         <span>private methods (1):</span> <span style="color:#82AAFF">_build_name</span>
-         <span>internals: </span><span style="color:#66D9EF">{</span>
-             <span style="color:#82AAFF">sleigh</span>    <span style="color:#C792EA">Sleigh</span> (refcount: 10)
-         <span style="color:#66D9EF">}</span>
-     <span style="color:#66D9EF">}</span>
-  </code>
-</pre>
-
-=end html
-
-Santa sighed. I<"If only that Data::Printer of yours could signal weak references...">  Binky's eyes widened as she stared at him. I<"Nick, you're a genius!"> The old man chuckled. I<"Me? What did I do?"> The elf went on. I<"Data::Printer DOES show when it's looking at a weak ref. The fact that we don't see it means that Sleigh object right there was NOT weakened.">
-They opened the reindeer class in the editor and replaced the line that read:
+To take full advantage of this setup, our script should automatically adapt to
+different data set sizes. For that we have to get hold of the data, transform 
+as needed and put it back in. It is simply a referrence to an I<array of arrays>.
 
 =begin perl
 
-	has 'sleigh', is => 'rw', isa => 'Sleigh';
+    ...
+    $g->add_datafile( $file );
+    my $data = $g->get_data;
+    $g->clear_data;
+    ...
+    # data transform
+    ...
+    $g->add_dataset( $_ ) for @$data;
+    ...
+    $g->set(
+    ...
 
 =end perl
 
-with:
+This for instance would allow us to create color gradients or wheels
+of complementary colors of needed size matching the size of the dataset.
+How this works I already showed in a previous calendar leaf.
+But to give another practical example - wouldn't it be nice to have 
+data tables like:
+
+=begin code
+
+    o     Peter Paul Mary
+    2020  30    40   80 
+    2021  80    60   30 
+    2020  50    30   60 
+
+=end code
+
+The I<o> symbol or any other placeholder is important because C<Chart> gets 
+unhappy quickly when rows are of unequal length - even we pull out the first 
+column before drawing. With this little preprocessing the first column
+of our data table is now appearing in the legend of the chart.
 
 =begin perl
 
-	has 'sleigh', is => 'rw', isa => 'Sleigh', weak_ref => 1;
+    ...
+    $g->add_datafile( $file );
+    my $data = $g->get_data;
+    $g->clear_data;
+    my @label = map {shift @$_ } @$data;
+    shift @label;
+    $g->add_dataset( $_ ) for @$data;
+    $g->set(
+        legend_labels => \@label,
+    ...
 
 =end perl
 
-They fired up the program again. The reindeers whirred and clanked for a few seconds, then Rudolph's nose lit up, signaling the restart was complete and they were all ready to fly. Santa's heartbeat kicked up a notch as Binky opened the logs to see what it showed:
+Voilà, our chart factory is humming away peacefully.
 
-=begin html
+=head2 Conclusion
 
-<pre>
-    <code>
-    <span style="color:#C792EA">Reindeer::Vixen</span>  <span style="color:#66D9EF">{</span>
-         <span>parents:</span> <span style="color:#C792EA">Reindeer</span>
-         <span>roles (1):</span> <span style="color:#C792EA">FlyingMagic</span>
-         <span>attributes (2):</span> <span style="color:#82AAFF">name</span>,<span style="color:#82AAFF"> sleigh</span>
-         <span>public methods (4):</span>
-             <span style="color:#82AAFF">dash_away</span>,<span style="color:#82AAFF"> DESTROY</span>,<span style="color:#82AAFF"> meta</span>,<span style="color:#82AAFF"> new</span>
-         <span>private methods (1):</span> <span style="color:#82AAFF">_build_name</span>
-         <span>internals: </span><span style="color:#66D9EF">{</span>
-             <span style="color:#82AAFF">sleigh</span>    <span style="color:#C792EA">Sleigh</span> <span style="color:#90B55A">(weak)</span>
-         <span style="color:#66D9EF">}</span>
-     <span style="color:#66D9EF">}</span>
-  </code>
-</pre>
+Little scripts can produce piles of charts that are well labeled and
+and designer-colored, even if the incoming data sets have various sizes.
+Check all example code and images L<here|https://github.com/lichtkind/Chart/tree/main/dev/example/advent>.
 
-=end html
-
-The sleigh references were weak and no refcount was showing. I<"Yes!"> the elf fell back into her chair and breathed a sigh of relief. I<< "Do we remove the C<p()> statements now that everything is fine?" >> asked Santa. I<< "We can, sure - but if you think they're in good debugging spots you can just add C<quiet = 1> to each section of the .dataprinter file and any calls to C<p()> will quickly return not printing anything. We can even add a C<live_update = 1> and Data::Printer will automatically watch the .dataprinter file and reload it whenever we change it without needing to restart the program." >>
-
-The old man thanked his friend as she rose up to leave. Binky was almost at the door when she turned and realized Santa was still at the computer.
-I<< "You're gonna play with the output colors and L<make a new theme for Data::Printer|Data::Printer::Theme> now, aren't you?" >>
-
-Santa grinned. This was going to be a Merry Christmas after all.
+=cut
 

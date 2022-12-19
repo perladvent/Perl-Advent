@@ -1,131 +1,218 @@
-Author: Gavin Hayes <gahayes@cpan.org>
-Title: How to wrap a camel?
-Topic: Perl::Dist::APPerl
+Author: Breno G. de Oliveira <garu@cpan.org>
+Title: Building the Sleigh While Flying It
+Topic: Data::Printer
 
 =encoding utf8
 
-=head1 How to wrap a camel?
+=head1 Building the Sleigh While Flying It
 
-In the elf workshop, elves never knew what to do when they were passed a camel and were instructed to wrap it to put it on Santa's sleigh. Many times the elves skipped wrapping and loaded camels right onto the sleigh. This practice garnered the North Pole many letters from children around the world being unable to install and use their new camel! B<"How do I install Perl?", "cpanm: command not found", "Permission denied", "collect2.exe: error: ld returned 1 exit status", "Can't locate"> they cried out for help. Some gift recipients even refused to install their camel despite their needs and desires, as they didn't want to deal with the difficulties of installing Perl. Claus tasked master elf, Artie, to design a fool-proof way of wrapping a camel for enjoyment by children across the world.
+I<"B, a little help?"> Santa's voice echoed through the toymaker's headquarters, its pitch a little higher than usual. Binky the Elf left her station and cracked open the boss's door. I<"What's up, Nick?">  she replied, nonchalantly. Santa was squinting at the monitor in front of him, where several lines of error messages kept flooding the terminal.
 
-Artie got right to work as they knew from experience that wrapping a camel was not a trivial task. First, Artie attempted to wrap a camel with L<PAR::Packer>, but discovered that the wrapped camel was unusable when the user's glibc version or operating system differed from the one Artie used to wrap. Artie knew Santa had high standards and would want a more robust solution, so they continued to do research. Artie stumbled upon the L<Cosmopolitan Libc|https://github.com/jart/cosmopolitan> and L<Actually Portable Executables|https://justine.lol/ape.html>. What if you built a single binary version of Perl that runs on six operating systems and melded your camel to the binary? Then, everyone can use camels! Artie got to work creating L<Actually Portable Perl (APPerl)|https://computoid.com/posts/Perl-is-Actually-Portable.html> with the L<Perl::Dist::APPerl> package for building APPerl and wrapping camels with it.
+I<"I think there's something wrong with the reindeers.">
 
-Close to Christmas, Artie finally had L<Perl::Dist::APPerl> ready and notified Santa. Santa requested an immediate demonstration to determine if it is a viable way of wrapping camels starting this Christmas season.
+The famous Christmas Reindeers are, of course, robots. As a lover of all living things, Santa could never bring himself to force animals into such a strenuous journey each year. Besides, how else do you think they can travel that fast?
 
-=head2 Wrapping Pure Perl camels
+Binky sighed and glanced over Santa's right shoulder. The world population had just surpassed 8 billion, so they had to spend a good part of the year profiling and optimizing the reindeers' code for speed. I<"I thought you tested it back at All Hallows Eve">, the elf cried. Santa looked down, his face redder than his coat. I<"I was going to, but Jack took me trick or treating instead">, he muttered.
 
-Artie created some directories to contain the camel project.
+Binky raised an eyebrow. With that kind of care, it was a Christmas Miracle this code compiled in the first place. Thinking of the kids, she decided not to pursue the argument and instead put her energy into finding and fixing the issue. The error messages were cryptic, at best:
 
-    mkdir -p wrap_camel/src wrap_camel/script
-    cd wrap_camel
+=begin html
 
-Artie created an example script and saved it to C<script/cameltype>:
+<pre>
+    <code style="display: inline-block;white-space: normal;max-width:95%; word-break:break-all; word-wrap:break-word;">
+    Undefined subroutine &Class::MOP::Class:::after called at /home/santaclaus/.plenv/versions/5.36.0/lib/perl5/site_perl/5.36.0/x86_64-linux/Class/MOP/Method/Wrapped.pm line 57.
+    Reindeer::Prancer::_wrapped_dash_away(Reindeer::Prancer=HASH(0x1383a6160)) called at /home/santaclaus/.plenv/versions/5.36.0/lib/perl5/site_perl/5.36.0/x86_64-linux//Class/MOP/Method/Wrapped.pm line 97
+    Reindeer::Prancer::dash_away(Reindeer::Prancer=HASH(0x1383a6160)) called at christmas.pl line 1225
+    </code>
+</pre>
+
+=end html
+
+I<"Huh.">, the elf frowned. Reindeers were controlled by complex L<Moose> classes, but method modifiers such as 'before', 'after' and 'around' were pretty standard. It made no sense that "after" was not defined.  Line 1225 of christmas.pl, was also pretty straightforward:
 
 =begin perl
 
-    sub cancel_christmas { die "$!"; }
-    my $numhumps;
-    while(1) {
-        print "How many humps?\n";
-        $numhumps = <STDIN> or cancel_christmas();
-        chomp $numhumps;
-        last if($numhumps =~ /^\d+$/);
-        print "Your nose ain't too bright, $numhumps is not a number\n";
-    }
-    my %results = (1 => "Dromedary\n", 2 => "Bactrian\n");
-    print($results{$numhumps} // "Maybe a reindeer? Probably not a camel!\n");
+	$reindeer->dash_away();
 
 =end perl
 
-Artie noted to Santa that Pure Perl scripts can be wrapped with an existing version of APPerl, off the shelf builds of APPerl can be found on the L<APPerl webpage|https://computoid.com/APPerl/#RELEASES>.
+Binky and Santa spent a little while staring at the source code. Everything looked fine, but the code was still failing. Finally, Binky broke the silence: I<< "Did you try dumping C<$reindeer> before that call?" >> she suggested. I<"I did, but look!">, the old man scrolled up the terminal window and pointed at a line that said:
 
-Artie picked C<perl-small.com> off the shelf and created an APPerl project:
+	$VAR1 = bless( {}, 'Reindeer::Prancer' );
 
-    wget -O src/perl.com 'https://github.com/G4Vi/Perl-Dist-APPerl/releases/latest/download/perl-small.com'
-    chmod +x src/perl.com
-    apperlm init --name default_config
+I<"It's just showing the bless() command, an empty hash reference and the class name. How am I supposed to work with that?"> Santa whimpered. I<"That's because you're using Data::Dumper, boss."> A faint smile crept into Binky's lips. It wasn't every day she was able to teach Father Christmas himself something new. She continued. I<< "Data::Dumper is best for serializing. If you want to inspect the data yourself, you should use L<Data::Printer> instead." >>
 
-Artie edited C<default_config> in the newly created C<apperl-project.json> to copy in the C<cameltype> script and set the destination executable name to C<cameltype.com>, the name is important as C<argv[0]> is used to determine which script embedded in APPerl to run.
+Santa Claus' eyes widened. I<"Data::Printer? What kind of sorcery is that?"> The elf signaled him to scooch over so she could reach the keyboard herself.  As she typed C<cpanm Data::Printer>, she said: I<"It's a module that dumps variables in a way meant to be read by an actual human trying to debug code. Don't worry, it's super light and fast - zero deps and all. See? It's already installed."> Then she fired up the editor and replaced the line that said:
 
-    "dest" : "cameltype.com",
-    "zip_extra_files" : { "bin" : ["script/cameltype"] },
+=begin perl
 
-Artie wrapped the camel and demonstrated the C<cameltype> binary:
+	use Data::Dumper; say Dumper($reindeer);
 
-    apperlm build
-    ./cameltype.com
+=end perl
 
-Santa said, "Ho, ho, ho. Very impressive, Artie! What about the camels with XS modules?"
+with:
 
-=head2 Wrapping camels with XS modules
+=begin perl
 
-Artie said, "Camels with XS modules can also be wrapped into APPerl. However, every XS-wrapping elf needs a Linux build environment."
-Santa, a big fan of developing on several platforms, asked, "Why is that required?"
-Artie replied, "While APPerl binaries are also ZIP files, APPerl binaries are statically linked, so there is no way to add binary modules after compilation. To wrap with XS modules, the Cosmopolitan Libc and Perl must be built from scratch."
-Santa was reasonably worried about this and asked Artie to show him once more.
+	use DDP; p $reindeer;
 
-Artie ran some commands to create a new APPerl project and install build dependencies:
+=end perl
 
-    mkdir -p ../wrap_xs_camel/script
-    cd ../wrap_xs_camel
-    apperlm install-build-deps
-    apperlm init --name default_config --base v5.36.0-small-v0.1.0
+They gave it another go and the result was quite different: 
 
-Artie created C<MerryChristmas.xs>:
+=begin html
 
-=begin code
+<pre>
+    <code>
+    <span style="color:#C792EA">Reindeer::Prancer</span>  <span style="color:#66D9EF">{</span>
+         <span>parents:</span> <span style="color:#C792EA">Reindeer</span>
+         <span>roles (1):</span> <span style="color:#C792EA">FlyingMagic</span>
+         <span>attributes (2):</span> <span style="color:#82AAFF">name</span>,<span style="color:#82AAFF"> sleigh</span>
+         <span>public methods (24):</span>
+             <span style="color:#82AAFF">dash_away</span>,<span style="color:#82AAFF"> DESTROY</span>,<span style="color:#82AAFF"> meta</span>,<span style="color:#82AAFF"> new</span>
+             <span>Carp:</span>
+                 <span style="color:#82AAFF">confess</span>
+             <span>Class::MOP::Class:</span>
+                 <span style="color:#82AAFF">:after</span>
+             <span>FlyingMagic:</span>
+                 <span style="color:#82AAFF">liftoff</span>
+             <span>Moose:</span>
+                 <span style="color:#82AAFF">after</span>, <span style="color:#82AAFF">around</span>, <span style="color:#82AAFF">augment</span>, <span style="color:#82AAFF">before</span>, <span style="color:#82AAFF">extends</span>, <span style="color:#82AAFF">has</span>, <span style="color:#82AAFF">inner</span>, <span style="color:#82AAFF">override</span>, <span style="color:#82AAFF">super</span>, <span style="color:#82AAFF">with</span>
+             <span>Moose::Object:</span>
+                 <span style="color:#82AAFF">BUILDALL</span>, <span style="color:#82AAFF">BUILDARGS</span>, <span style="color:#82AAFF">DEMOLISHALL</span>, <span style="color:#82AAFF">does</span>, <span style="color:#82AAFF">DOES</span>, <span style="color:#82AAFF">dump</span>
+             <span>Scalar::Util:</span>
+                 <span style="color:#82AAFF">blessed</span>
+         <span>private methods (1):</span> <span style="color:#82AAFF">_build_name</span>
+         <span>method modifiers (1):</span>
+             <span>after dash_away</span> <span style="color:#FF5370">&lt;undefined coderef&gt;</span>
+         <span>internals: </span><span style="color:#66D9EF">{}</span>
+     <span style="color:#66D9EF">}</span>
+  </code>
+</pre>
 
-    #define PERL_NO_GET_CONTEXT
-    #include "EXTERN.h"
-    #include "perl.h"
-    #include "XSUB.h"
-    #include <stdio.h>
+=end html
+
+The terminal lit up like a Christmas Tree. They could see the full class hierarchy, applied roles, attributes, public and private methods - everything! Santa's eyes sparkled. I<"Ho! Ho! Ho! I know what's wrong."> He pointed at the line that said C<< after  dash_away: <undefined coderef> >> in bright red. They searched the source code for C<< 'after "dash_away"' >> and quickly found the only entry, that read:
+
+=begin perl
+
+	after 'dash_away' => \&lifftoff;
+
+=end perl
+
+They took another look at the Data::Printer output searching for that method. Santa quickly spotted it coming from the C<FlyingMagic> role, but it was written differently. I<"A typo! Someone was naughty on that code review."> They fixed the typo and ran it again. It worked! One by one the reindeers started whirring. Santa was about to jump on the sleigh for a final test-drive when the elf interrupted the program. I<"What is it, B?"> the old man asked.
+
+Binky was staring at the terminal again. I<"It's leaking memory. The way things are, the sleigh will crash before you even reach the Atlantic. Hold on."> The elf added a bunch of C<p()> statements throughout the code. Santa Claus looked bewildered. I<"What are you doing? There will be so much stuff in the output we won't be able to make any of it out!">, he scoffed.
+
+I<"Sure we will."> Binky replied without taking her eyes off the monitor. I<< "We'll control what prints what on L<the .dataprinter file|Data::Printer/"The .dataprinter configuration file">" >>. She created a new file called ".dataprinter" on the root of the project path, then made it look something like this:
+
+=begin html
+
+<pre class="code-listing">
+    <code class="code">
+    <span class="single">show_refcount</span> <span class="operator">=</span> <span class="word">1</span>
+    <span class="single">theme</span> <span class="operator">=</span> <span class="word">Material</span>
     
-    MODULE = MerryChristmas    PACKAGE = MerryChristmas
+    <span class="symbol">[Sleigh::Engine]</span>
+        <span class="single">class.expand</span> <span class="operator">=</span> <span class="word">0</span>
     
-    void
-    merry_christmas()
-        CODE:
-            printf("Merry Christmas from XS!\n");
+    <span class="symbol">[Toys::Storage::MagicBag]</span>
+        <span class="single">filters</span> <span class="operator">=</span> <span class="word">DB</span>
+    
+    <span class="symbol">[Reindeer]</span>
+        <span class="single">class.stringify</span> <span class="operator">=</span> <span class="word">0</span>
+        <span class="single">class.show_wrapped</span> <span class="operator">=</span> <span class="word">0</span>
+        <span class="single">class.inherited</span> <span class="operator">=</span> <span class="word">none</span>
+        <span class="single">output</span> <span class="operator">=</span> <span class="word">/var/log/christmas/reindeer.data</span>
+    </code>
+</pre>
 
-=end code
+=end html
 
-Artie created C<MerryChristmas.pm>:
+Binky went on to explain that you could place global settings for Data::Printer at the top of that file, like setting a theme and showing refcounts, then create more specific rules that apply only to certain caller packages. In this case, any C<p()> statements made inside C<Sleigh::Engine> would not expand objects, showing only the class name and (as per the global setting) the refcount.
+On the other hand, calls to C<p()> inside C<Toys::Storage::MagicBag> would be subject to all the filters set on L<Data::Printer::Filters::DB>, useful to see database connection statuses, prepared statements, result sources and sets from DBI, DBIx::Class and more.
+
+Finally, calls to C<p()> made inside C<Reindeer.pm> would not attempt to stringify objects that have a subroutine C<as_string>, C<to_string> or similar, nor will they show wrapped method modifiers or methods inherited from parent classes. Even so, that particular output is in a hot codepath and can get pretty big, so instead of printing to STDERR, it will write to the custom C</var/log/christmas/reindeer.data> file.
+
+I<"We could even put all those settings in a custom profile package and upload it to CPAN or whatever, but right now a .dataprinter file is more than enough."> They tried running the program again and, sure enough, the output read:
+
+=begin html
+
+<pre>
+    <code>
+    <span style="color:#C792EA">Sleigh</span> (refcount: 10)
+    <span style="color:#C792EA">Sleigh</span> (refcount: 10)
+    <span style="color:#C792EA">Sleigh</span> (refcount: 10)
+    </code>
+</pre>
+
+=end html
+
+Santa was puzzled. I<"10 refcounts on the sleigh? We must have a circular reference somewhere. What's going on on that Reindeer log file?"> Binky opened it, but it looked pretty much the same: several reindeer objects just like before, except this time without the inherited methods but with a refcount next to each data, just like they asked:
+
+=begin html
+
+<pre>
+    <code>
+    <span style="color:#C792EA">Reindeer::Vixen</span>  <span style="color:#66D9EF">{</span>
+         <span>parents:</span> <span style="color:#C792EA">Reindeer</span>
+         <span>roles (1):</span> <span style="color:#C792EA">FlyingMagic</span>
+         <span>attributes (2):</span> <span style="color:#82AAFF">name</span>,<span style="color:#82AAFF"> sleigh</span>
+         <span>public methods (4):</span>
+             <span style="color:#82AAFF">dash_away</span>,<span style="color:#82AAFF"> DESTROY</span>,<span style="color:#82AAFF"> meta</span>,<span style="color:#82AAFF"> new</span>
+         <span>private methods (1):</span> <span style="color:#82AAFF">_build_name</span>
+         <span>internals: </span><span style="color:#66D9EF">{</span>
+             <span style="color:#82AAFF">sleigh</span>    <span style="color:#C792EA">Sleigh</span> (refcount: 10)
+         <span style="color:#66D9EF">}</span>
+     <span style="color:#66D9EF">}</span>
+  </code>
+</pre>
+
+=end html
+
+Santa sighed. I<"If only that Data::Printer of yours could signal weak references...">  Binky's eyes widened as she stared at him. I<"Nick, you're a genius!"> The old man chuckled. I<"Me? What did I do?"> The elf went on. I<"Data::Printer DOES show when it's looking at a weak ref. The fact that we don't see it means that Sleigh object right there was NOT weakened.">
+They opened the reindeer class in the editor and replaced the line that read:
 
 =begin perl
 
-    package MerryChristmas;
-    our $VERSION = '0.0';
-    require XSLoader;
-    XSLoader::load("MerryChristmas", $VERSION);
-    1;
+	has 'sleigh', is => 'rw', isa => 'Sleigh';
 
 =end perl
 
-Artie created a C<script/merrychristmas> to demo the module:
+with:
 
 =begin perl
 
-    use MerryChristmas;
-    MerryChristmas::merry_christmas();
+	has 'sleigh', is => 'rw', isa => 'Sleigh', weak_ref => 1;
 
 =end perl
 
-Artie edited C<default_config> in C<apperl-project.json> to add the C<MerryChristmas> module to the Perl repo, copy in the script, and set the destination executable name.
+They fired up the program again. The reindeers whirred and clanked for a few seconds, then Rudolph's nose lit up, signaling the restart was complete and they were all ready to fly. Santa's heartbeat kicked up a notch as Binky opened the logs to see what it showed:
 
-    "dest" : "merrychristmas.com",
-    "perl_repo_files" : { "ext/MerryChristmas" : ["MerryChristmas.pm", "MerryChristmas.xs"]},
-    "+MANIFEST" : ["__perlarchlib__/MerryChristmas.pm", "bin/merrychristmas"],
-    "+perl_onlyextensions" : ["MerryChristmas"],
-    "zip_extra_files" : { "bin" : ["script/merrychristmas"] }
+=begin html
 
-Artie checked out the config, configured, built, and tested out the Merry Christmas message contraption:
+<pre>
+    <code>
+    <span style="color:#C792EA">Reindeer::Vixen</span>  <span style="color:#66D9EF">{</span>
+         <span>parents:</span> <span style="color:#C792EA">Reindeer</span>
+         <span>roles (1):</span> <span style="color:#C792EA">FlyingMagic</span>
+         <span>attributes (2):</span> <span style="color:#82AAFF">name</span>,<span style="color:#82AAFF"> sleigh</span>
+         <span>public methods (4):</span>
+             <span style="color:#82AAFF">dash_away</span>,<span style="color:#82AAFF"> DESTROY</span>,<span style="color:#82AAFF"> meta</span>,<span style="color:#82AAFF"> new</span>
+         <span>private methods (1):</span> <span style="color:#82AAFF">_build_name</span>
+         <span>internals: </span><span style="color:#66D9EF">{</span>
+             <span style="color:#82AAFF">sleigh</span>    <span style="color:#C792EA">Sleigh</span> <span style="color:#90B55A">(weak)</span>
+         <span style="color:#66D9EF">}</span>
+     <span style="color:#66D9EF">}</span>
+  </code>
+</pre>
 
-    apperlm checkout default_config
-    apperlm configure
-    apperlm build
-    ./merrychristmas.com
+=end html
 
-Santa said, "Great work, now we can wrap camels of all shapes and sizes to spread cheer to the world! I'd like to put this into practice immediately". Artie replied, "Thank you Santa, I'll get to work teaching all the other elves how to wrap a camel."
+The sleigh references were weak and no refcount was showing. I<"Yes!"> the elf fell back into her chair and breathed a sigh of relief. I<< "Do we remove the C<p()> statements now that everything is fine?" >> asked Santa. I<< "We can, sure - but if you think they're in good debugging spots you can just add C<quiet = 1> to each section of the .dataprinter file and any calls to C<p()> will quickly return not printing anything. We can even add a C<live_update = 1> and Data::Printer will automatically watch the .dataprinter file and reload it whenever we change it without needing to restart the program." >>
 
-=cut
+The old man thanked his friend as she rose up to leave. Binky was almost at the door when she turned and realized Santa was still at the computer.
+I<< "You're gonna play with the output colors and L<make a new theme for Data::Printer|Data::Printer::Theme> now, aren't you?" >>
+
+Santa grinned. This was going to be a Merry Christmas after all.
+
