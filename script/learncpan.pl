@@ -29,36 +29,21 @@ my $ua = Mojo::UserAgent->new;
 my @rows;
 my @days = ( 1 .. 25 );
 
-foreach my $year ( 2002 .. 2004 ) {
-    foreach my $day (@days) {
-
-        my $url = get_url( $year, $day );
-        get_articles( $url,
-            { title_selector => 'title', module_selector => 'div.modtitle' } );
-    }
+unless (@ARGV) {
+    die 'Please provide a list of years';
 }
 
-
-# There is no sure way of identyfing the main module in the article for these years from the HTML
-foreach my $year ( 2005 .. 2010 ) {
-    foreach my $day (@days) {
-
-        my $url = get_url( $year, $day );
-        my $dom = get_dom($url);
-        next unless $dom;
-        my $title = $dom->at('title');
-
-        push @rows, [ 'TODO', $url, $title ];
+foreach my $year (@ARGV) {
+    if ( $year >= 2002 && $year < 2005 ) {
+        before_2005($year);
     }
-}
-
-foreach my $year ( 2011 .. 2019 ) {
-    foreach my $day (@days) {
-
-        my $url = get_url( $year, $day );
-        get_articles( $url,
-            { title_selector => 'h1.title', module_selector => 'div.subtitle' }
-        );
+    if ( $year >= 2005 && $year < 2011 ) {
+        # There is no sure way of identyfing the main module in the article
+        # for these years from the HTML
+        before_2011($year);
+    }
+    if ( $year >= 2011 ) {
+        after_2011($year);
     }
 }
 
@@ -145,4 +130,42 @@ sub get_dom {
     }
 
     return $res->dom;
+}
+
+sub before_2005 {
+    my $year = shift;
+
+    foreach my $day (@days) {
+
+        my $url = get_url( $year, $day );
+        get_articles( $url,
+            { title_selector => 'title', module_selector => 'div.modtitle' } );
+    }
+}
+
+
+sub before_2011 {
+    my $year = shift;
+
+    foreach my $day (@days) {
+
+        my $url = get_url( $year, $day );
+        my $dom = get_dom($url);
+        next unless $dom;
+        my $title = $dom->at('title');
+
+        push @rows, [ 'TODO', $url, $title ];
+    }
+}
+
+sub after_2011 {
+    my $year = shift;
+
+    foreach my $day (@days) {
+
+        my $url = get_url( $year, $day );
+        get_articles( $url,
+            { title_selector => 'h1.title', module_selector => 'div.subtitle' }
+        );
+    }
 }
