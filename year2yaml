@@ -1,0 +1,57 @@
+#!/usr/bin/env perl
+#===============================================================================
+#
+#         FILE: year2yaml
+#
+#        USAGE: year2yaml YYYY [ outfile ]
+#
+#  DESCRIPTION: Append the given year's topics to the archives.yaml file
+#
+#      OPTIONS: If the outfile is specified, use that instead of
+#               'archives.yaml'
+# REQUIREMENTS: ---
+#         BUGS: Assumes every topic is a module
+#        NOTES: ---
+#       AUTHOR: Pete Houston (pete), cpan@openstrike.co.uk
+# ORGANIZATION: Openstrike
+#      VERSION: 1.0
+#      CREATED: 05/07/23
+#===============================================================================
+
+use strict;
+use warnings;
+use 5.010;
+
+my ($year, $archfile) = @ARGV;
+$year =~ /^\d{4}$/ or die "Bad year: $year";
+my $ydir = "$year/articles";
+$archfile //= 'archives.yaml';
+
+die "No articles found for $year" unless -d $ydir;
+
+my $ytext = "\n$year:\n";
+my $yh;
+for my $day (1 .. 25) {
+	my $file = sprintf "$ydir/%4.4i-12-%2.2i.pod", $year, $day;
+	print "Processing file $file\n";
+	my @modlist;
+	next unless -e $file;
+	open my $ifh, '<', $file or die "Cannot open $file for reading: $!";
+	while (my $line = <$ifh>) {
+		if ($line =~ /^Topic: (\S+)/) {
+			print "Found topic $1\n";
+			push @modlist, $1;
+		}
+		last unless $line =~ /\S/;
+	}
+	close $ifh;
+	next unless @modlist;
+	$ytext .= sprintf "  %2.2i:\n", $day;
+	for my $m (@modlist) {
+		$ytext .= qq#  - { "module" : "$m" }\n#;
+	}
+}
+
+open my $ofh, '>>', $archfile or die "Cannot open $archfile for writing: $!";
+print $ofh $ytext;
+close $ofh;
