@@ -17,7 +17,7 @@ $ perl script/new_article
 Edit your article, and test it as you work:
 
 ```bash
-$ perl t/article_pod.t 2022/incoming/your-article.pod
+$ perl t/article_pod.t 2023/incoming/your-article.pod
 ```
 
 When you are satisfied, create a pull request. You can keep working
@@ -44,7 +44,7 @@ $ sudo cpanm WWW::AdventCalendar
 
 Then build all recent calendars
 ```bash
-$ for year in 2011 2012 2013 2014 2015 2016 2017 2018 2019 2020 2021 2022; do cd $year && advcal -c advent.ini -o `pwd` && cd ..; done
+$ for year in $(seq 2011 2023); do cd $year && advcal -c advent.ini -o `pwd` && cd ..; done
 ```
 
 ### 3. Test (locally)
