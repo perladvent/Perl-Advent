@@ -28,7 +28,8 @@ will automatically see the updates.
 
 ### 1. Build root files
 To create some root files from `archives.yaml`:
-- `archive.html` - list of advent calendars
+
+- `archives.html` - list of advent calendars
 - `archives-AZ.html` - list of modules
 - `archives-Yd.html` - list of articles
 
