@@ -1,0 +1,124 @@
+Author: Bartosz Jarzyna <contact@bbrtj.eu>
+Title: Santa tackles Bitcoin, part two
+Topic: Bitcoin::Crypto
+
+=encoding utf8
+
+It was a new day in Lapland! Well, sort of... it was still dark outside due to
+polar night, but our elf friend McJingles was well-rested and full of energy!
+Last day he learned all about how to make a transaction using
+L<Bitcoin::Crypto>, but he forgot to prepare the private keys to be gifted by
+Santa. Elves may be very hard-working, but they are also forgetful!
+
+He quickly came up with a plan: the private keys will probably be printed on
+lovely decorated Christmas gift cards. All he had to do is provide printable
+representations of the private keys and the other elves can do all the
+printing. McJingles decided it will for now be enough to print all the keys as
+those Wallet Import Format things he had used before to get access to the
+initial 50 BTC. The standard output of the script can be redirected to a file
+with no additional effort.
+
+=begin perl
+
+use v5.36;
+use Bitcoin::Crypto qw(btc_extprv);
+
+# Ask for mnemonic and password. Keeping them in a file makes them much easier
+# target for malware and hackers!
+say 'Please provide the mnemonic and password, each in separate lines:';
+my $mnemonic = readline STDIN;
+my $password = readline STDIN;
+
+# Remove the newline from readline
+chomp $mnemonic;
+chomp $password;
+
+# recover a key from input
+my $master_key = btc_extprv->from_mnemonic($mnemonic, $password);
+
+# how many presents?
+my $number_of_kids = 346;
+
+# print all the keys in WIF format
+foreach my $index (0 .. $number_of_kids - 1) {
+
+	# same derivation scheme as before
+	my $key = $master_key->derive_key_bip44(
+		purpose => 84,
+		account => 0,
+		index => $index,
+	)->get_basic_key;
+
+	# print it to standard output
+	say $key->to_wif;
+}
+
+=end perl
+
+This script was much more straightforward than the previous one! It was time to
+see if the key recovery worked:
+
+	Please provide the mnemonic and password, each in separate lines:
+	brown bulk hire culture capital hill trim turkey  gossip artefact door media argue basic execute slam minute try number daughter music gauge vocal wink
+	Christmas
+	L1pn6bRKUY1dMXg6XvURHNCrm9CDByFehQPHmnfTKQXCxRktUAqN
+	L3dhFVe8BgjgGGbu2Rm72fcgyB3SgVZ2ee8fsoezSA47QxhDAng5
+	L2TZEBZJ2yTb2JxcxbUippr3DBAkZopLFrXSGGZRRzfH78RFcTnj
+	(...)
+
+It worked indeed, but it was not yet clear whether the private keys were the
+correct ones. McJingles crafted a one-liner to test the first key he got:
+
+	$ perl -MBitcoin::Crypto=btc_prv -e \
+	'print btc_prv->from_wif("L1pn6bRKUY1dMXg6XvURHNCrm9CDByFehQPHmnfTKQXCxRktUAqN")->get_public_key->get_address'
+	bc1qls9ffahaa5kezk0zvq2hh58nn6yfv8uehdq7dp
+
+Something was wrong. That's not the address which was generated before! How is
+that possible? After thorough investigation McJingles found out he typed two
+spaces while providing the mnemonic for the program. A quick scan though
+L<Bitcoin::Crypto::Key::ExtPrivate> documentation has revealed that
+C<from_mnemonic> method usage without the language argument is not only
+whitespace-sensitive but also doesn't check the if the words exist in the
+dictionary. It is pretty unsafe to use it like that unless you nail it exactly
+right! He modified the script to add C<'en'> language as the last argument to
+C<from_mnemonic>...
+
+=begin perl
+
+my $master_key = btc_extprv->from_mnemonic($mnemonic, $password, 'en');
+
+=end perl
+
+... and then tried again, making the same mistake:
+
+	Please provide the mnemonic and password, each in separate lines:
+	brown bulk hire culture capital hill trim turkey  gossip artefact door media argue basic execute slam minute try number daughter music gauge vocal wink
+	Christmas
+	L4DrMfpZRp5P6szTGqWQHnYDBJaAwTRN8NHRkTM3Kc79U14wi5Li
+	L3rpcJdvNynUCWWaQEEAXkS7FPpCrz1HnCiHT4VYcmm4oWct5Fd8
+	KwzsywmntPwwnEMTbd9jw7wPjeM4PKx52KeSLU9cZ4o1Qx7AFyTD
+	(...)
+
+The output was different, but was it the right key this time?
+
+	$ perl -MBitcoin::Crypto=btc_prv -e \
+	'print btc_prv->from_wif("L4DrMfpZRp5P6szTGqWQHnYDBJaAwTRN8NHRkTM3Kc79U14wi5Li")->get_public_key->get_address'
+	bc1qum6sd22rmsewwd75lzlynuve8wz0ah2uw2gltu
+
+Yes, that's correct! This was the first address printed in the transaction dump
+yesterday. If he was able to obtain the same address then surely he will be
+able to move the coins. And so are the children! When they wake up in the
+morning and find the gift cards, they will have an option of keeping it or
+sweeping it. Sweeping is a function commonly found in mobile Bitcoin wallets
+and when used the coins will be transferred away to a different wallet. To
+spare the kids all the retyping of the WIF it's best to also provide a QR code,
+but that's a problem for another day (or another elf).
+
+He ran the script again with output redirected to a file and e-mailed it to
+Santa. "Here Father Christmas, I made it!" - he typed in excitement. He added
+all the other elves as CC to the e-mail so they could start printing the gift
+cards. It was a job well done indeed.
+
+Now the last question remains: will he remember to publish the transaction before
+the Silent Night? We are about to find out very, very soon.
+
