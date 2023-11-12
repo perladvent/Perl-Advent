@@ -1,0 +1,65 @@
+=head1 Arango::Tango, the new mammal in town
+
+L<Arango::Tango> is not properly new, as the first versions are from 2019. Nevertheless, the number of users is still quite small as 
+other document-oriented databases, like L<ElasticSearch|https://www.elastic.co/> or C<MongoDB|https://www.mongodb.com/> are still quite
+popular. But beging somehow alergic to Java, I went in the search for an alternative and found C<ArangoDB|https://arangodb.com/>, a graph
+database (also able to deal with plain document collections) written in C++. 
+
+At that time I did not find an interesting Perl module to use it, so I decided to create one. L<Arango::Tango> was born. It is, surely,
+the Perl module I own with a cuter name, with both a pun on dancing a Tango with Arango, but also with the similarity with orangutangus.
+
+ArangoDB insterface is based on REST, and the REST API is properly documented with swagger. It should be possible to use any generator
+that, from a swagger specification, generates an API. But, being REST, the API is stateless, and that does not help being proficient when
+using it. Thus, I created my own monster, that both tries to be versatile enough to allow quick implementation of new methods using a 
+structure similar to a swagger file, but also with an object-oriented approach, where each type of object we can manage in the ArangoDB database
+has a counterpart Perl object.
+
+To give a quick example on how to create a ArangoDB collection and insert a couple of documents:
+
+    use Arango::Tango;
+
+    my $server = Arango::Tango->new( host     => '127.0.0.1',
+                                     username => 'root',
+                                     password => '123123123');
+    
+    my $database = $server->create_database("database_name");
+    my $collection = $database->create_collection("collection_name");
+    
+    my $document = { name => "John", surname => "Doe" };
+    $collection->create_document( $document );
+
+    my $documents = [
+        { _key => "homer", name => "Homer", surname => "Simpson" },
+        { _key => "marge", name => "Marge", surname => "Simpson" }
+    ];
+    $collection->bulk_import( $documents );
+
+All the methods result in an HTTP request. But note that given a database and a collection objects are returned by the constructors, you
+do not need to track them yourself. You just create documents in the collection, and the module knows where the collection is (which database) and
+constructs properly the request.
+
+To explain the guts of the module would take some time. Nevertheless, some candy follows. For simple methods, each module calls a C<_install_methods>
+that creates, on the fly, methods for that object. Example for the C<Arango::Tango::Collection> module:
+
+    load_indexes => {
+        rest => [ put => '{{database}}_api/collection/{name}/loadIndexesIntoMemory' ],
+        inject_properties => [ 'database', 'name' ],
+    },
+
+    rename => {
+        rest => [ put => '{{database}}_api/collection/{collection}/rename' ],
+        inject_properties => [ 'database', { prop => 'name', as => 'collection'  } ],
+        signature => [ 'name' ],
+        schema => { name => { type => 'string' }},
+    },
+
+You have the name of the method to create, the C<rest> request pattern, the C<schema> of the data sent in the body of the POST or PUT request, an C<inject_properties>
+that specify how to fill in the REST pattern and, finally, a C<signature> that specifies the parameters that are received by the method. Thus, the C<load_indexes> method
+does not receive any parameter, while the C<rename> method receive the name to which to rename the collection.
+
+Unfortunately not all requests are as easy, to generalize and therefore there is some extra code to deal with hairy calls. But I would say that, at the end, the module
+has an interesting architecture.
+
+If you found this interesting, I would appreciate your help on supporting more of the ArangoDB API!
+
+=cut
