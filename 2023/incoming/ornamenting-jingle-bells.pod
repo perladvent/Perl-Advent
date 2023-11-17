@@ -1,0 +1,147 @@
+Author: Gene Boggs <gene.boggs@gmail.com>
+Title: Ornamenting Jingle Bells
+Topic: Music::MelodicDevice::Ornamentation
+
+=encoding utf8
+
+=head1 Ornamenting Jingle Bells
+
+=head2 SITUATION
+
+Santa was growing tired of the music piped into his workshop.
+
+For example, Jingle Bells was just too ordinary sounding to his ears. It
+needed a bit of Christmas cheer to pep up the Elves!
+
+And here is a bit of that tune, that plays at the workshop:
+
+=for html
+  <audio controls><source src="https://github.com/ology/Music/raw/master/jingle-bells-plain.mp3" type="audio/mp3"></audio>
+
+Ordinary to say the least!
+
+=head2 ASSESSMENT
+
+Santa asked a couple of his more creative elves to come up with a way to
+brighten things up musically. And they tinkered, the way elves do.
+
+The cowbell was proposed, but that got shot down quick. Eventually, the
+most musically experienced elf suggested adding "ornamentation" to
+certain notes. This she said, included commonly heard things like
+"trills."
+
+(And it is said that she toured as a roadie, in the 60s with
+Hendrix, CSN, and others.)
+
+After some thinking about exactly how to add ornaments to Christmas
+tunes, a young guitarist elf pointed to
+L<CPAN|https://metacpan.org/> and the
+L<Music::MelodicDevice::Ornamentation|https://metacpan.org/pod/Music::MelodicDevice::Ornamentation>
+module, that seemed to fit the bill perfectly.
+
+Then after reading the examples, the team modified the source and gave
+it a try... They listened to each of the ornaments and decided to
+trigger them from a dispatch table, based for the moment, on a loop
+counter. More sophisticated triggers based on advanced music theory
+concepts were considered, but Christmas was fast approaching!
+
+=head2 PROTOTYPE
+
+Here is the prototype code they came up with for Santa. (And it has
+too much ornamentation for just 16 bars, on purpose for illustration
+purposes.)
+
+    #!/usr/bin/env perl
+    use strict;
+    use warnings;
+
+    use MIDI::Util qw(setup_score);
+    use Music::MelodicDevice::Ornamentation ();
+
+    # The number of notes before resetting the note counter
+    use constant MAX => 16;
+
+    # Sixteen measure fragment of "duration.pitch" notes
+    my @notes = qw(
+        qn.E4 qn.E4 hn.E4
+        qn.E4 qn.E4 hn.E4
+        qn.E4 qn.G4 qn.C4 qn.D4
+        wn.E4
+
+        qn.F4 qn.F4 qn.F4 qn.F4
+        qn.F4 qn.E4 qn.E4 qn.E4
+        qn.E4 qn.D4 qn.D4 qn.E4
+        hn.D4       hn.G4
+
+        qn.E4 qn.E4 hn.E4
+        qn.E4 qn.E4 hn.E4
+        qn.E4 qn.G4 qn.C4 qn.D4
+        wn.E4
+
+        qn.F4 qn.F4 qn.F4 qn.F4
+        qn.F4 qn.E4 qn.E4 qn.E4
+        qn.G4 qn.G4 qn.F4 qn.D4
+        wn.C4
+    );
+
+    # Setup a new MIDI score
+    my $melody = setup_score(bpm => 140);
+
+    # Setup a new musical ornament maker
+    my $ornament = Music::MelodicDevice::Ornamentation->new(
+        scale_note => 'C',
+        scale_name => 'major',
+    );
+
+    # Dazzle with musical ornamentation (based on beat position for now)
+    my %dazzle = (
+         2 => sub { $ornament->mordent(@_, 1) },
+         7 => sub { $ornament->trill(@_, 2, 1) },
+        10 => sub { $ornament->turn(@_, 1) },
+        13 => sub { $ornament->grace_note(@_, -1) },
+    );
+
+    # For each duration.note pair...
+    my $counter = 0;
+    for my $note (@notes) {
+        my @note = split /\./, $note;
+
+        # Add either an ornamented or a "plain" note to the score
+        if (exists $dazzle{$counter}) {
+            my $fancy = $dazzle{$counter}->(@note);
+            $melody->n(@$_) for @$fancy;
+        }
+        else {
+            $melody->n(@note);
+        }
+
+        # Increment the counter, or start over if we've reached the max
+        $counter = $counter == MAX ? 0 : $counter + 1;
+    }
+
+    # Write out the fancy score as a MIDI file
+    $melody->write_score("$0.mid");
+
+=head2 SYNOPSIS
+
+      $ perl jingle-bells
+      $ timidity jingle-bells.mid
+
+=head2 RESULT
+
+And here is the result:
+
+=for html
+  <audio controls><source src="https://github.com/ology/Music/raw/master/jingle-bells-fancy.mp3" type="audio/mp3"></audio>
+
+Santa approved the MIDI and the code review, and the team of intrepid
+elves went to work B<tastefully> implementing ornamentation into the
+rest of the music system - all driven by Perl, of course!
+
+=head2 SEE ALSO
+
+=for :list
+* L<The code|https://github.com/ology/Music/blob/master/jingle-bells>
+* L<MIDI::Util>
+* L<Music::MelodicDevice::Inversion>
+* L<Music::MelodicDevice::Transposition>
