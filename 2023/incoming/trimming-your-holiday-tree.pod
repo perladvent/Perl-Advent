@@ -1,0 +1,81 @@
+Author: brian d foy <bdfoy@cpan.org>
+Title: Trimming your holiday tree
+Topic: builtin
+
+=encoding utf8
+
+It's time to pull out your holiday decorations. If you are like me, you probably have a couple of new decorations to add to your collection.
+
+Perl v5.36 has some new ornaments too. The new pragma L<builtin> defines several new functions in Perl's core. I go through these in L<Perl New Features|https://leanpub.com/perl_new_features>, but there's one I want to show you this holiday season.
+
+=head2 Remove surrounding whitespace
+
+Typically I get rid of the annoying whitespace with an inefficient global substitution that I can't make my fingers not type:
+
+=begin perl
+
+	use v5.10;
+	my $dirty_string = '   Happy Holidays   ';
+	say "Dirty:   <$dirty_string>";
+
+	$dirty_string =~ s/\A\s+|\s+\z//ug;
+	say "Trimmed: <$dirty_string>";
+
+=end perl
+
+That C</u> tells the substitution to use the Unicode rules, which means this also trims all the L<other whitespace that Unicode defines|https://www.effectiveperlprogramming.com/2011/01/know-your-character-classes/>. I'm especially fond of that one after chasing down a bug caused
+
+Or, more likely, I keep the original as is and make a copy with the \r flag from v5.14. This way I can log the original value later when I'm trying to figure out why some inputs don't work right (or someone is passing bad data):
+
+=begin perl
+
+	use v5.26;
+	my $dirty_string = '   Happy Holidays   ';
+	my $trimmed = $dirty_string =~ s/\A\s+|\s+\z//ugr;
+
+	say <<~"HERE";
+		Dirty:   <$dirty_string>
+		Trimmed: <$trimmed>
+		HERE
+
+=end perl
+
+This is such a common operation that it deserves its own name— C<trim>. The L<builtin> pragma is still experimental, so I turn off
+those warnings with L<experimental> before I enable C<trim>:
+
+=begin perl
+
+	use v5.36;
+	use experimental qw(builtin);
+	use builtin qw(trim);
+
+	my $dirty_string = '   Happy Holidays   ';
+	my $trimmed = trim($dirty_string);
+
+	say <<~"HERE";
+		Dirty:   <$dirty_string>
+		Trimmed: <$trimmed>
+		HERE
+
+=end perl
+
+All of these get you to the same output:
+
+	Dirty:   <   Happy Holidays   >
+	Trimmed: <Happy Holidays>
+
+=head2 More ornaments
+
+L<builtin> provides other new ornaments. I give detailed examples of these in L<Perl New Features|https://leanpub.com/perl_new_features>.
+
+The C<blessed>, C<refaddr>, C<reftype>, C<is_tainted> (as C<tainted>), C<is_weak> (as C<isweak>), C<weaken>, and C<unweaked> functions have so far been part of the L<Scalar::Util> module. Now they are directly in core and do the same job.
+
+The C<ceil> and C<floor> functions move from the heavyweight L<POSIX> module directly into core.
+
+More excitingly, L<builtin> adds C<true> and C<false>: no more C<!!1>  floating around your code confusing everyone. These "distinguished" booleans know that they are booleans rather than comparing themselves to Perl's idea of truthiness. These are useful for turning data into formats that have special keywords for those ideas, such as JSON's C<true> or C<false>. You can check if you have one these distinguished values with C<is_bool>.
+
+Along with that, L<builtin> knows is something is a string or a number based on the last thing that happened to it. With C<created_as_number> or C<created_as_string>, you know if you need to create the JSON string value C<{"value": 137}> or the JSON string value C<{"value": "137"}>. This should work going the other way too. Eventually the various libraries will catch up to Perl so we don't have to do weird acrobatics to figure out what sort of value we are supposed to have.
+
+There are a few other interesting features for you to discover in L<builtin>, and I hope man of these lose their experimental status soon.
+
+=cut
