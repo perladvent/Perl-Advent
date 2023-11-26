@@ -1,0 +1,208 @@
+Author: Saif <saiftynet@gmail.com>
+Title: Who's That Clicking At The Window?
+Topic: GUIDeFATE
+
+=encoding utf8
+
+=head2  Who's That Clicking At The Window?
+
+Life at the Grotto has finally joined the modern age.  Santa has got a new Laptop.
+The clacketty clack of his previous rather large steam powered workstation, a keyboard and a 
+green phosphor terminal, replaced by a sleek portable device that could easily be carried on the sleigh.
+But some of the elves were mystified.
+
+"Errr, what can you do with it?" asked Shinny Upatree, the aging elf.
+
+"Look, " said Sugarplum eagerly,"Its looks so pretty, and you can move this arrow every where!",
+
+Shinny was not convinced.
+
+"I can even search for cute cat pictures",
+
+Shinny knew all about gimmicks, "So what can you do that we NEED to do?",
+
+"You can open up a terminal, and all our old software will work like before, I can 
+even make the characters green", said Sugarplum desparately trying to make a case for new technology,
+"You can even use Notepad to write stuff"
+
+Santa was passing by in a hurry, and overheard the conversation.
+"Of course, I have not got this new device just to still do things the old ways"
+he said, "I want a GUI", as he rushed by on his high performance electric scooter.
+
+"Is that as messy as it sounds?" asked Shinny.
+
+"Yes," groaned Sugarplum, "There are many GUI frameworks, it takes time to learn, and unlike 
+terminal applications we are used to, a GUI application compiled for Santa's PC may not work on
+your Linux machines without significant effort."
+
+"Alabaster Elf would know, but he is on leave!",
+
+"Creating windows, positioning  buttons, text entry widgets, drop down boxes,
+making menus, calling up dialog boxes, file selectors, callbacks,...oh how are we
+going to manage?"
+
+Sugarplum had her head in her hands as Santa whizzed back again. "You can use Notepad?"
+
+"That's about all I can do," she sniffled, "and Shinny can use vim on a terminal.",
+
+"Then try L<GUIDeFATE>", said Santa, "It stands for GUI Design From A Text Editor",
+
+"Using L<GUIDeFATE>, you simply draw the window and the widgets using ASCII characters in 
+monospace fonts," he continued, "with a few easy-to-learn patterns to define widgets."
+
+=over 2
+
+=item *
+
+Ordinary text are "Static Text" items in the window
+
+=item *
+
+Buttons are enclosed in curly braces e.g. C<{Submit}>
+
+=item *
+
+Inputs are in square braces e.g.C<[Default value]>
+
+=item *
+
+Drop down boxes are in carets (not carrots) e.g.C<^ListName^>
+
+=item *
+
+Images and Text Panels at drawn boxes with "I" ar or "T" in the top line
+
+=back
+
+Half an hour later, after installing Tk and force installing GUIDeFATE
+Sugarplum Mary had already the following code:
+
+=begin perl
+
+	#!/usr/bin/env perl 
+	# A database for Santa
+
+	use strict;
+	use warnings;
+	use GUIDeFATE;
+
+	my $window=<<END;
+	+-------------------------------------------+
+	|T The Everybody Database                   |
+	+M------------------------------------------+
+	|  Making A List, Checking it twice         |
+	|  Gonna find out Who's naughty and nice    |
+	|                                           |
+	|  {<} Person Index {>}  [Name         ]{?} |   
+	|  +T-----------------+  +I--------------+  |    
+	|  |Address           |  | Avatar.png    |  |
+	|  |                  |  |               |  |
+	|  |                  |  |               |  |
+	|  +------------------+  +---------------+  |
+	|  ^NiceOrNaughty     ^  [Present        ]  |
+	|  [Chimney Access Notes                 ]  |
+	|     {New}{Update}{Delete}{Read Letter}    |
+	|     Person 00000000001 of 8,342,124,422   |
+	|                                           |
+	+-------------------------------------------+
+
+	NiceOrNaughty=Nice,Naughty
+
+	END
+
+	my $backend="tk";                 # one of gtk, tk, gtk3, wx, win32 or html
+	my $assist="a";                   # a for autogenerate, v for verbose, q for quiet
+	my $gui=GUIDeFATE->new($window,$backend,$assist); # Create the interface
+	my $frame=$gui->getFrame()||$gui; # $frame object now contains all the widgets 
+	$gui->MainLoop();                 # start the GUI 
+
+=end perl
+
+
+Executing this script yielded the following UIs with GTK, TK, HTML and Wx, effectively
+17 "widgets" in less than 10 instructions.
+
+=for :html
+<div style="text-align: center;"><img width="800" src="share/static/UI.png"></div>
+
+But Santas laptop ran Windows.  The solution was thankfully simple.  Install L<Win32::GUI>
+and L<Imager> on Santas laptop, and change the  C<$backend> variable to C<"win32">.  
+
+Making a UI was one thing, but tying actions to the widgets is quite another.  How woud you code
+the functions trigegerd by user interactions with the interface?  Well passing "a" 
+(for autogenerate) as the C<$assist> parameter, makes L<GUIDeFATE> to create a text file
+with all the detected widgets as well as the skeleton functions that represent the callbacks.
+This is only required once, and the assist can be switched off by revertong to "q",
+afterwards to prevent generating this file at every execution.  
+
+With the above UI it generates the following file:
+
+=begin perl
+
+	#Static text 'Making A List, Checking it twice'  with id stattext0
+	#Static text 'Gonna find out Who's naughty and nice'  with id stattext1
+	sub btn2 {#called using button with label < 
+	  # subroutine code goes here
+	   };
+
+	sub btn3 {#called using button with label > 
+	  # subroutine code goes here
+	   };
+
+	sub btn4 {#called using button with label ? 
+	  # subroutine code goes here
+	   };
+
+	sub textctrl5 {#called using Text Control with default text ' Name          '
+	  # subroutine code goes here
+	   };
+
+	#Static text 'Person Index'  with id stattext6
+	#Static text '|'  with id stattext7
+	#SubPanel 'T' Id 9 found position  3 height 5 width 18 at row 5 with content Address 
+	#SubPanel 'I' Id 11 found position  25 height 5 width 15 at row 5 with content Avatar.png 
+	#Static text '|'  with id stattext12
+	sub combo13 {#called using combobox with data from @NiceOrNaughty
+	  # subroutine code goes here
+	   };
+
+	sub textctrl14 {#called using Text Control with default text ' Present         '
+	  # subroutine code goes here
+	   };
+
+	sub textctrl15 {#called using Text Control with default text ' Chimney Access Notes                  '
+	  # subroutine code goes here
+	   };
+
+	sub btn16 {#called using button with label New 
+	  # subroutine code goes here
+	   };
+
+	sub btn17 {#called using button with label Update 
+	  # subroutine code goes here
+	   };
+
+	sub btn18 {#called using button with label Delete 
+	  # subroutine code goes here
+	   };
+
+	sub btn19 {#called using button with label Read Letter 
+	  # subroutine code goes here
+	   };
+
+	#Static text 'Person 00000000001 of 8,342,124,422'  with id stattext20
+	
+=end perl
+
+Each item in the window can be accessed using the id.
+Each button click or input change triggers a subroutine.
+Static Texts can be changed by using their IDs.
+
+More information can be found at L<GUIDEFATE's Github Pages||https://github.com/saiftynet/GUIDeFATE>
+
+This was a quick and dirty solution to creating a general purpose intuitive UI; something that 
+young Alabaster, the elf with advanced graphical interface powers could easily beautify once
+he returns from his well earned rest.
+
+
+=cut
