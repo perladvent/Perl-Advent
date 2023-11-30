@@ -9,11 +9,11 @@ mkdir $site
 
 perl mkarchives $site
 
-for year in 2000 2001 2002 2003 2004 2005 2006 2007 2008 2009 2010; do
-    cp -R $year out/
+for year in $(seq 2000 2010); do
+    cp -R "$year" out/
 done
 
-for year in 2011 2012 2013 2014 2015 2016 2017 2018 2019 2020 2021 2022; do
+for year in $(seq 2011 2023); do
     mkdir "$site/$year"
     cd "$year"
     advcal -c advent.ini -o "../$site/$year" --https
