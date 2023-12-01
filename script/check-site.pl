@@ -92,6 +92,7 @@ my $robocop = WWW::RoboCop->new(
 
         return 0 if $limit > $upper_limit;
         my $uri = URI->new( $link->url_abs );
+        return 0 unless $uri->can('host'); # skip mailto
 
         # If the link URI does not match the host but the referring_url matches
         # the host, then this is a 1st degree outbound link.  If outbound link
