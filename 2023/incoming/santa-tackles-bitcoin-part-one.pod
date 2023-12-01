@@ -1,0 +1,280 @@
+Author: Bartosz Jarzyna <contact@bbrtj.eu>
+Title: Santa tackles Bitcoin, part one
+Topic: Bitcoin::Crypto
+
+=encoding utf8
+
+Santa is facing a new problem. Year after year, an increasing number of kids
+list Bitcoin as a thing they want to find under the Christmas Tree. This new
+trend comes much to displease of the Kriss Kringle.
+
+- This is outrageous! - he yelled in annoyance - How can this thing even have
+value? Hasn't it died like five hundred times already? It's not even real!
+
+He started stroking his beard, thinking. His white moustache danced like waves
+on a beach as he tried to understand the new reality of 2023. If the good kids
+want it, then he must oblige. But how could something be left in someone's house
+if it isn't physical? He asked his most tech-savvy elf, McJingles, to
+research the subject.
+
+McJingles is a hacker. He knows a bunch of programming languages but Perl is
+his favourite. He's a walking reference book for all things software. But
+Bitcoin? That's relatively new and not really something he paid attention to.
+Moreover, the nasty things he heard about it and the criminals has put him off a
+great deal. But to be tasked to research it from the Father Christmas himself?
+That's a completely new level of incentive!
+
+So he searched the Web for the term, but most of what he got were rubbish price
+speculation articles. The L<Bitcoin wiki|https://en.bitcoin.it> was of some
+help, but it was partially outdated. The L<Bitcoin Improvement
+Proposal|https://github.com/bitcoin/bips> documents were good, but a bit too
+specific for his level. So maybe books? He read I<Mastering Bitcoin> by Andreas
+Antropolus, which gave him a nice insight into the technical side of Bitcoin.
+He pressed ahead with I<The Bitcoin Standard> by Saifedean Ammous, which
+provided all the economic details he needed.
+
+It quickly became obvious the new task couldn't be performed in the current modus
+operandi. The Elves were used to crafting everything themselves and often
+resorting to magic in their toys factory. They can't counterfeit Bitcoin - not
+because it's a bad thing to do, but rather because it's impossible. Even the
+strongest Elf Magic won't do. They could either try to mine it or obtain it by
+providing high quality goods and services on the market. Luckily, one of the
+elves remembered he had played with Bitcoin back in 2011 and still had the old
+hard drive, from which they were able to reclaim keys to 50 bitcoins, enough
+for a big juicy present for I<a lot> of kids. The unspent transaction ID for
+their coins is
+L<a4e407ba6b54106e4bd209704666a2b541b9b03d04ef8cb779aafe18238744e1|https://mempool.space/tx/a4e407ba6b54106e4bd209704666a2b541b9b03d04ef8cb779aafe18238744e1>.
+
+Now the next step was to split the big chunk of 50 bitcoins into smaller pieces.
+This means you need to create a transaction with one input (the unspent
+previous transaction output of 50 bitcoins) and N + 1 outputs (one output for
+each of N kids, plus an additional one for the change). Since Santa said the
+number N is well in hundreds this year, crafting this transaction by
+hand in a wallet software was out of question and they needed some kind of
+programmable library. McJingles, being Perl lover, decided to give the module
+L<Bitcoin::Crypto> a go. He started a new script to create the transaction:
+
+=begin perl
+
+use v5.36;
+use Bitcoin::Crypto qw(btc_prv btc_utxo);
+
+# first, import the 50 BTC output from previous transaction hex
+btc_utxo->extract([hex => '
+	010000000100000000000000000000
+	000000000000000000000000000000
+	00000000000000ffffffff07045285
+	021b0151ffffffff0100f2052a0100
+	000043410452b58be18046f78a0045
+	fe49df56387a03f994ba2ac7a26e17
+	f7d01dc6d346f1bed3979ad35d32a7
+	5bb625f6e521f75a1c5983d303ea04
+	bfb43c8b72203a68eeac00000000
+']);
+
+# second, import the private key to these BTC
+my $priv = btc_prv->from_wif('<SUPER SECRET KEY TO 50 BTC>');
+
+=end perl
+
+So far so good, but there were some decisions to be made before continuing. The
+old private key was in I<WIF>, short for Wallet Import Format, which is only
+capable to hold a single private key. Now hundreds of private keys needed to be
+generated, and the most important one of them all would be the change address
+for the unspent BTC. You may just send back to the address you've taken from,
+but since the P2PK scheme is effectively obsolete they figured it was smarter
+to generate a new type of address and send there. McJingles decided to generate
+a new mnemonic phrase capable of providing as many private keys as needed:
+
+=begin perl
+
+use Bitcoin::Crypto qw(btc_extprv);
+use Bitcoin::Crypto::Util qw(generate_mnemonic);
+
+# generate a new random mnemonic with 256 bits of entropy
+my $mnemonic = generate_mnemonic(256);
+my $password = 'Christmas';
+
+# create a new master master key from the mnemonic
+my $master_key = btc_extprv->from_mnemonic($mnemonic, $password);
+
+# instruct the user to backup the mnemonic
+# (say function is a part of 5.36 version bundle)
+say "Your mnemonic is <$mnemonic>";
+say "and your password is <$password>";
+say "Back them up!";
+
+=end perl
+
+Mnemonic phrases are sets of words which encode the wallet's entropy in a human
+(or elf!) readable way. In case of 256 bits, the mnemonic will contain 24
+words. The optional password makes sure it's not that easy for anyone who gets
+the mnemonic to take hold of all the Bitcoin. It is a secondary security
+feature. McJingles knew it was best to store the mnemonic offline, for example
+written on paper.
+
+The created C<$master_key> can be used to derive many keys from it using
+Hierarchical Deterministic derivation schemes. The clever elf decided to use
+the most widely supported L<BIP44
+scheme|https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki> with
+L<purpose 84|https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki>.
+By using this purpose number, L<Segregated
+Witness|https://en.wikipedia.org/wiki/SegWit> addresses were created. It's a
+modern type of address which makes the on-chain fees lower.
+
+=begin perl
+
+# cuz Santa said so
+my $number_of_kids = 346;
+
+# get the master key for the BIP44 account with purpose 84
+my $account_key = $master_key->derive_key_bip44(
+	purpose => 84,
+	get_account => !!1,
+	account => 0, # to be bumped up next Christmas!
+);
+
+# get the basic private key for the unused coins
+my $change_key = $account_key->derive_key_bip44(
+	get_from_account => !!1,
+	change => 1,
+	index => 0,
+)->get_basic_key;
+
+# get basic keys for all the kids!
+my @kids_keys = map {
+	$account_key->derive_key_bip44(
+		get_from_account => !!1,
+		index => $_,
+	)->get_basic_key
+} 0 .. $number_of_kids - 1;
+
+=end perl
+
+McJingles now had all the essential parts needed to create the transaction. He
+asked the Santa how juicy the presents should be, but all he heard in return
+was some mumbling about the economy being tough and the need to cut the
+expenses. He figured 100,000 satoshi (the smallest units) for each kid should
+do. Adding these outputs turned out to be much simpler than he had anticipated:
+
+=begin perl
+
+use Bitcoin::Crypto qw(btc_transaction);
+
+# create the transaction object
+my $tx = btc_transaction->new;
+
+# add the input from the UTXO
+$tx->add_input(
+	utxo => [[hex => 'a4e407ba6b54106e4bd209704666a2b541b9b03d04ef8cb779aafe18238744e1'], 0],
+);
+
+# add all the gift outputs
+foreach my $key (@kids_keys) {
+	$tx->add_output(
+		locking_script => [address => $key->get_public_key->get_address],
+		value => 100_000,
+	);
+}
+
+=end perl
+
+The last thing to do was to add the output for unused funds and adjust the fee.
+The difference between input and output values is what miner gets paid to
+include the transaction in a block. Without adding the change output, the fee
+paid would be 49.654 BTC! The higher it is the faster the transaction will be
+mined, but paying over $1.5 million for a transfer was simply too much. The fee
+must be proportional to the size of a transaction, so McJingles assumed 100
+satoshi per output should be enough. He also set his transaction up for RBF
+(replace-by-fee), so that he could always bump it later if the blockchain got
+clogged:
+
+=begin perl
+
+# calculate the value of the change output
+my $currently_unspent = $tx->fee;
+my $wanted_fee = 100 * @kids_keys;
+my $change_value = $currently_unspent - $wanted_fee;
+
+# add the change output as the last output of the transaction
+$tx->add_output(
+	locking_script => [address => $change_key->get_public_key->get_address],
+	value => $change_value,
+);
+
+# set replace-by-fee
+$tx->set_rbf;
+
+=end perl
+
+The transaction object was complete! Now all he had to do was to sign it and
+print it to the console. The transaction was not yet sent, but the serialized
+hex string can be broadcasted to the Bitcoin network at any time, since the
+validity of the transaction won't ever expire!
+
+=begin perl
+
+use Bitcoin::Crypto::Util qw(to_format);
+
+# sign the only input
+$priv->sign_transaction($tx, signing_index => 0);
+
+# just to make sure everything is okay - try to verify
+$tx->verify
+
+say $tx->dump;
+say to_format [hex => $tx->to_serialized];
+
+=end perl
+
+When run, the program printed the mnemonic phrase to backup, a user-friendly
+summary of the transaction and the hex representation of the transaction. But
+something was missing... Of course, the outputs were supposed to be presents!
+The list of private keys was left behind in a variable, and without it there
+was no way to give the outputs to the children.
+
+	Your mnemonic is <brown bulk hire culture capital hill trim turkey gossip artefact door media argue basic execute slam minute try number daughter music gauge vocal wink>
+	and your password is <Christmas>
+	Back them up!
+	Transaction eed9ce72f2ee78c1f2a675172f7694f400e36ead0591b28b662a5e40fb4b20e1
+	version: 1
+	size: 10883vB, 43532WU
+	fee: 34600 sat (~3.17 sat/vB)
+	replace-by-fee: yes
+	locktime: 0
+
+	1 inputs:
+	P2PK Input
+	spending output #0 from a4e407ba6b54106e4bd209704666a2b541b9b03d04ef8cb779aafe18238744e1
+	value: 5000000000
+	sequence: 0xFFFFFFFD
+	locking script: 410452b58be18046f78a0045fe49df56387a03f994ba2ac7a26e17f7d01dc6d346f1bed3979ad35d32a75bb625f6e521f75a1c5983d303ea04bfb43c8b72203a68eeac
+	signature script: 483045022100b145a5f46f1fb69a3c7b4d55e1fdc5c2a4556129c2517816f4d8b5cc691414c20220055e5a4649021d26974c1b3b981bfecce9ba05cfae0be10ac136ff02e3e9319601
+
+	347 outputs:
+	P2WPKH Output to bc1qum6sd22rmsewwd75lzlynuve8wz0ah2uw2gltu
+	value: 100000
+	locking script: 0014e6f506a943dc32e737d4f8be49f1993b84fedd5c
+
+	(...)
+
+	P2WPKH Output to bc1qyx43gm2rpdrgk0r70xhpt6ru5sk2xg7xs7lvga
+	value: 4965365400
+	locking script: 001421ab146d430b468b3c7e79ae15e87ca42ca323c6
+
+	0100000001e144872318feaa79b78cef043db0b941b5a266467009d24b6e10546bba07e4a400(...)
+
+McJingles had already safely backed up the mnemonic, so he decided to write
+another script to print all the private keys generated. Running the same script
+again would produce a new mnemonic phrase for him. He couldn't do it as there
+was always paper shortage in the toys factory. It should not come as a surprise
+since all the presents must be wrapped thoroughly, company policy.
+
+It was getting late and he felt exhausted from deciphering all this output. It
+would be silly to work with Bitcoin being this tired! Any error you make may
+cause the coins to be lost forever! Well, with great power... yeah yeah, it was
+best if he just went to bed and left the rest for another day. Still plenty of
+time before Christmas!
+
+... or is it?
+
