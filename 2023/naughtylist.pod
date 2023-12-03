@@ -1,0 +1,196 @@
+Title: Santa's Christmas Dancer2 Web App - Naughty & Nice List Manager
+Topic: HTMX and Dancer2
+Author: Ken Town <ktown007@gmail.com>
+
+=encoding utf8
+
+=pod 
+
+Ho, ho, ho! In this hilarious Christmas-themed Dancer2 web app tutorial, we'll help Santa manage his Naughty & Nice list. This time, we're using Perl's Dancer2 framework, but Santa's Christmas spirit is universal. Let's dive in and create Santa's very own web app!
+
+
+=head2 todo.pl
+
+    !#/usr/bin/env perl
+
+    use Dancer2;
+    set template => 'mustache';
+
+        #Initialize Santa's Naughty & Nice List
+        #see next steps below for making list persistant with a Planetscale Database
+
+    my $list = { list => [] };
+
+    get '/' => sub {
+        send_file '/index.html';
+    };
+
+    any '/delete' => sub {
+        my $q = request->params;
+        my $index = 0;
+
+        # Find the naughty or nice kid to remove
+        $index++ until $list->{list}[$index]{task} eq $q->{task};
+        splice(@{$list->{list}}, $index, 1);
+        
+        # Display the updated list
+        template 'list' => $list;
+
+    };
+
+    any '/add' => sub {
+        my $q = request->params;
+
+        # Add a new kid to the list
+    push @{$list->{list}}, $q;
+    
+    # Display the updated list
+    template 'list' => $list;
+
+    };
+
+    any '/list' => sub {
+        # Display the current list
+        template 'list' => $list;
+    };
+
+    start;
+
+
+Here's what Santa's Christmas Dancer2 web app does:
+
+=over
+
+=item 1.
+
+We set up our Dancer2 app with Mustache templates.
+
+
+=item 2.
+
+Santa initializes his Naughty & Nice List as an empty array of tasks.
+
+
+=item 3.
+
+When you visit the root URL /, it serves an index.html file. Make sure to create this HTML file for a nice, festive interface.
+
+
+=item 4.
+
+To delete a naughty or nice kid, we look for the kid's task in the list and remove them. Then, we display the updated list using the 'list' template.
+
+
+=item 5.
+
+To add a kid to the list, we take the kid's name from the request parameters, push them onto the list, and display the updated list using the 'list' template. List is freeform text. Eg "Nancy - Naughty - coal". See Next steps below to expand into multiple database fields
+
+
+=item 6.
+
+The /list route simply displays the current Naughty & Nice List.
+
+
+=back
+
+Now, Santa can keep a digital record of all the good and naughty children, and you can help him manage it with this fun Dancer2 web app. Merry Christmas and happy coding! 🎅🎄🌟
+
+
+=head2 public/index.html
+ 
+     <!DOCTYPE html>
+     <html>
+         <head>
+            <title>TODO app</title>
+            <!-- Include the htmx.js library for AJAX interactions -->
+            <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+            <!-- Include a stylesheet (Water.css in dark mode) for styling -->
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/dark.css">
+         </head>
+         <body>
+            <!-- Create a form for adding tasks -->
+            <form hx-post="/add" hx-target="#list" hx-on::after-request="this.reset()">
+                <fieldset>
+                    <!-- Input field for entering a task -->
+                    <input type="text" name="task" placeholder="enter task" />
+                    <!-- Button to submit the task -->
+                    <button type="submit">Add Task</button>
+                </fieldset>
+            </form>
+            <fieldset>
+                <!-- Display the list of tasks here using AJAX -->
+                <div id="list" hx-get="/list" hx-trigger="load"></div>
+            </fieldset>
+         </body>
+     </html>
+
+
+This HTML code provides a simple web interface to add and view tasks. When a user adds a task, it's sent to the server using htmx via the hx-post attribute, and the response updates the task list on the page. Santa can now manage his Naughty & Nice list with a modern touch. Merry Christmas and happy coding! 🎅🎄🌟
+
+The provided template uses htmx, a library for building modern web applications with HTML, to create a list of tasks with some interactive behavior. Let's break down the template step by step:
+
+
+=head2 views/list.mustache
+
+ 
+     <ul>
+         {{#list}} <!-- This is a loop that iterates through the 'list' array -->
+             <li hx-post="/delete" hx-target="#list" hx-vals='{"task":"{{task}}"}'>{{task}}</li>
+             <!-- For each item in 'list', create an <li> element -->
+             <!-- 'hx-post' specifies an HTTP POST request when this <li> element is clicked -->
+             <!-- 'hx-target' designates where the response will be placed (in this case, back into the list) -->
+             <!-- 'hx-vals' defines the data to send with the POST request -->
+             <!-- The data consists of a key "task" with the value being the task name from the list -->
+             <!-- The {{task}} within the hx-vals is a placeholder for the task name from the loop -->
+             {{task}}
+             <!-- Display the task name within the <li> element -->
+         {{/list}}
+     </ul>
+
+Here's how this template works:
+
+=over
+
+=item 1.
+
+C<<< <ul> >>>: This creates an unordered list where each task will be represented as a list item C<<< <li> >>>
+
+
+=item 2.
+
+C<{{#list}}>: and C<{{/list}}>: These tags denote a loop that iterates through the 'list' array. For each item in the 'list', it performs the following operations.
+
+
+=item 3.
+
+C<<< <li> >>>: This creates an C<<< <li> >>> element for each task in the 'list'
+
+
+=item 4.
+
+hx-post="/delete": When an C<<< <li> >>> element is clicked, htmx sends an HTTP POST request to the URL specified in the hx-post attribute. In this case, it's /delete, indicating a task deletion action.
+
+
+=item 5.
+
+hx-target="#list": This attribute specifies where the response of the HTTP POST request should be placed. In this example, it replaces the content of the element with the ID "list," effectively updating the list after a task is deleted.
+
+
+=item 6.
+
+hx-vals='{"task":"{{task}}"}': This attribute defines the data to send with the POST request. It includes a key "task" with a value equal to the task name. The {{task}} is a placeholder that gets replaced with the actual task name from the loop during execution.
+
+
+=item 7.
+
+{{task}}: Inside the C<<< <li> >>> element, this placeholder displays the task name from the loop in the list item.
+
+
+=back
+
+In summary, this template generates a list of tasks, and each task has a delete button. When a delete button is clicked, htmx sends a POST request to the server to delete the corresponding task and updates the list without requiring a full page refresh.
+
+=head2 Next Steps
+
+View this repo to see the Planetscale database and fly.io egde deploy. This works great on the free tier of both.
+https://github.com/ktown007/todoapp
