@@ -6,13 +6,24 @@ Author: Alberto Simões <ambs@cpan.org>
 
 =pod
 
+=head2 Introduction
+
 L<Arango::Tango> is not properly new, as the first versions are from 2019. Nevertheless, the number of users is still quite small as 
 other document-oriented databases, like L<ElasticSearch|https://www.elastic.co/> or C<MongoDB|https://www.mongodb.com/> are still quite
 popular. But beging somehow alergic to Java, I went in the search for an alternative and found C<ArangoDB|https://arangodb.com/>, a graph
 database (also able to deal with plain document collections) written in C++.
 
-At that time I did not find an interesting Perl module to use it, so I decided to create one. L<Arango::Tango> was born. It is, surely,
-the Perl module I own with a cuter name, with both a pun on dancing a Tango with Arango, but also with the similarity with orangutangus.
+ArangoDB is a graph-oriented database, making it particularly well-suited for storing network structures such as social networks,
+knowledge graphs, and geospatial information. To achieve this, ArangoDB utilizes two collections: one for nodes and another for edges.
+The nodes collection functions as a standard database of documents, similar to what you would find in MongoDB. Meanwhile, the edges collection
+has documents containing two special attributes: the origin and target nodes, identified by their document identifiers. Unlike ArangoDB and
+ElasticSearch, ArangoDB employs a specific Domain-Specific Language for queries. However, unlike the former two, ArangoDB's query language,
+named AQL (ArangoDB Query Language), is not based on JSON. This distinction makes AQL easier to write and understand.
+
+When I found out about ArangoDB, I did not find a good Perl module to interact with it, so I decided to create one. L<Arango::Tango> was born.
+It is, surely, the Perl module I own with a cuter name, with both a pun on dancing a Tango with Arango, but also with the similarity with orangutangus.
+
+=head2 Quick and Dirty Arango::Tango
 
 ArangoDB insterface is based on REST, and the REST API is properly documented with swagger. It should be possible to use any generator
 that, from a swagger specification, generates an API. But, being REST, the API is stateless, and that does not help being proficient when
@@ -44,8 +55,39 @@ All the methods result in an HTTP request. But note that given a database and a 
 do not need to track them yourself. You just create documents in the collection, and the module knows where the collection is (which database) and
 constructs properly the request.
 
-To explain the guts of the module would take some time. Nevertheless, some candy follows. For simple methods, each module calls a C<_install_methods>
-that creates, on the fly, methods for that object. Example for the C<Arango::Tango::Collection> module:
+The query of documents can be performed directly, if you know the document identifier:
+
+    my $document = $collection->document( "lisa" );  # retrieve document with key "lisa"
+
+Usually one does not want to just fetch a document, but perform a complex query. For that we will need to use the ArangoDB's query language: AQL.
+The method's name to query a collection is not the more intuitive, as I followed the convention from the REST API. I may change that in the future.
+It is named C<cursor> because it returns... a cursor object, that allows you to go through a set of results.
+
+
+    my $query = <<EOQ;
+        FOR doc IN collection_name
+          FILTER doc.surname == 'Simpson'
+          RETURN doc
+    EOQ
+    my $cursor = $collection->cursor($query);
+    while ($cursor->has_more) {
+        my @block = $cursor->next();
+        # do something with elements from @block
+    }
+
+Note that, by default, ArangoDB returns more than one document when iterating a cursor, to make it more efficient. Thus, the C<next> method
+returns a list of results and not just one item.
+
+=head2 The Arango::Tango Guts
+
+I am proud of the way this module has been designed. The code is not as polished as I would like it to be, but the idea behind it is quite
+interesting. I decided to give some insight into its implementation. Note this is just a quick glimpse of it. You are welcome to look into
+the code for more detail.
+
+Each of the modules (database, collection, etc) start by running an initialization method. It is based on a structure that specifies
+the available REST API requests. This initialization generates methods with the required code to execute the REST request.
+
+Two small examples for the C<Arango::Tango::Collection> module:
 
     load_indexes => {
         rest => [ put => '{{database}}_api/collection/{name}/loadIndexesIntoMemory' ],
@@ -59,12 +101,24 @@ that creates, on the fly, methods for that object. Example for the C<Arango::Tan
         schema => { name => { type => 'string' }},
     },
 
-You have the name of the method to create, the C<rest> request pattern, the C<schema> of the data sent in the body of the POST or PUT request, an C<inject_properties>
-that specify how to fill in the REST pattern and, finally, a C<signature> that specifies the parameters that are received by the method. Thus, the C<load_indexes> method
-does not receive any parameter, while the C<rename> method receive the name to which to rename the collection.
+The top-level key is the name of the method to create. The value of the dictionary defines details on the method implementation:
 
-Unfortunately not all requests are as easy, to generalize and therefore there is some extra code to deal with hairy calls. But I would say that, at the end, the module
-has an interesting architecture.
+=over 4
+
+=item * For the C<load_indexes> method, there is the REST template (that specifies the HTTP verb and the route template) and the C<inject_properties> array.
+This array is a list of the parameters, in the REST template, that should be filled in from data in the collections object fields.
+
+=item * The C<rename> method has the same two properties as the previous one. But the C<inject_properties> is a little different. Basically, it has two fields from
+the object being injected in the template (the database and the collection name) but, for the collection, we specify that it is stored in the C<name> field of
+the object, but will be referred to in the template as C<collection>. This change is done because there is a parameter named C<name>, and we need to disambiguate.
+
+The C<signature> field is the list of parameters that the method will receive and the C<schema> property is the structure of the data that will be sent in the C<PUT>
+request. Note that there is a C<name> field in that data, that will come from the method's signature.
+
+=back
+
+Unfortunately not all requests are as easy, to generalize and therefore there is some extra code to deal with hairy calls. Also, there is a reason why the
+template has two curly braces for the database parameter. But that is not relevant for being discussed here.
 
 If you found this interesting, I would appreciate your help on supporting more of the ArangoDB API!
 
