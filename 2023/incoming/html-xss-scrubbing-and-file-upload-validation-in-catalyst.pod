@@ -41,6 +41,10 @@ any attempts to upload files in requests sent to it should be rejected.
 It should also be easy for the action to denote which MIME types it expects
 to receive, without lots of boilerplate code being added to each action.
 
+Naturally you'd want to use something to determine the type of file you were
+actually sent and can't just trust the C<Content-Type> header in the request,
+because the client could lie to us.
+
 We didn't find anything that fitted our needs, so I created
 L<Catalyst::Plugin::CheckFileUploadTypes>, using subroutine attributes on the
 actions to mark that they expect uploads, for instance:
@@ -53,7 +57,8 @@ actions to mark that they expect uploads, for instance:
     sub upload_file : Local ExpectUploads { ... }
     
     # They can also specify that any uploaded files must be of expected types
-    # (determined from file content by File::MMagic, not what the client said)
+    # (determined from file content by File::MMagic, not what the client said,
+    # as they could lie to us)
     sub upload_file : Local ExpectUploads(image/jpeg image/png) { ... }
 
 =end perl
@@ -63,8 +68,30 @@ L<Catalyst::Action::REST>, in which case we want to be looking for the
 attributes on the C<_type>-suffixed action - for e.g. C<index_POST>.
 
 More features are planned (and may well have been implemented by the time you
-read this!) - including the ability to say e.g. C<image/*> for any type of
-image, some extra heuristics so that e.g. a shell script and an XML file aren't
-both treated as C<text/plain> as the underlying L<File::MMagic> returns, and
-the ability to control and/or override the handling of unexpected unloads.
+read this!) - including:
+
+=over
+
+=item Wildcards
+
+for e.g. the ability to say e.g. C<image/*> for any type of image
+
+=item Extra heuristics to distinguish more file types
+
+For example, both a shell script and an XML file aren't are both C<text/plain>
+according to the underlying L<File::MMagic>; that's not very helpful.
+
+=item More options
+
+More options to provide more control over how unexpected uploads are handled
+
+=item Callbacks
+
+Callbacks to fire for each uploaded file to perform additional checks on it - 
+for example, running it through a virus checker, generating a hash and checking
+online services for matches, or other checks on the content of the file.
+
+=back
+
+Feedback, suggestions and patches welcome!
 
