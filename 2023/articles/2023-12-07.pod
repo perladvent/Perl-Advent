@@ -1,0 +1,103 @@
+Author: David Precious <davidp@preshweb.co.uk>
+Title: HTML/XSS scrubbing and file upload validation in Catalyst
+Topic: Catalyst::Plugin::CheckFileUploadTypes
+
+=encoding utf8
+
+At work, we needed to tighten up the security of our Catalyst-powered
+API, with two main requirements:
+
+=over
+
+=item *
+
+Stripping HTML/XSS attempts from incoming parameters
+
+=item *
+
+Validating that file uploads are expected and are the expected type
+
+=back
+
+=head2 Catalyst::Plugin::HTML::Scrubber
+
+We found L<Catalyst::Plugin::HTML::Scrubber>, which at first glance looked
+like it would do at least most of what we needed, automatically scrubbing
+parameters using L<HTML::Scrubber>.
+
+We're not a fan of reinventing wheels when we can avoid it, so I set about
+adding the extra features we needed - in particular, being able to exempt
+particular parameters from scrubbing, by name or regex match - and raised a pull
+request to share that upstream.  Unfortunately, the original author doesn't seem
+to be active in the Perl community any more, and several attempts of contact
+failed - so I followed the usual steps to L<adopt a module|https://neilb.org/2013/07/24/adopt-a-module.html>,
+approaching our friendly CPAN admins for help, obtained co-maint, and released
+a new version.
+
+Since then we added more - including recursive scrubbing of parameters within
+serialised POSTed/PUTted request bodies.
+
+=head2 Catalyst::Plugin::CheckFileUploadTypes
+
+Next, we needed to add checking of uploaded files.  Some API actions do expect
+uploaded files, but most don't.  We wanted to make it easy to centralise that
+checking so that if an action hasn't specified that it expects file uploads,
+any attempts to upload files in requests sent to it should be rejected.
+
+It should also be easy for the action to denote which MIME types it expects
+to receive, without lots of boilerplate code being added to each action.
+
+Naturally you'd want to use something to determine the type of file you were
+actually sent and can't just trust the C<Content-Type> header in the request,
+because the client could lie to us.
+
+We didn't find anything that fitted our needs, so I created
+L<Catalyst::Plugin::CheckFileUploadTypes>, using subroutine attributes on the
+actions to mark that they expect uploads, for instance:
+
+=begin perl
+
+    use Catalyst qw(CheckFileUploadTypes);
+
+    # Actions can declare that they expect to receive file uploads:
+    sub upload_file : Local ExpectUploads { ... }
+
+    # They can also specify that any uploaded files must be of expected types
+    # (determined from file content by File::MMagic, not what the client said,
+    # as they could lie to us)
+    sub upload_file : Local ExpectUploads(image/jpeg image/png) { ... }
+
+=end perl
+
+There was a little bit of fun involved if the app is using
+L<Catalyst::Action::REST>, in which case we want to be looking for the
+attributes on the C<_type>-suffixed action - for e.g. C<index_POST>.
+
+More features are planned (and may well have been implemented by the time you
+read this!) - including:
+
+=over
+
+=item Wildcards
+
+for e.g. the ability to say e.g. C<image/*> for any type of image
+
+=item Extra heuristics to distinguish more file types
+
+For example, both a shell script and an XML file are both C<text/plain>
+according to the underlying L<File::MMagic>; that's not very helpful.
+
+=item More options
+
+More options to provide more control over how unexpected uploads are handled
+
+=item Callbacks
+
+Callbacks to fire for each uploaded file to perform additional checks on it -
+for example, running it through a virus checker, generating a hash and checking
+online services for matches, or other checks on the content of the file.
+
+=back
+
+Feedback, suggestions and patches welcome!
+

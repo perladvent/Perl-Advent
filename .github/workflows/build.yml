@@ -7,6 +7,7 @@ on:
       - 'main'
   schedule:
     - cron: '0 0 1-27 12 *'  # December 1-27 (usually 1-25)
+    - cron: '0 0 1 2 *'      # Feb 1 (replace placeholder screen)
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
@@ -28,7 +29,7 @@ jobs:
     container:
       image: perldocker/perl-tester:5.36
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: 🐧 Install vim for Text-VimColor
         run: apt-get install -y vim
       - name: 🧅 Install deps using cpm
@@ -37,7 +38,7 @@ jobs:
           cpanfile: 'cpanfile'
           sudo: false
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         name: 🗓️ Clone forked WWW-AdventCalendar
         with:
           repository: perladvent/WWW-AdventCalendar
@@ -49,15 +50,18 @@ jobs:
           dzil authordeps | xargs cpm install -g &&
           dzil install
 
+      - name: 👉 Remove placeholder screen in Dec and Jan
+        run: bash script/deploy/splash-screen.sh
+
       - name: 📚 Build articles
         run: bash script/build-site.sh
 
       - name: Set up pages
-        uses: actions/configure-pages@v2
+        uses: actions/configure-pages@v4
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v2
         with:
           path: 'out'  # entire repo
       - name: 🚀 Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v1
+        uses: actions/deploy-pages@v3
