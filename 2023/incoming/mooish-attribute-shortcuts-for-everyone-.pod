@@ -1,0 +1,176 @@
+Author: Bartosz Jarzyna <contact@bbrtj.eu>
+Title: Mooish Attribute Shortcuts For Everyone!
+Topic: Mooish::AttributeBuilder
+
+=encoding utf8
+
+Most of us surely know L<Moose>. It is a solid piece of Perl software powering
+a lot of modern Perl code. It allows for very expressive definition of object
+attributes. This expresiveness comes at a cost, nicely explained by Curtis
+"Ovid" Poe L<in his blog
+post|https://ovid.github.io/articles/introducing-moosexextended-for-perl.html#param-and-field>.
+In short: it is not immediately obvious what is the purpose of an attribute and
+you have to look at the option list to get the idea. In addition to that, the
+attributes become very verbose if you want to nail their behavior exactly right.
+
+To solve this, you just install L<MooseX::Extended> and enjoy new C<param>
+and C<field>, right? Sort of... The module does a lot of things, has a lot of
+dependencies and only works with Moose. If you often use L<Moo> instead of
+Moose, you will have to find a Moo-specific module for this, and the API will
+likely be different.
+
+This is the exact issue solved by L<Mooish::AttributeBuilder>. It is a
+zero-dependency, module-agnostic helper for Moose family of modules letting you
+build your attributes more easily and give them meaning. It's not by any means a
+replacement of MooseX::Extended. On the contrary - it focuses on a very narrow
+scope of features and strives to deliver them for every Moose-compatible
+module on CPAN.
+
+Let's look at a small example:
+
+=begin perl
+
+package Christmas::Tree;
+
+use v5.38;
+use Moose;
+use Mooish::AttributeBuilder;
+use Types::Common -types;
+
+has param 'height' => (
+  isa => PositiveInt,
+);
+
+has field 'ornaments' => (
+  isa => ArrayRef[Str],
+  predicate => 1,
+  lazy => sub { [] },
+);
+
+=end perl
+
+The above code will have the same effect as the following vanilla Moose code:
+
+=begin perl
+
+package Christmas::Tree;
+
+use v5.38;
+use Moose;
+use Types::Common -types;
+
+has 'height' => (
+  is => 'ro',
+  isa => PositiveInt,
+  required => 1,
+);
+
+has 'ornaments' => (
+  is => 'ro',
+  isa => ArrayRef[Str],
+  predicate => 'has_ornaments',
+  lazy => 1,
+  default => sub { [] },
+  init_arg => undef,
+);
+
+=end perl
+
+After importing the module you automatically get four new keywords: C<param>,
+C<option>, C<field> and C<extended>. C<param> and C<option> attributes will be
+available in the constructor, the first one being required and the second one
+optional (with a handy predicate). C<field> attributes are not assignable in
+the constructor and force no other behavior. C<extended> is used for extending
+parent attributes. No matter which you use, you always get C<< is => 'ro' >>
+for free.
+
+Each keyword is used in conjunction with C<has>. You put the keyword between
+C<has> and the options, and the option list will be altered to contain the
+target values. There is no magic of replacing C<has> for each and every module,
+which makes it very transparent.
+
+The module is made to work with any module compatible with core Moose. The
+option lists it produces should therefore be valid for Moose, Moo, Mouse, Mo,
+Mite and possibly others.
+
+In addition to controlling the constructor behavior, it contains some shortcuts
+which may come in handy. We've already seen how C<< lazy => sub { [] } >>
+became C<< lazy => 1, default => sub { [] } >>. It can also reduce boilerplate
+with C<isa + coerce> combination, letting you write C<< coerce => Type >>, and
+allow for previously incorrect C<< trigger => 'method_name' >>. In addition,
+C<< predicate => 1 >> became C<< predicate => 'has_ornaments' >>, which is a
+common shortcut delivered by L<MooseX::AttributeShortcuts> (for Moose). If you
+used C<-hidden> instead of C<1>, the generated name would be
+C<'_has_ornaments'>. Specifying C<1> uses the same visibility setting as the
+attribute, so if the attribute name was C<'_ornaments'> then the method name
+would be C<'_has_ornaments'> without the need for C<-hidden>. Forcing public
+visibility on hidden attributes is achieved with C<-public>. The module tries
+pretty hard to do what you mean, but it tries equally hard not to do more than
+that. The full list of shortcuts is available in
+L<Mooish::AttributeBuilder/SHORTCUTS>.
+
+Here are additional examples showcasing the behavior:
+
+=begin perl
+
+has field '_presents' => (
+  coerce => PresentType,
+  lazy => 1,
+  clearer => -public,
+);
+
+# becomes:
+
+has '_presents' => (
+  is => 'ro',
+  isa => PresentType,
+  coerce => 1,
+  builder => '_build_presents',
+  lazy => 1,
+  clearer => 'clear_presents',
+  init_arg => undef,
+);
+
+=end perl
+
+=begin perl
+
+has option 'favourite_color' => (
+  isa => Str,
+  trigger => 1,
+);
+
+# becomes:
+
+has 'favourite_color' => (
+  is => 'ro',
+  isa => Str,
+  trigger => sub { shift->_trigger_favourite_color(@_) },
+  predicate => 'has_favourite_color',
+  required => 0,
+);
+
+=end perl
+
+=begin perl
+
+has extended 'parent_attribute' => (
+  writer => -hidden,
+);
+
+# becomes:
+
+has '+parent_attribute' => (
+  writer => '_set_parent_attribute',
+);
+
+=end perl
+
+The module delivers some additional features, the main one being custom
+shortcuts, but the core functionality alone should immensely improve the code
+quality. You immediately know what's what, and you will never overlook that
+pesky C<< init_arg => undef >> again, no matter which Moose you use! So what do
+you say, worth giving a try?
+
+Happy Holidays!
+
