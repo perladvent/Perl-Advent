@@ -1,0 +1,235 @@
+Author: oodler@cpan.org
+Title: Santa's New Dispatcher
+Topic: Dispatch::Fu
+
+St. Nick's had computer problems nearly non-stop this year, and at
+a critical time he's been unable to access any letters "To Santa"
+that have been emailed to him, which is quite a few considering
+this Internet fad doesn't seem to be slowing down any time soon.
+
+To that end, at this critical hour he's decided to write a Perl
+script that will automatically assign a toy to a child based on
+the starting letter of their first name and the random flip of a
+coin.
+
+At first pass, his code seems to do what he wants; but it's a nasty
+set of C<if-elsif-else> statements. Mrs. Clause would most certainly
+not find it very nice!
+
+=encoding utf8
+
+=begin perl
+
+use strict;
+use warnings;
+
+my (@teddybear, @rockinghorse, @jackinthebox, @gijoe, @barbie, @sallytalksalot, @teaset, @dollhouse);
+
+sub get_child() {
+  qw/al grant mary salve/; # e.g., ...
+};
+
+foreach my $CHILD ( get_child() ) {
+  if ($CHILD =~ m/^[a-fA-F]/) {
+    if (int rand 2 == 0) {
+      push @teddybear, $CHILD;
+    }
+    else {
+      push @dollhouse, $CHILD;
+    }
+  }
+  elsif ($CHILD =~ m/^[g-lG-L]/) {
+    if (int rand 2 == 0) {
+      push @rockinghorse, $CHILD;
+    }
+    else {
+      push @teaset, $CHILD;
+    }
+  }
+  elsif ($CHILD =~ m/^[m-rM-R]/) {
+    if (int rand 2 == 0) {
+      push @jackinthebox, $CHILD;
+    }
+    else {
+      push @sallytalksalot, $CHILD;
+    }
+  }
+  elsif ($CHILD =~ m/^[s-zS-Z]/) {
+    if (int rand 2 == 0) {
+      push @gijoe, $CHILD;
+    }
+    else {
+      push @barbie, $CHILD;
+    }
+  }
+}
+
+=end perl
+
+After a brief pause, Santa thought that maybe he could organize
+this code into a more efficient and nicer to read dispatch table
+based on a C<HASH> structure.  But alas! He could not figure out
+how to do it without actually having a key in place for each possible
+first name. There was also a lot of repeated code in the C<CODE> attached
+to each C<HASH> key.
+
+=begin perl
+
+use strict;
+use warnings;
+
+my (@teddybear,    @rockinghorse,
+    @jackinthebox, @gijoe,
+    @barbie,       @sallytalksalot,
+    @teaset,       @dollhouse);
+
+sub get_child() {
+  qw/al grant mary salve/; # e.g., ...
+};
+
+foreach my $CHILD ( get_child() ) {
+    my $dispatch = {
+        al => sub {
+            if   ( int rand 2 == 0 ) { push @teddybear, $CHILD }
+            else                     { push @dollhouse, $CHILD }
+        },
+
+        # ...
+        grant => sub {
+            if   ( int rand 2 == 0 ) { push @rockinghorse, $CHILD }
+            else                     { push @teaset,       $CHILD }
+        },
+
+        # ...
+        mary => sub {
+            if   ( int rand 2 == 0 ) { push @jackinthebox,   $CHILD }
+            else                     { push @sallytalksalot, $CHILD }
+        },
+
+        # ...
+        salve => sub {
+            if   ( int rand 2 == 0 ) { push @gijoe,  $CHILD }
+            else                     { push @barbie, $CHILD }
+        },
+
+        # ...
+    };
+
+    #  make sure key exists, if not warn and move on to next $CHILD
+    if ( not $CHILD or not exists $dispatch->{$CHILD} ) {
+        warn qq{Child not found!\n};
+        next;
+    }
+
+    # call the CODE
+    $dispatch->{$CHILD}->();
+}
+
+=end perl
+
+Santa was not happy with how this was going. He exclaimed in a panic,
+I<HASH keys are static strings!> After taking some time to collect his
+thoughts, he knew what to do.
+
+And that's when Santa took to L<https://metacpan.org>, like always to search
+for a solution using the keyword, I<dispatch>. And he found a module
+that looked promising, L<Dispatch::Fu>.
+
+This module promises that it I<converts any complicated conditional dispatch
+situation into familiar static hash-key based dispatch>. And that's
+exactly what Santa needed.
+
+In a jiffy, he was able to whip out a solution that was really looking
+much nicer.
+
+=begin perl
+
+use strict;
+use warnings;
+use Dispatch::Fu;
+
+my (@teddybear,    @rockinghorse,
+    @jackinthebox, @gijoe,
+    @barbie,       @sallytalksalot,
+    @teaset,       @dollhouse);
+
+sub get_child() {
+  qw/al grant mary salve/; # e.g., ...
+};
+
+foreach my $CHILD ( get_child() ) {
+  dispatch {
+    my $_CHILD = shift;
+    return q{A_F} if ($CHILD =~ m/^[a-fA-F]/);
+    return q{G_L} if ($CHILD =~ m/^[g-lG-L]/);
+    return q{M_R} if ($CHILD =~ m/^[m-rM-R]/);
+    return q{S_Z} if ($CHILD =~ m/^[s-zS-Z]/);
+  } $CHILD,
+    on A_F => sub {if (int rand 2 == 0) { ... }},
+    on G_L => sub {if (int rand 2 == 0) { ... }},
+    on M_R => sub {if (int rand 2 == 0) { ... }},
+    on S_Z => sub {if (int rand 2 == 0) { ... }};
+}
+
+=end perl
+
+One last thing had to be addressed - add the coin flip as another
+case represented by a hash key. Once done, Santa was very pleased
+to present the following code to his main code reviewer and QA,
+Mrs. Clause.
+
+=begin perl
+
+use strict;
+use warnings;
+use Dispatch::Fu;
+
+my (@teddybear,    @rockinghorse,
+    @jackinthebox, @gijoe,
+    @barbie,       @sallytalksalot,
+    @teaset,       @dollhouse);
+
+sub get_child() {
+  qw/al grant mary salve/; # e.g., ...
+};
+
+foreach my $CHILD ( get_child() ) {
+  dispatch {
+    my $_CHILD   = shift;
+    my $coinflip = int rand 2;
+    return q{A_F_0} if ($_CHILD =~ m/^[a-fA-F]/ and $coinflip == 0);
+    return q{A_F_1} if ($_CHILD =~ m/^[a-fA-F]/ and $coinflip == 1);
+    return q{G_L_0} if ($_CHILD =~ m/^[g-lG-L]/ and $coinflip == 0);
+    return q{G_L_1} if ($_CHILD =~ m/^[g-lG-L]/ and $coinflip == 1);
+    return q{M_R_0} if ($_CHILD =~ m/^[m-rM-R]/ and $coinflip == 0);
+    return q{M_R_1} if ($_CHILD =~ m/^[m-rM-R]/ and $coinflip == 1);
+    return q{S_Z_0} if ($_CHILD =~ m/^[s-zS-Z]/ and $coinflip == 0);
+    return q{S_Z_1} if ($_CHILD =~ m/^[s-zS-Z]/ and $coinflip == 1);
+  } $CHILD,
+    on A_F_0 => sub { push @teddybear,      shift },
+    on A_F_1 => sub { push @dollhouse,      shift },
+    on G_L_0 => sub { push @rockinghorse,   shift },
+    on G_L_1 => sub { push @teaset,         shift },
+    on M_R_0 => sub { push @jackinthebox,   shift },
+    on M_R_1 => sub { push @sallytalksalot, shift },
+    on S_Z_0 => sub { push @gijoe,          shift };
+    on S_Z_1 => sub { push @barbie,         shift };
+}
+
+=end perl
+
+Santa also knew that even if Mrs. Clause didn't like the way he
+used a bunch of inline C<return>s and repeated some regular
+expressions, he was more than content knowing the tried and true,
+I<pull requests accepted!> applied here for her as much as it did
+for anyone else!
+
+See More:
+
+=over 4
+
+=item L<https://metacpan.org/pod/Dispatch::Fu>
+
+=item L<https://blogs.perl.org/users/oodler_577/2023/09/cgitiny-dispatchfu---nearly-a-perfect-match.html>
+
+=back
