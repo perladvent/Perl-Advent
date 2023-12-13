@@ -1,0 +1,107 @@
+Author: Mohammad Anwar <mohammad.anwar@yahoo.com>
+Title: Introduction to class feature
+Topic: Basic examples using class feature
+
+=encoding utf8
+
+=head2 Background
+
+I have followed the last 2 releases of Perl i.e. C<Perl v5.36> and C<Perl v5.38>
+very closely. C<Perl v5.36> was released on C<2022-05-28>with much fanfare as it
+had so much nice new features introduced. If you haven't had chance to play with
+then I have compiled some for you. Please L<checkout|https://github.com/manwar/perl-cool-snippets?tab=readme-ov-file#perl-v536> this collection for quick introduction.
+
+Following the release of C<Perl v5.36>, the discussion of new object system C<Corinna>
+took the limelight as it was one of the main features to be introduced with C<Perl v5.38>.
+Then finally on C<2023-07-02>, we had C<Perl v5.38> released.
+
+After the release, I wanted to try new class feature but never got the opportunity
+to play with it.
+
+I have played with L<Design Patterns|https://github.com/manwar/Design-Patterns> using
+the C<Moo> based object in the past. So I thought why not pick one of the design pattern
+and try with the new class feature.
+
+=head2 Singleton using Moo
+
+As you see the code below, it is such a lightweight implementation of
+C<Singleton> using L<Moo> with L<MooX::Singleton>. The only issue I have is the
+dependency on non-core module.
+
+=begin perl
+
+    package SingleObject;
+
+    use Moo;
+    with 'MooX::Singleton';
+
+    has 'count' => (is => 'rw', default => sub { 0 });
+
+    sub counter {
+        my ($self) = @_;
+
+        return $self->count($self->count + 1);
+    }
+
+    print SingleObject->instance->counter, "\n";
+    print SingleObject->instance->counter, "\n";
+    print SingleObject->instance->counter, "\n";
+    print SingleObject->instance->counter, "\n";
+    print SingleObject->instance->counter, "\n";
+
+=end perl
+
+=head2 Implementation of Singleton using new class feature
+
+With the C<Perl v5.38> release, we no longer have the dependency on
+external modules as seen in the code below:
+
+=begin perl
+
+    use v5.38;
+    use experimental 'class';
+
+    class Singleton 0.01 {
+        my $instance;
+        sub instance($class) { $instance //= $class->new }
+    }
+
+    class SingleObject :isa(Singleton) {
+       	field $count :param = 0;
+        field $_count  = $count;
+        method counter { ++$_count }
+    }
+
+    say SingleObject->instance->counter;
+    say SingleObject->instance->counter;
+    say SingleObject->instance->counter;
+    say SingleObject->instance->counter;
+    say SingleObject->instance->counter;
+
+=end perl
+
+=head2 How about some more?
+
+Well, I then tried to show C<inheritance> using new class feature. It
+looks amazingly compact and clean.
+
+=begin perl
+
+    use v5.38;
+    use experimental 'class';
+
+    class Animal {
+        method eat { say "I can eat!" }
+    }
+
+    class Dog :isa(Animal) {
+        method bark { say "Woof Woof!" }
+    }
+
+    my $dog = Dog->new;
+    $dog->eat();
+    $dog->bark();
+
+=end perl
+
+That's it for now until we meet again.
