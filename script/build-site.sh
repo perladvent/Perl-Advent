@@ -19,6 +19,9 @@ for year in $(seq 2011 2023); do
     advcal -c advent.ini -o "../$site/$year" --https
     pwd
     cp -R share/static/* "../$site/$year"
+    if [[ -e "$year.css" ]]; then
+        cp "$year.css" "../$site/$year"
+    fi
     cd ..
 done
 
