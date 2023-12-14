@@ -1,0 +1,130 @@
+Author: perl@dnmfarrell.com
+Title: Perl - The Humane Programming Language
+Topic: 
+
+=encoding utf8
+
+=head2 Perl - The Humane Programming Language
+
+Programming languages usually reflect the needs of the computer. We find ourselves typing verbose incantations, over and over. Our instructions are so detailed as to remove all ambiguity from them -- yet programs frequently don't do what we expect. The limitations of the programming language dictate how we think about and solve problems.
+
+Perl is different. It puts you, the programmer, first. Larry Wall, Perl's creator was a linguist who brought many principles of L<natural language|http://www.wall.org/~larry/natural.html> to Perl. As creators, we are at our most productive, contented selves when we get into the flow. Let's see what makes Perl the flow-state language.
+
+=head3 Get the job done
+
+Natural languages follow the L<Law of Brevity|https://en.wikipedia.org/wiki/Brevity_law>, where the most commonly used words are also the shortest. We modify our language to accommodate our time-preference. Perl aims for brevity too. Its keywords tend to be shorter than the traditional versions:
+
+=begin code
+
+Traditional    Perl
+-----------    ----
+break          last
+continue       next
+filter         grep
+function       sub
+import         use
+let            my
+throw          die
+
+=end code
+
+Often entire words can be omitted. Subroutine declarations do not require a C<return> statement, and may be called without parentheses. Built-in functions can operate on implicit variables like C<$_> instead of explicit arguments. This code loops over each line of input and splits the tab-separated line into an array, without ever referencing stdin or the line variable:
+
+=begin perl
+
+while (<>) {
+  chomp;
+  my @cols = split /\t/;
+  ...
+}
+
+=end perl
+
+  > People like things to be visually distinct from their surroundings. That's also why the various classes of operators and variables in Perl are visually distinct from each other. It's just sound human engineering.
+  > Larry Wall
+
+By making variables, operators and function names visually distinct, Perl saves you reading time too.
+
+=head3 Do What I Mean
+
+Perl might be the most helpful of the dynamic languages. Take this Python function which adds 2 to any number its given:
+
+=begin code
+
+def add2(n):
+    return n + 2
+
+=end code
+
+This function works fine when C<n> is an int or float, but dies on stringified numbers like C<"5">, because Python refuses to concatenate a string with the number C<2>. Now we're faced with a choice - should we cast C<n> to a number type inside C<add2> or change every call site to cast the parameter to a number type before calling C<add2>?
+
+=begin code
+
+def add2(n):
+    return int(n) + 2 # or float(n) ?
+
+=end code
+
+Casting inside C<add2> means choosing which type to use (int or float), reducing its flexibility. Since call sites have more knowledge about the origin of C<n>, that seems like the better trade off, but we'll always need to watch out for unsafe callers. Let's go another route:
+
+=begin code
+
+def add2_i(n):
+    return int(n) + 2
+
+def add2_f(n):
+    return float(n) + 2
+
+=end code
+
+We've lost the generic behavior of C<add2> but gained runtime safety without tracking call sites. And all we have to do is type out two versions of every number function we ever write! The dissatisfaction of programming in Python stems from the intuition that the experience should be better, i.e. more I<natural> for the programmer. To have to write my code at the speed of a static language, but with the run time of a dynamic language just feels dumb.
+
+In natural languages, context can change the meaning of the expression. Similarly, Perl uses context to change the type of an expression. The C<+> operator forces a numeric context on its arguments, the concatenation operator C<.>, a string context. With the ambiguity removed, there's no need to litter our code with type casts or extra functions:
+
+=begin perl
+
+sub add2 ($n) { shift + 2 }
+
+=end perl
+
+Since text is the lingua franca of program input, Perl is optimized for the common case. Perl uses context to do what you mean.
+
+=head3 Trust Me
+
+  > Perl is designed to let you program naturally. Whatever you think natural means.
+  > Larry Wall
+
+
+Perl doesn't enforce a particular paradigm on the programmer. Everything isn't an object, but you're free to use the OO paradigm if you want to. There are no "private" attributes or methods. Any module, object or data structure can be printed, traversed and manipulated.
+
+Want to inspect an object to see what it's made of? Use L<Data::Printer>:
+
+=begin perl
+
+use Data::Printer 'p';
+
+my $foo = Foo->new;
+p $foo;
+
+=end perl
+
+Perl trusts you to solve the problem as you see fit. If you want to fire off a bunch of computation at compile time, you can. If you want to use 90% of a module but monkey-patch that one method to behave how you need it, that's fine. Safer options for polymorphism include inheritance, traits, operator overloading and tied values.
+
+You'll find it edifying to express your solution to a problem without being trammeled by a one-size-fits-all paradigm. You might say, L<There's More Than One Way To Do It|https://en.wikipedia.org/wiki/Perl#Philosophy>.
+
+=head3 Lessons Learned
+
+Perl is an old language, with some features that seemed like a good idea at the time, but haven't panned out. Implicit variable declaration usually L<causes more trouble than its worth|https://craftinginterpreters.com/statements-and-state.html#design-note>, so we use the L<strict> pragma to turn it off (Python and Ruby still suffer from it).
+
+Perl's interpreter threads are best left alone, and its reliance on global state makes implementing a good threading model a tall order. Process concurrency is easy with L<Parallel::ForkManager> though, and L<IO::Async> is good for asynchronous programming.
+
+Perl used to lack proper booleans, relying on L<truthiness|https://www.oreilly.com/library/view/programming-perl-3rd/0596000278/ch01s06.html> instead. This didn't always yield the best results, so they were added in L<v5.36|https://perldoc.perl.org/perl5360delta>. I still think Perl could use another type or two. For example "pairs" could make hash construction less brittle, and iteration easier.
+
+And whilst Perl's concept of context works very well, it would be nice to have a meta-context model to program with, separate from the Perl interpreter. Santa, if you're listening forget the merino wool socks, add that to my list.
+
+=head3 Wrapping Up
+
+  > Of all the programming languages I've used, Perl is the only one where I never feel like I'm fighting with the language.
+  > Martin, Software Engineer
+
+This month many of us will be celebrating with friends and family. It's a time of appreciation and reflection. So ask yourself this - how much joy did your programming bring you this year?
