@@ -1,0 +1,159 @@
+Author: Breno G. de Oliveira <garu@cpan.org>
+Title: Santa’s Workshop Secrets: The Magical Test2 Suite (Part 1)
+Topic: Testing
+
+=encoding utf8
+
+Ho, ho, ho, dear friends! Tonight I have a little behind-the-scenes to share with you directly from the North Pole. As you all know, this season is pretty busy for me and the elves. We have to make sure every letter is received, assigned and fulfilled, and that every present is in tip-top condition and delivered on time. So, of course, our Christmas operation needs to be tested thoroughly.
+
+But writing good tests can sometimes be a coal in the stocking. Some things are hard to test, and even though Perl has many nice testing modules to help with that, I can never quite remember their names or which to use, and together they can add so many external dependencies that we mostly keep ourselves to L<Test::More>.
+
+Well, not anymore. This year we updated all our test code to use the magical L<Test2-Suite|https://metacpan.org/pod/Test2::V0>. A single distribution that updates and replaces not just Test::More, but many other testing modules. And the best part? It will be a core distribution in Perl 5.40 onwards! Talk about a Christmas Miracle <3
+
+The basics work pretty much like Test::More, so if you’re used to it you’ll feel right at home. In fact, if you’re not doing anything fancy you can probably replace “C<< use Test::More >>” with “C<< use Test2::V0 >>” and everything will work just fine. Check it out:
+
+    use Test2::V0;
+
+    use Acme::Christmas;
+
+    ok my $xmas = Acme::Christmas->new, 'able to instantiate object';
+    isa_ok $xmas, 'Acme::Christmas';
+    can_ok $xmas, qw( read_letters make_toys );
+
+    is $xmas->date, 'December, 25th', 'got the right date';
+
+    note "let’s see if the Grinch is close";
+    subtest 'assert that the grinch is far away' => sub {
+        if (grinch()) {
+            fail 'oh, noes…';
+        } else {
+            pass 'coast is clear!';
+        }
+    };
+
+    SKIP: {
+        skip "tests for winter only", 1 unless $xmas->is_winter;
+        like $xmas->carol, qr/Merry/, ‘found the proper lyrics’;
+    }
+
+    done_testing; # you can also “plan N;” if you prefer to count your tests.
+
+But you’ll also get some nice cranberry sauce right out of the box.
+For starters, C<strict> and C<warnings> are on by default (and don’t worry,
+you can easily disable this behavior if you want). Second, remember how
+you always wanted tests to print more useful debug data when they fail?
+Now you can! Test2::V0’s C<is()>, C<ok()>, C<like()> and most other test
+functions support extra arguments I<after the test description>, so you
+can write them as:
+
+    ok $xmas->ready, "test if christmas is ready"
+        => "hmm... this was not supposed to fail. Let's see..."
+	 . " the tree is " . $xmas->tree
+	 . " and we have " . $xmas->presents->count . " wrapped gifts."
+	 ;
+
+and all that extra output will be printed only if the test fails. Ho! Ho! Ho!
+
+=head2 The all-powerful “is” and “like”
+
+This is straight out my favorite feature. You may have noticed I did not
+include “C<is_deeply()>” on the list of compatibility with Test::More.
+Well, that’s because there is no need for it. That’s right! If the variable
+you’re testing is a data structure, you can simply use C<is()> and it will
+do a deep check, failing if values don’t match or if anything is missing:
+
+    is $recipe, {
+        name => 'Fruitcake',
+        ingredients => {
+            eggs => 5,
+            flour => 3,
+            'dried fruit' => ['cherries', 'apricots', 'dates'],
+        },
+    }, 'got proper dessert!';
+
+What about that time of the year when you get a data structure or object
+and care only about a few keys, items or attributes? Ooh, Santa’s got a
+gift for you, too! B<< Use like() with the nested structure to ignore any keys/positions you haven’t defined >> in a true non-strict (partial) match.
+It even lets you mix and match between exact values (by passing a string
+or a number) and values that match a regular expression (by providing
+the regexp).
+
+    like $recipe, {
+        name => qr(cake)i,  # must contain ‘cake’ (case insensitive)
+        ingredients => {
+            eggs => qr(\d+),   # any number
+            flour => 5,            # exactly 5
+            dried fruit’ => [qr/cherr(y|ies)/, 'apricots', qr/dates?/],  # mix and match!
+        }
+    }, 'partial match in nested variables, mixing is() and like() at any level';
+```
+
+Think the presents are over? Think again! For even more complex validations you can check your variable against a builder (and there are L<< many builders available for hashes, arrays, objects, etc|https://metacpan.org/pod/Test2::Tools::Compare#VALUE-SPECIFICATIONS >>). For example, let’s say I wanted
+to check whether C<$recipe> has a name and ingredients, and if one of the
+dried fruits is raisins. Also, just to make it a little harder, let’s
+make sure it has no key called ‘microwave’. To do all that, we just write
+a very simple definition of our partial hash containing only the bits we
+care about:
+
+    # import everything we use in this test
+    # (the :DEFAULT label is to ensure all regular symbols are also imported)
+    use Test2::V0 qw( :DEFAULT hash field bag item etc L DNE );
+
+    is $recipe, hash {
+      field name => L;  # the value of the 'name' key is defined and has a L()ength.
+      field ingredients => hash {
+        # 'bag' is an 'array' that doesn't care about element order.
+        field 'dried fruit' => bag { item 'raisins'; etc; };
+        etc;
+      };
+      field microwave => DNE; # the 'microwave' key Does Not Exist.
+      etc;    # ignore other keys. Use 'end' to fail the test if other keys exist.
+    }, 'partial match from a generated definition!';
+
+If that wasn’t impressive enough, here are some extra nice ways to make your tests more thorough, robust and clear without having to load external modules or fiddle with the symbol table:
+
+=head2 Test if loading a module imports (or doesn’t import) a function or a variable:
+
+    use Some::Module;
+    imported_ok 'mysub', '$myvar', '@myothervar';
+    not_imported_ok 'othersub', '$othervar';
+```
+
+=head2 Test if something warns or dies / raises an exception
+
+    like dies { … }, qr/some error/, ‘got expected exception from block’;
+    ok lives { … }, ‘code lived!’, “oh, noes! Died with error ‘$@’”;
+
+    ok warns { … }, ‘at least one warning was issued in the block’;
+    is warns { … }, 2, ‘got the right number of warnings in block’;
+
+    is warnings { … }, [
+        qr/first warning issued/,    # lax match
+        ‘second warning issued in somefile.pl line 10’,  # strict match,
+    ], ‘matched expected warning messages’;
+
+=head2 Stop and bail out of testing whenever a single test fails:
+
+If you add this to the beginning of your test file, it will die and stop testing that file as soon as any test on that file fails:
+
+    use Test2::Plugin::DieOnFail;
+
+If you’re running a bunch of different test files, it will not stop testing altogether, just that particular file. To truly bail out of all testing as soon as any test on a file fails, do this instead:
+
+    use Test2::Plugin::BailOnFail;
+
+If you just want to bail on a single test in the file, use "C<< ... or bail_out($reason) >>" after the test.
+
+=head2 Skip tests unless we have a specific perl or module version available:
+
+    # skip all tests in file unless perl is v5.38 or greater:
+    use Test2::Require::Perl 'v5.38';
+
+    # skip all tests in file unless ‘Some::Module version 2.34 or greater is available.
+    # omit the version if you only care about whether the module is available or not.
+    use Test2::Require::Module ‘Some::Module' => '2.34'
+
+
+Now please excuse this old man because I have to feed the reindeer really well before the big day. But grab a gingerbread cookie and stay tuned for part 2 of Santa's Workshop Secrets. I'll be back in a jiffy with my favorite new tool in the Test2 Suite: mocks!
+
+I<< – Santa, out. >>
