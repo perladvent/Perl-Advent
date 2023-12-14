@@ -8,7 +8,7 @@ Greetings, festive readers! Santa Claus here, ready to share yet another
 behind-the-scenes look at how we keep Christmas joyfully on track with
 the Magical Test2 Suite, soon to be a core test library in Perl 5.40 onwards.
 
-If you haven't read part 1, it's a real treat!
+If you haven't read L<part 1|https://perladvent.org/2023/2023-12-15.html>, it's a real treat!
 
 Just like the tinsel on your tree, mocks add that extra sparkle to our
 unit tests. Mocks can help us simulate certain behaviors, creating a
@@ -21,18 +21,21 @@ And with the Test 2 Suite, this has never been easier!
 
 For starters, let’s say you want to create an object that will be passively called by whatever it is you’re testing:
 
+    #!vim perl
     use Test2::V0;
 
     my $obj = mock;
 
 Now, C<$obj> is a dud that will accept any method calls and return C<undef>. What about if you want it to return something specific?
 
+    #!vim perl
     my $obj = mock { merry => 'christmas!' };
 
     is $obj->merry, 'christmas!', 'my mock works';
 
 When you need to test chained calls, you can always nest your mocks():
 
+    #!vim perl
     my $obj = mock {
         happy => mock {
             holidays => mock {
@@ -43,8 +46,9 @@ When you need to test chained calls, you can always nest your mocks():
 
     is $obj->happy->holidays->everyone, 'Ho! Ho! Ho!', 'chained mocks';
 
-I<“But Santa”>, you may ask, I<< “What about when the class is instantiated and used somewhere inside the code I want to test? How can I use mocks to add or override methods to something out of my hands?” >> No worries! Just expand your mock definition for more control:
+I<"But Santa">, you may ask, I<< "What about when the class is instantiated and used somewhere inside the code I want to test? How can I use mocks to add or override methods to something out of my hands?" >> No worries! Just expand your mock definition for more control:
 
+    #!vim perl
     my $mock_meta = mock 'Some::Class' => (
         track => true,
         override => [
@@ -56,10 +60,11 @@ I<“But Santa”>, you may ask, I<< “What about when the class is instantiate
         ],
     );
 
-And now, as long as C<$mock_meta> exists, any instances of “C<Some::Class>” will have the mocked behavior. To restore them back to the original, simply undefine that C<$mock_meta> variable or call C<< $mock_meta->reset_all() >>.
+And now, as long as C<$mock_meta> exists, any instances of "C<Some::Class>" will have the mocked behavior. To restore them back to the original, simply undefine that C<$mock_meta> variable or call C<< $mock_meta->reset_all() >>.
 
-One thing you may have noticed in the example above is the “C<< track => true >>”. That means C<$mock_meta> will contain a lot of information ready for you to inspect regarding how many times any given method was called, and which arguments were used. This is particularly important to check if the code you’re testing is properly invoking the mocked class.
+One thing you may have noticed in the example above is the "C<< track => true >>". That means C<$mock_meta> will contain a lot of information ready for you to inspect regarding how many times any given method was called, and which arguments were used. This is particularly important to check if the code you’re testing is properly invoking the mocked class.
 
+    #!vim perl
     test_something_that_uses_my_mocked_class();
     is(
         $mock_meta->sub_tracking->{some_method}->@*,
@@ -70,7 +75,7 @@ One thing you may have noticed in the example above is the “C<< track => true 
     like(
         $mock_meta->sub_tracking->{some_method}[0]{args},
         [ qr(), ‘arg1’, qr(arg2) ],
-        'testing call arguments for method “some_method”'
+        'testing call arguments for method "some_method"'
     );
 
     $mock_meta->clear_sub_tracking(); # so we can go again in isolation
@@ -78,7 +83,8 @@ One thing you may have noticed in the example above is the “C<< track => true 
 
 Note that to get the mock metadata from a given variable holding an object, you can also do:
 
-        my ($mock_meta) = mocked $actual_obj;
+    #!vim perl
+    my ($mock_meta) = mocked $actual_obj;
 
 
 =head2 Mocking the Christmas Wishlist Database
@@ -87,6 +93,7 @@ For a real world example, let's see how the elves use Test2 Suite's
 mocking features to test our gift delivery system. The code looks
 roughly like this:
 
+    #!vim perl
     sub deliver_gift ($child_name, $gift_name) {
         my $schema = GiftDB::Schema->get_active_connection();
         my $wish = $schema->resultset('Wishlist')->single({
@@ -106,6 +113,7 @@ child's wishlist entry. If we have it, we update the entry to 'delivered'.
 But how do we test it without actually using a database? We mock the
 database, that's how!
 
+    #!vim perl
     use builtin qw( true false weaken );
     use Test2::V0;
 
