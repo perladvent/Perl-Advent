@@ -363,61 +363,69 @@ previous configuration:
 =head2 How the sausage is made
 
 By starting Nama with the <-L ChainSetup> logging option, we
-can see how the above playback setup is arrived at. First, all the 
-tracks are routed. Then the graph is simplified.
-(I only show the graph in stages where it changes.)
+can see how the above playback setup is arrived at. First,
+all the tracks are routed. At this stage tracks connect to
+each other directly. Then the graph is simplified, with dead
+branches eliminated. Finally, loop devices are introduced
+where needed. I only show the graph in stages where it
+changes, and only include one of the clip tracks (they all 
+get pruned anyway.)
 
-[1513] ChainSetup  (L 106) Graph after bus routing:
-carol-Main, wav_in-carol, wav_in-carol-1-carol-v1, wav_in-carol-2-carol-v1, wav_in-carol-3-carol-v1, wav_in-carol-4-carol-v1
-[1514] ChainSetup  (L 111) Graph after aux sends:
-[1514] ChainSetup  (L 114) Graph with paths from Main:
-Main-soundcard_out, carol-Main, wav_in-carol, wav_in-carol-1-carol-v1, wav_in-carol-2-carol-v1, wav_in-carol-3-carol-v1, wav_in-carol-4-carol-v1
-[1514] ChainSetup  (L 117) Graph with mixdown mods:
-[1514] ChainSetup  (L 216) Graph after simplify_send_routing:
-[1514] ChainSetup  (L 218) Graph after remove_out_of_bounds_tracks:
-[1514] ChainSetup  (L 220) Graph after recursively_remove_inputless_tracks:
-[1515] ChainSetup  (L 222) Graph after recursively_remove_outputless_tracks:
-Main-soundcard_out, carol-Main, wav_in-carol
-[1515] ChainSetup  (L 122) Graph after pruning unterminated branches:
-[1515] ChainSetup  (L 126) Graph after adding loop devices:
-Main-soundcard_out,Main_in-Main,carol-Main_in,wav_in-carol
-[1515] ChainSetup  (L 130) Graph with inserts:
-Main-soundcard_out,Main_in-Main,carol-Main_in,wav_in-carol
+	[1513] ChainSetup  (L 106) Graph after bus routing:
+	wav_in-carol, carol-Main, wav_in-carol-1-carol-v1
+
+	[1514] ChainSetup  (L 111) Graph after aux sends:
+	[1514] ChainSetup  (L 114) Graph with paths from Main:
+	wav_in-carol, carol-Main, Main-soundcard_out, wav_in-carol-1-carol-v1
+
+	[1514] ChainSetup  (L 117) Graph with mixdown mods:
+	[1514] ChainSetup  (L 216) Graph after simplify_send_routing:
+	[1514] ChainSetup  (L 218) Graph after remove_out_of_bounds_tracks:
+	[1514] ChainSetup  (L 220) Graph after recursively_remove_inputless_tracks:
+	[1515] ChainSetup  (L 222) Graph after recursively_remove_outputless_tracks:
+	wav_in-carol, carol-Main, Main-soundcard_out
+
+	[1515] ChainSetup  (L 122) Graph after pruning unterminated branches:
+	[1515] ChainSetup  (L 126) Graph after adding loop devices:
+	wav_in-carol, carol-Main, carol-Main_in, Main_in-Main, Main-soundcard_out
+
+	[1515] ChainSetup  (L 130) Graph with inserts:
 
 Then we get a debug output showing the four IO object
-that generate the input term and output term for each chain.
-There are different classes for each type of term.
+derived from the graph. These generate the input term and
+output term for the two chains. There are different classes for
+each type of term.
 
-[1517] ChainSetup  (L 232) 
-bless( {
-  chain_id_ => 3,
-  endpoint_ => "wav_in",
-  track_ => "carol",  
-}, 'Audio::Nama::IO::from_wav' )
-                      
-bless( {              
-  chain_id_ => 1,     
-  endpoint_ => "soundcard_out",
-  track_ => "Main",   
-}, 'Audio::Nama::IO::to_alsa_soundcard_device' )
-                      
-bless( {              
-  chain_id_ => 3,     
-  device_id_ => "loop,Main_in",
-  endpoint_ => "Main_in",
-  track_ => "carol",  
-}, 'Audio::Nama::IO::to_loop' )
-                      
-bless( {              
-  chain_id_ => 1,     
-  device_id_ => "loop,Main_in",
-  endpoint_ => "Main_in",
-  track_ => "Main",   
-}, 'Audio::Nama::IO::from_loop' )
+	[1517] ChainSetup  (L 232) 
+	bless( {
+	  chain_id_ => 3,
+	  endpoint_ => "wav_in",
+	  track_ => "carol",  
+	}, 'Audio::Nama::IO::from_wav' )
+						  
+	bless( {              
+	  chain_id_ => 1,     
+	  endpoint_ => "soundcard_out",
+	  track_ => "Main",   
+	}, 'Audio::Nama::IO::to_alsa_soundcard_device' )
+						  
+	bless( {              
+	  chain_id_ => 3,     
+	  device_id_ => "loop,Main_in",
+	  endpoint_ => "Main_in",
+	  track_ => "carol",  
+	}, 'Audio::Nama::IO::to_loop' )
+						  
+	bless( {              
+	  chain_id_ => 1,     
+	  device_id_ => "loop,Main_in",
+	  endpoint_ => "Main_in",
+	  track_ => "Main",   
+	}, 'Audio::Nama::IO::from_loop' )
 
-These classes provide methods that are overridden by values
-associated to the graph edges or graph nodes (loop devices)
-Other methods or fields are proxied to the parent track.
+These classes provide methods that can be overridden by
+value annotations on the graph edges or graph nodes.  Other
+methods or fields are proxied to the parent track.
 
 =head2 Thanks for reading!
 
