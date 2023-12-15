@@ -1,0 +1,406 @@
+Author: oodler@cpan.org
+Title: Sequentially Consistent Santa
+Topic: Sub::Genius
+
+=encoding utf8
+
+Santa is finally introducing automation into his toy making operation,
+and this largely manifests itself as a large, black box that he or his
+elves are supposed to program with the build steps.
+
+These magic boxes are programmed to follow a specific set of steps using
+a domain specific language (DSL) provided for by the mysterious makers
+of the boxen.
+
+Nobody really knows how they work, not even Santa.  Or so he claims.
+But provided they are able to trust the plan they give the machine,
+all is good in the North Pole and everyone gets their fill of eggnog.
+
+Working with Lucas, his chief programmer elf, Santa wrote down the list
+of steps that he's perfected by manually building bikes over the last
+century. These instructions are superficially clear, but because there
+were lots of dependent steps, it was not so clear at all how they were
+going specify the proper ordering.
+
+The steps that he gave his chief programming elf consisted of the following
+plan for building the perfect bike:
+
+=over 4
+
+=item  1. the bike frame must be forged, welded, and painted
+
+=item  2. the rear wheel may be attached to the frame once #1 is complete 
+
+=item  3. the front wheel may be attached to the frame once #1 is complete
+
+=item  4. the seat may be added at any time after #1
+
+=item  5. handle bars must be attached before the front wheel (#3) is attached
+
+=item  6. the front brakes must be added after the front wheel (#3) is added
+
+=item  7. the rear brakes must be added after the rear wheel is added in #2
+
+=item  8. pedals and gears can be added at any time after #1
+
+=item  9. the chain must be added after the pedals and rear wheel (#8)
+
+=item 10. send bike to Buddy the Elf for testing
+
+=back 
+
+The work plans are fed into the box using a plan format that is then read
+and processed by an internal module called C<Sub::Genius>.  A module aptly
+named since its original author is certainly not the brightest bulb in the
+shed. But the module is a good example of the many useful tools that exist
+on the Internet.
+
+After being processed by C<Sub::Genius>, the plan is turned into a set of
+actionable steps that the machine blindly follows. If the plan is correct,
+the end result will be a bicycle.
+
+The plan is thusly:
+
+=begin text
+
+ForgeBike
+InitialPaint
+(
+  ( ( RearWheel & Peddles & Gears ) ( RearBrakes & Chain))
+  &
+  ( Seat)
+  &
+  ( HandleBars FrontWheel FrontBrakes )
+)
+Buddy2TestBike
+
+=end text
+
+So the elves do not need to list out every possible correct ordering, only
+ensure that dependent steps are expressed using a nested form that resemble
+a tree (similar in a lot of ways to I<LISP>-y I<S-expressions>).
+
+Given the program, the magic box provides a way to serialize the execution
+of the plan into a sequential series of steps, all by using a Perl script:
+
+=begin
+
+use strict;
+use warnings;
+use Sub::Genius;
+
+my $plan =<<EOP;
+  ForgeBike
+  InitialPaint
+  (
+    ( ( RearWheel & Peddles & Gears ) ( RearBrakes & Chain))
+    &
+    ( Seat)
+    &
+    ( HandleBars FrontWheel FrontBrakes )
+  )
+  Buddy2TestBike
+EOP
+
+my $sg = Sub::Genius->new(preplan => $plan)->init_plan;
+
+# print all sequential orderings of the steps described above
+while (my $preplan = $sg->next()) {
+  print qq{$preplan\n}; 
+}
+
+=end perl
+
+Which when run, results in 588 possible correct order of operations. A
+sequential set of steps is I<correct> if it respects the partial ordering
+among dependent steps described in the plan above.
+
+For example, C<HandleBars> must always be installed before the
+C<RearBreaks>. But the C<Peddles> may be installed before or after the
+C<FrontBreaks>. And in this way all independent tasks may be interleaved,
+i.e., may occur in any order.
+
+For example, some of the 588 possible correct orderings follow:
+
+=begin text
+
+ForgeBike InitialPaint Peddles Gears RearWheel HandleBars FrontWheel Chain RearBrakes Seat FrontBrakes Buddy2TestBike
+ForgeBike InitialPaint Peddles Gears RearWheel HandleBars FrontWheel Chain RearBrakes FrontBrakes Seat Buddy2TestBike
+ForgeBike InitialPaint Peddles Gears RearWheel Chain HandleBars RearBrakes FrontWheel Seat FrontBrakes Buddy2TestBike
+ForgeBike InitialPaint Peddles Gears RearWheel Chain HandleBars RearBrakes FrontWheel FrontBrakes Seat Buddy2TestBike
+ForgeBike InitialPaint Peddles Gears RearWheel Chain HandleBars RearBrakes Seat FrontWheel FrontBrakes Buddy2TestBike
+ForgeBike InitialPaint Peddles Gears RearWheel Chain HandleBars FrontWheel RearBrakes Seat FrontBrakes Buddy2TestBike
+ForgeBike InitialPaint Peddles Gears RearWheel Chain HandleBars FrontWheel RearBrakes FrontBrakes Seat Buddy2TestBike
+...
+ForgeBike InitialPaint HandleBars Gears FrontWheel RearWheel Peddles RearBrakes Chain Seat FrontBrakes Buddy2TestBike
+ForgeBike InitialPaint HandleBars Gears FrontWheel RearWheel Peddles RearBrakes Chain FrontBrakes Seat Buddy2TestBike
+ForgeBike InitialPaint HandleBars Gears FrontWheel RearWheel Peddles Chain RearBrakes Seat FrontBrakes Buddy2TestBike
+ForgeBike InitialPaint HandleBars Gears FrontWheel RearWheel Peddles Chain RearBrakes FrontBrakes Seat Buddy2TestBike
+ForgeBike InitialPaint HandleBars Gears FrontWheel Peddles RearWheel RearBrakes Chain Seat FrontBrakes Buddy2TestBike
+ForgeBike InitialPaint HandleBars Gears FrontWheel Peddles RearWheel RearBrakes Chain FrontBrakes Seat Buddy2TestBike
+ForgeBike InitialPaint HandleBars Gears FrontWheel Peddles RearWheel Chain RearBrakes Seat FrontBrakes Buddy2TestBike
+ForgeBike InitialPaint HandleBars Gears FrontWheel Peddles RearWheel Chain RearBrakes FrontBrakes Seat Buddy2TestBike
+
+=end text
+
+It would still be useful, one may suppose, if Lucas could merely enumerate
+the steps in a properly ordered way. But alas, C<Sub::Genius> is far more
+useful than that!
+
+It so happens that if the C<sub>s of the same names as the I<steps> of the plan
+are defined within the scope, then the plan may be actually executed. This
+allows for each step in the plan to have actions associated with them (even
+generating additional nested plans).
+
+Because creating scripts to be executed according to the plan is a
+ tedious task, one of the useful tools C<Sub::Genius> provides is
+called C<stubby>. This utility can be used to I<stub> another Perl script with
+the C<sub> already in place, just waiting to be filled with useful purpose.
+
+E.g., if the I<plan> above is saved to a file, let's call it C<./bike.plan>,
+we're able to generate a Perl script that contains stubs for each of the
+steps that appear in the plan at least once.
+
+  shell> stubby init -f ./bikes.plan --run once > bikes.pl
+
+The file C<bikes.pl> is now filled with subroutines  stubs that are waiting
+to be filled in with meaningful code, the script will look something like
+the following:
+
+=begin perl
+
+use strict;
+use warnings;
+use Sub::Genius;
+
+my $plan = <<EOP;
+  ForgeBike
+  InitialPaint
+  (
+    ( ( RearWheel & Peddles & Gears ) ( RearBrakes & Chain))
+    &
+    ( Seat)
+    &
+    ( HandleBars FrontWheel FrontBrakes )
+  )
+  Buddy2TestBike
+EOP
+
+my $sg = Sub::Genius->new( preplan => $plan )->init_plan;
+
+my $final_scope = $sg->run_once;
+
+sub ForgeBike {
+    my $scope = shift;
+    print qq{Bike forged!\n};
+    return $scope;
+}
+
+sub InitialPaint {
+    my $scope = shift;
+    print qq{Bike painted!\n};
+    return $scope;
+}
+
+sub HandleBars {
+    my $scope = shift;
+    print qq{Handle bars on!\n};
+    return $scope;
+}
+
+sub Gears {
+    my $scope = shift;
+    print qq{Gears on!\n};
+    return $scope;
+}
+
+sub RearWheel {
+    my $scope = shift;
+    print qq{Rear wheels on!\n};
+    return $scope;
+}
+
+sub Peddles {
+    my $scope = shift;
+    print qq{Peddles on!\n};
+    return $scope;
+}
+
+sub RearBrakes {
+    my $scope = shift;
+    print qq{Rear brakes on!\n};
+    return $scope;
+}
+
+sub FrontWheel {
+    my $scope = shift;
+    print qq{Front wheels on!\n};
+    return $scope;
+}
+
+sub Chain {
+    my $scope = shift;
+    print qq{Chain on!\n};
+    return $scope;
+}
+
+sub FrontBrakes {
+    my $scope = shift;
+    print qq{Front brakes on!\n};
+    return $scope;
+}
+
+sub Seat {
+    my $scope = shift;
+    print qq{Seat on!\n};
+    return $scope;
+}
+
+sub Buddy2TestBike {
+    my $scope = shift;
+    print qq{Ready to test, Buddy!\n};
+    return $scope;
+}
+
+=end perl
+  
+And each time it's run, the overall ordering may change, but the ordering
+will always be correct based on the plan description:
+
+=begin text
+
+shell> perl bike.pl
+
+Bike forged!
+Bike painted!
+Handle bars on!
+Front wheels on!
+Peddles on!
+Rear wheels on!
+Gears on!
+Rear brakes on!
+Chain on!
+Seat on!
+Front brakes on!
+Ready to test, Buddy!
+
+$ perl bike.pl
+Bike forged!
+Bike painted!
+Peddles on!
+Handle bars on!
+Front wheels on!
+Gears on!
+Rear wheels on!
+Rear brakes on!
+Chain on!
+Front brakes on!
+Seat on!
+Ready to test, Buddy!
+
+$ perl bike.pl
+Bike forged!
+Bike painted!
+Peddles on!
+Rear wheels on!
+Gears on!
+Chain on!
+Handle bars on!
+Rear brakes on!
+Seat on!
+Front wheels on!
+Front brakes on!
+Ready to test, Buddy!
+
+=end text
+
+Note: it is worth looking more into the raw stub file created since it
+give some nice hints on really interesting things one may do by giving the
+C<sub>s C<state> and passing along a C<$scope> reference from one C<sub>
+to another, as the sequential form of the plan is being executed.
+
+And to make a very long story short, Perl saved Yet Another Christmas!
+
+B<Prologue>
+
+Lucas ended up having such a joyful time working with coding the plan
+of the steps for creating the bikes, that he left us this nice little
+program as a parting gift.
+
+But don't try to run it until the clock strikes midnight on December 25!
+  
+=begin perl
+
+use strict;
+use warnings;
+use feature 'state';
+
+use Sub::Genius ();
+
+my $preplan = q{
+ (
+   HO &
+    HO &
+     HO
+        )
+ Merry Christmas To All
+};
+
+my $sq = Sub::Genius->new(preplan => qq{$preplan} );
+$sq->init_plan;
+my $final_scope = $sq->run_once( scope => {}, ns => q{main}, verbose => 0);
+
+#
+# S U B R O U T I N E S
+#
+
+sub HO {
+  state $mystate = 0;
+  if ($mystate == 0) {
+    print qq{Merry Christmas to All,\nAnd };
+    ++$mystate;
+  }
+  elsif ($mystate == 1) {
+    print qq{to };
+    ++$mystate;
+  }
+  elsif ($mystate == 2) {
+    print qq{All, };
+    ++$mystate;
+  };
+}
+
+sub Merry {
+  print qq{A };
+}
+
+sub Christmas {
+  print qq{Good };
+}
+
+sub To  {
+  print qq{Night};
+};
+
+sub All {
+  print qq{!\n};
+};
+
+=end perl
+
+The story does not end here, but it is time to conclude this chapter. Santa
+and Lucas successfully programmed the magick black box, and countless
+children received their bikes. A lucky few received a scooter and fez
+cap instead, but that's a story for a different Advent.
+
+=over 4
+
+=item L<https://metacpan.org/pod/Sub::Genius> - includes info on how this all works
+
+=item L<https://metacpan.org/pod/FLAT> - processing engine
+
+=item L<https://en.wikipedia.org/wiki/S-expression>
+
+=back
+
+=cut
