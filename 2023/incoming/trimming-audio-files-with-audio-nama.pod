@@ -20,6 +20,13 @@ the recording, playback or other tasks at hand.
 We also need git, which Nama uses to manage project state,
 provide for branching, undo, etc.
 
+=head2 Environment
+
+Nama defaults to linux conventions: that you'll be recording
+or listening from the default ALSA soundcard device which is
+usually card 0, your computer's built-in soundcard. You can
+change this setting in C<.namarc>.  
+
 The first run of C<nama> creates a C<$HOME/nama> directory for 
 project files and a configuration file C<$HOME/.namarc>. 
 
@@ -106,8 +113,12 @@ file, and the output goes to the default soundcard. There is
 an C<-f> argument that describes the audio signal bit width,
 channel count and sample frequency.
 
+(The general options define buffer size, specify no double
+buffering, use extra buffering for realtime devices, and sum
+all inputs to a loop device.)
+
 For more complicated graphs, we can add a loop device, which
-is a buffer stage. A loop device is a kind of hub: a node capable
+is a buffer stage. A loop device serves as a kind of hub: a node capable
 of connecting to multiple chains on both input and output.
 
 Here is the chain setup for listening to our radio play
@@ -127,17 +138,15 @@ We have two chains joined through a loop device.
 
 =head2 Buses and mixers
 
-"Why bother to have the intermediate loop device?" I
-hear you ask. Answer: To serve as a mixer. Each user track
-initially belongs to a bus called 'Main'. These tracks sum
-their outputs into the 'Main' track, which provides a master fader.
-
-Repeating, a bus in Nama is software mixer with multiple
-signals in, and one signal out. A bus is implemented by one or
-more tracks summing their signals into one output track via
-a loop device. Switching the output track for the bus to OFF
-removes the bus from the network. In this case, the entire
-network is eliminated.
+"Why bother to have the intermediate loop device?" I hear
+you ask. Answer, because Nama is set up as a mixer. Each
+user track initially belongs to a bus called 'Main'. These
+tracks sum their outputs into the 'Main' track, which
+provides a master fader before the signal goes to the
+soundcard. So a bus in Nama is software mixer with multiple
+track in, and one track out. Switching the output track
+for a bus to OFF removes the bus from the network. In this
+example, the entire network is eliminated.
 
 	nama christmas carol > 1 off  # same as 'Main off'
 
@@ -166,17 +175,19 @@ Now let's send our audio directly to the soundcard:
 	Now at: 0:00
 	Engine is ready.
 
-The network reappears with a single chain, same as in the first
-chain setup illustrated. To recover the standard playback
+The network reappears with a single chain, as in the
+very first sample setup. To recover the standard playback
 configuration:
 
 	nama christmas carol > 3 nosend; 1 mon
 
-We'll now use a specialized type of bus called a 'sequence'
-to connect end-to-end desired clips from our radio
-play. 
+=head2 Clips defined 
 
-First, to demonstrate, we define a clip running from 10 to 20 seconds in the parent file.
+We will use a specialized type of bus called a 'sequence' to
+stitch together clips from our radio play. But first we
+must define the clips. 
+
+Here's we specify the audio clip between 10 and 20 seconds in the parent file.
 
 	nama christmas carol > set-region 10.0 20.0
 	nama christmas carol > show-track
@@ -188,12 +199,12 @@ First, to demonstrate, we define a clip running from 10 to 20 seconds in the par
 	Region start: 10.000 / 0:10 (10.0)
 	Region end: 20.000 / 0:20 (20.0)
 
-The region definition adds a 'select' term to the chainsetup: 
+The region definition adds a C<select> term to the chainsetup: 
 
 	-a:3 -f:s16_le,2,44100 -i:select,10,10,/home/jroth/nama/christmas/.wav/carol_1.wav
 
-We can play this clip at an arbitrary time with the 'shift'
-command.  C<shift 30.0> leads to a 'playat' term
+We can play this clip at an arbitrary time with the C<shift>
+command. C<shift 30.0> leads to a 'playat' term
 entering the input definition.
 
 	-a:3 -f:s16_le,2,44100 -i:playat,30.0,select,10,10,/home/jroth/nama/christmas/.wav/carol_1.wav
@@ -207,9 +218,9 @@ playback offset:
 
 =head2 Just do it
 
-Now, towards our goal, we need to mark the beginning
-and end of each clip we want to keep, then put the clips in
-sequence.  
+Having seen enough of clips and chain setups, we now mark
+the beginning and end of each clip we want to keep, then put
+the clips in sequence.  
 
 We can do that by listening to the track and using the
 C<toggle-clip> command (bound to the F1 key) to alternately
@@ -339,9 +350,9 @@ previous configuration:
 By starting Nama with the C<-L ChainSetup> logging option, we
 can see how the above playback setup is arrived at. First,
 all the tracks are routed. At this stage tracks connect to
-each other directly. Then the graph is simplified, with dead
-branches eliminated. Finally, loop devices are introduced
-between tracks where needed. I only show the graph where it
+each other directly. Then the graph is simplified, dead
+branches removed. Finally, loop devices are introduced
+between tracks where needed. Below I only show the graph where it
 changes, and only include one of the clip tracks (they all 
 get pruned in the end.)
 
@@ -413,3 +424,21 @@ L<songs|https://juliencoder.de/nama> using Nama in
 combination with various other music software and hardware.
 She began recording music using Ecasound and migrated to
 Nama as it became sufficiently featureful.
+
+=head2 Notable dependencies
+
+ L<Git::Repository>: Manage project history, branching, undo
+ L<Log::Log4perl>: Logging, debugging
+ L<Parse::RecDescent>: Command language parser
+ L<Object::Tiny>: Accessor generator
+ L<Role::Tiny>: Breaking up large classes
+ L<Term::ReadLine::Gnu>: Terminal support, tab completion, history
+ L<Term::TermKey>: Hotkey mappings
+ L<Graph>: Representing, traversing and transforming the signal processing network
+ L<AnyEvent>: Event loop
+ L<Tk>: GUI, use -g option at your own risk
+ L<Data::Section::Simple>: Store and access sections within the __DATA__ block
+ L<Data::Dumper::Concise>, tho I would recommend L<Data::Printer>, now.
+ L<Memoize>: Turn expensive, redundant calculations into cheap
+
+
