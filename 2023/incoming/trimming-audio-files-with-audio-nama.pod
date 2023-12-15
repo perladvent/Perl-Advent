@@ -15,7 +15,7 @@ file, and stitch them together into a new file.
 
 To do this, we install L<Ecasound|https://ecasound.seul.org/ecasound/>, a general-purpose audio
 engine and L<Audio::Nama>, which configures Ecasound to perform
-the recording, playback or other tasks at hand. 
+recording, playback or other tasks at hand. 
 
 We also need git, which Nama uses to manage project state,
 provide for branching, undo, etc.
@@ -23,7 +23,7 @@ provide for branching, undo, etc.
 The first run of C<nama> creates a C<$HOME/nama> directory for 
 project files and a configuration file C<$HOME/.namarc>. 
 
-Nama defaults to linux conventions: that you'll be recording
+Nama assumes a linux environment: that you'll be recording
 or listening from the default ALSA soundcard device, 
 usually your computer's built-in soundcard. You can
 change this setting in C<namarc>.  
@@ -46,9 +46,9 @@ We get a startup banner, then this empty track listing:
 In the prompt, 'christmas' is the project, 'Mixdown', the current track. 
 
 We create a separate track to accommodate our audio file,
-then import this file.
+then import the file.
 
-	nama christmas Mixdown > add carol
+	nama christmas Mixdown > add-track carol
 	nama christmas carol > import ~/music/christmas-carol.mp3
 
 	format: s16_le,2,12000
@@ -60,13 +60,13 @@ then import this file.
 	  2  Mixdown               OFF     track Main            --             --    --
 	  3  carol                 PLAY    carol_1.wav           Main bus      100    50
 
+We can now press SPACE to start/stop playback. 
+
 In the track listing above we see that track 'carol' with
 source 'carol_1.wav' is set to PLAY. The output of 'carol'
-feeds the 'Main' track. 'Main' serves as the master fader.
-with output to the sound card: a typical mixer
-configuration.
-
-We can now press SPACE to start/stop playback. 
+feeds the 'Main' track via the 'Main' bus. The 'Main' track
+serves as the master fader with output to the sound card. 
+Like 'carol', all new tracks start as members of the 'Main' bus. 
 
 =head2 Define our clips
 
@@ -148,15 +148,54 @@ C<~/nama/christmas/christmas_1.wav> is a symlink to C<~/nama/christmas/.wav/Mixd
 
 =head2 How the sausage is made
 
+=head3 Chain setup graph
+
+A chain setup is made of signal-processing I<chains>--edges in
+the processing graph--and I<loop devices>, which are nodes
+capable of summing their inputs.
+
+Each chain has one input and one output. This is a setup
+of one chain, omitting general options related to
+buffersize, etc.
+
+	# audio inputs
+
+	-a:3 -f:s16_le,2,44100 -i:/home/jroth/nama/christmas/.wav/carol_1.wav
+
+	# audio outputs
+
+	-a:3 -o:alsa,default
+
+There is one chain, with label C<3>. Its input is from a .wav
+file, and its output goes to the default soundcard. There is
+an C<-f> argument that describes the audio signal bit width,
+channel count and sample frequency.
+
+Chains can terminate at an audio file, a sound device or a
+loop device.  A loop device is a buffer stage that can sum
+the signal from one or more chains. It supplies the sum to
+another chain (or possibly multiple chains.) A loop device
+with its sources and an output chain can represent a mixer
+or bus. 
+
+A chain can represent an I<audio clip>, part of an audio file
+that plays at a particular time.
+
+	-a:5 -f:s16_le,2,44100 -i:playat,40,select,80,300,/home/jroth/nama/christmas/.wav/carol_1.wav
+
+The 'select,80,300' object extracts 300 seconds of audio
+starting at 0:80. The 'playat,40' option plays the clip
+after a delay of 40 seconds.
+
+
 =head3 Basic mixer configuration
 
 Each time a change in track status occurs, Nama generates a
-I<chain setup>, which defines an Ecasound audio network. 
+Chain setup file and commands Ecasound to load it.
 
 Let's start with the mixer configuration when we imported
-the audio file. 
+our radio play. 
 
-	 
 	 No. Name       Requested  Status  Source                Destination   Vol   Pan
 	===============================================================================
 	  1  Main                  MON     Main bus              CH 1/2        100    50
@@ -183,17 +222,6 @@ corresponding to our tracks 'Main' and 'carol'.
 Chain C<3> reads C<carol_1.wav> and sends its output to loop
 device C<Main_in>.  Chain C<1> read the stream from
 C<Main_in> and supplies it to the soundcard.
-
-=head3 Chain setup graph
-
-A chain setup is made of signal-processing chains--edges in
-the processing graph--and loop devices, which are nodes.
-Each chain has one input and one output.  Chains can
-terminate at an audio file, a sound device or a loop device.
-A loop device is a buffer stage that can sum the signal from
-one or more chains. It supplies the sum to another chain (or
-possibly multiple chains.) A loop device with its sources
-and an output chain can represent a mixer or bus. 
 
 =head3 Debug output
 
@@ -227,10 +255,23 @@ So this is our final graph:
 
 	wav_in-carol, carol-Main_in, Main_in-Main, Main-soundcard_out
 
-Then we get a dump showing four IO objects
-derived from the graph. These generate the input and
-output terms for the two chains. There are different classes for
-each type of term.
+At this point, one end of each edge is a track. An
+edge--associating one track and one terminal--is sufficient
+to write an input or output line in the chain setup.
+
+This happens through dispatch on the type of terminal, and
+generates IO objects, each used to write one line of the
+chain setup: a different class for each type of terminal.
+
+[1515] ChainSetup  (L 360) dispatch: wav_in -> carol
+[1515] ChainSetup  (L 362) name: carol, endpoint: wav_in, direction: input
+[1516] ChainSetup  (L 360) dispatch: Main -> soundcard_out
+[1516] ChainSetup  (L 362) name: Main, endpoint: soundcard_out, direction: output
+[1516] ChainSetup  (L 360) dispatch: carol -> Main_in
+[1516] ChainSetup  (L 362) name: carol, endpoint: Main_in, direction: output
+[1516] ChainSetup  (L 360) dispatch: Main_in -> Main
+[1516] ChainSetup  (L 362) name: Main, endpoint: Main_in, direction: input
+
 
 	bless( { 
 	  chain_id_ => 3, 
@@ -259,9 +300,13 @@ each type of term.
 	}, 'Audio::Nama::IO::from_loop' ) 
 
 These classes provide methods that can be overridden by
-field values annotated on the graph edges or graph nodes.
-Any other methods needed in generating the chain setup file
-are proxied from the IO object back to the parent track.
+field values annotated on the graph edges or graph nodes, 
+with the edge (chain) values having the highest priority.
+
+Overrides are used for mixdown and anywhere values for an IO
+object need to differ from those derived from the parent
+track.
+
 
 =head3 Assembling our audio clips
 
@@ -308,8 +353,6 @@ of marks.
 The mixdown configuration is the same, with the output of chain 1 directed to a file. 
 
 =head2 Thanks for reading!
-
-There are many other things you can do with Nama but that's all for today!
 
 =head2 Showcase
 
