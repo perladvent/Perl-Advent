@@ -2,7 +2,6 @@ Author: Joel Roth <joelz@pobox.com>
 Title: Trimming audio files with Audio::Nama
 Topic: Audio::Nama
 
-
 =for :html
 <center><img src="warpedwav7.png" alt="Warped audio waveforms" width="85%"></center>
 
@@ -15,36 +14,36 @@ various info breaks during a radio play. In other words, we
 want to extract relevant parts of an audio file, and stitch
 them together into a new file. We'll see how this happens
 through an audio network language we'll use perl to
-generate. 
+generate.
 
 =head2 Our hammer
 
-We'll be accomplishing this with Audio::Nama, a multitrack
+We'll be accomplishing this with L<Audio::Nama>, a multitrack
 recording mixing and audio-processing application written in
 perl, and L<Ecasound|https://ecasound.seul.org/ecasound/>, a
 general-purpose audio engine. We also need git, which Nama
 uses to manage project state, provide for branching, undo,
 etc. C<nama> is the executable program script and also man
 page, so "man nama" for the docs, or use nama's internal
-help. 
+help.
 
 Nama configures Ecasound for recording, mixing and a variety
 of tasks via a audio network definition called a I<chain
-setup> with syntax we will use Nama to generate. 
+setup> with syntax we will use Nama to generate.
 
 Aside from housekeeping duties, Nama's main task is to
 regenerate the chain setup (and re-configure the engine)
-whenever the graph changes due to user input, such 
+whenever the graph changes due to user input, such
 as deactivating a track or changing an output--a bit
-like how a spreadsheet recalculates as necessary. 
+like how a spreadsheet recalculates as necessary.
 
-The first run of C<nama> creates a C<$HOME/nama> directory for 
-project files and a configuration file C<$HOME/.namarc>. 
+The first run of C<nama> creates a C<$HOME/nama> directory for
+project files and a configuration file C<$HOME/.namarc>.
 
 Nama assumes a linux environment: that you'll be recording
-or listening from the default ALSA soundcard device, 
+or listening from the default ALSA soundcard device,
 usually your computer's built-in soundcard. You can
-change this setting in C<namarc>.  
+change this setting in C<namarc>.
 
 =for :html
 <center><img src="thin2.png" alt="section divider" width="7%"></center>
@@ -56,7 +55,7 @@ We'll create a new project called 'christmas'.
 C<$ nama -c christmas>
 
 We get a startup banner, then an empty track listing:
- 
+
 	 No. Name       Requested  Status  Source                Destination   Vol   Pan
 	===============================================================================
 	  1  Main                  MON     Main bus              CH 1/2        100    50
@@ -64,7 +63,7 @@ We get a startup banner, then an empty track listing:
 
 	nama christmas Mixdown >
 
-In the prompt, 'christmas' is the project, 'Mixdown', the current track. 
+In the prompt, 'christmas' is the project, 'Mixdown', the current track.
 
 We create a separate track to accommodate our audio file,
 then import the file.
@@ -81,14 +80,14 @@ then import the file.
 	  2  Mixdown               OFF     track Main            --             --    --
 	  3  carol                 PLAY    carol_1.wav           Main bus      100    50
 
-We can now press SPACE to start/stop playback. 
+We can now press SPACE to start/stop playback.
 
 In the track listing above we see that track 'carol' with
 source C<carol_1.wav> is set to PLAY. The output of 'carol'
 feeds the 'Main' track via the 'Main' bus. The 'Main' track
 serves as the master fader with output to the sound card.
 Like 'carol', all new tracks start as members of the 'Main'
-bus. 
+bus.
 
 =for :html
 <center><img src="thin2.png" alt="section divider" width="7%"></center>
@@ -102,14 +101,14 @@ keep.
 
 We do that by listening to the track and using the
 C<clip-here> command (bound to the F1 key) to mark clip
-starts and ends. 
+starts and ends.
 
 After some trial and error, we have the correct marks.
 In this example: four five-minute sections of content
 separated by 40-second breaks.
 
 	nama christmas carol > list-marks
-	
+
 	0 40.0 clip-start-0020
 	1 340.0 clip-end-0021
 	2 380.0 clip-start-0022
@@ -134,7 +133,7 @@ We can now assemble our clips.
 
 Note that the source for track 3 has changed from C<carol_1.wav> to
 C<carol sequence>.
- 
+
 Having listened to the output and resolved any hiccups
 (there were none!) we are ready to render it to an audio
 file.
@@ -168,9 +167,9 @@ The mixdown step also generates ogg and mp3 encodings with
 oggenc and lame, respectively, if desired. These files
 appear in the project directory:
 
-C<~/nama/christmas/christmas_1.mp3> 
-C<~/nama/christmas/christmas_1.ogg>  
-C<~/nama/christmas/christmas_1.wav> is a symlink to C<~/nama/christmas/.wav/Mixdown_1.wav>  
+C<~/nama/christmas/christmas_1.mp3>
+C<~/nama/christmas/christmas_1.ogg>
+C<~/nama/christmas/christmas_1.wav> is a symlink to C<~/nama/christmas/.wav/Mixdown_1.wav>
 
 =for :html
 <center><img src="thin2.png" alt="section divider" width="7%"></center>
@@ -183,7 +182,7 @@ An Ecasound chain setup is made of signal-processing
 I<chains>--edges in the processing graph--and I<loop
 devices>, which are nodes capable of summing their inputs.
 
-A chain represents a stream with one input and one output. 
+A chain represents a stream with one input and one output.
 
 Here is a setup of one chain, omitting general options
 related to buffer sizes, etc.
@@ -206,9 +205,9 @@ loop device. A loop device is a buffer stage that can sum
 the signal from one or more chains. It supplies the sum to
 another chain (or possibly multiple chains.) A loop device
 with its sources and an output chain can represent a mixer
-or bus. 
+or bus.
 
-Significantly for our task, a chain can represent an I<audio clip>, 
+Significantly for our task, a chain can represent an I<audio clip>,
 part of an audio file that plays at a particular time.
 
 	-a:5 -f:s16_le,2,44100 -i:playat,40,select,80,300,/home/jroth/nama/christmas/.wav/carol_1.wav
@@ -222,7 +221,7 @@ plugins and plugin controllers called I<chain operators>
 included in Ecasound and provided by numerous
 L<LADSPA|https://ladspa.org> and
 L<LV2|https://wiki.linuxaudio.org/apps/categories/lv2_plugins>
-authors. 
+authors.
 
 =for :html
 <center><img src="thin2.png" alt="section divider" width="7%"></center>
@@ -233,7 +232,7 @@ Each time a change in track status occurs, Nama generates a
 Chain setup file and commands Ecasound to load it.
 
 Let's start with the mixer configuration when we imported
-our radio play. 
+our radio play.
 
 	 No. Name       Requested  Status  Source                Destination   Vol   Pan
 	===============================================================================
@@ -242,7 +241,7 @@ our radio play.
 	  3  carol                 PLAY    carol_1.wav           Main bus      100    50
 
 This is the corresponding chain setup:
-	
+
 	nama christmas carol > chains
 
 	# audio inputs
@@ -312,34 +311,34 @@ chain setup: a different class for each type of terminal.
 	[1516] ChainSetup  (L 362) name: Main, endpoint: Main_in, direction: input
 
 
-	bless( { 
-	  chain_id_ => 3, 
-	  endpoint_ => "wav_in", 
-	  track_ => "carol",   
-	}, 'Audio::Nama::IO::from_wav' ) 
-						   
-	bless( {               
-	  chain_id_ => 1,      
-	  endpoint_ => "soundcard_out", 
-	  track_ => "Main",    
-	}, 'Audio::Nama::IO::to_alsa_soundcard_device' ) 
-						   
-	bless( {               
-	  chain_id_ => 3,      
-	  device_id_ => "loop,Main_in", 
-	  endpoint_ => "Main_in", 
-	  track_ => "carol",   
-	}, 'Audio::Nama::IO::to_loop' ) 
-						   
-	bless( {               
-	  chain_id_ => 1,      
-	  device_id_ => "loop,Main_in", 
-	  endpoint_ => "Main_in", 
-	  track_ => "Main",    
-	}, 'Audio::Nama::IO::from_loop' ) 
+	bless( {
+	  chain_id_ => 3,
+	  endpoint_ => "wav_in",
+	  track_ => "carol",
+	}, 'Audio::Nama::IO::from_wav' )
+
+	bless( {
+	  chain_id_ => 1,
+	  endpoint_ => "soundcard_out",
+	  track_ => "Main",
+	}, 'Audio::Nama::IO::to_alsa_soundcard_device' )
+
+	bless( {
+	  chain_id_ => 3,
+	  device_id_ => "loop,Main_in",
+	  endpoint_ => "Main_in",
+	  track_ => "carol",
+	}, 'Audio::Nama::IO::to_loop' )
+
+	bless( {
+	  chain_id_ => 1,
+	  device_id_ => "loop,Main_in",
+	  endpoint_ => "Main_in",
+	  track_ => "Main",
+	}, 'Audio::Nama::IO::from_loop' )
 
 These classes provide methods that can be overridden by
-field values annotated on the graph edges or graph nodes, 
+field values annotated on the graph edges or graph nodes,
 with the edge (chain) values having the highest priority.
 
 Overrides are used for mixdown and anywhere values for an IO
@@ -352,7 +351,7 @@ track.
 We'll look at the project after we issued the C<gather>
 command and entered <mixdown>, ready to render the sequenced
 clips. The output of track 'Main' feeds track 'Mixdown'
-which will write C<Mixdown_1.wav>. 
+which will write C<Mixdown_1.wav>.
 
 	 No. Name       Requested  Status  Source                Destination   Vol   Pan
 	================================================================================
@@ -376,7 +375,7 @@ The source for each is the same audio file.
 	  7  carol-4-carol-v       PLAY    carol_1.wav           carol sequen  100    50
 
 In the chain setup below we see that C<select> and C<playat> terms
-are used in the inputs to define a region of the audio file and play it 
+are used in the inputs to define a region of the audio file and play it
 with a given delay. The values were generated from our list
 of marks.
 
@@ -399,7 +398,7 @@ of marks.
 
 Some overriding was involved, as we see C<-a:Mixdown>, a
 chain identifier that is not a track number. I think there
-was some technical reason, but it does stand out. 
+was some technical reason, but it does stand out.
 
 =head2 Thanks for reading!
 
