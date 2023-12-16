@@ -61,20 +61,16 @@ the end result will be a bicycle.
 
 The plan is thusly:
 
-=begin text
-
-ForgeBike
-InitialPaint
-(
-  ( ( RearWheel & Pedals & Gears ) ( RearBrakes & Chain))
-  &
-  ( Seat)
-  &
-  ( HandleBars FrontWheel FrontBrakes )
-)
-Buddy2TestBike
-
-=end text
+    ForgeBike
+    InitialPaint
+    (
+      ( ( RearWheel & Pedals & Gears ) ( RearBrakes & Chain))
+      &
+      ( Seat)
+      &
+      ( HandleBars FrontWheel FrontBrakes )
+    )
+    Buddy2TestBike
 
 So the elves do not need to list out every possible correct ordering, only
 ensure that dependent steps are expressed using a nested form that resemble
@@ -83,33 +79,30 @@ a tree (similar in a lot of ways to I<LISP>-y I<S-expressions>).
 Given the program, the magic box provides a way to serialize the execution
 of the plan into a sequential series of steps, all by using a Perl script:
 
-=begin
+    #!perl
+    use strict;
+    use warnings;
+    use Sub::Genius;
 
-use strict;
-use warnings;
-use Sub::Genius;
+    my $plan =<<EOP;
+      ForgeBike
+      InitialPaint
+      (
+        ( ( RearWheel & Pedals & Gears ) ( RearBrakes & Chain))
+        &
+        ( Seat)
+        &
+        ( HandleBars FrontWheel FrontBrakes )
+      )
+      Buddy2TestBike
+    EOP
 
-my $plan =<<EOP;
-  ForgeBike
-  InitialPaint
-  (
-    ( ( RearWheel & Pedals & Gears ) ( RearBrakes & Chain))
-    &
-    ( Seat)
-    &
-    ( HandleBars FrontWheel FrontBrakes )
-  )
-  Buddy2TestBike
-EOP
+    my $sg = Sub::Genius->new(preplan => $plan)->init_plan;
 
-my $sg = Sub::Genius->new(preplan => $plan)->init_plan;
-
-# print all sequential orderings of the steps described above
-while (my $preplan = $sg->next()) {
-  print qq{$preplan\n};
-}
-
-=end perl
+    # print all sequential orderings of the steps described above
+    while (my $preplan = $sg->next()) {
+      print qq{$preplan\n};
+    }
 
 When run, this prints all 588 possible correct orders of operations. A
 sequential set of steps is I<correct> if it respects the partial ordering
@@ -123,26 +116,22 @@ order in which they are constrained.
 
 For example, some of the 588 possible correct orderings follow:
 
-=begin text
-
-ForgeBike InitialPaint Pedals Gears RearWheel HandleBars FrontWheel Chain RearBrakes Seat FrontBrakes Buddy2TestBike
-ForgeBike InitialPaint Pedals Gears RearWheel HandleBars FrontWheel Chain RearBrakes FrontBrakes Seat Buddy2TestBike
-ForgeBike InitialPaint Pedals Gears RearWheel Chain HandleBars RearBrakes FrontWheel Seat FrontBrakes Buddy2TestBike
-ForgeBike InitialPaint Pedals Gears RearWheel Chain HandleBars RearBrakes FrontWheel FrontBrakes Seat Buddy2TestBike
-ForgeBike InitialPaint Pedals Gears RearWheel Chain HandleBars RearBrakes Seat FrontWheel FrontBrakes Buddy2TestBike
-ForgeBike InitialPaint Pedals Gears RearWheel Chain HandleBars FrontWheel RearBrakes Seat FrontBrakes Buddy2TestBike
-ForgeBike InitialPaint Pedals Gears RearWheel Chain HandleBars FrontWheel RearBrakes FrontBrakes Seat Buddy2TestBike
-...
-ForgeBike InitialPaint HandleBars Gears FrontWheel RearWheel Pedals RearBrakes Chain Seat FrontBrakes Buddy2TestBike
-ForgeBike InitialPaint HandleBars Gears FrontWheel RearWheel Pedals RearBrakes Chain FrontBrakes Seat Buddy2TestBike
-ForgeBike InitialPaint HandleBars Gears FrontWheel RearWheel Pedals Chain RearBrakes Seat FrontBrakes Buddy2TestBike
-ForgeBike InitialPaint HandleBars Gears FrontWheel RearWheel Pedals Chain RearBrakes FrontBrakes Seat Buddy2TestBike
-ForgeBike InitialPaint HandleBars Gears FrontWheel Pedals RearWheel RearBrakes Chain Seat FrontBrakes Buddy2TestBike
-ForgeBike InitialPaint HandleBars Gears FrontWheel Pedals RearWheel RearBrakes Chain FrontBrakes Seat Buddy2TestBike
-ForgeBike InitialPaint HandleBars Gears FrontWheel Pedals RearWheel Chain RearBrakes Seat FrontBrakes Buddy2TestBike
-ForgeBike InitialPaint HandleBars Gears FrontWheel Pedals RearWheel Chain RearBrakes FrontBrakes Seat Buddy2TestBike
-
-=end text
+    ForgeBike InitialPaint Pedals Gears RearWheel HandleBars FrontWheel Chain RearBrakes Seat FrontBrakes Buddy2TestBike
+    ForgeBike InitialPaint Pedals Gears RearWheel HandleBars FrontWheel Chain RearBrakes FrontBrakes Seat Buddy2TestBike
+    ForgeBike InitialPaint Pedals Gears RearWheel Chain HandleBars RearBrakes FrontWheel Seat FrontBrakes Buddy2TestBike
+    ForgeBike InitialPaint Pedals Gears RearWheel Chain HandleBars RearBrakes FrontWheel FrontBrakes Seat Buddy2TestBike
+    ForgeBike InitialPaint Pedals Gears RearWheel Chain HandleBars RearBrakes Seat FrontWheel FrontBrakes Buddy2TestBike
+    ForgeBike InitialPaint Pedals Gears RearWheel Chain HandleBars FrontWheel RearBrakes Seat FrontBrakes Buddy2TestBike
+    ForgeBike InitialPaint Pedals Gears RearWheel Chain HandleBars FrontWheel RearBrakes FrontBrakes Seat Buddy2TestBike
+    ...
+    ForgeBike InitialPaint HandleBars Gears FrontWheel RearWheel Pedals RearBrakes Chain Seat FrontBrakes Buddy2TestBike
+    ForgeBike InitialPaint HandleBars Gears FrontWheel RearWheel Pedals RearBrakes Chain FrontBrakes Seat Buddy2TestBike
+    ForgeBike InitialPaint HandleBars Gears FrontWheel RearWheel Pedals Chain RearBrakes Seat FrontBrakes Buddy2TestBike
+    ForgeBike InitialPaint HandleBars Gears FrontWheel RearWheel Pedals Chain RearBrakes FrontBrakes Seat Buddy2TestBike
+    ForgeBike InitialPaint HandleBars Gears FrontWheel Pedals RearWheel RearBrakes Chain Seat FrontBrakes Buddy2TestBike
+    ForgeBike InitialPaint HandleBars Gears FrontWheel Pedals RearWheel RearBrakes Chain FrontBrakes Seat Buddy2TestBike
+    ForgeBike InitialPaint HandleBars Gears FrontWheel Pedals RearWheel Chain RearBrakes Seat FrontBrakes Buddy2TestBike
+    ForgeBike InitialPaint HandleBars Gears FrontWheel Pedals RearWheel Chain RearBrakes FrontBrakes Seat Buddy2TestBike
 
 It would still be useful, one may suppose, if Lucas could only enumerate
 the steps in a properly ordered way. But alas, C<Sub::Genius> is far more
@@ -167,152 +156,145 @@ the steps that appear in the plan at least once.
 The file C<bikes.pl> is now filled with subroutines stubs that are waiting to
 be filled in with meaningful code, the script will look something like the following:
 
-=begin perl
+    #!perl
+    use strict;
+    use warnings;
+    use Sub::Genius;
 
-use strict;
-use warnings;
-use Sub::Genius;
+    my $plan = <<EOP;
+      ForgeBike
+      InitialPaint
+      (
+        ( ( RearWheel & Pedals & Gears ) ( RearBrakes & Chain))
+        &
+        ( Seat)
+        &
+        ( HandleBars FrontWheel FrontBrakes )
+      )
+      Buddy2TestBike
+    EOP
 
-my $plan = <<EOP;
-  ForgeBike
-  InitialPaint
-  (
-    ( ( RearWheel & Pedals & Gears ) ( RearBrakes & Chain))
-    &
-    ( Seat)
-    &
-    ( HandleBars FrontWheel FrontBrakes )
-  )
-  Buddy2TestBike
-EOP
+    my $sg = Sub::Genius->new( preplan => $plan )->init_plan;
 
-my $sg = Sub::Genius->new( preplan => $plan )->init_plan;
+    my $final_scope = $sg->run_once;
 
-my $final_scope = $sg->run_once;
+    sub ForgeBike {
+        my $scope = shift;
+        print qq{Bike forged!\n};
+        return $scope;
+    }
 
-sub ForgeBike {
-    my $scope = shift;
-    print qq{Bike forged!\n};
-    return $scope;
-}
+    sub InitialPaint {
+        my $scope = shift;
+        print qq{Bike painted!\n};
+        return $scope;
+    }
 
-sub InitialPaint {
-    my $scope = shift;
-    print qq{Bike painted!\n};
-    return $scope;
-}
+    sub HandleBars {
+        my $scope = shift;
+        print qq{Handle bars on!\n};
+        return $scope;
+    }
 
-sub HandleBars {
-    my $scope = shift;
-    print qq{Handle bars on!\n};
-    return $scope;
-}
+    sub Gears {
+        my $scope = shift;
+        print qq{Gears on!\n};
+        return $scope;
+    }
 
-sub Gears {
-    my $scope = shift;
-    print qq{Gears on!\n};
-    return $scope;
-}
+    sub RearWheel {
+        my $scope = shift;
+        print qq{Rear wheels on!\n};
+        return $scope;
+    }
 
-sub RearWheel {
-    my $scope = shift;
-    print qq{Rear wheels on!\n};
-    return $scope;
-}
+    sub Pedals {
+        my $scope = shift;
+        print qq{Pedals on!\n};
+        return $scope;
+    }
 
-sub Pedals {
-    my $scope = shift;
-    print qq{Pedals on!\n};
-    return $scope;
-}
+    sub RearBrakes {
+        my $scope = shift;
+        print qq{Rear brakes on!\n};
+        return $scope;
+    }
 
-sub RearBrakes {
-    my $scope = shift;
-    print qq{Rear brakes on!\n};
-    return $scope;
-}
+    sub FrontWheel {
+        my $scope = shift;
+        print qq{Front wheels on!\n};
+        return $scope;
+    }
 
-sub FrontWheel {
-    my $scope = shift;
-    print qq{Front wheels on!\n};
-    return $scope;
-}
+    sub Chain {
+        my $scope = shift;
+        print qq{Chain on!\n};
+        return $scope;
+    }
 
-sub Chain {
-    my $scope = shift;
-    print qq{Chain on!\n};
-    return $scope;
-}
+    sub FrontBrakes {
+        my $scope = shift;
+        print qq{Front brakes on!\n};
+        return $scope;
+    }
 
-sub FrontBrakes {
-    my $scope = shift;
-    print qq{Front brakes on!\n};
-    return $scope;
-}
+    sub Seat {
+        my $scope = shift;
+        print qq{Seat on!\n};
+        return $scope;
+    }
 
-sub Seat {
-    my $scope = shift;
-    print qq{Seat on!\n};
-    return $scope;
-}
-
-sub Buddy2TestBike {
-    my $scope = shift;
-    print qq{Ready to test, Buddy!\n};
-    return $scope;
-}
-
-=end perl
+    sub Buddy2TestBike {
+        my $scope = shift;
+        print qq{Ready to test, Buddy!\n};
+        return $scope;
+    }
 
 And each time it's run, the overall ordering may change, but the ordering
 will always be correct based on the plan description:
 
-=begin text
+    shell> perl bike.pl
 
-shell> perl bike.pl
+    Bike forged!
+    Bike painted!
+    Handle bars on!
+    Front wheels on!
+    Pedals on!
+    Rear wheels on!
+    Gears on!
+    Rear brakes on!
+    Chain on!
+    Seat on!
+    Front brakes on!
+    Ready to test, Buddy!
 
-Bike forged!
-Bike painted!
-Handle bars on!
-Front wheels on!
-Pedals on!
-Rear wheels on!
-Gears on!
-Rear brakes on!
-Chain on!
-Seat on!
-Front brakes on!
-Ready to test, Buddy!
+    $ perl bike.pl
+    Bike forged!
+    Bike painted!
+    Pedals on!
+    Handle bars on!
+    Front wheels on!
+    Gears on!
+    Rear wheels on!
+    Rear brakes on!
+    Chain on!
+    Front brakes on!
+    Seat on!
+    Ready to test, Buddy!
 
-$ perl bike.pl
-Bike forged!
-Bike painted!
-Pedals on!
-Handle bars on!
-Front wheels on!
-Gears on!
-Rear wheels on!
-Rear brakes on!
-Chain on!
-Front brakes on!
-Seat on!
-Ready to test, Buddy!
-
-$ perl bike.pl
-Bike forged!
-Bike painted!
-Pedals on!
-Rear wheels on!
-Gears on!
-Chain on!
-Handle bars on!
-Rear brakes on!
-Seat on!
-Front wheels on!
-Front brakes on!
-Ready to test, Buddy!
-
-=end text
+    $ perl bike.pl
+    Bike forged!
+    Bike painted!
+    Pedals on!
+    Rear wheels on!
+    Gears on!
+    Chain on!
+    Handle bars on!
+    Rear brakes on!
+    Seat on!
+    Front wheels on!
+    Front brakes on!
+    Ready to test, Buddy!
 
 Note: it is worth looking more into the raw stub file created since it
 give some nice hints about all the interesting things one may do by giving
@@ -329,64 +311,61 @@ program as a parting gift.
 
 But don't try to run it until the clock strikes midnight on December 25!
 
-=begin perl
+    #!perl
+    use strict;
+    use warnings;
+    use feature 'state';
 
-use strict;
-use warnings;
-use feature 'state';
+    use Sub::Genius ();
 
-use Sub::Genius ();
+    my $preplan = q{
+     (
+       HO &
+        HO &
+         HO
+            )
+     Merry Christmas To All
+    };
 
-my $preplan = q{
- (
-   HO &
-    HO &
-     HO
-        )
- Merry Christmas To All
-};
+    my $sq = Sub::Genius->new(preplan => qq{$preplan} );
+    $sq->init_plan;
+    my $final_scope = $sq->run_once( scope => {}, ns => q{main}, verbose => 0);
 
-my $sq = Sub::Genius->new(preplan => qq{$preplan} );
-$sq->init_plan;
-my $final_scope = $sq->run_once( scope => {}, ns => q{main}, verbose => 0);
+    #
+    # S U B R O U T I N E S
+    #
 
-#
-# S U B R O U T I N E S
-#
+    sub HO {
+      state $mystate = 0;
+      if ($mystate == 0) {
+        print qq{Merry Christmas to All,\nAnd };
+        ++$mystate;
+      }
+      elsif ($mystate == 1) {
+        print qq{to };
+        ++$mystate;
+      }
+      elsif ($mystate == 2) {
+        print qq{All, };
+        ++$mystate;
+      };
+    }
 
-sub HO {
-  state $mystate = 0;
-  if ($mystate == 0) {
-    print qq{Merry Christmas to All,\nAnd };
-    ++$mystate;
-  }
-  elsif ($mystate == 1) {
-    print qq{to };
-    ++$mystate;
-  }
-  elsif ($mystate == 2) {
-    print qq{All, };
-    ++$mystate;
-  };
-}
+    sub Merry {
+      print qq{A };
+    }
 
-sub Merry {
-  print qq{A };
-}
+    sub Christmas {
+      print qq{Good };
+    }
 
-sub Christmas {
-  print qq{Good };
-}
+    sub To  {
+      print qq{Night};
+    };
 
-sub To  {
-  print qq{Night};
-};
-
-sub All {
-  print qq{!\n};
-};
-
-=end perl
+    sub All {
+      print qq{!\n};
+    };
 
 The story does not end here, but it is time to conclude this chapter. Santa
 and Lucas successfully programmed the magick black box, and countless
