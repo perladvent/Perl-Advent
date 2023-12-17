@@ -1,0 +1,190 @@
+Author: Breno G. de Oliveira <garu@cpan.org>
+Title: Santa’s Workshop Secrets: The Magical Test2 Suite (Part 2)
+Topic: Testing, Mocking
+
+=encoding utf8
+
+Greetings, festive readers! Santa Claus here, ready to share yet another
+behind-the-scenes look at how we keep Christmas joyfully on track with
+the Magical Test2 Suite, soon to be a core test library in Perl 5.40 onwards.
+
+If you haven't read L<part 1|https://perladvent.org/2023/2023-12-15.html>, it's a real treat!
+
+Just like the tinsel on your tree, mocks add that extra sparkle to our
+unit tests. Mocks can help us simulate certain behaviors, creating a
+controlled environment for unit testing. We can create mock classes,
+objects or methods in order to properly test others that interact with them.
+
+And with the Test 2 Suite, this has never been easier!
+
+=head2 Easily mocking objects and classes
+
+For starters, let’s say you want to create an object that will be passively called by whatever it is you’re testing:
+
+    #!vim perl
+    use Test2::V0;
+
+    my $obj = mock;
+
+Now, C<$obj> is a dud that will accept any method calls and return C<undef>. What about if you want it to return something specific?
+
+    #!vim perl
+    my $obj = mock { merry => 'christmas!' };
+
+    is $obj->merry, 'christmas!', 'my mock works';
+
+When you need to test chained calls, you can always nest your mocks():
+
+    #!vim perl
+    my $obj = mock {
+        happy => mock {
+            holidays => mock {
+                everyone => 'Ho! Ho! Ho!'
+            }
+        }
+    };
+
+    is $obj->happy->holidays->everyone, 'Ho! Ho! Ho!', 'chained mocks';
+
+I<"But Santa">, you may ask, I<< "What about when the class is instantiated and used somewhere inside the code I want to test? How can I use mocks to add or override methods to something out of my hands?" >> No worries! Just expand your mock definition for more control:
+
+    #!vim perl
+    my $mock_meta = mock 'Some::Class' => (
+        track => true,
+        override => [
+            some_method  => sub { … },
+            other_method => sub { … },
+        ],
+        add => [
+            new_method => sub { … },
+        ],
+    );
+
+And now, as long as C<$mock_meta> exists, any instances of "C<Some::Class>" will have the mocked behavior. To restore them back to the original, simply undefine that C<$mock_meta> variable or call C<< $mock_meta->reset_all() >>.
+
+One thing you may have noticed in the example above is the "C<< track => true >>". That means C<$mock_meta> will contain a lot of information ready for you to inspect regarding how many times any given method was called, and which arguments were used. This is particularly important to check if the code you’re testing is properly invoking the mocked class.
+
+    #!vim perl
+    test_something_that_uses_my_mocked_class();
+    is(
+        $mock_meta->sub_tracking->{some_method}->@*,
+        1,
+        'some_method() called only once!'
+    );
+
+    like(
+        $mock_meta->sub_tracking->{some_method}[0]{args},
+        [ qr(), ‘arg1’, qr(arg2) ],
+        'testing call arguments for method "some_method"'
+    );
+
+    $mock_meta->clear_sub_tracking(); # so we can go again in isolation
+
+
+Note that to get the mock metadata from a given variable holding an object, you can also do:
+
+    #!vim perl
+    my ($mock_meta) = mocked $actual_obj;
+
+
+=head2 Mocking the Christmas Wishlist Database
+
+For a real world example, let's see how the elves use Test2 Suite's
+mocking features to test our gift delivery system. The code looks
+roughly like this:
+
+    #!vim perl
+    sub deliver_gift ($child_name, $gift_name) {
+        my $schema = GiftDB::Schema->get_active_connection();
+        my $wish = $schema->resultset('Wishlist')->single({
+            name => $child_name, gift => $gift_name
+        });
+
+        if ($wish && $wish->update({ delivered => true })) {
+            return 'delivered!';
+        }
+        return 'oh, no...';
+    }
+
+The function looks simple enough: we get an active database connection,
+select the wishlist table/resultset, and see if we can find the
+child's wishlist entry. If we have it, we update the entry to 'delivered'.
+
+But how do we test it without actually using a database? We mock the
+database, that's how!
+
+    #!vim perl
+    use builtin qw( true false weaken );
+    use Test2::V0;
+
+    # mock simple resultsets and results:
+    my $mock_wishlist_rs = mock 'obj' => (
+        track => true,
+        add => [
+            single => sub ($self, $) { weaken $self; return $self },
+            update => true,
+        ],
+    );
+
+    # mock the main schema, and point calls to resultset()
+    # to our mock_wishlist_rs:
+    my $mock_schema = mock 'GiftDB::Schema' => (
+        track => true,
+        override => [
+            get_active_connection => sub ($class) { $class },
+            resultset => sub { $mock_wishlist_rs },
+        ],
+    );
+
+    # That's it! Now let's write some tests:
+    plan 5;
+
+    is(
+        Magic::Santa::Sack::deliver_gift('anna', 'starship'),
+        'delivered!',
+        "works when we have the gift"
+    );
+
+    like(
+        $mock_schema->sub_tracking->{resultset},
+        [ { args => [ 'GiftDB::Schema', 'Wishlist' ] }, DNE ],
+        'call to resultset() asks for the right table (wishlist)'
+    );
+
+    my ($meta_wishlist_rs) = mocked($mock_wishlist_rs);
+    like(
+        $meta_wishlist_rs->call_tracking,
+        [
+            { args => [ D(), { name => 'anna', gift => 'starship' }, DNE() ], sub_name => 'single' },
+            { args => [ D(), { delivered => true }, DNE() ], sub_name => 'update' },
+            DNE()
+        ],
+        'wishlist resultset properly manipulated'
+    );
+
+    # clear tracking so we can test again:
+    $meta_wishlist_rs->clear_call_tracking;
+
+    # now let's see if it works as expected when the
+    # database can't find the child/gift pair. We emulate
+    # this in our mock by making the call to single()
+    # return false instead:
+    $meta_wishlist_rs->override( 'single' => false );
+
+    is(
+        Magic::Santa::Sack::deliver_gift('anna', 'starship'),
+        'oh, no...',
+        "fails when we don't have the gift"
+    );
+    like(
+        $meta_wishlist_rs->call_tracking,
+        [
+            { args => [ D(), { name => 'anna', gift => 'starship' }, DNE() ], sub_name => 'single' },
+            DNE()
+        ],
+        'wishlist resultset queried with proper args'
+    );
+
+So there you have it. With the magical powers of Test2, when Christmas Eve arrives, I’ll take off on my sleigh with confidence, knowing that every toy has passed its tests. This means more smiles, laughter, and Christmas joy for people all around the world. Give it a try, too, and may your code be as merry and bright as the star on top of your tree.
+
+I<< – Santa, out. >>
