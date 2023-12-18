@@ -1,5 +1,5 @@
 Author: Joel Roth <joelz@pobox.com>
-Title: Trimming audio files with Audio::Nama
+Title: Trimming audio files with Nama
 Topic: Audio::Nama
 
 =for :html
@@ -9,33 +9,41 @@ Topic: Audio::Nama
 
 =head2 Our task
 
-We want to remove undesired parts of an audio file, such as
-various info breaks during a radio play. In other words, we
-want to extract relevant parts of an audio file, and stitch
-them together into a new file. We'll see how this happens
-through an audio network language we'll use perl to
-generate.
+The elves' workshop has been as busy as ever this year. To
+help them pass the time when not gossiping or recounting
+heroic pranks of Christmases passed, Igvik Graybeard, one of
+the IT elves, has been piping music to the office, canteen
+and tool benches using cabling left over from an obsolete
+phone service.
+ 
+The elves have gotten into radio plays,
+and Igvik wants to edit some old recordings to remove
+unwanted segments. In other words, he wants to extract
+the relevant parts of an audio file, stitching them together
+into a new file. Igvik runs Linux and prefers to do his work
+in the terminal whenever possible. We've decided to help.  
 
-=head2 Our hammer
+=head2 Our tools
 
-We'll be accomplishing this with L<Audio::Nama>, a multitrack
-recording mixing and audio-processing application written in
-perl, and L<Ecasound|https://ecasound.seul.org/ecasound/>, a
+We'll be using L<Nama|https://metacpan.org/dist/Audio-Nama/view/script/nama>,
+a multitrack recording, mixing and audio-processing
+application written in perl, and
+L<Ecasound|https://ecasound.seul.org/ecasound/>, a
 general-purpose audio engine. We also need git, which Nama
 uses to manage project state, provide for branching, undo,
-etc. C<nama> is the executable program script and also man
-page, so "man nama" for the docs, or use nama's internal
-help.
-
+etc.
+ 
 Nama configures Ecasound for recording, mixing and a variety
-of tasks via a audio network definition called a I<chain
-setup> with syntax we will use Nama to generate.
-
-Aside from housekeeping duties, Nama's main task is to
-regenerate the chain setup (and re-configure the engine)
-whenever the graph changes due to user input, such
-as deactivating a track or changing an output--a bit
-like how a spreadsheet recalculates as necessary.
+of tasks via an audio network definition called a I<chain
+setup>. Aside from housekeeping duties, Nama's main task is
+to regenerate the chain setup (and re-configure the engine)
+whenever the graph changes due to user input, such as
+deactivating a track or changing an output -- a bit like how a
+spreadsheet recalculates as necessary. Once the engine is
+configured and ready, it can receive realtime commands
+to start and stop the engine, seek, or modify the
+parameters of signal-processing plugins such
+as a volume control. 
 
 The first run of C<nama> creates a C<$HOME/nama> directory for
 project files and a configuration file C<$HOME/.namarc>.
@@ -174,7 +182,7 @@ C<~/nama/christmas/christmas_1.wav> is a symlink to C<~/nama/christmas/.wav/Mixd
 =for :html
 <center><img src="thin2.png" alt="section divider" width="7%"></center>
 
-=head2 How the sausage is made
+=head2 How the pudding is made
 
 =head3 Chain setup graph
 
@@ -213,7 +221,7 @@ part of an audio file that plays at a particular time.
 	-a:5 -f:s16_le,2,44100 -i:playat,40,select,80,300,/home/jroth/nama/christmas/.wav/carol_1.wav
 
 The 'select,80,300' object extracts 300 seconds of audio
-starting at 0:80. The 'playat,40' option plays the audio
+starting at 0:80. The 'playat,40' object plays the audio
 after a delay of 40 seconds.
 
 Chains also perform effects processing.  They can host
@@ -272,10 +280,12 @@ devices are introduced between tracks. I only include the
 graph where it changes.
 
 	[1513] ChainSetup  (L 106) Graph after bus routing:
+
 	wav_in-carol, carol-Main
 
 	[1514] ChainSetup  (L 111) Graph after aux sends:
 	[1514] ChainSetup  (L 114) Graph with paths from Main:
+
 	wav_in-carol, carol-Main, Main-soundcard_out
 
 	[1514] ChainSetup  (L 117) Graph with mixdown mods:
@@ -285,6 +295,7 @@ graph where it changes.
 	[1515] ChainSetup  (L 222) Graph after recursively_remove_outputless_tracks:
 	[1515] ChainSetup  (L 122) Graph after pruning unterminated branches:
 	[1515] ChainSetup  (L 126) Graph after adding loop devices:
+
 	wav_in-carol, carol-Main_in, Main_in-Main, Main-soundcard_out
 
 	[1515] ChainSetup  (L 130) Graph with inserts:
@@ -293,7 +304,7 @@ So this is our final graph:
 
 	wav_in-carol, carol-Main_in, Main_in-Main, Main-soundcard_out
 
-At this point, one end of each edge is a track. An
+At this stage, one end of each edge is a track. An
 edge--associating one track and one terminal--is sufficient
 to write an input or output line in the chain setup.
 
@@ -340,11 +351,8 @@ chain setup: a different class for each type of terminal.
 These classes provide methods that can be overridden by
 field values annotated on the graph edges or graph nodes,
 with the edge (chain) values having the highest priority.
-
-Overrides are used for mixdown and anywhere values for an IO
-object need to differ from those derived from the parent
-track.
-
+This is used in mixdown and other situations where the
+values needed differ from those of the parent track.
 
 =head3 Assembling our audio clips
 
@@ -374,10 +382,10 @@ The source for each is the same audio file.
 	  6  carol-3-carol-v       PLAY    carol_1.wav           carol sequen  100    50
 	  7  carol-4-carol-v       PLAY    carol_1.wav           carol sequen  100    50
 
-In the chain setup below we see that C<select> and C<playat> terms
-are used in the inputs to define a region of the audio file and play it
-with a given delay. The values were generated from our list
-of marks.
+In the chain setup below we see that C<select> and C<playat>
+objects are used in the inputs to define a region of the
+audio file and play it with a given delay. The values were
+generated from our list of marks.
 
 	# audio inputs
 
@@ -397,8 +405,7 @@ of marks.
 	-a:Mixdown -f:s16_le,2,44100,i -o:/home/jroth/nama/christmas/.wav/Mixdown_1.wav
 
 Some overriding was involved, as we see C<-a:Mixdown>, a
-chain identifier that is not a track number. I think there
-was some technical reason, but it does stand out.
+chain identifier that is not a track number. It stands out.
 
 =head2 Thanks for reading!
 
@@ -450,10 +457,6 @@ L<Graph>: Representing, traversing and transforming the signal processing networ
 =item *
 
 L<AnyEvent>: Event loop
-
-=item *
-
-L<Getopt::Long::Declarative>: Command line options with a help page
 
 =item *
 
