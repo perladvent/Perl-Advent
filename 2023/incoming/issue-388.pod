@@ -1,0 +1,120 @@
+Author: oodler@cpan.org
+Title: St. Nick's Reindeers Need More H2O!
+Topic: Util::H2O::More 
+
+=encoding utf8
+
+Last year in 2022, Santa Clause discovered a very useful Perl module
+called L<Util::H2O> that makes it very seamless to add I<object oriented
+programming> conveniences to Perl programs, especially existing or legacy
+code bases.
+
+Over the last year, he's done quite a bit of digging into a related module
+named, L<Util::H2O::More>. The following is a summary of a few neat things
+available in this module, most of which is built upon L<Util::H2O>'s C<h2o>
+method or its inverse, C<o2h>.
+
+=head2 Santa's Got Options ... for Options 
+
+There are lots of modules on CPAN that present L<Getopt::Long> in different
+ways, L<Util::H2O::More> makes its entry into the mix with two different
+methods.
+
+One is a nifty method called C<opt2h2o>. This method makes it more convenient
+to define the fields of a reference destined to be objectified by C<h2o> by
+using the parameter array description format used by C<Getopt::Long::GetOptionsFromArray>.
+
+C<opt2h2o> is used to provide a list of default accessors to C<h2o> to an
+given C<HASH> reference. This reference is then provided to C<GetOptionsFromArray>,
+as shown in the example below.
+
+=begin perl
+  use Getopt::Long qw//;
+
+  my @opts = (qw/option1=s options2=s@ option3 option4=i o5|option5=s/);
+  my $o = h2o { option1 => q{Jultomten} }, opt2h2o(@opts);
+  Getopt::Long::GetOptionsFromArray( \@ARGV, $o, @opts );
+
+  ...
+
+  if ( $o->option3 ) {
+    print qq{Option 3 has been selected!\n};
+  }
+=end perl
+
+But as famous pitchman, Billy Mayes says, I<but wait, there's more ...>
+
+L<Util::H2O::More> has a method that combines everything, including the need
+to C<require Getopt::Long;>, called C<Getopt2h2o>:
+
+=begin perl
+
+  use Util::H2O::More qw/Getopt2h2o/;
+
+  my $o = Getopt2h2o \@ARGV, { option1 => q{El Nino Jesus} }, qw/option1=s options2=s@ option3 option4=i o5|option5=s/;
+
+  ...
+
+  if ( $o->option3 ) {
+    print qq{Option 3 has been selected!\n};
+  }
+
+=end perl
+
+=head2 Ye Old Configuration Files
+
+=head3 C<Config::Tiny>
+
+L<Util::H2O::More> also has a couple of convenient options for handling conf
+files written in both I<.ini> and I<YAML> formats.
+
+The first method is designed to provide accessors to configuration references
+provided by L<Config::Tiny>; in fact there is no need to explicitly C<use> or
+C<require> L<Config::Tiny>:
+
+=begin perl
+
+  use Util::H2O::More qw/ini2h2o h2o2ini/;
+
+  my $config = ini2h2o q{/path/to/config.ini};
+
+=end perl
+
+Better yet, combine it with the easy treatment for options presented in the first
+section,
+
+=begin perl
+
+  use Util::H2O::More qw/Getopt2h2o ini2h2o h2o2ini/;
+
+  my $o = Getopt2h2o \@ARGV, { config => q{/path/to/config.ini} }, qw/config=s/;
+
+  my $config = ini2h2o $o->config;
+
+  ...
+
+=end perl
+
+Given a C<$config> reference, C<h2o2ini> gives Santa the ability to I<write> the
+reference back as an C<.ini> file using L<Config::Tiny>'s C<write> method underneath
+the hood.
+
+=begin perl
+
+  use Util::H2O::More qw/Getopt2h2o ini2h2o h2o2ini/;
+
+  my $o = Getopt2h2o \@ARGV, { config => q{/path/to/config.ini} }, qw/config=s/;
+
+  my $config = ini2h2o $o->config;
+
+  ...
+
+  $config->section->some_config_A(33);
+
+  ...
+
+  h2o2ini $config, $o->config;
+
+=end perl
+ 
+=head3 C<YAML> Files
