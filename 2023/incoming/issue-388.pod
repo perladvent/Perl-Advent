@@ -4,62 +4,85 @@ Topic: Util::H2O::More
 
 =encoding utf8
 
-Last year in 2022, Santa Clause discovered a very useful Perl module
-called L<Util::H2O> that makes it very seamless to add I<object oriented
-programming> conveniences to Perl programs, especially existing or legacy
-code bases.
+Last year in 2022, Santa Clause discovered a very useful Perl module called
+L<Util::H2O> that makes it very seamless to add I<object oriented programming>
+conveniences to Perl programs; it is particularly useful when it comes to
+adding Perl OOP to existing or legacy code bases.
 
 Over the last year, he's done quite a bit of digging into a related module
 named, L<Util::H2O::More>. The following is a summary of a few neat things
 available in this module, most of which is built upon L<Util::H2O>'s C<h2o>
-method or its inverse, C<o2h>.
+method which gives acessors to to C<HASH> references - or the I<inverse>,
+that converts an I<blessed> reference with accessors into a pure C<HASH>
+reference, C<o2h>.
 
-=head2 Santa's Got Options ... for Options 
+=head2 Santa's Got Options ... for Options
 
 There are lots of modules on CPAN that present L<Getopt::Long> in different
 ways, L<Util::H2O::More> makes its entry into the mix with two different
-methods.
+methods; one that builds upon the other.
 
-One is a nifty method called C<opt2h2o>. This method makes it more convenient
-to define the fields of a reference destined to be objectified by C<h2o> by
-using the parameter array description format used by C<Getopt::Long::GetOptionsFromArray>.
+One is a nifty method called C<opt2h2o>. This method makes it more
+convenient to define the fields of a reference destined to be objectified
+by C<h2o> by using the parameter array description format used by
+C<Getopt::Long::GetOptionsFromArray>.
 
-C<opt2h2o> is used to provide a list of default accessors to C<h2o> to an
-given C<HASH> reference. This reference is then provided to C<GetOptionsFromArray>,
-as shown in the example below.
+C<opt2h2o> is used to provide a list of default accessors to C<h2o> to an given
+C<HASH> reference. This reference is then provided to C<GetOptionsFromArray>,
+as shown in the example below that can explain better than mere words:
 
 =begin perl
+  use strict;
+  use warnings;
+  use Util::H2O::More qw/h2o opt2h2o/;
   use Getopt::Long qw//;
-
-  my @opts = (qw/option1=s options2=s@ option3 option4=i o5|option5=s/);
-  my $o = h2o { option1 => q{Jultomten} }, opt2h2o(@opts);
+  
+  my @opts = (qw/name=s country=s meaning=s/);
+  my $o = h2o { meaning => q{???} }, opt2h2o(@opts);     # example showing how to set default
   Getopt::Long::GetOptionsFromArray( \@ARGV, $o, @opts );
-
-  ...
-
-  if ( $o->option3 ) {
-    print qq{Option 3 has been selected!\n};
+  
+  if ($o->country) {
+    printf qq{Did you know, Santa is known as '%s' in the country/region of %s? It means, "%s"!\n}, $o->name, $o->country, $o->meaning;
   }
 =end perl
 
-But as famous pitchman, Billy Mayes says, I<but wait, there's more ...>
+Which results in,
+
+=begin text
+  prompt> perl Santa-facts.pl --name Jultomten --meaning "Christmas Brownie" --country Sweden
+  Did you know, Santa is known as 'Jultomten' in the country/region of Sweden? It means, "Christmas Brownie"!
+=end text
+
+But as famous I<elvish> pitchman, Willy Nays says, I<but wait, there's
+more ...>
 
 L<Util::H2O::More> has a method that combines everything, including the need
-to C<require Getopt::Long;>, called C<Getopt2h2o>:
+to C<require Getopt::Long;>, called C<Getopt2h2o>; it can dramatically shorten
+the amount of typing needed to process options I<and> provide accessors to
+the options:
 
 =begin perl
-
+  use strict;
+  use warnings;
   use Util::H2O::More qw/Getopt2h2o/;
 
-  my $o = Getopt2h2o \@ARGV, { option1 => q{El Nino Jesus} }, qw/option1=s options2=s@ option3 option4=i o5|option5=s/;
+  my $o = Getopt2h2o \@ARGV, { meaning => q{???} }, qw/name=s country=s meaning=s/;
 
-  ...
-
-  if ( $o->option3 ) {
-    print qq{Option 3 has been selected!\n};
+  if ($o->country) {
+    printf qq{Did you know, Santa is known as '%s' in the country/region of %s? It means, "%s"!\n}, $o->name, $o->country, $o->meaning;
   }
-
 =end perl
+
+Which results in,
+
+=begin text
+  prompt> perl ./Santa-facts.pl --name Christkindl --meaning "Christ child" --country Germany
+  Did you know, Santa is known as 'Christkindl' in the country/region of Germany? It means, "Christ child"!
+=end text
+
+Personally Santa prefers this version the best. He still loves brownies
+very much, as his waistline can attest - especially with red soda from the
+local grocer!
 
 =head2 Ye Old Configuration Files
 
@@ -69,52 +92,210 @@ L<Util::H2O::More> also has a couple of convenient options for handling conf
 files written in both I<.ini> and I<YAML> formats.
 
 The first method is designed to provide accessors to configuration references
-provided by L<Config::Tiny>; in fact there is no need to explicitly C<use> or
-C<require> L<Config::Tiny>:
+provided by L<Config::Tiny>; in fact there is no need to explicitly C<use>
+or C<require> L<Config::Tiny>.
+
+We begin with an I<INI> format configuratino file, C<santa.ini>:
+
+=begin ini 
+  ; santa.ini
+  ;   this is an ini file that is
+  ;   used to power Santa's Facts
+  ;   generating Perl script
+
+  [SantaByCountry]
+  Afghanistan=Aba Chaghaloo, ??? 
+  Greece=Αγιος Βασίλης, Santa Clause
+  Sweden=Jultomten, Christmas Brownie
+  Austria=Christkind, Christ Child
+  Switzerland=Christkindl, Christ Child
+  Germany=Christkindle, Christ Child
+  Mexico=Niño Dios, God Child
+  CentralAmerica=Niño Jesús, Baby Jesus
+
+  ; sample from https://www.historiesdarkmysteries.com/2021/12/the-surprising-origins-of-jolly-old-st.html
+=end ini 
+
+Combining the joys of C<Getopt2h2o> with C<ini2h2o>, we get a pretty compact
+script with minimal set up.
 
 =begin perl
+  use strict;
+  use warnings;
+  use Util::H2O::More qw/Getopt2h2o ini2h2o/;
 
-  use Util::H2O::More qw/ini2h2o h2o2ini/;
+  my $o = Getopt2h2o \@ARGV, { conf => q{./santa.ini} }, qw/conf=s/;
 
-  my $config = ini2h2o q{/path/to/config.ini};
+  my $conf = ini2h2o $o->conf;
 
+  print qq{Did You Know:\n};
+  foreach my $country (keys %{$conf->SantaByCountry}) {
+      my $entry = $conf->SantaByCountry->$country;
+      my ($name, $meaning) = split /, +/, $entry;
+      printf qq{  + Santa is known as '%s' in the country/region of %s? It means, "%s"!\n}, $name, $country, $meaning;
+  }
 =end perl
 
-Better yet, combine it with the easy treatment for options presented in the first
-section,
+And running this script with the configuration file yields,
 
-=begin perl
+=begin text
+  prompt> perl ./Santa-facts.pl
+  Did You Know:
+    + Santa is known as 'Aba Chaghaloo' in the country/region of Afghanistan? It means, "???"!
+    + Santa is known as 'Niño Jesús' in the country/region of CentralAmerica? It means, "Baby Jesus"!
+    + Santa is known as 'Niño Dios' in the country/region of Mexico? It means, "God Child"!
+    + Santa is known as 'Christkindle' in the country/region of Germany? It means, "Christ Child"!
+    + Santa is known as 'Christkindl' in the country/region of Switzerland? It means, "Christ Child"!
+    + Santa is known as 'Jultomten' in the country/region of Sweden? It means, "Christmas Brownie"!
+    + Santa is known as 'Christkind' in the country/region of Austria? It means, "Christ Child"!
+    + Santa is known as 'Αγιος Βασίλης' in the country/region of Greece? It means, "Santa Clause"!
+=end text
 
-  use Util::H2O::More qw/Getopt2h2o ini2h2o h2o2ini/;
+He is now able to build up a configuration file considerably more facts for
+his I<Did you know ...?> script:
 
-  my $o = Getopt2h2o \@ARGV, { config => q{/path/to/config.ini} }, qw/config=s/;
+Better yet, you may have not noticed but the script was combine commandline
+flag processing already covered, to make it dead simple to use a different
+configuration file by specifying the C<--conf> flag.
 
-  my $config = ini2h2o $o->config;
+Given a C<$config> reference, C<h2o2ini> gives Santa the ability to I<write>
+the reference back as an C<.ini> file using L<Config::Tiny>'s C<write>
+method underneath the hood.
 
-  ...
+If Santa had modifed the C<.ini> file, then he could have written it back
+to disk using the inverse method, C<h2o2ini>.
 
-=end perl
-
-Given a C<$config> reference, C<h2o2ini> gives Santa the ability to I<write> the
-reference back as an C<.ini> file using L<Config::Tiny>'s C<write> method underneath
-the hood.
-
-=begin perl
-
-  use Util::H2O::More qw/Getopt2h2o ini2h2o h2o2ini/;
-
-  my $o = Getopt2h2o \@ARGV, { config => q{/path/to/config.ini} }, qw/config=s/;
-
-  my $config = ini2h2o $o->config;
-
-  ...
-
-  $config->section->some_config_A(33);
-
-  ...
-
-  h2o2ini $config, $o->config;
-
-=end perl
- 
 =head3 C<YAML> Files
+
+=begin yaml
+---
+Santa:
+  By:
+    Country:
+      Afghanistan:
+        name: Aba Chaghaloo
+        meaning: ??? 
+      Greece:
+        name: Αγιος Βασίλης
+        meaning: Santa Clause
+      Sweden:
+        name: Jultomten
+        meaning: Christmas Brownie
+      Austria:
+        name: Christkind
+        meaning: Christ Child
+      Switzerland:
+        name: Christkindl
+        meaning: Christ Child
+      Germany:
+        name: Christkindle
+        meaning: Christ Child
+      Mexico:
+        name: Niño Dios
+        meaning: God Child
+      CentralAmerica:
+        name: Niño Jesús
+        meaning: Baby Jesus
+=end yaml
+
+=begin perl
+  use strict;
+  use warnings;
+  use Util::H2O::More qw/ddd Getopt2h2o yaml2h2o/;
+
+  # author note: added because it was needed with the YAML example
+  # but not the .ini example, not really sure why ...
+  use open qw( :std :encoding(UTF-8) );
+  
+  my $o = Getopt2h2o \@ARGV, { conf => q{./santa.yaml} }, qw/conf=s/;
+  
+  my ($conf) = yaml2h2o $o->conf;
+  
+  print qq{Did You Know:\n};
+  foreach my $country (keys %{$conf->Santa->By->Country}) {
+      my $name = $conf->Santa->By->Country->$country->name;
+      my $meaning = $conf->Santa->By->Country->$country->meaning;
+      printf qq{  + Santa is known as '%s' in the country/region of %s? It means, "%s"!\n}, $name, $country, $meaning;
+  }
+=end perl
+
+And running this script with the C<YAML> configuration file now yields,
+
+=begin text
+  prompt> perl ./Santa-facts.pl
+  Did You Know:
+    + Santa is known as 'Aba Chaghaloo' in the country/region of Afghanistan? It means, "???"!
+    + Santa is known as 'Niño Jesús' in the country/region of CentralAmerica? It means, "Baby Jesus"!
+    + Santa is known as 'Niño Dios' in the country/region of Mexico? It means, "God Child"!
+    + Santa is known as 'Christkindle' in the country/region of Germany? It means, "Christ Child"!
+    + Santa is known as 'Christkindl' in the country/region of Switzerland? It means, "Christ Child"!
+    + Santa is known as 'Jultomten' in the country/region of Sweden? It means, "Christmas Brownie"!
+    + Santa is known as 'Christkind' in the country/region of Austria? It means, "Christ Child"!
+    + Santa is known as 'Αγιος Βασίλης' in the country/region of Greece? It means, "Santa Clause"!
+=end text
+
+There are many other cool aspects to C<Util::H2O::More> that Santa wishes
+to show you, but he hopes that in time you discover all the time and lines
+of code that this module has to offer for a vast number of applications.
+
+There is no C<h2o2yaml> (or ways t handle C<JSON> date either way), but if
+someone reading has the need, the author is quite active on Github and may
+be more than happy to help out a friend in need.
+
+=head2 There is Still More!
+
+L<Util::H2O::More> is any Perl programmer's secret weapon for dealing with
+very common things that result ultimately in slinging around a bunch of
+C<HASH> references - and occasionally, very complex structures that include
+C<ARRAY> refs.
+
+It build ons L<Util::H2O> massively powerful combination of C<h2o> and C<o2h>
+to provide I<ad hoc> accessors to data I<in flight> - and to remove them
+again when needed.
+
+Some other pretty useful methods provided for by L<Util::H2O::More> are:
+
+=over 4
+
+=item C<baptise> - a drop-in replacement for C<bless>, but allows accessors to be defined:
+
+=begin perl
+  use strict;
+  use warnings;
+   
+  package Foo::Bar;
+   
+  # exports 'h2o' also
+  use Util::H2O::More qw/baptise/;
+     
+  sub new {
+    my $pkg    = shift;
+    my %opts   = @_;
+     
+    # replaces bless, defines default constructures and creates
+    # constructors based on what's passed into %opts
+     
+    my $self = baptise \%opts, $pkg, qw/bar haz herp derpes/;
+      
+    return $self;
+  }
+    
+  1;
+=end perl
+  
+=item C<d2o> - like C<h2o>, but dives deeply int C<ARRAY> refs, e.g., that contain C<HASH> refs; and applies C<h2o> to them
+
+=item C<o2d> - like C<o2h>, but acts on deeply objectified references that were created by C<d2o>
+
+=item C<ddd> - a short cut around dumping references to C<STDERR via C<Data::Dumper>
+
+=back
+
+=head2 Conclusion
+
+Getting this far down into the article is quite an achievement. Congratulations
+for persevering with your faith in Perl. As you can see, Santa is very
+pleased to indulge in the true meaning of Christmas - which obviously,
+has everything to with spreading as much practical Perl knowledge as possible.
+
+Joyeux Noël!
