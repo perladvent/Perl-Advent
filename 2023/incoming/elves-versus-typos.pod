@@ -1,0 +1,175 @@
+Author: olaf@wundersolutions.com
+Title: Elves Versus Typos
+Topic: https://crates.io/crates/typos
+
+=encoding utf8
+
+When you're constantly producing things like toys and code, mistakes will
+happen. Some will be easy to spot and others may elude you. Santa knows that
+attention to detail counts. The elves know that if Santa finds a typo in their
+documentation or their code, he will immediately ask himself what else may be
+wrong. In order to avoid the impression of carelessness, the elves have
+automated the finding and fixing of typos.
+
+=head2 The Tool
+
+Strangely enough, one of the tools which the elves have in their toolkit is the
+L<typos|https://crates.io/crates/typos> utility. Now, this tool is not written
+in Perl, but rather in Rust. This bothers exactly nobody, since the elves use
+the right tool for the right job. The wonderful thing about C<typos> is that
+this Rust-based tool can improve their Perl code. It's a Christmas miracle!
+
+=head2 Getting Set Up
+
+After installing C<typos>, it's trivial to spot typos in code.
+
+  $ typos
+
+That's it! Now, let's try it on the Advent Calendar. We'll start with the
+articles in 2019.
+
+  $ typos 2019
+
+This gives us all sorts of helpful information.
+
+    typos 2019
+    error: `entires` should be `entries`
+      --> 2019/articles/2019-12-16.pod:253:23
+        |
+    253 | And start adding todo entires:
+        |                       ^^^^^^^
+        |
+    error: `hightlight` should be `highlight`
+      --> 2019/articles/2019-12-14.pod:113:56
+        |
+    113 |         # work out the three strings (left of / before hightlight,
+        |                                                        ^^^^^^^^^^
+        |
+    error: `hightlight` should be `highlight`
+      --> 2019/articles/2019-12-14.pod:114:24
+        |
+    114 |         # the middle / hightlight, and then right of / after highlight)
+        |                        ^^^^^^^^^^
+        |
+    error: `assing` should be `assign`
+      --> 2019/articles/2019-12-14.pod:121:27
+        |
+    121 |         # what we want to assing to $x so we start drawing there again.
+
+
+There are actually a few more typos, but this is a good demonstration of what
+we might find. Now, how do we fix it?
+
+  $ typos -w 2019
+
+    error: `fils` should be `fills`, `files`, `file`
+      --> 2019/articles/2019-12-20.pod:136:59
+        |
+    136 | if that machine can access the internet, if I can put the fils in my home
+        |                                                           ^^^^
+        |
+    error: `whe` should be `when`, `we`
+      --> 2019/articles/2019-12-19.pod:25:17
+       |
+    25 | between runs.", whe Wise Old Elf explained sagely, "Then you'd be able to
+       |                 ^^^
+       |
+
+This actually fixes a number of typos, but there are two which the tool cannot
+resolve, so it makes some suggestions for us to use in a manual fix.
+
+This leaves the matter of how many changes were actually made. Let's see:
+
+    $ git diff --stat 2019
+     2019/articles/2010-12-11.pod | 2 +-
+     2019/articles/2019-12-04.pod | 2 +-
+     2019/articles/2019-12-05.pod | 4 ++--
+     2019/articles/2019-12-07.pod | 4 ++--
+     2019/articles/2019-12-10.pod | 2 +-
+     2019/articles/2019-12-12.pod | 2 +-
+     2019/articles/2019-12-13.pod | 8 ++++----
+     2019/articles/2019-12-14.pod | 6 +++---
+     2019/articles/2019-12-16.pod | 2 +-
+     2019/articles/2019-12-18.pod | 6 +++---
+     2019/articles/2019-12-20.pod | 4 ++--
+     2019/articles/2019-12-21.pod | 4 ++--
+     2019/articles/2019-12-22.pod | 2 +-
+     2019/articles/2019-12-24.pod | 2 +-
+     14 files changed, 25 insertions(+), 25 deletions(-)
+
+We can now go over the changes individually via C<git add -p> and we'll find
+that all but one seem to be correct. 24 typos found and fixed in 47 ms. That's
+not bad at all.
+
+As we process more and more files, we will likely find some false positives which
+we want to correct. This can be done in a config file. Ours is C<typos.toml>.
+
+    [default.extend-words]
+    ANDed = "ANDed"
+    ba = "ba"
+    Claus = "Claus"
+    DNE = "DNE"
+    IFF = "IFF"
+    Signes = "Signes"
+
+    [files]
+    extend-exclude = ["advent.ini", "data.en"]
+
+In order to skip false positives, we add words to the C<default.extend-words>
+section. Yes, it's kind of a surprising way to do this, but let's go along with
+it. Also, any files which we don't want to check can be added to
+C<extend-include> in the C<[files]> section.
+
+=head2 More Than Just Documentation
+
+The neat thing about C<typos> is that it can also fix things in your Perl code
+itself and not just the documentation.
+
+Imagine we have a Perl script with the following contents:
+
+    #!vim perl
+    use strict;
+    use warnings;
+
+    sub widht {}
+
+    my $strng = 'foo';
+
+What does C<typos> have to say about it?
+
+    typos workshop.pl
+    error: `widht` should be `width`
+      --> workshop.pl:4:5
+      |
+    4 | sub widht {}
+      |     ^^^^^
+      |
+    error: `strng` should be `string`
+      --> workshop.pl:6:5
+      |
+    6 | my $strng = 'foo';
+      |     ^^^^^
+      |
+
+We can see that our function name and our variable name have been caught and
+will be corrected if we run again with C<typos -w>.
+
+=head2 Now The Elves Look Smart(er)
+
+Having discovered this very useful tool, the elves have added it to their
+linters and fixers, made it part of their C<pre-commit> hooks and included it
+in the Continuous Integration configuration.
+
+For those of us who enjoy creating a quick pull request to fix someone else's
+typos, we can now employ this tool on repositories which we have just checked
+out. A helpful pull request for a grateful maintainer
+is just minutes away.
+
+As one more data point, I used C<typos> to check this very article and I'm
+both proud and ashamed to say that it found more than one problem. 😅
+
+C<typos> will not find all errors, but it will find issues which are hard for
+the human eye to spot. It's not a replacement for a code review, but it's a
+helpful tool for the elves to have in their toolbox for the days when they just
+don't see the typos which are staring them in the face. The best part is, they
+get to find the typos before Santa does.
