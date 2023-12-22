@@ -1,0 +1,406 @@
+Author: olaf@wundersolutions.com
+Title: Elves Versus Unused Imports
+Topic: App::perlimports
+
+=encoding utf8
+
+Santa's elves are interested in code quality. This is something we touched on
+about 9 years ago in L<How Santa's Elves Keep their Workshop
+Tidy|https://perladvent.org/2014/2014-12-16.html> and, more recently, in
+L<Elves Versus Typos|https://perladvent.org/2023/2023-12-21.html>. Since the
+elves like keeping up with the times, they are currently experimenting with
+another, newer Perl code quality tool. It's finally time to take a close look
+at
+L<perlimports|https://metacpan.org/dist/App-perlimports/view/script/perlimports>.
+L<perlimports|https://metacpan.org/dist/App-perlimports/view/script/perlimports>
+is a fixer -- it can rewrite your code for you. It's also a linter, so you can
+use it to report on problems without fixing them. With this power comes great
+responsibility and C<perlimports> tries to be responsible. Inspired by
+L<goimports|https://pkg.go.dev/golang.org/x/tools/cmd/goimports>,
+C<perlimports> is an opinionated tool which tries to force its opinions on your
+code. What you get in return is a tool which takes much of the burden of
+managing imports out of your hands.
+
+If you're interested in an in-depth discussion of how C<perlimports> and Perl's
+C<use> and C<require> work, check out this YouTube video from The Perl
+Conference in 2021: L<perlimports or "Where did that symbol come
+from?"|https://www.youtube.com/watch?v=fKqxdTbGxYY>.
+
+As a bonus, if you make it to the bottom of this article, we'll also explore a
+L<precious|https://github.com/houseabsolute/precious>, which is a successor to
+L<Code::TidyAll>.
+
+=head2 Installation
+
+Let's take a look at a typical getting started workflow. First the elves
+install the package from CPAN:
+
+  cpm install -g App::perlimports
+
+Once that is done, the elves are ready to try this out. They'll probably just
+dive right in. The quick way to run C<perlimports> on a new repository might
+look something like this:
+
+=head2 Getting Started
+
+=for :list
+* Clone a repo
+* Install *all* of the repository's dependencies (including recommended)
+* Run the test suite
+* Ensure all of the tests are passing. If there are test failures, fix those first
+* Run C<perlimports> with the C<--lint> flag to see what changes it might make
+* Tweak the configuration until we're happy with the linting results
+* Apply C<perlimports> to the tests. We can do this via C<perlimports -i t>
+* Ensure all of the tests are still passing
+* Commit the changes
+* Move on to other parts of the code, like C<lib>. C<perlimports --lint lib>
+
+In a best case scenario, this "just works". Let's try it on a really old
+repository of mine.
+
+    #!vim text
+    $ git clone https://github.com/oalders/acme-odometer.git
+    $ cd acme-odometer/
+    $ cpm install -g --with-recommends --cpanfile cpanfile
+    $ yath t
+    $ perlimports --lint t
+
+And indeed, all of the steps "just worked". We ran the test(s) via L<yath> and
+they passed. Why did we use L<yath> rather than C<make test> or L<prove>? We
+certainly could have done either of those things, but we're trying to get in
+the habit of using more modern tools. L<yath> comes bundled with
+L<Test2::Harness>. If you'd like to learn more about some of the features which
+L<Test2> provides, please see L<Santa’s Workshop Secrets: The Magical Test2
+Suite (Part 1)|https://perladvent.org/2023/2023-12-15.html> and L<Santa’s
+Workshop Secrets: The Magical Test2 Suite (Part
+2)|https://perladvent.org/2023/2023-12-16.html>.
+
+Now, let's see what the linting looks like:
+
+    #!vim text
+    $ perlimports --lint t
+    ❌ Test::Most (import arguments need tidying) at t/load.t line 1
+    @@ -1 +1 @@
+    -use Test::Most;
+    +use Test::Most import => [ qw( done_testing ok ) ];
+
+    ❌ Acme::Odometer (import arguments need tidying) at t/load.t line 3
+    @@ -3 +3 @@
+    -use Acme::Odometer;
+    +use Acme::Odometer ();
+
+    ❌ Path::Class (import arguments need tidying) at t/load.t line 4
+    @@ -4 +4 @@
+    -use Path::Class qw(file);
+    +use Path::Class qw( file );
+
+We can see three suggestions have been made. In the first suggestion,
+C<perlimports> has detected that C<done_testing> and C<ok> are the only
+functions exported by L<Test::Most> which the test is using, so it has made
+this explicit.
+
+In the second suggestion C<perlimports> has detected that the test is not
+importing any symbols from L<Acme::Odometer>, so it has made this explicit by
+adding the empty round parens following the C<use> statement.
+
+In the third suggestion we see that some whitespace padding has been added to the
+L<Path::Class> import.
+
+If we don't like these changes, we can tweak the configuration. To tell
+C<perlimports> to ignore L<Test::Most>, we can change our incantation:
+
+  perlimports --lint --ignore-modules Test::Most t
+
+If we also don't like the additional padding, we can turn that off:
+
+  perlimports --lint --ignore-modules Test::Most --no-padding t
+
+Applying these settings we now get:
+
+  #!vim text
+  $ perlimports --lint --ignore-modules Test::Most --no-padding t
+  ❌ Acme::Odometer (import arguments need tidying) at t/load.t line 3
+  @@ -3 +3 @@
+  -use Acme::Odometer;
+  +use Acme::Odometer ();
+
+It's time to update the actual file. We'll use C<-i> for an inplace edit:
+
+  $ perlimports -i --ignore-modules Test::Most --no-padding t
+
+The result is:
+
+    #!vim diff
+    git --no-pager diff t
+    diff --git a/t/load.t b/t/load.t
+    index 503d560..d19688f 100644
+    --- a/t/load.t
+    +++ b/t/load.t
+    @@ -1,6 +1,6 @@
+     use Test::Most;
+
+    -use Acme::Odometer;
+    +use Acme::Odometer ();
+     use Path::Class qw(file);
+
+     my $path = file( 'assets', 'odometer' )->stringify;
+
+Are the tests still passing?
+
+    #!vim text
+    yath t
+
+    ** Defaulting to the 'test' command **
+
+    ( PASSED )  job  1    t/load.t
+
+                                    Yath Result Summary
+    -----------------------------------------------------------------------------------
+         File Count: 1
+    Assertion Count: 3
+          Wall Time: 1.00 seconds
+           CPU Time: 1.42 seconds (usr: 0.32s | sys: 0.09s | cusr: 0.77s | csys: 0.24s)
+          CPU Usage: 142%
+        -->  Result: PASSED  <--
+
+Excellent. Let's add the changes via C<git> and commit them. After that, let's
+turn to the C<lib> directory.
+
+    #!vim text
+    $ perlimports --lint --ignore-modules Test::Most --no-padding lib
+    ❌ namespace::clean (appears to be unused and should be removed) at lib/Acme/Odometer.pm line 9
+    @@ -9 +8,0 @@
+    -use namespace::clean;
+
+    ❌ GD (import arguments need tidying) at lib/Acme/Odometer.pm line 11
+    @@ -11 +11 @@
+    -use GD;
+    +use GD ();
+
+    ❌ Memoize (import arguments need tidying) at lib/Acme/Odometer.pm line 12
+    @@ -12 +12 @@
+    -use Memoize;
+    +use Memoize qw(memoize);
+
+    ❌ Path::Class (import arguments need tidying) at lib/Acme/Odometer.pm line 14
+    @@ -14 +14 @@
+    -use Path::Class qw( file );
+    +use Path::Class qw(file);
+
+Now, we already see some issues. First off, C<perlimports> doesn't seem to know
+about L<namespace::clean>. That's ok. We can ignore it.
+
+  perlimports --lint --ignore-modules namespace::clean,Test::Most --no-padding lib
+
+As an aside, we could also update the code to use L<namespace::autoclean> while
+we're poking around, but we're trying to make minimal changes in this first
+iteration.
+
+The last suggestion is to remove the padding from the L<Path::Class> imports.
+It's good to be consistent. The second and third suggestions look to be solid.
+Let's make this change.
+
+  perlimports -i --ignore-modules namespace::clean,Test::Most --no-padding lib
+
+That gives us:
+
+    #!vim diff
+    $ git --no-pager diff lib
+    diff --git a/lib/Acme/Odometer.pm b/lib/Acme/Odometer.pm
+    index 7fee773..cb1734e 100644
+    --- a/lib/Acme/Odometer.pm
+    +++ b/lib/Acme/Odometer.pm
+    @@ -8,10 +8,10 @@ package Acme::Odometer;
+     use Moo 1.001;
+     use namespace::clean;
+
+    -use GD;
+    -use Memoize;
+    +use GD ();
+    +use Memoize qw(memoize);
+     use MooX::Types::MooseLike::Numeric qw(PositiveInt PositiveOrZeroInt);
+    -use Path::Class qw( file );
+    +use Path::Class qw(file);
+
+That's pretty good. Do the tests still pass? Yes, they do. So, we can commit
+this change as well.
+
+=head2 A Configuration File
+
+Now, this is all well and good, but what if we want to run C<perlimports> via
+L<the Perl Navigator Language Server|https://github.com/bscan/PerlNavigator>?
+It would be better if we didn't have to worry about the custom command line
+switches. This sounds like a good time to create a config file.
+
+    #!vim text
+    perlimports --create-config-file perlimports.toml
+
+Nice! We have a stub configuration file. Let's see what's inside
+C<perlimports.toml>
+
+    #!vim toml
+    # Valid log levels are:
+    # debug, info, notice, warning, error, critical, alert, emergency
+    # critical, alert and emergency are not currently used.
+    #
+    # Please use boolean values in this config file. Negated options (--no-*) are
+    # not permitted here. Explicitly set options to true or false.
+    #
+    # Some of these values deviate from the regular perlimports defaults. In
+    # particular, you're encouraged to leave preserve_duplicates and
+    # preserve_unused disabled.
+
+    cache                           = false # setting this to true is currently discouraged
+    ignore_modules                  = []
+    ignore_modules_filename         = ""
+    ignore_modules_pattern          = "" # regex like "^(Foo|Foo::Bar)"
+    ignore_modules_pattern_filename = ""
+    libs                            = ["lib", "t/lib"]
+    log_filename                    = ""
+    log_level                       = "warn"
+    never_export_modules            = []
+    never_export_modules_filename   = ""
+    padding                         = true
+    preserve_duplicates             = false
+    preserve_unused                 = false
+    tidy_whitespace                 = true
+
+Let's commit the stub file to git and then let's move our command line switches
+to the config file. The diff should look something like this:
+
+    #!vim diff
+    $ git --no-pager diff perlimports.toml
+    diff --git a/perlimports.toml b/perlimports.toml
+    index d631998..1e54c9e 100644
+    --- a/perlimports.toml
+    +++ b/perlimports.toml
+    @@ -10,7 +10,7 @@
+     # preserve_unused disabled.
+
+     cache                           = false # setting this to true is currently discouraged
+    -ignore_modules                  = []
+    +ignore_modules                  = ["namespace::clean", "Test::Most"]
+     ignore_modules_filename         = ""
+     ignore_modules_pattern          = "" # regex like "^(Foo|Foo::Bar)"
+     ignore_modules_pattern_filename = ""
+    @@ -19,7 +19,7 @@ log_filename                    = ""
+     log_level                       = "warn"
+     never_export_modules            = []
+     never_export_modules_filename   = ""
+    -padding                         = true
+    +padding                         = false
+     preserve_duplicates             = false
+     preserve_unused                 = false
+     tidy_whitespace                 = true
+
+=head2 Integrations
+
+That's it! Now, when we apply C<perlimports> via Perl Navigator, our custom
+configuration will be respected. Also, we can now run C<perlimports> from the
+command line without needing to include the C<--ignore-modules> and
+C<--no-padding> flags. We can think about adding C<perlimports> to our
+Continuous Integration and C<pre-commit> hooks as well, so that we maintain the
+changes we've just imposed.
+
+As a bonus, if you are a C<neovim> user and you're using
+L<null-ls|https://github.com/jose-elias-alvarez/null-ls.nvim> or its successor
+L<none-ls|https://github.com/nvimtools/none-ls.nvim/blob/main/doc/BUILTINS.md>,
+then C<perlimports> is already available as a builtin. We can now apply
+C<perlimports> as part of your "format on save" behaviours.
+
+=head2 The Power of precious
+
+We talked about using L<Code::TidyAll> in L<How Santa's Elves Keep their Workshop
+Tidy|https://perladvent.org/2014/2014-12-16.html>. L<tidyall> is a wonderful
+tool that solves a lot of problems, but its design was not perfect and it's
+looking for a new maintainer. In the meantime,
+L<precious|https://github.com/houseabsolute/precious> has drawn inspiration
+from L<tidyall> and can be regarded as its spiritual successor, even if it's
+written in Rust. If we want to run C<perlimports> along with other fixing and
+linting tools, we can use C<precious> for this.
+
+We won't cover installation here, but after installing C<precious> we can
+generate a stub config file:
+
+  #!vim text
+  $ precious config init --component perl
+
+  Writing precious.toml
+
+  The generated precious.toml requires the following tools to be installed:
+    https://metacpan.org/dist/Perl-Critic
+    https://metacpan.org/dist/Perl-Tidy
+    https://metacpan.org/dist/App-perlimports
+    https://metacpan.org/dist/Pod-Checker
+    https://metacpan.org/dist/Pod-Tidy
+
+Let's have a look at the created file:
+
+    #!vim toml
+    excludes = [
+        ".build/**",
+        "blib/**",
+    ]
+
+    [commands.perlcritic]
+    type = "lint"
+    include = [ "**/*.{pl,pm,t,psgi}" ]
+    cmd = [ "perlcritic", "--profile=$PRECIOUS_ROOT/perlcriticrc" ]
+    ok_exit_codes = 0
+    lint_failure_exit_codes = 2
+
+    [commands.perltidy]
+    type = "both"
+    include = [ "**/*.{pl,pm,t,psgi}" ]
+    cmd = [ "perltidy", "--profile=$PRECIOUS_ROOT/perltidyrc" ]
+    lint_flags = [ "--assert-tidy", "--no-standard-output", "--outfile=/dev/null" ]
+    tidy_flags = [ "--backup-and-modify-in-place", "--backup-file-extension=/" ]
+    ok_exit_codes = 0
+    lint_failure_exit_codes = 2
+    ignore_stderr = "Begin Error Output Stream"
+
+    [commands.perlimports]
+    type = "both"
+    include = [ "**/*.{pl,pm,t,psgi}" ]
+    cmd = [ "perlimports" ]
+    lint_flags = ["--lint" ]
+    tidy_flags = ["-i" ]
+    ok_exit_codes = 0
+    expect_stderr = true
+
+    [commands.podchecker]
+    type = "lint"
+    include = [ "**/*.{pl,pm,pod}" ]
+    cmd = [ "podchecker", "--warnings", "--warnings" ]
+    ok_exit_codes = [ 0, 2 ]
+    lint_failure_exit_codes = 1
+    ignore_stderr = [
+        ".+ pod syntax OK",
+        ".+ does not contain any pod commands",
+    ]
+
+    [commands.podtidy]
+    type = "tidy"
+    include = [ "**/*.{pl,pm,pod}" ]
+    cmd = [ "podtidy", "--columns", "80", "--inplace", "--nobackup" ]
+    ok_exit_codes = 0
+    lint_failure_exit_codes = 1
+
+We can see that the config already includes a linting and tidying configuration
+for lots of helpful Perl linters and tidiers, including C<perlimports>. Now, we
+can run C<precious tidy --all> or C<precious lint --all> to run all sorts of
+helpfu checks in C<pre-commit> hooks and other places where code quality needs
+to be ensured.
+
+C<precious> is a powerful tool and it merits its own blog post, but let's leave
+this as a quick introduction. Perhaps you'll feel inspired to try it out.
+
+=head2 The State of the Workshop
+
+And as for Santa's elves? They have a large codebase which doesn't have 100%
+test coverage, so they're starting slowly with the changes introduced by
+C<perlimports>. After applying C<perlimports> to the test suite, they've also
+applied it to the files which have very good test coverage. Once they're
+confident in those changes, they'll move on to other parts of the codebase.
+Once they have an updated list of modules which C<perlimports> should always
+ignore, maybe they'll even send in a patch to the maintainer. 🤞
