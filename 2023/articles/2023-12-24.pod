@@ -1,0 +1,257 @@
+Author: jjatria@gmail.com
+Title: Santa Kotlin is coming to Perl
+Topic: FFI::Platypus
+
+=encoding utf8
+
+This post starts with a long introduction to explain I<why> I'm writing, but
+if you want to skip all of that you can jump directly to the
+L<meat and potatoes|/Binding to Kotlin from Perl>.
+
+=head2 Stay awhile and listen
+
+I grew up as a Nintendo kid. Some of the first video games I played were on an
+NES, and the first console I ever owned was an SNES. I have very fond memories
+of those times and of the games I got to know and play.
+
+Although at the time I don't think I considered applying that label to myself,
+it was very much a part of how I understood myself and my place among my peers.
+I was a Nintendo kid, and they... well, they were something else. Sega kids,
+maybe.
+
+This misguided sense of identity paired well with a misguided sense of loyalty,
+which made it so I found it difficult to enjoy both at the same time. If I was
+a "Nintendo" kid, what would it mean if I enjoyed Sega... things? What would
+it mean to I<own> one?
+
+This was not only related to video games, either. I remember very easily
+falling into this trap with all sorts of similar "contrasts". I was a Beatles
+kid, so I couldn't like The Rolling Stones. I was a Star Wars kid, so I
+couldn't enjoy Star Trek. The list was tragically endless.
+
+This was not so hard when my team was inarguably better than the other. But
+I remember how hard it got to be a "Nintendo kid" when the PlayStation came
+around. It was gritty, it was powerful, it was exciting... and it I<felt>
+inaccessible.
+
+=head2 Am I still reading the Perl advent calendar?
+
+Ah, yes. Perl.
+
+I've always loved Perl. It was not my very first programming language (you and
+me, BASIC, for life), but it was the first one where I felt like I could write
+real programs. The first that I felt was worth mastering, and the one I'm most
+comfortable with, even today.
+
+So, surprise surprise, I was a Perl kid.
+
+And there have been times when being a Perl kid has not been easy.
+
+I am fortunately past the time when I look at the world in terms of clubs that
+you belong to because of the things you like. I will have you know I can listen
+to both Radiohead I<and> Coldplay without breaking a sweat (I take no
+responsibility for deciding what contrasted with what).
+
+But to this day, there are aspects of this worldview that remain in me.
+
+=head2 Perl's PlayStation
+
+I imagine this largely depends on my particular interests, but for the Perl
+kid in me, it was hard to see how easy the I<other> kids had it when they
+wanted to integrate with other languages.
+
+To me, this was the PlayStation to Perl's Nintendo.
+
+I remember several attempts trying to teach my teenager-self how to write XS,
+so I could bind to this or that library. I remember feeling frustrated and
+defeated. I remember wondering if this meant that Perl was holding me back...
+
+The answer is "no". I<If> I was being held back, it was me who was doing so
+by again thinking in terms of clubs.
+
+But even if I had continued to see the world through that lens, the Perl we
+have at our disposal today is miles from the Perl I learned as a kid. There
+are still, I am sure, plenty of areas where I think Perl has to catch up. But
+we are at a moment where Perl is positively blooming with new features and
+tools, that make catching up possible, if not outright easy.
+
+In the last two versions alone (at the time of writing, 5.36 and 5.38) we
+have
+L<n-at-a-time iteration|https://perldoc.pl/perl5360delta#iterating-over-multiple-values-at-a-time-(experimental)>,
+L<a native try with finally support|https://perldoc.pl/perl5360delta#try/catch-can-now-have-a-finally-block-(experimental)> (finally!),
+L<the new defer blocks|https://perldoc.pl/perl5360delta#defer-blocks-(experimental)>,
+L<native booleans|https://perldoc.pl/perl5360delta#Stable-boolean-tracking>,
+L<the new builtin namespace|https://perldoc.pl/perl5360delta#builtin-functions-(experimental)>,
+and a powerful L<new syntax for defining classes|https://perldoc.pl/perl5380delta#New-class-Feature>.
+Not to mention other recent native features (like sub signatures and the
+C<isa> operator), or the things made possible via CPAN:
+L<asyncE<sol>await support|Future::AsyncAwait>, the renewed efforts into
+L<PDL>, and what I might consider the jewel of modern Perl: L<FFI::Platypus>.
+
+Time will tell, but I feel like this is what it must feel like to live
+during a renaissance.
+
+=head2 Any chance of having actual code in this post?
+
+Yes, I'm getting to that. Now that I've finished with the introduction we
+can get to the meat and potatoes of this post. I hope I didn't lose too many
+of you along the way.
+
+=head2 Binding to Kotlin from Perl
+
+What motivated this post in the first place was a task at work where I was
+asked to look into the feasibility of integrating with a third-party that
+provided SDKs for several languages... but not Perl.
+
+Lucky for me, they had made the code of those SDKs publicly available, so I
+could examine it. And while looking through them I realised that most of the
+heavy lifting was done by binding to a shared C library. My teenager-self
+would have had a traumatic flashback sequence at this point, but this is
+modern Perl. We have L<FFI::Platypus>. "This will be easy", I thought.
+
+The challenge came when I realised that the library was originally written
+in Kotlin via what they know as "Kotlin/Native", which
+L<generates header files|https://kotlinlang.org/docs/native-dynamic-libraries.html#generated-headers-file>
+with some ad-hoc hoops for us to jump through. As an attempt at simplifying
+things, I've put together L<a repository|https://github.com/jjatria/santa-kotlin>
+with a sort of sample distribution that you can play around with as an
+illustration. The code examples below will be taken from it.
+
+In any case, the native Kotlin extension will take code that looks like
+L<this|https://github.com/jjatria/santa-kotlin/blob/91714e6a2928c54f738253537f1ee362bbc41b88/share/src/nativeMain/kotlin/example.kt>:
+
+    #!vim kotlin
+    package example
+
+    fun reverseString(str: String) : String {
+        return str.reversed()
+    }
+
+and eventually wrap it in a C struct which will look like the one below:
+
+    #!vim c
+    typedef struct {
+      /* Service functions. */
+      // ... Snipped 28 fields with fields pointing to service functions
+
+      /* User functions. */
+      struct {
+        struct {
+          struct {
+            const char* (*reverseString)(const char* str);
+          } example;
+        } root;
+      } kotlin;
+    } libexample_ExportedSymbols;
+
+    extern libexample_ExportedSymbols* libexample_symbols(void);
+
+Which, to summarise, is exposing a global C<libexample_symbols> function which
+returns a pointer to a struct where the last field (named C<kotlin>) holds a
+pointer to a struct with a field (named C<root>) which holds a pointer to a
+struct with a field (named C<example>) which holds a pointer to the function
+that you wrote.
+
+That's a mouthful.
+
+When I first saw this, and saw that doing it in eg. Ruby (the SDK I was
+looking at for guidance) was not only possible, but relatively simple-looking,
+I got pangs of that PlayStation feeling.
+
+But as it turns out, L<FFI::Platypus> already gives us all the tools to deal
+with something like this.
+
+The first thing will be to define the nested structs, and for that we will
+need L<FFI::C> (remember that you can look at
+L<the whole file|https://github.com/jjatria/santa-kotlin/blob/main/lib/Santa/Kotlin.pm>
+these snippets are taken from
+L<in the sample repository|https://github.com/jjatria/santa-kotlin>):
+
+    #!vim perl
+    package
+        Santa::Kotlin::Example {
+        FFI::C->struct( Example => [
+            reverseString => 'opaque',
+        ]);
+    }
+
+    package
+        Santa::Kotlin::Root {
+        FFI::C->struct( Root => [ example => 'Example' ]);
+    }
+
+    package
+        Santa::Kotlin::Kotlin {
+        FFI::C->struct( Kotlin => [ root => 'Root' ]);
+    }
+
+    package
+        Santa::Kotlin::Symbols {
+
+        FFI::C->struct( Symbols => [
+            # ... 28 skipped fields which we must have here too ...
+            kotlin => 'Kotlin',
+        ]);
+    }
+
+These packages are only for internal use, so that's why they have a newline
+after the C<package> keyword: it makes it so that if this code is ever put on
+CPAN, these packages will not be indexed.
+
+When defining a struct with L<FFI::C>, the first parameter is a name that can
+be referred to later, which is why these are defined from the inside (the ones
+most deeply nested) going out. It means I can refer to the types of the inner
+fields when defining the outer structs, like in the C<root> field of type
+C<Root> in the struct for the Santa::Kotlin::Kotlin package: since it is of
+type C<Root>, its value will automatically be cast into a Santa::Kotlin::Root
+object.
+
+We still need to get our hands on an instance of this outermost struct, and for
+that we have to bind to that global C<libexample_symbols> function:
+
+    #!vim perl
+    # Register $ffi with FFI::C, so new types become available
+    FFI::C->ffi($ffi);
+
+    # ...
+
+    my $symbols = $ffi
+        ->function( libexample_symbols => ['void'] => 'Symbols' )
+        ->();
+
+Since we've told L<FFI::C> that it should register any types it creates with
+this instance of L<FFI::Platypus>, we can use the C<Symbols> type (which
+corresponds to the Santa::Kotlin::Symbols package defined above) as the return
+value of this function.
+
+Note also that we are not L<attaching|FFI::Platypus/attach> this function,
+because we are not going to expose it to our users. We only want to be able to
+call it once so we can get a reference to the struct it returns, which we store
+in C<$symbols>.
+
+Once we've done all this preparation, we are ready to attach any functions in
+our C<example> Kotlin package to our Santa::Kotlin Perl package, and we do this
+by using the memory addresses of the functions we are interested in:
+
+    #!vim perl
+    $ffi->attach(
+        #                  we look up the address    and give it a Perl name
+        #                                    \                 \
+        [ $symbols->kotlin->root->example->reverseString, 'reverse_string' ],
+        ['string'] => 'string',
+    );
+
+At this point, we are ready to call this function as we would any other from
+our perl code:
+
+    #!vim perl
+    use Santa::Kotlin;
+    say Santa::Kotlin::reverse_string('lrep ot gnimoc si niltok atnas');
+    # OUTPUT: santa kotlin is coming to perl
+
+These are good times to be a Perl kid, so happy holidays to all the good ones
+out there.
+
+Happy hacking!
+
+=cut
