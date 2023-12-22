@@ -26,6 +26,12 @@ C<use> and C<require> work, check out this YouTube video from The Perl
 Conference in 2021: L<perlimports or "Where did that symbol come
 from?"|https://www.youtube.com/watch?v=fKqxdTbGxYY>.
 
+As a bonus, if you make it to the bottom of this article, we'll also explore a
+L<precious|https://github.com/houseabsolute/precious>, which is a successor to
+L<Code::TidyAll>.
+
+=head2 Installation
+
 Let's take a look at a typical getting started workflow. First the elves
 install the package from CPAN:
 
@@ -34,6 +40,8 @@ install the package from CPAN:
 Once that is done, the elves are ready to try this out. They'll probably just
 dive right in. The quick way to run C<perlimports> on a new repository might
 look something like this:
+
+=head2 Getting Started
 
 =for :list
 * Clone a repo
@@ -217,6 +225,8 @@ That gives us:
 That's pretty good. Do the tests still pass? Yes, they do. So, we can commit
 this change as well.
 
+=head2 A Configuration File
+
 Now, this is all well and good, but what if we want to run C<perlimports> via
 L<the Perl Navigator Language Server|https://github.com/bscan/PerlNavigator>?
 It would be better if we didn't have to worry about the custom command line
@@ -283,6 +293,8 @@ to the config file. The diff should look something like this:
      preserve_unused                 = false
      tidy_whitespace                 = true
 
+=head2 Integrations
+
 That's it! Now, when we apply C<perlimports> via Perl Navigator, our custom
 configuration will be respected. Also, we can now run C<perlimports> from the
 command line without needing to include the C<--ignore-modules> and
@@ -295,6 +307,95 @@ L<null-ls|https://github.com/jose-elias-alvarez/null-ls.nvim> or its successor
 L<none-ls|https://github.com/nvimtools/none-ls.nvim/blob/main/doc/BUILTINS.md>,
 then C<perlimports> is already available as a builtin. We can now apply
 C<perlimports> as part of your "format on save" behaviours.
+
+=head2 The Power of precious
+
+We talked about using L<Code::TidyAll> in L<How Santa's Elves Keep their Workshop
+Tidy|https://perladvent.org/2014/2014-12-16.html>. L<tidyall> is a wonderful
+tool that solves a lot of problems, but its design was not perfect and it's
+looking for a new maintainer. In the meantime,
+L<precious|https://github.com/houseabsolute/precious> has drawn inspiration
+from L<tidyall> and can be regarded as its spiritual successor, even if it's
+written in Rust. If we want to run C<perlimports> along with other fixing and
+linting tools, we can use C<precious> for this.
+
+We won't cover installation here, but after installing C<precious> we can
+generate a stub config file:
+
+  #!vim text
+  $ precious config init --component perl
+
+  Writing precious.toml
+
+  The generated precious.toml requires the following tools to be installed:
+    https://metacpan.org/dist/Perl-Critic
+    https://metacpan.org/dist/Perl-Tidy
+    https://metacpan.org/dist/App-perlimports
+    https://metacpan.org/dist/Pod-Checker
+    https://metacpan.org/dist/Pod-Tidy
+
+Let's have a look at the created file:
+
+    #!vim toml
+    excludes = [
+        ".build/**",
+        "blib/**",
+    ]
+
+    [commands.perlcritic]
+    type = "lint"
+    include = [ "**/*.{pl,pm,t,psgi}" ]
+    cmd = [ "perlcritic", "--profile=$PRECIOUS_ROOT/perlcriticrc" ]
+    ok_exit_codes = 0
+    lint_failure_exit_codes = 2
+
+    [commands.perltidy]
+    type = "both"
+    include = [ "**/*.{pl,pm,t,psgi}" ]
+    cmd = [ "perltidy", "--profile=$PRECIOUS_ROOT/perltidyrc" ]
+    lint_flags = [ "--assert-tidy", "--no-standard-output", "--outfile=/dev/null" ]
+    tidy_flags = [ "--backup-and-modify-in-place", "--backup-file-extension=/" ]
+    ok_exit_codes = 0
+    lint_failure_exit_codes = 2
+    ignore_stderr = "Begin Error Output Stream"
+
+    [commands.perlimports]
+    type = "both"
+    include = [ "**/*.{pl,pm,t,psgi}" ]
+    cmd = [ "perlimports" ]
+    lint_flags = ["--lint" ]
+    tidy_flags = ["-i" ]
+    ok_exit_codes = 0
+    expect_stderr = true
+
+    [commands.podchecker]
+    type = "lint"
+    include = [ "**/*.{pl,pm,pod}" ]
+    cmd = [ "podchecker", "--warnings", "--warnings" ]
+    ok_exit_codes = [ 0, 2 ]
+    lint_failure_exit_codes = 1
+    ignore_stderr = [
+        ".+ pod syntax OK",
+        ".+ does not contain any pod commands",
+    ]
+
+    [commands.podtidy]
+    type = "tidy"
+    include = [ "**/*.{pl,pm,pod}" ]
+    cmd = [ "podtidy", "--columns", "80", "--inplace", "--nobackup" ]
+    ok_exit_codes = 0
+    lint_failure_exit_codes = 1
+
+We can see that the config already includes a linting and tidying configuration
+for lots of helpful Perl linters and tidiers, including C<perlimports>. Now, we
+can run C<precious tidy --all> or C<precious lint --all> to run all sorts of
+helpfu checks in C<pre-commit> hooks and other places where code quality needs
+to be ensured.
+
+C<precious> is a powerful tool and it merits its own blog post, but let's leave
+this as a quick introduction. Perhaps you'll feel inspired to try it out.
+
+=head2 The State of the Workshop
 
 And as for Santa's elves? They have a large codebase which doesn't have 100%
 test coverage, so they're starting slowly with the changes introduced by
