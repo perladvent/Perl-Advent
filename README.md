@@ -26,6 +26,14 @@ will automatically see the updates.
 
 ## The website
 
+### 0. Add previous year to `archives.yaml`
+
+Currently this needs to be run manually once per year, in the new year.
+
+```bash
+./year2yaml $(date -v-1y +%Y)
+```
+
 ### 1. Build root files
 
 To create some root files from `archives.yaml`:
