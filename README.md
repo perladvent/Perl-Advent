@@ -31,7 +31,7 @@ will automatically see the updates.
 Currently this needs to be run manually once per year, in the new year.
 
 ```bash
-./year2yaml $(date -v-1y +%Y)
+./year2yaml $(perl -MTime::Piece -le 'print localtime->year - 1') 
 ```
 
 ### 1. Build root files
