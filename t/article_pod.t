@@ -4,6 +4,7 @@ use open qw(:std :encoding(UTF-8));
 use experimental qw(signatures);
 
 use Test::More;
+use Time::Piece;
 
 =head NAME
 
@@ -34,7 +35,9 @@ Whatever the license is for https://github.com/perladvent/Perl-Advent
 unless( @ARGV ) {
 	# most years don't do the pod stuff the way we do it now
 	# make fancier later
-	my $y = join ',', 2011 .. 2022;
+
+	my $current_year = localtime->year;
+	my $y = join ',', 2011 .. $current_year;
 	@ARGV = glob( "{$y}/articles/*.pod" );
 	push @ARGV, glob( "{$y}/incoming/*.pod");
 	}

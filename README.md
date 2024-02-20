@@ -11,13 +11,13 @@ Fork the repo and start a new article. The script will prompt you
 for a few things and will create a new file for you under *YEAR*/incoming/.
 
 ```bash
-$ perl script/new_article
+perl script/new_article
 ```
 
 Edit your article, and test it as you work:
 
 ```bash
-$ perl t/article_pod.t 2023/incoming/your-article.pod
+perl t/article_pod.t 2023/incoming/your-article.pod
 ```
 
 When you are satisfied, create a pull request. You can keep working
@@ -25,6 +25,14 @@ on the article and pushing updates to your fork; the pull request
 will automatically see the updates.
 
 ## The website
+
+### 0. Add previous year to `archives.yaml`
+
+Currently this needs to be run manually once per year, in the new year.
+
+```bash
+./year2yaml $(perl -MTime::Piece -le 'print localtime->year - 1') 
+```
 
 ### 1. Build root files
 
@@ -37,7 +45,7 @@ To create some root files from `archives.yaml`:
 Execute the following script:
 
 ```bash
-$ perl mkarchives .
+perl mkarchives .
 ```
 
 ### 2. Build all (recent) advent calendars
@@ -57,8 +65,7 @@ $ for year in $(seq 2011 2023); do cd $year && advcal -c advent.ini -o `pwd` && 
 Start HTTP webserver in one line:
 
 ```bash
-$ http_this --autoindex .
+http_this --autoindex .
 ```
 
 You can visit [http://127.0.0.1:7007/](http://127.0.0.1:7007/)
-
