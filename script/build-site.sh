@@ -45,7 +45,7 @@ for year in $(seq 2000 2010); do
     cp -R "$year" out/
 done
 
-for year in $(seq 2011 2023); do
+for year in 1999 $(seq 2011 2023); do
     if [[ ${single_year:-} && $single_year -ne $year ]]; then
         continue
     fi
