@@ -1,24 +1,27 @@
+#!/usr/bin/env perl
+
 use v5.10;
 use strict;
 
 use File::Spec::Functions;
 use File::Path qw(make_path);
+use DateTime;
 
 =head1 NAME
 
-script/new_article - start a new Advent calendar article
+script/new-article.pl - start a new Advent calendar article
 
 =head1 SYNOPSIS
 
-	% perl script/new_article
+	% perl script/new-article.pl
 	Article title > Another article
 	Article topic > Module::Covered::In::Article
 	Author (Your Name) > brian d foy <bdfoy@cpan.org>
-	Saved the starter article in 2022/incoming/another-article.pod
+	Saved the starter article in 2024/articles/YYYY-MM-DD.pod
 
 Then edit your article and check it:
 
-	% perl t/article_pod.t 2022/incoming/another-article.pod
+	% perl t/article_pod.t 2024/articles/YYYY-MM-DD.pod
 
 =cut
 
@@ -27,11 +30,24 @@ my $starter_text = cook_template( $title, $topic, $author );
 
 my $year = (localtime)[5] + 1900;
 
-my( $dir ) = catfile( $year, 'incoming' );
+my( $dir ) = catfile( $year, 'articles' );
 make_path $dir;
 
 ( my $slug = lc($title) ) =~ s/\W+/-/g;
-my $path = catfile( $dir, "$slug.pod" );
+
+my $d = DateTime->new( year  => $year, month => 12, day   => 01, time_zone => 'local' );
+
+sub find_name {
+	while ( $d->ymd le DateTime->new(year => $year, month => 12, day => 24) )  {
+		my $testpath = catfile( $dir, $d->ymd . ".pod" );
+		return $testpath if not -f $testpath;
+		$d = $d + DateTime::Duration->new(days => 1 );
+	}
+	return undef;
+}
+
+my $path = find_name();
+die "No available seat for $year\n" unless defined $path;
 save_file( $starter_text, $path );
 say "Saved the starter article in $path";
 

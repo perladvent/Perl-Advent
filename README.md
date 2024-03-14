@@ -11,7 +11,7 @@ Fork the repo and start a new article. The script will prompt you
 for a few things and will create a new file for you under *YEAR*/incoming/.
 
 ```bash
-perl script/new_article
+perl script/new-article.pl
 ```
 
 Edit your article, and test it as you work:
