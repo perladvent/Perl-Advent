@@ -1,0 +1,237 @@
+Author: Ovid <curtis.poe@gmail.com>
+Title: While You're Waiting for Corinna
+Topic: MooseX::Extended
+
+=encoding utf8
+
+=head1 Introduction
+
+It's getting close to that time of year and you've been a good little child
+and are eagerly awaiting
+L<Corinna|https://github.com/Perl-Apollo/Corinna/blob/master/pod/perlclasstut.pod>,
+which Santa has promised to deliver, fully-assembled, by Christmas.
+
+Alas, Santa is also a Perl developer and following the Perl tradition, he's
+been a bit coy about I<which> Christmas. Worse, your coworkers freak out at
+the idea of using the lovely L<Object::Pad> module and, in any event, you're
+stuck on an older version of Perl, meaning you couldn't use Corinna even if it
+was Christmas.
+
+You'd like something a touch more robust and modern than Moo/se, but what can
+you do? Let's look in Santa's Bag and see what we can find.
+
+=head1 Santas::Bag
+
+Turns out that when Santa's rummaging around in his bag, there are some toys
+he delivers more than others. He's realized that an L<LRU
+cache|https://www.interviewcake.com/concept/java/lru-cache> is perfect for
+this. Let's take a peek inside.
+
+=begin perl
+
+package Santas::Bag;
+use My::Moose types => [qw/InstanceOf PositiveOrZeroInt/];
+use Hash::Ordered;
+
+param max_size => (    # allowed in constructor
+    isa     => PositiveOrZeroInt,
+    default => 20,
+    writer  => 1,
+    trigger => method( $max_size, $old_max_size = 20 )
+    {
+        return if $max_size > $old_max_size;
+        $self->_constrain_cache_size;
+    },
+);
+
+field _cache => (     # forbidden in constructor
+    is      => 'rwp',
+    isa     => InstanceOf ['Hash::Ordered'],
+    default => sub { Hash::Ordered->new }
+);
+
+method _constrain_cache_size() {
+    my $max_size = $self->max_size;
+    if ( !$max_size ) {
+        $self->_set__cache( Hash::Ordered->new );
+    }
+    else {
+        my $cache = $self->_cache;
+        $cache->pop while $cache->keys > $max_size;
+    }
+}
+
+method keys() {
+    return $self->_cache->keys;
+}
+
+method set( $key, $value ) {
+    return unless $self->max_size;
+    $self->_cache->unshift( $key, $value );
+    $self->_constrain_cache_size;
+}
+
+method get($key) {
+    return unless $self->_cache->exists($key);
+    my $value = $self->_cache->get($key);
+    $self->_cache->unshift( $key, $value );
+    return $value;
+}
+
+=end perl
+
+And then you burst into song!
+
+    What’s this? What’s this?
+    There’s methods everywhere
+    What’s this?
+    There’s no immutability we’ve declared
+    What’s this?
+    I can’t believe my eyes
+    I must be dreaming. Wake up, Jack! This isn’t Moose! What’s this?
+
+What I<is> this? It looks kind of like L<Moose>, but we have actual methods?
+There's no need to declare C<$self>? Why isn't it declared as immutable? And
+where's the trailing true value at the end? And it looks like L<Type::Tiny> is
+built in? What is going on?
+
+Well, an LRU cache is perfect when you have an unequal distribution of toys.
+Rubik's Cubes, for example, are not quite as popular as trains or dolls, so
+when Santa reaches into his bag, he wants to be able to quickly find the most
+popular toys. Any time you add a toy to the bag, or fetch a toy from the bag,
+it is one of the "most recently used" toys and "least recently used" toys are
+evicted from the cache.
+
+Santa wants Christmas to go smoothly, so he started to write some tests.
+
+=begin perl
+
+use Test2::V0;
+
+my @presents = qw(
+  Lego         Barbie      Doll
+  PlayStation5 XboxSeriesX TeddyBear
+  Bicycle      TrainSet    Socks
+);
+
+my $santas_bag = Santas::Bag->new( max_size => 5 );
+$santas_bag->set( $_, $presents[ $_ - 1 ] ) for 1 .. 10;
+is $santas_bag->max_size, 5, 'The max_size attribute is 5';
+my @keys = $santas_bag->keys;
+is \@keys, [10,9,8,7,6], '... and the key order is by most recently added';
+is $santas_bag->get(9), 'Socks', 'We get the value for key 9';
+@keys = $santas_bag->keys;
+is \@keys, [9, 10, 8,7,6], '... and the key order is still by most recently added';
+$santas_bag->set_max_size(3);
+is scalar $santas_bag->keys, 3,
+  'The cache now has 3 entries after we call set_max_size(3)';
+@keys = $santas_bag->keys;
+is \@keys, [9, 10, 8], '... and the key order is still preserved';
+is $santas_bag->get(9), 'Socks',    'We still get the value for key 9';
+is $santas_bag->get(8), 'TrainSet', 'We get the value for key 8';
+is $santas_bag->get(7), undef,      'We get undef for key 7';
+
+done_testing();
+
+=end perl
+
+After reading his code, and checking it twice, Santa runs those tests.
+
+	ok 1 - The max_size attribute is 5
+	ok 2 - ... and the key order is by most recently added
+	ok 3 - We get the value for key 9
+	ok 4 - ... and the key order is still by most recently added
+	ok 5 - The cache now has 3 entries after we call set_max_size(3)
+	ok 6 - The key order is preserved, but we only have three entries
+	ok 7 - We still get the value for key 9
+	ok 8 - We get the value for key 8
+	ok 9 - We get undef for key 7
+	1..9
+
+OK, that's looking pretty good. But how did we get all of that lovely, modern
+goodness, via the C<My::Moose> module? It uses the magic of
+L<MooseX::Extended::Extended>, a module that takes what we've learned from the
+design of Corinna and tries to apply as much of that to
+L<Moose> as is feasible.
+
+=begin perl
+
+package My::Moose;
+
+use MooseX::Extended::Custom;
+use PerlX::Maybe 'provided';
+
+# If $^P is true, we're running under the debugger.
+#
+# When running under the debugger, we disable __PACKAGE__->meta->make_immutable
+# because the way the debugger works with B::Hooks::AtRuntime will cause
+# the class to be made immutable before the we apply everything we need. This
+# causes the code to die.
+sub import ( $class, %args ) {
+    MooseX::Extended::Custom->create(
+        includes               => [qw/method/],
+        provided $^P, excludes => 'immutable',
+        %args    # you need this to allow customization of your customization
+    );
+}
+
+=end perl
+
+That's it! That's all you have to do to get a fairly modern, clean version of
+C<Moose> that works all the way back to Perl v5.20.0, released way back in
+2014.
+
+But what's going on? Well, as it turns out, Santa has a temper and when he
+sees boilerplate, he sees red. You've been a naughty little child. Boilerplate
+is bad. In the above, C<My::Moose> is equivalent to writing the following
+boilerplate for all of your Moose classes (plus a few extra things, such as
+the C<param> and C<field> functions).
+
+=begin perl
+
+package My::Class;
+use v5.20.0;
+use Moose;
+use MooseX::StrictConstructor;
+use feature qw( signatures postderef postderef_qq );
+no warnings qw( experimental::signatures experimental::postderef );
+use namespace::autoclean;
+use Carp;
+use mro 'c3';
+use Function::Parameters;
+
+# your code here
+
+__PACKAGE__->meta->make_immutable;
+1;
+
+=end perl
+
+Are you really going to add that to all of your modules? Are you going to
+cut-n-paste? Are you going to remember everything if you do it manually? Are
+you going to globally go through and change it manually if you need to adjust
+something?
+
+Of course, that doesn't mean Santa's defaults are going be your defaults. For
+example, some people don't like L<MooseX::StrictConstructor>, so just omit it.
+Some people want C<try/catch>, so include it.
+
+=begin perl
+
+sub import ( $class, %args ) {
+    my @excludes = qw(StrictConstructor);
+    push @excludes, 'immutable' if $^P; # running under the debugger
+    MooseX::Extended::Custom->create(
+        includes => [qw/method try/],
+        excludes => \@excludes,
+        %args    # you need this to allow customization of your customization
+    );
+}
+
+=end perl
+
+If you're already using C<Moose>, you can read about L<Migrating from
+Moose|https://metacpan.org/pod/MooseX::Extended::Manual::Tutorial#MIGRATING-FROM-MOOSE>
+to see if this works for you (that link goes to the tutorial). And assuming
+you use roles, L<you can customize those,
+too|https://metacpan.org/pod/MooseX::Extended::Role::Custom>.
