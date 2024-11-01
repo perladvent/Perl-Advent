@@ -10,6 +10,10 @@ Topic: Ref::Util
 
 Ho ho ho! 🎅 As the festive season wraps us in its warm embrace, let's unwrap a shiny gift for Perl developers that's been nestled under the tree for a few years now: L<Ref::Util>. Just like how some of the best presents are hidden in plain sight, L<Ref::Util> brings a sprinkle of efficiency and clarity to our code, turning "naughty" reference checks into "nice" ones. So grab a mug of hot cocoa, and let's dive into this yuletide tale!
 
+=head2 A Christmas Classic Worth Revisiting
+
+If L<Ref::Util> sounds familiar, it might be thanks to the L<Perl Advent Calendar|https://perladvent.org/2016/2016-12-02.html> from 2016, where it was first introduced as a way to reduce common errors in ref-checking and boost performance with custom ops. However, many Perl newcomers and those who missed the original may not yet know about this handy tool. Let’s revisit this modern Christmas classic and explore how L<Ref::Util> can make your Perl code cleaner, faster, and more robust.
+
 =head2 The Ghost of Reference Checks Past 🎁
 
 In the days of yore, you might have found yourself writing code like:
@@ -30,9 +34,7 @@ Enter L<Ref::Util>, our festive hero that's been around for a while but might no
         load_presents($sleigh);
     }
 
-Isn't that as refreshing as a winter's first snow? ❄️  The code is cleaner and more readable, but the true magic lies beneath the surface. L<Ref::Util> doesn't just sprinkle a bit of tinsel on your code — it B<supercharges> it!
-
-But wait, there's more under the tree! L<Ref::Util> provides a sleigh full of functions to check all sorts of references:
+Isn't that as refreshing as a winter's first snow? ❄️  The code is cleaner and more readable, but the true magic lies beneath the surface. L<Ref::Util> doesn't just sprinkle a bit of tinsel on your code — it B<supercharges> it! L<Ref::Util> even provides a sleigh full of functions to check all sorts of references:
 
 =over 4
 
@@ -105,12 +107,12 @@ Now, you might be thinking, "Sure, the code looks nicer, but is that all?" Oh, d
 
 Let's peek into Santa's workshop and look at some benchmarks:
 
-    ref():                                   5.335e+00 +/- 1.8e-02 (0.3%)
-    ref(), reftype(), !blessed():            1.5545e+01 +/- 3.1e-02 (0.2%)
-    Ref::Util::is_plain_arrayref (CustomOP): 2.7951e+00 +/- 6.2e-03 (0.2%)
-    Data::Util::is_array_ref:                5.9074e+00 +/- 7.5e-03 (0.1%)
+    Ref::Util::is_plain_arrayref (CustomOP):  2.7951 +/- 0.0062 (0.2%) -- baseline
+    ref():                                    5.3350 +/- 0.0180 (0.3%) -- 1.90 times
+    Data::Util::is_array_ref:                 5.9074 +/- 0.0075 (0.1%) -- 2.11 times
+    ref(), reftype(), !blessed():            15.5450 +/- 0.0310 (0.2%) -- 5.56 times
 
-As you can see, C<Ref::Util::is_plain_arrayref> using Custom Ops is nearly B<twice as fast> as C<ref()> (2.7951 vs. 5.335 seconds) and more than B<five times faster> than combining C<ref()>, CScalar::Util::reftype(), and C<blessed()> checks (2.7951 vs. 15.545 seconds). It's like upgrading from a hand-drawn sleigh to a rocket-powered one! 🚀
+As you can see, C<Ref::Util::is_plain_arrayref> using Custom Ops is nearly B<twice as fast> as C<ref()> (2.7951 vs. 5.335 seconds) and more than B<five times faster> than combining C<ref()>, C<Scalar::Util::reftype()>, and C<blessed()> checks (2.7951 vs. 15.545 seconds). It's like upgrading from a hand-drawn sleigh to a rocket-powered one! 🚀
 
 =head2 Elves Under the Hood: The Magic of Op Codes 🧙‍♀️
 
@@ -122,11 +124,11 @@ In Perl, your code gets compiled into a tree of operations called the B<optree>.
 
 =head3 The Traditional Method's Optree
 
-When you write:
+Let's take the following one-liner:
 
-    if ( ref $sleigh eq 'HASH' ) {
-        load_presents($sleigh);
-    }
+    perl -MO=Concise -e'if ( ref $sleigh eq "HASH" ) {1}'
+
+We can see the following optree, which is printed out by L<B::Concise> when loaded with C<-MO=Concise>:
 
     7  <@> leave[1 ref] vKP/REFC ->(end)
     1     <0> enter v ->2
@@ -145,19 +147,15 @@ This involves multiple ops: fetching the variable, getting its reference type as
 
 =head3 Scalar::Util's C<reftype> Optree
 
-Using L<Scalar::Util>'s C<reftype>
+Using L<Scalar::Util>'s C<reftype>, the following code:
 
-    use Scalar::Util 'reftype';
+    perl -MO=Concise -MScalar::Util=reftype -e'if ( reftype($sleigh) eq "HASH" ) {1}'
 
-    if ( reftype($sleigh) eq 'HASH' ) {
-        load_presents($sleigh);
-    }
-
-Generates an optree involving a function call:
+We get the following optree:
 
     a  <@> leave[1 ref] vKP/REFC ->(end)
     1     <0> enter v ->2
-    2     <;> nextstate(main 1 -e:1) v:{ ->3
+    2     <;> nextstate(main 49 -e:1) v:{ ->3
     -     <1> null vKP/1 ->a
     9        <|> and(other->a) vK/1 ->a
     8           <2> seq sK/2 ->9
@@ -165,39 +163,37 @@ Generates an optree involving a function call:
     -                 <1> ex-list sK ->6
     3                    <0> pushmark s ->4
     -                    <1> ex-rv2sv sKM/1 ->5
-    4                       <#> gvsv[*sleigh] s ->5
+    4                       <#> gvsv[*sleight] s ->5
     -                    <1> ex-rv2cv sK/1 ->-
     5                       <#> gv[*reftype] s ->6
     7              <$> const[PV "HASH"] s ->8
     -           <@> scope vK ->a
-    -              <;> ex-nextstate(main 3 -e:1) v ->-
+    -              <;> ex-nextstate(main 51 -e:1) v ->-
     -              <0> ex-const v ->-
 
-This involves more ops due to the subroutine call to C<reftype>, adding overhead.
+This involves more ops due to the subroutine call to C<reftype>, adding overhead. Also, notice C<pushmark> which adds additional variables to the stack, adding variables to the function stack that could be retrieved by calling C<shift>. (You read this right - even having parameters to a function includes another opcode.)
 
 =head3 Ref::Util with Custom Ops
 
-With L<Ref::Util> on Perl B<5.14> or newer, and when using a version of L<Ref::Util> that supports Custom Ops, you can write:
+With L<Ref::Util> on Perl B<5.14> or newer, and when using a version of L<Ref::Util> that supports Custom Ops, let's write the following code:
 
-    use Ref::Util qw( is_hashref );
+    perl -MO=Concise -MRef::Util=is_hashref -e'if ( is_hashref($sleight) ) {1}'
 
-    if ( is_hashref($sleigh) ) {
-        load_presents($sleigh);
-    }
+We get the following optree:
 
     6  <@> leave[1 ref] vKP/REFC ->(end)
     1     <0> enter v ->2
-    2     <;> nextstate(main 1 -e:1) v:{ ->3
+    2     <;> nextstate(main 73 -e:1) v:{ ->3
     -     <1> null vKP/1 ->6
     5        <|> and(other->6) vK/1 ->6
     4           <1> is_hashref sK/1 ->5
     -              <1> ex-rv2sv sKM/1 ->4
-    3                 <#> gvsv[*sleigh] s ->4
+    3                 <#> gvsv[*sleight] s ->4
     -           <@> scope vK ->6
-    -              <;> ex-nextstate(main 3 -e:1) v ->-
+    -              <;> ex-nextstate(main 75 -e:1) v ->-
     -              <0> ex-const v ->-
 
-Notice how C<is_hashref> becomes a single op in the optree, even named C<is_hashref>. This Custom Op directly checks the reference type at the opcode level, eliminating unnecessary steps.
+Notice how C<is_hashref> becomes its own op in the optree, named C<is_hashref>. This Custom Op directly checks the reference type at the opcode level, eliminating unnecessary steps.
 
 =head3 How Does This Magic Happen?
 
@@ -225,7 +221,7 @@ When neither Custom Ops nor XS implementations are available (such as on systems
 
 =head2 The Spirit of the Season: Cleaner and Faster Code 🎅
 
-Beyond performance, L<Ref::Util> embodies the true spirit of the holidays — making things better for everyone. By using functions like C<is_hashref>, C<is_arrayref>, C<is_coderef>, et. al., our code becomes more expressive and intention-revealing. It's easier for others (and future you) to read and understand, reducing those "bah humbug" moments during code reviews.
+Beyond performance, L<Ref::Util> embodies the true spirit of the holidays — making things better for everyone. By using functions like C<is_hashref>, C<is_arrayref>, C<is_coderef>, et. al., our code becomes more expressive, intention-revealing, and helps catch typos in reference checks. It's easier for others (and future you) to read and understand, reducing those "bah humbug" moments during code reviews.
 
 =head2 When Feeling Grateful 🙏
 
