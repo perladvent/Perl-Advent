@@ -31,7 +31,7 @@ will automatically see the updates.
 Currently this needs to be run manually once per year, in the new year.
 
 ```bash
-./year2yaml $(perl -MTime::Piece -le 'print localtime->year - 1') 
+./year2yaml $(perl -MTime::Piece -le 'print localtime->year - 1')
 ```
 
 ### 1. Build root files
@@ -69,3 +69,7 @@ http_this --autoindex .
 ```
 
 You can visit [http://127.0.0.1:7007/](http://127.0.0.1:7007/)
+
+## Editors
+
+For notes on the editing process, please refer to [EDITING.md](EDITING.md)
