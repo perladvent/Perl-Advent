@@ -1,0 +1,198 @@
+Author: Dave Cross <dave@perlhacks.com>
+Title: GitHub Actions: A Festive Tale of DevOps Magic
+Topic: GitHub Actions
+
+=encoding utf8
+
+It was a crisp December morning at the North Pole, and Pixie the Elf (whose
+parents had weird ideas about names) was already hard at work in Santa’s
+Workshop. Her job was critical: maintaining Santa’s Good/Bad Child Tracking
+App, affectionately nicknamed "NaughtyOrNice". The app, a sprawling Perl
+application, kept records on every child’s behaviour throughout the year.
+But as Christmas drew nearer, the workload multiplied, and Pixie was feeling
+the strain.
+
+=head2 The Problem: Manual Testing Mayhem
+
+For years, Pixie had been managing NaughtyOrNice with a mix of manual
+testing, haphazard deployment scripts, and a good deal of holiday cheer. But
+this year, the app had grown exponentially, with new features like
+integration with Smart Chimney Sensors™ and support for multi-timezone
+sleigh operations.
+
+Every code change required hours of testing—on Pixie's local machine, of
+course—followed by an error-prone manual deployment process. One too many
+late-night debugging sessions left Pixie wondering if she was on Santa's
+Naughty list herself.
+
+"I need help," she muttered to herself during one particularly long debugging
+session. She decided to take a break, grabbed a coffee from the machine and
+started idly browsing r/elftech. Immediately, an article about GitHub Actions
+caught her attention.
+
+=head2 What Are GitHub Actions?
+
+Pixie had vaguely heard of GitHub Actions before, but she’d always assumed
+it was for the tech-savvy elves in charge of JavaScript or Rust projects.
+The article made it seem thatGitHub Actions were just as useful for Perl
+developers, and that it could automate much of her workflow.
+
+Intrigued, Pixie decided to dive in.
+
+=head2 A First Workflow: Automating Tests
+
+Pixie started with the basics: automating the test suite for NaughtyOrNice.
+The app already had a robust set of tests written with Test::More, but running
+them manually was tedious.
+
+Pixie created her first GitHub Actions workflow file, .github/workflows/test.yml:
+
+=begin code
+
+    name: Perl Test Suite
+
+    on:
+      push:
+        branches:
+          - main
+      pull_request:
+
+    jobs:
+      test:
+        runs-on: ubuntu-latest
+
+        steps:
+        - name: Checkout code
+          uses: actions/checkout@v3
+
+        - name: Set up Perl
+          uses: shogo82148/actions-setup-perl@v1
+          with:
+            perl-version: '5.40'
+
+        - name: Install dependencies
+          run: |
+            cpanm --quiet --installdeps .
+
+        - name: Run tests
+          run: prove -lr t/
+
+=end code
+
+Pixie was impressed. With just a few lines of YAML, she could trigger her
+tests automatically whenever someone pushed code to the main branch or opened
+a pull request. No more manual testing! She could focus on writing code
+instead of running it.
+
+=head2 Adding Deployment: Automating the NaughtyOrNice Rollout
+
+With her test suite humming along, Pixie turned her attention to deployments.
+Previously, deploying the app involved copying files to the production
+server with a combination of scp commands and festive hope.
+
+She created another workflow file, .github/workflows/deploy.yml:
+
+=begin code
+
+    name: Deploy to Production
+
+    on:
+      workflow_dispatch:
+
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+
+        steps:
+        - name: Checkout code
+          uses: actions/checkout@v3
+
+        - name: Deploy to server
+          env:
+            RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
+          run: |
+            rsync -avz --delete ./ naughtyornice@production-server:/var/www/naughtyornice/
+
+=end code
+
+By adding a secret to the GitHub repository for her server credentials, Pixie
+automated the entire deployment process. The `workflow_dispatch` key in the
+`on` section of the workflow added a "Run" button to the "Actions" tab in the
+GitHub repo, and just pressing that would deploy the application to the
+production server. No more late nights. No more missed sleigh rides. Pixie
+even dared to start dreaming about creating a Docker container for
+NaughtyOrNice and deploying the application that way. The time she would save
+would allow her to look into long-awaited improvements like that.
+
+=head2 The Real Magic: Pre-Written Workflows
+
+Pixie was excited. This was going to make her life much better in so many
+ways, And then she remembered the main point of the article she had been
+reading. A group of Perl programmers on GitHub had created a set of reusable
+workflows. They were aimed at CPAN modules, but as the NaughtyOrNice codebase
+followed all of the CPAN packaging conventions, she thought she could probably
+use these workflows for her code.
+
+Pixie read the instructions for using these workflows (they were online at
+L<https://github.com/PerltoolsTeam/github_workflows/>) and, in a few minutes,
+she had a new workflow which looked like this:
+
+=begin code
+
+    name: CI
+
+    on:
+      push:
+        branches: [ main ]
+      pull_request:
+        branches: [ main ]
+      workflow_dispatch:
+
+    jobs:
+      test:
+        uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-test.yml@main
+
+      coverage:
+        uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-coverage.yml@main
+
+      perlcritic:
+        uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-perlcritic.yml@main
+
+      complexity:
+        uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-complexity.yml@main
+
+=end code
+
+Pixie was very happy. In a few lines of code, she had replaced and improved
+on her existing manual processes. The application was now being tested
+automatically on several versions of Perl and on Linux, Windows and MacOS. She
+was also getting test coverage reports on L<Coveralls.io|https://coveralls.io/>.
+But the things she was most excited by were the PerlCritic and Cyclomatic
+Complexity reports. Both of these gave her a huge number of ideas for
+improvements to the code. And now that the process was so much more efficient,
+she might actually have time to implement some of them. Happily, she started
+adding the suggestions into the NaugthyOrNice issue tracker.
+
+=head2 The Result: A Smoother Christmas
+
+On Christmas Eve, as Santa prepared for his big journey, he stopped by Pixie's
+workstation.
+
+"Pixie," Santa said with a twinkle in his eye, "thanks to your hard work, this
+year the app is the best it's ever been. You’ve truly outdone yourself."
+
+Pixie blushed. "It wasn’t just me, Santa. I had help—from GitHub Actions!"
+
+=head2 Your Own Holiday Automation
+
+Pixie's story shows that even the busiest developers can save time and reduce
+stress with GitHub Actions. Whether you're maintaining a legacy Perl app or
+building a shiny new one, these workflows can simplify your life.
+
+To get started, check out the pre-written workflows at
+L<https://github.com/PerltoolsTeam/github_workflows/>. Who knows? They might
+just bring a little magic to your own development process.
+
+Happy holidays, and happy automating!
+
+=cut
