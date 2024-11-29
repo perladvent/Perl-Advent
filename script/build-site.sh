@@ -3,10 +3,10 @@
 # Usage ./script/build-site.sh
 #
 # To build just a single year
-# ./script/build-site.sh --single-year 2023
+# ./script/build-site.sh --single-year 2024
 #
 # To build the entire month for the current year
-# ./script/build-site.sh --single-year 2023 --today 2023-12-31
+# ./script/build-site.sh --single-year 2024 --today 2024-12-31
 
 pwd
 set -eu -o pipefail
@@ -45,7 +45,7 @@ for year in $(seq 2000 2010); do
     cp -R "$year" out/
 done
 
-for year in 1999 $(seq 2011 2023); do
+for year in 1999 $(seq 2011 2024); do
     if [[ ${single_year:-} && $single_year -ne $year ]]; then
         continue
     fi
