@@ -41,7 +41,6 @@ action in a single file, like this.
     runs:
       using: "composite"
       steps:
-        - uses: actions/checkout@v4
         - run: print %ENV;
           shell: perl {0}
         - name: Print input
@@ -70,6 +69,51 @@ But see, we're not using any kind of container or downloaded module or anything
 else. Just the very basic stuff that's already there in the Ubuntu runner (and,
 as far as I can tell, in other runners too).
 
+You can go ahead and test it this way:
+
+    name: Run basic action
+    on:
+      push:
+    jobs:
+      test:
+        runs-on: ubuntu-latest
+        name: Run basic action
+        steps:
+        - name: Run basic test
+          uses: JJ/perl-advent-2024-test-action-1@main
+
+(or whatever else you named it). It will simply print a wall of environment
+variable names and values, badly formated. But the point is, it just works and
+it's fast since it's not using anything that's not already in the Ubuntu runner.
+
+Who said badly formatted? Maybe we can do it better? Right-on, let's use
+L<JSON::PP>. Change the last step in C<action.yml> to:
+
+     - run: |
+         use JSON::PP;
+         print JSON::PP->new->ascii->pretty->allow_nonref->encode( \%ENV );
+       shell: perl {0}
+
+This is going to be a bit nicer. But what gives? We're not using CPAN. Right,
+there are quite a bit of CPAN modules already installed there, just like this
+one. Since `perl` is there, and `cpan` too, you will have at least any module
+that goes with any of them (CGI is no longer there, so you will not be able to
+deploy a website while your action is running). L<JSON::PP> is one of those core
+L<modules>, so no big deal.
+
+What else is in there? A probably incomplete list is
+L<here|https://gist.github.com/JJ/edf3a39d68525439978da2a02763d42b> but I am not
+totally sure it's up to date; in fact, I I<know> that L<LWP::Protocol::https has
+disappeared|https://github.com/actions/runner-images/issues/10567>, so there is
+that. If I had to make broad categories of the modules we can find, there are
+the Debian configuration related modules, L<LWP> and auxiliaries, C<git> and
+HTML stuff, and odds and ends. There are enough goodies there that I would look
+first before installing something via cpan, which takes time, you need to set up
+a cache, and so on.
+
+The caveat? All that is pretty much undocumented, so anything you rely on (as
+the above mentioned C<LWP::Protocol::https> might disappear from one version of
+the runner to the next.
 
 
 =cut
