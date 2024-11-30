@@ -1,0 +1,213 @@
+Author: Sébastien Feugère <seb@feugere.net>
+Title: Stay focused and organised during the advent season
+Topic: Methodology, standups,  mental health, Object::Pad, App::Standup::Diary
+
+=encoding utf8
+
+=head2 Toys warehouse and delivery drones
+
+Christmas is coming and the elves are getting excited and stressed preparing all
+the packages. In 2024, the the North Pole is equiped with a Toy Warehouse that
+replaced the old Toy Workshop (toys now come from third party workshops with
+more elves).
+
+In the recent years, Santa simplified his deliveries by investing in Santa
+Drones! They made the work much easier, reduced deliveries errors (did you ever
+wondered why some persons were unhappy with their christmas present?). It
+required to hire a team of drone engineers. Those tools are great, but as will
+any technology, they bring a large batch of I<fun> challenges.
+
+North Pole elves use top notch automation and deliveries dispatch systems, but
+still, this is a very critical time with a non-negociable deadline. The stress
+is at it's peak. All sort of operationnal issues must be managed, what requires
+to communicate efficiently with the I<DEBT> (Devops Elves Backend Team).
+
+=head2 Agile at the Toys warehouse
+
+Santa's elves team do daily standups. This is what L<Elf ProductOwner
+|https://christmas-specials.fandom.com/wiki/Boss_Elf> decided after it
+looked like it would improve the whole North Pole team mental health.
+Each elf have to speak up and announce:
+
+=for :list
+* what they did in the last day
+* what they plan to do today
+* announce any blocker so that other elves can support them
+
+It proved to encourage team communication and Elf Foreman is able to inform
+other teams about any blocker that could put this sensible work at risk.
+
+=head2 Someone is getting extra-stressed
+
+Now L<Hermey the Elf|https://christmas-specials.fandom.com/wiki/Hermey> got more
+problems. Getting stressed about the long December month was already quite a
+burden.
+
+Since Hermey was not too interested in toys making and that he seemed to have an
+interest in meticulous work, Elf Foreman decided to realocate him to the drones
+management team that is leaded by Sparkle.
+
+Speaking every morning in front of other elves about what he accomplished, tell
+his feelings, and asking for help is definitelly too much for Hermey. The poor
+thing couldn't bear it and each day, would babble a meaningless report. Hermey
+actually know what he is doing, and he good at it, but the stress of the social
+meeting make it harder for Hermey because he is not the kind of person able to
+improvise a thirty seconds talk.
+
+=head2 App::Standup::Diary to the rescue
+
+Sparkle, the team manager, noticed Hermey's struggle. She decided to provide him
+a tool she developped and used since a couple of years now. I<"Take a look at
+App::Standup::Diary on the CPAN">, she said. I<"It might help you organising
+your thoughs and communicate better. It's really important we what you
+progressed on, what you are planning to do and if we can support you">.
+
+Hermey noded and went to his terminal:
+
+=begin bash
+
+    cpm install -g App::Standup::Diary
+
+=end bash
+
+I<"Check the chat, I have sent you a nice bash alias"> Sparkle said.
+
+=begin bash
+
+    alias diary="diary --data-dir ~/toy-warehouse/standup --project-name 'DroneDeliveries'";
+
+=end bash
+
+Let's take a dive into the internals!
+
+=head2 A dive into App::Standup::Diary
+
+C<--data-dir> is where the standup notes are stored. They will be sorted in
+separate files for each day. Year and month directories are automatically
+created. The directory tree will look like this:
+
+=begin code
+
+    tree /home/sparkle/toy-warehouse/standup
+    /home/sparkle/toy-warehouse/standup
+    ├── 2021
+    ├── 2022
+    ├── 2023
+    └── 2024
+        ├── 01
+        ├── 02
+        ├── 03
+        ├── etc.
+        └── 11
+            ├── 2024-11-04_dronedeliveries.md
+            ├── 2024-11-05_dronedeliveries.md
+            ├── 2024-11-06_dronedeliveries.md
+            ├── etc.
+            ├── 2024-11-28_dronedeliveries.md
+            ├── 2024-11-29_dronedeliveries.md
+            └── 2024-11-30_dronedeliveries.md
+
+=end code
+
+C<--project-name> is used for each note file name, as well as the file title.
+
+=head2 Made with the most advanced technology
+
+L<App::Standup::Diary> use the following modules:
+
+=over 2
+
+=item L<Object::Pad>
+
+Base toolkit for classes and roles.
+
+=item L<Time::Piece>
+
+Date management.
+
+=item L<Mojo::Template>
+
+Reusable standup boilerplate.
+
+=item L<Path::Tiny>
+
+Directories and files path management.
+
+=back
+
+The C<diary> command line tool retrieve the user arguments, create the diary
+file objet and write it on the disk.
+
+=begin perl
+
+    GetOptions (
+      "data-dir:s"      => \$data_dir,
+      "project-name:s"  => \$project_name
+    ) or die("Error in command line arguments\n" );
+
+    my $diary = App::Standup::Diary
+      ->new(
+        data_dir     => $data_dir,
+        project_name => $project_name
+      );
+
+    $diary->write;
+
+=end perl
+
+The main C<App::Standup::Diary> file compose two roles for dealing with the
+dates and project parts. Each role manage it's own set of fields, e.g.
+C<App::Standup::Role::Date> provide the daily C<$date> as a C<Time::Piece>
+object so that it can be reused all over the place.
+
+=head2 More internal fun
+
+TODO taking a look at the C<write> method
+
+=begin perl
+
+    method write {
+
+      $self->set_template( Standup::Diary::Template->new(
+        date         => $self->date,
+        project_name => $self->project_name
+      ));
+
+      if ( $self->should_create_dir ) {
+        say "$daily_data_path should be created";
+        $self->create_directories_tree;
+      } else {
+        $self->init_daily_data_path($self->build_path($self->date->ymd('/')));
+      }
+
+      my $file_path = path($self->build_full_file_path);
+
+      path($file_path)->spew_utf8($template->render) and say "Diary entry created $file_path"
+        unless $file_path->exists and say "Entry already exist";
+
+    }
+
+=end perl
+
+=head2 Hermey finds a bug and propose an improvement MR
+
+TODO
+
+Hermey finds a bug: Skarkle left her own Emacs shortcuts in the unfinished
+standup file template. Hermey dreams of becoming a dentist and it's well known
+that Vim is common in dentists communities.
+
+What about letting everyone use the template they would prefer? C<--template>
+would allow that.
+
+Hermey wants to include some ASCII art in the template.
+
+Hermey customize the template with a teeth or silly Christmas thing.
+
+=head2 End of the story
+
+In the end Hermey never really used L<App::Standup::Diary> because he will finally get permission
+from Elf ProductOwner to open a dentist's office at the North Pole the week following
+Christmas, with having him scheduled for an immediate appointment after noticing
+something bad with his teeth. But Sparkle improved the tool with the rest of the
+team, what made them more productive and relaxed.
