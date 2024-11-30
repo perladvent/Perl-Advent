@@ -54,10 +54,11 @@ for year in 1999 $(seq 2011 2024); do
     cd "$year"
 
     asset_dir="share/static"
-    if [[ $(test -d "$asset_dir" && ls "$asset_dir/" | wc -l) -gt 0 ]]; then
-        cp -R "$asset_dir/*" "../$target/"
-    else
-        mkdir -p "$asset_dir"
+    mkdir -p "$asset_dir"
+    mkdir -p "../$target/$asset_dir"
+
+    if [[ $(ls "$asset_dir/" | wc -l) -gt 0 ]]; then
+        cp -R "$asset_dir/"* "../$target/"
     fi
 
     if [[ ${today:-} ]]; then
