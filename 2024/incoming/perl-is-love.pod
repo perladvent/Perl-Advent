@@ -132,4 +132,95 @@ old Santa, who wants all his newsletters properly formatted, that is, the first
 line must contain a Markdown header: C<#> followeb by a space, and then a
 capital letter. A proper headline through and through.
 
+We can do a proper module here to test our stuff. In the spirit of Unix (and
+Perl), we can do very simple actions, that take very little time, and which we
+can combine different ways or just run independently (like for instance L<this
+very useful -and underapreciated- action that just checks that the example in
+the README has the same version as the latest published
+one|https://github.com/JJ/github-action-check-version-in-readme-is-latest>). So
+let's put the code that does the action in a module:
+
+    package Markdowner;
+
+    use feature 'signatures';
+
+    use parent Exporter;
+
+    our @EXPORT_OK = qw(headerOK);
+
+    sub headerOK( $fileContent ) {
+      return $fileContent =~ /^\#\h+[A-Z]/;
+    }
+
+Just a simple regex to check what we said. But code that is not tested is
+broken, so let add a test:
+
+    # -*- mode:cperl -*-
+    
+    use lib qw(lib ../lib);
+    use Markdowner qw(headerOK);
+    
+    use Test::More;
+    
+    for my $str ( ("# Yes", "#    FOO", "# Bar" )) {
+      ok( headerOK( $str ), "«$str» is OK" );
+    }
+    
+    for my $badStr ( ("#Yes", "#    foo", "#\nBar" )) {
+      isnt( headerOK( $badStr ), 1, "«$badStr» fails" );
+    }
+    
+    done_testing;
+
+You might wonder why I'm using L<Test::More>, which is 
+deprecated-ish in favor of Test2::Bundle::More, instead of the latter. 
+Along with why I'm using a feature pragma instead of the more precise C<use V5.36>.
+Your questions will be answered in due time.
+
+Because right next we will, or course, be testing this via Actions:
+
+    name: Perl tests
+
+    on:
+      push:
+        branches: '*'
+      pull_request:
+        branches: '*'
+    
+    jobs:
+      build-in-container:
+        runs-on: ubuntu-latest
+    
+        strategy:
+          fail-fast: false
+          matrix:
+            version:
+              - '5.32'
+              - '5.34'
+              - '5.30'
+    
+        name: Test perl v${{ matrix.version }}
+        steps:
+          - uses: actions/checkout@v4
+    
+          - name: Regular tests with ${{ matrix.version }}
+            env:
+              PERL_VERSION: ${{ matrix.version }}
+            run: prove --exec "perl -Mv$PERL_VERSION" -lv t/
+
+
+The version that the runner uses is 5.34; for the time being the default Ubuntu
+runner is all it has.  And we want to use that default runner. See here? No
+setup necessary; we just set up the matrix, check out, and run the tests!
+Actually, we are kinda cheating here. Since the only perl we do have in the
+runner is the 5.34 version, we need to simulate the other versions via a not
+very well known option of `prove` that allows us to tell it which version pragma
+is going to precede the running of the test. Since we don't have any other
+version to override it, it will simply run 5.34 I<as if> it was running the
+version in the matrix. This test again clocks in at 0 seconds in GitHub actions,
+the only fraction of the action taking up a bit more being checkout. Again, fast
+as fast can be as long as you can put up with testing stuff with 5.34, which is
+no big deal, since actions are going to run in the action runner.
+
+
 =cut
