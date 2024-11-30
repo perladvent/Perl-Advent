@@ -53,17 +53,19 @@ for year in 1999 $(seq 2011 2024); do
     mkdir "$target"
     cd "$year"
 
+    asset_dir="share/static"
+    if [[ $(test -d "$asset_dir" && ls "$asset_dir/" | wc -l) -gt 0 ]]; then
+        cp -R "$asset_dir/*" "../$target/"
+    else
+        mkdir -p "$asset_dir"
+    fi
+
     if [[ ${today:-} ]]; then
         advcal -c advent.ini -o "../$target" --https --today "$today"
     else
         advcal -c advent.ini -o "../$target" --https
     fi
-    pwd
-    if [[ $(ls share/static/ | wc -l) -gt 0 ]]; then
-        cp -R share/static/* "../$target/"
-    else
-        mkdir -p "../$target/share/static"
-    fi
+
     if [[ -e "$year.css" ]]; then
         cp "$year.css" "../$static_build/$year"
     fi
