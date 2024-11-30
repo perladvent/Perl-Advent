@@ -222,5 +222,100 @@ the only fraction of the action taking up a bit more being checkout. Again, fast
 as fast can be as long as you can put up with testing stuff with 5.34, which is
 no big deal, since actions are going to run in the action runner.
 
+Of course, you have to actually I<do> something with this for the action to work. So you can write something like this in a file called C<action.src.pl>:
+
+
+    use v5.34;
+    use feature 'signatures';
+
+    use lib qw(lib);
+
+    use Markdowner qw(headerOK);
+    use GitHub::Actions;
+
+    my @directories = split(" ", $ENV{'DIRS'});
+
+    start_group("Markdown headers");
+    for my $dir (@directories) {
+      my @markdownFiles = glob("$dir/*.md");
+      for my $mdFile (@markdownFiles) {
+        open my $mdfh, "<", $mdFile;
+        my $firstLine = <$mdfh>;
+        close $mdfh;
+        chop( $firstLine );
+        if ( headerOK( $firstLine ) ) {
+          debug "«$firstLine» is proper markdown ho, ho, ho";
+        } else {
+          error_on_file( "Haar! «$firstLine» is not proper markdown", $mdFile, 1, 1 );
+        }
+      }
+    }
+    end_group;
+
+Which takes as input a string with whitespace-separated directories, looks up
+markdown files (with the extension C<.md>), and checks if the header is OK. But
+before doing that, it issues a C<start_group> command from
+L<GitHub::Actions>. This is a no-dependencies CPAN module by YT that perlizes
+GitHub actions commands so that you don't have to worry about them; in this
+case, it makes all text to be enclosed in a I<group> so that the output is not
+too verbose; too many messages can occlude actual errors or warnings. Because it
+will also print if the first line of the markdown files is OK, and Santa can be
+happy about his newsletters and memos being properly formatted, or maybe not, in
+which he will turn into a pirate and issue an error indicating the name of the
+file (and the line and columns, but this is not important in this case).
+
+You can check how it goes, for instance, L<in this
+run|https://github.com/JJ/perl-advent-2024-test-action-2/actions/runs/12098612575>
+(actually, while you're at it, you can check the whole repository
+L<here|https://github.com/JJ/perl-advent-2024-test-action-2>).
+
+Still not there, however. Now what we have is a CPAN module, didn't you sell us
+on the motto "No setup required"? Right on, I did, which is why now you need to
+fatpack the whole thing into a single file C<action.pl>. This is what we will
+actually pack into the action-packed action. OK, maybe that's an action too
+many. Anyway, we can now define the action metadata this way:
+
+    inputs:
+      directories:
+        description: 'Directories to look for files'
+        default: .
+    runs:
+      using: "composite"
+      steps:
+        - uses: actions/checkout@v4
+        - run: ${GITHUB_ACTION_PATH}/action.pl
+          env:
+            DIRS: ${{ inputs.directories }}
+          shell: bash
+
+It checks out the repository that holds the action, but it actually needs just
+the single file without needing to adjust library directories or anything like
+that. It just works. The specific step takes around 1 second, with is 100% more
+than it did when it took 0 seconds, but still. Not a great deal.
+
+With this, Santa was happy because he could set up a GitHub actions for his
+newletter/letter/whatever I said above that used markdown repository. Be it in
+its own action or as part or another, this will be quite enough:
+
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: Run over this repo
+      uses: repo/action-name@main
+      with:
+        directories: ". docs"
+
+Haar! There ws a bad file in the batch! Without failing the whole step, which
+wouldn't look good on the repo badges, GitHub reported "1 error" in
+"Annotations" for the workflow, and then
+
+     Run over this repo: docs/this-is-bad.md#L1
+     Haar! «Just bad» is not proper markdown
+
+He called the responsible elf after running C<git blame> on the bad file, who
+said of course that "Ha ha I was just testing ha. That's a mighty good
+workflow. Merry Christmas to you!"
+
+Santa smiled broadly and said "That it is. Perl, my child, is love in GitHub actions" Merry Christmas everyone!
 
 =cut
