@@ -114,21 +114,24 @@ C<--project-name> is used for each note file name, as well as the file title.
 This is all what is needed to use it as your daily standup notes taking app.
 Just run C<diary> every morning and get prepared for the next meeting.
 
-L<App::Standup::Diary> use the following modules:
+=head2 A dive into App::Standup::Diary
+
+Let's inspect what kind of marvels this command line tool contains. It use the
+following CPAN modules:
 
 =over 2
 
 =item L<Object::Pad>
 
-Base toolkit for classes and roles.
+It's used as a base OO toolkit for classes and roles.
 
 =item L<Time::Piece>
 
-Date management.
+To deal with date management.
 
 =item L<Mojo::Template>
 
-Reusable standup boilerplate.
+Reusable standup boilerplate to generate standup files.
 
 =item L<Path::Tiny>
 
@@ -156,12 +159,55 @@ file objet and write it on the disk.
 
 =end perl
 
-The main C<App::Standup::Diary> file compose two roles for dealing with the
-dates and project parts. Each role manage it's own set of fields, e.g.
-C<App::Standup::Role::Date> provide the daily C<$date> as a C<Time::Piece>
-object so that it can be reused all over the place.
+The main C<App::Standup::Diary> file compose two roles (with the C<:does()>
+keyword) for dealing with the dates and project parts. Each role manage it's own
+set of fields, e.g. C<App::Standup::Role::Date> provide the daily C<$date> as a
+C<Time::Piece> object so that it can be reused all over the place.
 
-=head2 More internal fun
+There's also a templating class that generates Markdown files.
+
+=begin markdown
+
+    # <%= $project_name %> <%= $today %>
+
+    - done
+    - todo
+    - blocking
+
+=end markdown
+
+It doesn't allow customisation at the moment but we would really like to add a
+C<--template> option so that the elves can provide a file type of their choice,
+or seasonnal ornaments for those who like ASCII art or emoji.
+
+=head2 Usage of Object::Pad
+
+App::Standup::Diary was written with L<Object::Pad> from scratch. It was not
+converted from another OO toolkit, e.g. Moose.
+
+The L<App::Standup::Diary> class is equiped with the following fields:
+
+=for :list
+* $daily_data_path
+* $data_dir
+* $template
+
+In addition two more field are provided by the L<App::Standup::Role::Date>
+and L<App::Standup::Role::Project> roles:
+
+=for :list
+* $date
+* $project_name
+
+It makes very easy to declare all the class fields at the top of the class.
+Various L<field attributes|https://metacpan.org/pod/Object::Pad#field> are
+available to manipulate each fields capacites:
+
+    field $template :writer :accessor;
+
+Note that C<field> replaced the C<has> keyword for attributes declarations in
+usual OO Perl toolkits. It's still possible to create local method variables
+with C<my $santa>, though, no worries.
 
 TODO taking a look at the C<write> method
 
@@ -190,9 +236,13 @@ TODO taking a look at the C<write> method
 
 =end perl
 
-=head2 Hermey finds a bug and propose an improvement MR
+The first benefits is that we have automatic method signature (if using
+C<5.26>+), and that C<$self> is available without having to declare it. All
+class fields are available through C<$self>, including the ones that are
+provided by roles.
 
-TODO
+Since C<$template> got a C<:writer> attribute, we got a C<set_template> method
+to mutate it's value.
 
 After testing the C<diary> software for a couple of years, Sparkle considere
 writing new code for the Delivery Reindeer Drones core software with
@@ -200,10 +250,20 @@ L<Object::Pad> (or more likely it's core implementation) instead of the aging OO
 toolkits, as it prove to allow the writing of clearer code, with good separation
 of concerns and easy to test.
 
-What about letting everyone use the template they would prefer? C<--template>
-would allow that.
+=begin perl
 
-Hermey wants to include some ASCII art in the template.
+    use Test2::V0;
+    use Time::Piece;
+    use App::Standup::Diary;
+
+    my $d = App::Standup::Diary->new( data_dir => '', project_name => 'bar' );
+
+    my $today = localtime;
+    my ($year_month) = $today->ymd('/') =~ m/ \d{4} \/ \d{2} /gx;
+
+    is $d->daily_data_path, $d->data_dir . '/' . $year_month, 'Daily data path match today\'s date';
+
+=end perl
 
 =head2 Happy advent season!
 
