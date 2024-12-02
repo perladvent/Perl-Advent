@@ -3,10 +3,10 @@
 # Usage ./script/build-site.sh
 #
 # To build just a single year
-# ./script/build-site.sh --single-year 2023
+# ./script/build-site.sh --single-year 2024
 #
 # To build the entire month for the current year
-# ./script/build-site.sh --single-year 2023 --today 2023-12-31
+# ./script/build-site.sh --single-year 2024 --today 2024-12-31
 
 pwd
 set -eu -o pipefail
@@ -31,11 +31,11 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-site=out
-rm -rf $site
-mkdir $site
+static_build=out
+rm -rf $static_build
+mkdir $static_build
 
-perl mkarchives $site
+perl mkarchives $static_build
 
 for year in $(seq 2000 2010); do
     if [[ "${single_year:-}" && $single_year -ne $year ]]; then
@@ -45,24 +45,30 @@ for year in $(seq 2000 2010); do
     cp -R "$year" out/
 done
 
-for year in 1999 $(seq 2011 2023); do
+for year in 1999 $(seq 2011 2024); do
     if [[ ${single_year:-} && $single_year -ne $year ]]; then
         continue
     fi
-    mkdir "$site/$year"
+    target="$static_build/$year"
+    mkdir "$target"
     cd "$year"
 
+    asset_dir="share/static"
+    mkdir -p "$asset_dir"
+    mkdir -p "../$target/$asset_dir"
+
+    if [[ $(ls "$asset_dir/" | wc -l) -gt 0 ]]; then
+        cp -R "$asset_dir/"* "../$target/"
+    fi
+
     if [[ ${today:-} ]]; then
-        advcal -c advent.ini -o "../$site/$year" --https --today "$today"
+        advcal -c advent.ini -o "../$target" --https --today "$today"
     else
-        advcal -c advent.ini -o "../$site/$year" --https
+        advcal -c advent.ini -o "../$target" --https
     fi
-    pwd
-    if [[ `ls share/static/ | wc -l` -gt 0 ]]; then
-        cp -R share/static/* "../$site/$year";
-    fi
+
     if [[ -e "$year.css" ]]; then
-        cp "$year.css" "../$site/$year"
+        cp "$year.css" "../$static_build/$year"
     fi
     cd ..
 done
