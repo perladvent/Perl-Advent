@@ -1,31 +1,198 @@
-Author: Gonzalo Diethelm <gonzus@cpan.org>
-Title: A Trio of Modules to Speed Up Your Web Applications!
-Topic: HTTP::XSHeaders, URI::XSEscape, HTTP::XSCookies
+Author: Dave Cross <dave@perlhacks.com>
+Title: GitHub Actions: A Festive Tale of DevOps Magic
+Topic: GitHub Actions
 
 =encoding utf8
 
-It is the season of giving, and Perl has a few special packages waiting under the tree that can give your web applications a little extra pep in their step. This holiday, let's celebrate three modules that make web development smoother and faster: L<HTTP::XSHeaders>, L<HTTP::XSCookies>, and L<URI::XSEscape>. These tools are like those little surprises that make everything run just a bit better, a bit faster — without you lifting a finger. Let's unwrap their magic and see how they bring a new level of efficiency to Perl web applications!
+It was a crisp December morning at the North Pole, and Pixie the Elf (whose
+parents had weird ideas about names) was already hard at work in Santa’s
+Workshop. Her job was critical: maintaining Santa’s Good/Bad Child Tracking
+App, affectionately nicknamed "NaughtyOrNice". The app, a sprawling Perl
+application, kept records on every child’s behaviour throughout the year.
+But as Christmas drew nearer, the workload multiplied, and Pixie was feeling
+the strain.
 
-=head2 HTTP::XSHeaders and URI::XSEscape: Sleigh-Speed for Your Framework
+=head2 The Problem: Manual Testing Mayhem
 
-If you're using a web framework built on Perl, chances are it relies on L<HTTP::Headers> and L<URI::Escape> under the hood. These modules are hard workers, responsible for parsing HTTP headers and handling URL encoding, respectively, but they are not the quickest reindeer in the race. Luckily, here come L<HTTP::XSHeaders> and L<URI::XSEscape> — both designed to give your application a boost.
+For years, Pixie had been managing NaughtyOrNice with a mix of manual
+testing, haphazard deployment scripts, and a good deal of holiday cheer. But
+this year, the app had grown exponentially, with new features like
+integration with Smart Chimney Sensors™ and support for multi-timezone
+sleigh operations.
 
-When your code loads C<HTTP::XSHeaders> or C<URI::XSEscape>, they automatically override C<HTTP::Headers> (even its faster variant, C<HTTP::Headers::Fast>) and C<URI::Escape>, making your web framework faster without a single line of modification.
+Every code change required hours of testing—on Pixie's local machine, of
+course—followed by an error-prone manual deployment process. One too many
+late-night debugging sessions left Pixie wondering if she was on Santa's
+Naughty list herself.
 
-Even better, if you are using the L<Dancer2> framework, it will automatically detect and load C<HTTP::XSHeaders> and C<URI::XSEscape> if they are available, boosting performance without any extra setup. It is like a holiday bonus for your application, giving it speed improvements without any added work!
+"I need help," she muttered to herself during one particularly long debugging
+session. She decided to take a break, grabbed a coffee from the machine and
+started idly browsing r/elftech. Immediately, an article about GitHub Actions
+caught her attention.
 
-=head2 HTTP::XSCookies: A Sweet Swap for Framework Developers
+=head2 What Are GitHub Actions?
 
-For developers building web frameworks, there is another gift waiting for you: L<HTTP::XSCookies>. This module serves as a high-speed replacement for L<HTTP::Cookies>, designed to speed up cookie handling without the need for reindeer-powered sleighs. Unlike the other two modules, C<HTTP::XSCookies> doesn’t override the original module. So, if you want your application to take advantage of its speed, you will need to replace C<HTTP::Cookies> with C<HTTP::XSCookies> directly in your codebase.
+Pixie had vaguely heard of GitHub Actions before, but she’d always assumed
+it was for the tech-savvy elves in charge of JavaScript or Rust projects.
+The article made it seem that GitHub Actions were just as useful for Perl
+developers, and that it could automate much of her workflow.
 
-However, if you are using the C<Dancer2> framework, it will automatically use C<HTTP::XSCookies> if it is installed, allowing your code to benefit from its performance boost seamlessly.
+Intrigued, Pixie decided to dive in.
 
-=head2 Deck the Code with Speed
+=head2 A First Workflow: Automating Tests
 
-These modules aren’t just gifts for your application — they are here to spread holiday cheer to your users too. By loading just a few lines of code, you will be spreading joy in the form of faster response times and more efficient performance. Whether you are a user or a developer, these modules are like holiday magic for your Perl-based web applications.
+Pixie started with the basics: automating the test suite for NaughtyOrNice.
+The app already had a robust set of tests written with
+L<Test::More|https://metacpan.org/pod/Test::More> , but running them manually
+was tedious.
 
-=head2 Wishing You a Snappy and Speedy New Year!
+Pixie created her first GitHub Actions workflow file, .github/workflows/test.yml:
 
-So this holiday season, consider giving your web application the gift of speed. With C<HTTP::XSHeaders>, C<HTTP::XSCookies>, and C<URI::XSEscape> in your toolkit, you are set for a snappier, speedier new year. Here is to faster code, happy users, and a fantastic Perl-powered holiday!
+=begin code
+
+    name: Perl Test Suite
+
+    on:
+      push:
+        branches:
+          - main
+      pull_request:
+
+    jobs:
+      test:
+        runs-on: ubuntu-latest
+
+        steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+
+        - name: Set up Perl
+          uses: shogo82148/actions-setup-perl@v1
+          with:
+            perl-version: '5.40'
+
+        - name: Install dependencies
+          run: cpanm --quiet --installdeps .
+
+        - name: Run tests
+          run: prove -lr t/
+
+=end code
+
+Pixie was impressed. With just a few lines of YAML, she could trigger her
+tests automatically whenever someone pushed code to the main branch or opened
+a pull request. No more manual testing! She could focus on writing code
+instead of running it.
+
+=head2 Adding Deployment: Automating the NaughtyOrNice Rollout
+
+With her test suite humming along, Pixie turned her attention to deployments.
+Previously, deploying the app involved copying files to the production
+server with a combination of scp commands and festive hope.
+
+She created another workflow file, .github/workflows/deploy.yml:
+
+=begin code
+
+    name: Deploy to Production
+
+    on:
+      workflow_dispatch:
+
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+
+        steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+
+        - name: Deploy to server
+          env:
+            RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
+          run: |
+            rsync -avz --delete ./ naughtyornice@production-server:/var/www/naughtyornice/
+
+=end code
+
+By adding a secret to the GitHub repository for her server credentials, Pixie
+automated the entire deployment process. The C<workflow_dispatch> key in the
+C<on> section of the workflow added a "Run" button to the "Actions" tab in the
+GitHub repo, and just pressing that would deploy the application to the
+production server. No more late nights. No more missed sleigh rides. Pixie
+even dared to start dreaming about creating a Docker container for
+NaughtyOrNice and deploying the application that way. The time she would save
+would allow her to look into long-awaited improvements like that.
+
+=head2 The Real Magic: Pre-Written Workflows
+
+Pixie was excited. This was going to make her life much better in so many
+ways, And then she remembered the main point of the article she had been
+reading. A group of Perl programmers on GitHub had created a set of reusable
+workflows. They were aimed at CPAN modules, but as the NaughtyOrNice codebase
+followed all of the CPAN packaging conventions, she thought she could probably
+use these workflows for her code.
+
+Pixie read the instructions for using these workflows (they were online at
+L<https://github.com/PerltoolsTeam/github_workflows/>) and, in a few minutes,
+she had a new workflow which looked like this:
+
+=begin code
+
+    name: CI
+
+    on:
+      push:
+        branches: [ main ]
+      pull_request:
+        branches: [ main ]
+      workflow_dispatch:
+
+    jobs:
+      test:
+        uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-test.yml@main
+
+      coverage:
+        uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-coverage.yml@main
+
+      perlcritic:
+        uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-perlcritic.yml@main
+
+      complexity:
+        uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-complexity.yml@main
+
+=end code
+
+Pixie was very happy. In a few lines of code, she had replaced and improved
+on her existing manual processes. The application was now being tested
+automatically on several versions of Perl and on Linux, Windows and macOS. She
+was also getting test coverage reports on L<Coveralls.io|https://coveralls.io/>.
+But the things she was most excited by were the PerlCritic and Cyclomatic
+Complexity reports. Both of these gave her a huge number of ideas for
+improvements to the code. And now that the process was so much more efficient,
+she might actually have time to implement some of them. Happily, she started
+adding the suggestions into the NaugthyOrNice issue tracker.
+
+=head2 The Result: A Smoother Christmas
+
+On Christmas Eve, as Santa prepared for his big journey, he stopped by Pixie's
+workstation.
+
+"Pixie," Santa said with a twinkle in his eye, "thanks to your hard work, this
+year the app is the best it's ever been. You’ve truly outdone yourself."
+
+Pixie blushed. "It wasn’t just me, Santa. I had help—from GitHub Actions!"
+
+=head2 Your Own Holiday Automation
+
+Pixie's story shows that even the busiest developers can save time and reduce
+stress with GitHub Actions. Whether you're maintaining a legacy Perl app or
+building a shiny new one, these workflows can simplify your life.
+
+To get started, check out the pre-written workflows at
+L<https://github.com/PerltoolsTeam/github_workflows/>. Who knows? They might
+just bring a little magic to your own development process.
+
+Happy holidays, and happy automating!
 
 =cut

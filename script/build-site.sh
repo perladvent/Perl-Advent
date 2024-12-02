@@ -62,9 +62,11 @@ for year in 1999 $(seq 2011 2024); do
     fi
 
     if [[ ${today:-} ]]; then
-        advcal -c advent.ini -o "../$target" --https --today "$today"
+        #advcal -c advent.ini -o "../$target" --https --today "$today"
+	advcal -c advent.ini -o "../$target" --today "$today"
     else
-        advcal -c advent.ini -o "../$target" --https
+        #advcal -c advent.ini -o "../$target" --https
+	advcal -c advent.ini -o "../$target"
     fi
 
     if [[ -e "$year.css" ]]; then
