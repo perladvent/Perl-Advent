@@ -1,0 +1,336 @@
+Author: oodler@cpan.org
+Title: That Time Perl+OpenMP Saved Christmas 
+Topic: OpenMP 
+
+=pod
+
+=encoding utf8
+
+It was Christmas Eve, and Santa was facing a nightmare. The sleigh’s new
+GPS system, upgraded for the first time in centuries from following the Star
+of Bethlehem, was malfunctioning. As Santa checked the screen, the map was a
+chaotic mess — locations were wrong, some coordinates didn’t make sense, and
+the sleigh was heading straight into the mountains instead of over the City
+of New Orleans!
+
+Santa's current position read-out indicated he was over the Appalachians at
+the following coordinates:
+
+  Sleigh Latitude  Sleigh Longitude  Sleigh Altitude (ft)
+       38.0000° N        -81.500° W              300
+
+When he should be nearly exactly at,
+
+  Sleigh Latitude  Sleigh Longitude  Sleigh Altitude (ft)
+       29.9500° N        -90.070° W              300
+
+"We can't afford this!" Santa shouted. "We’ve got billions of presents to
+deliver, and the system's down. And I want some gumbo!"
+
+"Santa, we can fix it," Jingles, the lead elf, said with a frantic smile. "We
+just need more computing power. If we use OpenMP, we can parallelize the
+calculations and solve this quickly."
+
+Santa stared. “What are you talking about, Jingles? I'm a giant elf,
+not a Scottish engineer on a television show for nerds!”
+
+“We’ll solve the GPS problem by recalculating the distances to each
+delivery location. The sleigh’s GPS relies on triangulating data from
+multiple satellites. Right now, it's too slow to process the data for each
+location one by one. We can use OpenMP to divide the problem into smaller
+parts, calculate distances in parallel, and get this fixed fast!”
+
+The data format of the positional satellites consisted of their positions in
+latitude, longitude, with an altitude; so the computations are necessarily in
+3D space, and could contain any number of lines:
+
+=begin data 
+
+  39.2497677581748 -66.1173923826129 29161.8658117126
+  -39.9677413540029 -41.3796046007432 23577.9949741844
+  82.2366387689737 153.417562140013 20022.1066827945
+  -43.4383552881127 -44.5406041422343 28011.9118605715
+  14.0767035175103 4.23608833137735 27766.7951824014
+  40.8573795733001 162.321349651587 25625.9162363042
+  -26.9656081428904 27.0935089406365 23681.3611776769
+  70.1644045619636 6.85910122836034 26946.7435635683
+  -64.5469805915126 -14.9091572762404 24893.2320145114
+  80.875127931392 -109.736894500449 23367.1123572306
+  5.62494420727084 -70.3599057022578 24677.4930437516
+  -78.594647140356 -69.1886836681495 21775.1041983417
+  -20.7093134304093 50.3824566178804 28396.5251214701
+  -8.19130244183 28.3379349990834 24113.3081697615
+  -62.1626942859846 -165.892484372947 27881.1415552865
+  -39.1505435434735 -14.0167682855066 25391.598017652
+  -14.701859640773 33.3797684668173 28958.4392020613
+  22.7094543766397 28.9295184727116 29847.2350918171
+  58.9987788505186 -87.6847921052664 29544.1317147911
+  83.6874173858257 -149.058764882263 22417.9224396509
+  -8.01336267852399 97.8876777856595 27879.4674084787
+  -55.3867650906297 -107.353651427755 21389.9702111095
+  -78.8588152992001 -155.558248147836 25430.0402744441
+  9.88995820014878 -0.204367766261981 20832.5618074863
+  -76.8565255868645 -14.4804333171123 27013.5287117141
+  -0.16890065869049 -40.7974093702016 22440.2960018416
+  8.56759320194605 14.0242190926548 24229.1350707098
+  89.3116725410715 19.3710347706399 28181.9446348641
+  ...
+
+=end data
+
+The distance formula was computationally expensive, involving square roots and
+trigonometry. But by using OpenMP, the task could be split into multiple OS
+threads, each calculating the distance to one satellite at the same time. The
+results would then be aggregated, and the sleigh's GPS would know exactly
+where to direct its heading.
+
+=begin c 
+
+  // Function to calculate Euclidean distance between two points (x1, y1, z1) and (x2, y2, z2)
+  double calculate_distance(double x1, double y1, double z1, double x2, double y2, double z2) {
+      return sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2) + pow(z2 - z1, 2));
+  }
+
+=end c
+
+The code would parallize the work by dividing the list of satellites
+among a number of I<pthreads> using OpenMP's C<#pragma omp for>
+construct! C<OpenMP::Simple> handles the required C<< #include <omp.h> >>
+and makes it easy to query the environment for information, such as C<OMP_NUM_THREADS>.
+
+=begin c 
+
+  PerlOMP_GETENV_BASIC // read common environmental variables, provided by OpenMP::Simple 
+
+  // Start parallel region
+  #pragma omp parallel shared(_distances)
+  {
+    // Parallel for loop to compute distances in parallel
+    #pragma omp for
+    for (int i = 0; i < satellite_count; i++) {
+        _distances[i] = 0.0;  // Initialize
+
+        double sat_x, sat_y, sat_z;
+
+        // Convert satellite's geographic coordinates to Cartesian coordinates
+        geo_to_cartesian(sat_latitudes[i], sat_longitudes[i], sat_altitudes[i], &sat_x, &sat_y, &sat_z);
+
+        // Calculate the distance from the sleigh to this satellite
+        _distances[i] = calculate_distance(sleigh_x, sleigh_y, sleigh_z, sat_x, sat_y, sat_z);
+    }
+  }
+
+=end c
+
+Jingles quickly typed up a solution in Perl, his favorite programming
+language. The solution was simple but critically offloaded the triangulation
+computations to C<Inline::C> code containing OpenMP directives, using the
+C<OpenMP> module on I<CPAN>.
+
+=begin perl
+
+  use strict;
+  use warnings;
+  
+  use OpenMP;
+     
+  use Inline (
+      C    => 'DATA',
+      with => qw/OpenMP::Simple/,
+  );
+     
+  my $omp = OpenMP->new;
+  
+  $omp->env->omp_num_threads($ARGV[0] // 8); # accept number of threads via commandline
+  
+  # Earth radius in meters
+  my $R = 6371000;
+  
+  # Sleigh's position (latitude, longitude, altitude)
+  my $sleigh_lat = 29.9500;
+  my $sleigh_lon = -90.070;
+  my $sleigh_alt = 300.0; # in meters
+  
+  # Satellite positions in tab-delimited format
+  my @satellites = ();
+  open my $FH, "<", "./satellite-data.txt" || die $!;
+  
+  foreach my $line (<$FH>) {
+    chomp $line;
+    push @satellites, [split(/[\s\t]+/, $line)];
+  }
+  
+  # Function to calculate distance from sleigh to each satellite using OpenMP::Simple,
+  # a subclass of Inline::C!
+  my $distances = calculate_distances($sleigh_lat, $sleigh_lon, $sleigh_alt, \@satellites);
+  
+  # Print the calculated distances
+  foreach my $distance (@$distances) {
+      print "Distance: $distance meters\n";
+  }
+
+=end perl
+  
+Santa watched as Jingles split up the computational load. Each satellite’s
+data was handled in parallel by different threads, and within seconds, the
+recalculations were done. The GPS latency issues were fixed. Jingles already
+had some thoughts of improvements he could make using OpenMP's ability to
+target GPUs directly, but was quite happy with the current resolution.
+
+Just as the final calculations finished, a gentle voice spoke, “When Faith
+sanctifies morally neutral technology, Good things are possible at Internet
+scale.”
+
+Santa turned to see the Holy Family -  Baby Jesus in the arms of His Virgin
+Mother accompanied by His foster father, Joseph; by the sleigh, smiling
+serenely. “Thank you,” Santa whispered. “Merry Christmas.”
+
+With the sleigh back on track, Santa soared into the night sky.
+
+When things settled down, Santa was able to look at Jingles' full code, and
+it was something to behold!
+
+=begin perl
+
+  use strict;
+  use warnings;
+  
+  use OpenMP;
+     
+  use Inline (
+      C    => 'DATA',
+      with => qw/OpenMP::Simple/,
+  );
+     
+  my $omp = OpenMP->new;
+  
+  $omp->env->omp_num_threads($ARGV[0] // 8); # accept number of threads via commandline
+  
+  # Earth radius in meters
+  my $R = 6371000;
+  
+  # Sleigh's position (latitude, longitude, altitude)
+  my $sleigh_lat = 29.9500;
+  my $sleigh_lon = -90.070;
+  my $sleigh_alt = 300.0; # in meters
+  
+  # Satellite positions in tab-delimited format
+  my @satellites = ();
+  open my $FH, "<", "./satellite-data.txt" || die $!;
+  
+  foreach my $line (<$FH>) {
+    chomp $line;
+    push @satellites, [split(/[\s\t]+/, $line)];
+  }
+  
+  # Function to calculate distance from sleigh to each satellite using Inline::C
+  my $distances = calculate_distances($sleigh_lat, $sleigh_lon, $sleigh_alt, \@satellites);
+  
+  # Print the calculated distances
+  foreach my $distance (@$distances) {
+      print "Distance: $distance meters\n";
+  }
+  
+  __DATA__
+  __C__
+  
+  #include <math.h>
+   
+  // Function to convert geographic coordinates to Cartesian (x, y, z)
+  void geo_to_cartesian(double lat, double lon, double alt, double *x, double *y, double *z) {
+    double R = 6371000;  // Earth's radius in meters
+    double lat_rad = lat * M_PI / 180.0;
+    double lon_rad = lon * M_PI / 180.0;
+  
+    *x = (R + alt) * cos(lat_rad) * cos(lon_rad);
+    *y = (R + alt) * cos(lat_rad) * sin(lon_rad);
+    *z = (R + alt) * sin(lat_rad);
+  }
+  
+  // Function to calculate Euclidean distance between two points (x1, y1, z1) and (x2, y2, z2)
+  double calculate_distance(double x1, double y1, double z1, double x2, double y2, double z2) {
+    return sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2) + pow(z2 - z1, 2));
+  }
+  
+  /* C function parallelized with OpenMP */
+  
+  // Main function to calculate the distances from the sleigh to each satellite
+  AV* calculate_distances(double sleigh_lat, double sleigh_lon, double sleigh_alt, AV *satellites) {
+      int satellite_count = av_len(satellites) + 1;  // The number of satellites
+      AV* distances = newAV();  // Create a new Perl array (AV) to hold the distances
+  
+      double sleigh_x, sleigh_y, sleigh_z;
+  
+      // Convert sleigh's geographic coordinates to Cartesian coordinates
+      geo_to_cartesian(sleigh_lat, sleigh_lon, sleigh_alt, &sleigh_x, &sleigh_y, &sleigh_z);
+  
+      // Fetch satellite data into local arrays
+      double *sat_latitudes = malloc(satellite_count * sizeof(double));
+      double *sat_longitudes = malloc(satellite_count * sizeof(double));
+      double *sat_altitudes = malloc(satellite_count * sizeof(double));
+  
+      // Populate satellite data into local arrays (from the Perl array)
+      for (int i = 0; i < satellite_count; i++) {
+        AV *satellite = (AV*) SvRV(*av_fetch(satellites, i, 0));  // Fetch the satellite at index i
+        sat_latitudes[i] = ((double) SvNV(*av_fetch(satellite, 0, 0)));  // Latitude
+        sat_longitudes[i] = ((double) SvNV(*av_fetch(satellite, 1, 0)));  // Longitude
+        sat_altitudes[i] = ((double) SvNV(*av_fetch(satellite, 2, 0)));  // Altitude
+      }
+  
+      // Declare a temporary array to hold distances for each thread
+      double *_distances = malloc(satellite_count * sizeof(double));
+  
+      PerlOMP_GETENV_BASIC // read common environmental variables, provided by OpenMP::Simple 
+  
+      // Start parallel region
+      #pragma omp parallel shared(_distances)
+      {
+        // Parallel for loop to compute distances in parallel
+        #pragma omp for
+        for (int i = 0; i < satellite_count; i++) {
+            _distances[i] = 0.0;  // Initialize
+  
+            double sat_x, sat_y, sat_z;
+  
+            // Convert satellite's geographic coordinates to Cartesian coordinates
+            geo_to_cartesian(sat_latitudes[i], sat_longitudes[i], sat_altitudes[i], &sat_x, &sat_y, &sat_z);
+  
+            // Calculate the distance from the sleigh to this satellite
+            _distances[i] = calculate_distance(sleigh_x, sleigh_y, sleigh_z, sat_x, sat_y, sat_z);
+        }
+      }
+  
+      // Combine the results from all threads into the main distances array inside the parallel region
+      for (int i = 0; i < satellite_count; i++) {
+        av_push(distances, newSVnv(_distances[i]));
+      }
+  
+      // Free the private distance arrays and satellite data arrays
+      free(_distances);
+      free(sat_latitudes);
+      free(sat_longitudes);
+      free(sat_altitudes);
+  
+      // Return the AV containing the distances to Perl
+      return distances;
+  }
+  
+  __END__
+
+=end perl
+
+See More:
+
+=over 4
+
+=item L<https://metacpan.org/pod/OpenMP>
+
+=item L<https://metacpan.org/pod/OpenMP::Simple>
+
+=item L<https://metacpan.org/pod/OpenMP::Environment>
+
+=item Everyone is welcome to join the Perl+OpenMP Project at L<https://github.com/Perl-OpenMP/>!
+
+=back
+
+=cut
