@@ -1,0 +1,286 @@
+Author: Mark Fowler <mark@twoshortplanks.com>
+Title: Merry Christmas, bless us, everyone
+Topic: Merry Christmas, bless us, everyone
+
+=encoding utf8
+
+Merry Christmas, one and all.
+
+A quarter of a centaury (and, obviously, twenty five days) ago I created the
+very first Perl Advent Calendar entry.  This Christmas, I'd like to take a 
+minute to talk about all the wonderful presents this has given us over the
+years
+
+Over this this time the world has changed, and Perl's role in the world with
+it.  Twenty five years ago was the dawn of the dot-com boom, where we were
+concerned with the battle between Perl and Python, and the new upstart of Java.
+Which would be the dominant language?  Twenty five years later we can see the
+fallacy of this debate - all of the languages won.  We live in a vastly more
+complicated world where the Internet is now always on, in our pockets and on
+our wrists, controlling everything from our light switches to how we interact
+with our governments,  And powering this is a plurality of programming
+languages, each with its own advantages and disadvantages, quirks and foibles,
+allowing people to use the best language for the task at hand - Java, or
+Python, or our beloved Perl - or any number of range of interesting and exciting
+language brethren new and old.
+
+With the development of the cloud and cloud technologies the old battle for the
+server is immaterial.  Where we once used to fret over if Perl or Python was
+installed on "the server" and available for us (and which version!), we now have
+the ability to easily obtain whatever environment we want to use any
+language we want.  Where we used to have to hand install software on the
+operating system this was supplanted by package systems, then by fleet
+management systems like ansible and puppet that could reproducibly install and
+manage any language we wanted across a whole fleet of machines, and then by
+virtual machine technologies like Amazon's AMI system that can be used to
+quickly create a "throwaway" machine with whatever machine image we want
+installed on it.
+
+We now live in the Docker (container) world where each script can have it's own
+version of Perl, with exactly the dependencies it needs installed just for it.
+
+=head2 Perl 5
+
+This changing environment has influenced Perl, allowing it to flourish in a way
+that we never would have imagined twenty five years ago.  By making installing
+software easier we freed ourselves from the concept of the "core" Perl language
+extending what we could use out into reliably having whatever bits of CPAN we
+want to hand.  This brought the philosophy of "CPAN is the language" to the
+forefront.
+
+Much of the work on Perl in the last twenty five years has been adapting the
+core interpreter so that it's possible to modify it more and more by simply
+installing a module.  Where we once begrudgingly replied on source code
+modifications to manipulate the code we write to add brand new language features
+we now exist in a world of pluggable syntax where we have (almost) infinite
+adaptability.
+
+The history of Perl has moved from higher level abstractions being built in
+large swaths of Perl code to code being made available on the CPAN that can
+integrate ever closer with the interpreter itself.  Now finally in the last few
+years we've seen some of these experiments being turned into best practices tha
+ are built into the language itself.
+
+When I first learned Perl in 1998, I started with the "pink" version of Larry
+Wall's "Programming Perl" book.  This talked about Perl 4, Perl before we even
+had objects.  If I wanted to represent a triange and try to calcualte its area
+I might have written code something like this:
+
+=begin perl
+
+sub triangle_area {
+    my $tri = shift;
+    return $tri->{width} * $tri->{height} / 2;
+}
+
+my $shape = { width => 3, height => 4 };
+print "triangle_area($shape), "\n";
+
+=end
+
+My understanding of Perl changed pretty quickly when I started reading the
+man pages for the version of Perl I had installed and got my hands on the
+"blue" second edition of "Programming Perl" which talked about Perl 5.
+
+Perl 5 had objects and the kind of Perl I would write would be more like this:
+
+=begin perl
+
+use strict;
+use warnings;
+
+package Triangle;
+
+sub new {
+    my $class = shift;
+    my %args = @_;
+    my $self = { width => $args{width}, height => $args{height} };
+    return bless $self, $class;
+}
+
+sub width  { return $self->{width} }
+sub height { return $self->{height} }
+
+sub area {
+    my $self = shift;
+    return $self->width * $self->height / 2;
+}
+
+package main;
+my $shape = Triangle->new(width => 3, height => 4);
+print $shape->area(), "\n";
+
+=end
+
+This is so much better.  We don't have to name the C<area> method with a
+C<triangle_> prefix in order to disambiguate it from the any C<rectange_area>
+or C<circle_area> function we might have in our code base.
+
+Then in 2006 along came L<Moose> which enabled a much more powerful way to
+write objects:
+
+=begin perl
+
+package Triangle;
+use Moose;
+
+has width  => (is => 'ro');
+has height => (is => 'ro');
+
+sub area {
+    my $self = shift;
+    return $self->width * $self->height / 2;
+}
+
+package main;
+
+use strict;
+use warnings;
+
+my $shape = Triangle->new(width => 3, height => 4);
+print $shape->area(), "\n";
+
+=end
+
+Later, in 2017, we had the first release of L<Mu> which allows us to write
+something quite a bit shorter:
+
+=begin perl
+
+package Triangle;
+use Mu;
+ro 'width';
+ro 'height';
+
+sub area {
+    my $self = shift;
+    return $self->width * $self->height / 2;
+}
+
+package main;
+
+use strict;
+use warnings;
+
+my $shape = Triangle->new(width => 3, height => 4);
+print $shape->area(), "\n";
+
+=end
+
+This is not only shorter, but it also has more error checking - if you don't
+pass both C<width> and C<height> to C<new>, you'll get an error.
+
+Last year we had the release of Perl 5.38.  This brought into core a bunch
+(admirably still experiential) of syntax that we started as a community playing
+with 2008 with L<MooseX::Declare> - but implemented much better and safer way. 
+The code above can now be simplified even further:
+
+=begin perl
+
+use v5.38;
+use feature 'class';
+
+class Triangle {
+    field $width  :param;
+    field $height :param;
+    method area { return $width * $height / 2 }
+}
+
+my $shape = Triangle->new(width => 3, height => 4);
+say $shape->area();
+
+=end
+
+=head2 The Legacy of Perl
+
+Perl has changed throughout the years, but it's always been Perl, with core
+ideas that have defined not only the "Perl way" of doing things for Perl, but
+elsewhere too!
+
+These ideas have infected the way we write code, not just in Perl, but in
+all modern programming languages.  Amazing things that sprung up in Perl have
+become table stakes in other languages.  The idea of having a central repository
+such as the CPAN that is the defacto place where you can find open source
+libraries that can be easily installed have become the norm - just look at
+JavaScript's ever popular npm, Pyhton's PyPI, and Ruby's RubyGems as examples.
+The concept of shipping these libraries with working tests like everything on
+the CPAN has been adopted everwhere, with CI/CD systems validating any serious
+software dependency on any commit.
+
+These aspects of Perl - along with countless other things - means that twenty
+five years on not only can I still enjoy writing Perl code in more powerful and
+fun ways than I ever could, but when I need to use another language better
+suited to a particular niche, a lot of the things I loved about Perl twenty
+five years ago are already there waiting for me too.
+
+=head2 The Advent Calendar Itself
+
+Speaking of things that other languages have adopted...
+
+The story of the Perl Advent Calendar starts, like all good stories, with a
+bad idea in the pub the night before.  I don't eat chocolate, so I was lamenting
+at a Perl Mongers social meeting that there was no good advent calendars for
+me - just the ones with a little picture behind the windows.  I was saying that
+you should be able to get some other kind of reward.  And then I thought how
+about some cool code?
+
+So the Perl Advent Calendar was born.  Or it was the very next day, when I
+put the whole thing together during my lunch break.  Back then I just named a
+module for the day and included the module's POD as the advent calendar - next
+year I introduced a small description of why I'd picked it along with the pid,
+and the year after is when the full article format was introduced with links
+to search.cpan.org (and later metacpan) for the documentation.
+
+This turned out to be surprisingly popular, with the module being featured in
+NTK and on Slashdot (getting mentioned by Slashdot was a big deal in 1999).
+
+It wasn't long before there were imitators for other programming languages.  It
+became a tradition in the software world to have an Advent Calendar for your
+language of choice (or area of programming language - Perl has seen quite a few
+separate calendars for things like Perl 6, Catalyst, and even futures and
+promises).  We now even have the Advent of Code which is a small advent
+calendar of programming puzzles that's hugely popular (I, for my part, have
+never had time to do it since I was always spending time tweaking the Perl
+Avent Calendar at this time of year).
+
+Through the years the Advent Calendar became too much for me to manage on my
+own.  I could no longer keep writing all twenty five articles myself, and so
+I started taking submissions.  I eventually gave the calendar away for others
+to maintain, took it back again years later, and then finally gave it
+away again.  Like any good project, it's totally grown beyond me and has a life
+of its own.
+
+The crucial thing about the calendar - more important than any one article,
+any one year, or event any one programming language - is the idea that we can
+all enjoy learning about our favorite programming language.  Things don't have
+to be taught in boring instructions, but the instead having something to learn
+about can be silly, daft, fun, and a treat!  Why not have a story about how
+Santa's elves are all Perl programmers faced with saving Christmas, and the
+only way to do it is to use this module?  Why not have a tale about how we can
+control Christmas lights with Perl?  Create Christmas memes?  Many a clever
+person in the Perl community has talked about optomizing projects for fun -
+attracting volunteers by making projects enjoyable to be a part of - and the
+Perl Advent Calendar embraces this idea of rewarding everyone that reads it
+with joy.  This popular format has been copied by other languages.
+
+=head2 A Merry Christmas to us all; Bless us, everyone
+
+So, as I try to do every year, and on this twenty fifth year of the Perl Advent
+Calendar, I wish you a Merry Christmas.
+
+Perl has this concept of "blessing" references to turn them into objects.  One
+way to look at it is it's Perl's way of making something more than what it is
+- improving it, giving it powers and abilities it didn't have before.
+
+So when I say "Bless us, everyone" I'd like you to think about how Perl has
+"bless"ed I<everyone>.  Each programming language that has their own version of
+CPAN. Each programming language that has their own Advent Calendar.  Everyone
+who's written something daft just for the heck of it, and then shared it so
+people can learn.  These are all things that Perl has helped bring to the world,
+and means that - even if you've never used Perl - you're still a sort of Perl
+programmer.  Because Perl is more than a language, a run-time - it's about the
+people and ideas behind it.
+
+    merry $christmas; bless $us, Everyone
+
+=cut
