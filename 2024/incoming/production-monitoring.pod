@@ -1,0 +1,330 @@
+Author: Rene Schickbauer <cavac@cpan.org>
+Title: Production monitoring
+Topic: Net::Clacks
+
+=encoding utf8
+
+=head2 Meeting the quota
+
+Santa has a big problem. The worlds population is growing, and there are over 2 billion children alive today. Long
+ago, he had already turned his cute little shop into a big production facility. The elves have been trained to run
+highly sophisticated production lines 24/7 all year round.
+
+But it's a huge task. Literally every second counts. While Santa guards the exact numbers very closely (especially
+his naughty/nice list), we can make some estimates:
+
+    *) Most children fall under the nice category. Since Santas wouldn't know the final result until he starts his delivery run, let's assume 
+    that he has to produce presents for everyone. Make that 2 billion children from ages zero to fourteen.
+
+    *) Each child gets, on average, 2 presents
+
+    *) The elves work every day, even when Santa is out for delivery.
+
+That gives us 365 days (leap years are quite relaxed, they give a whole extra day!). That gives the elves 525.600 minutes to work with.
+
+To reach the required 4 billion presents, the elves have to produce on average 7610,35 presents per minute. If any production line falls behind,
+the others have to pick up the pace, or children will have a bad christmas experience.
+
+=head2 Monitoring
+
+The elves already implemented monthly, weekly and even daily reports in their warehouse management systems. But now they want to production numbers
+every minute to react more quickly to any problems.
+
+While they can run the other reports from their warehouse managment system, getting the minute-by-minute data in real time proved a bit more
+tricky. So Santa decided to do some Perl coding to solve that problem. The production lines already use Perl in their control systems, so reporting the numbers
+should be easy to add to the codebase.
+
+After some googling, he found an article on PerlMonks about a module called L<Net::Clacks> that could do (more-or-less) real-time communication between programs. 
+So he decided to give it a try.
+
+=head2 Server configuration
+
+Since this is a network application, it needs to be secured. A self-signed certificate will do nicely for testing (but Santa also set a reminder to learn about
+that LetsEncrypt thing after the christmas season). For now, he just copied&pasted some awefully weird openssl command line to get the job done:
+
+    yes '' | openssl req -new -newkey rsa:4096 -x509 -sha256 -days 36500 -nodes -out exampleserver.crt -keyout exampleserver.key
+
+To set up the server itself, Santa also created a simple XML configuration file (server.xml). For testing, Santa uses 127.0.0.1 to run tests, but will change that
+to the correct IP later (the exact network setup in Santas factory is proprietary information, though).
+
+=begin code
+
+    <clacks>
+        <appname>Clacks Master</appname>
+        <ip>127.0.0.1</ip>
+        <port>49888</port>
+        <pingtimeout>600</pingtimeout>
+        <interclackspingtimeout>60</interclackspingtimeout>
+        <persistancefile>clackspersistance.dat</persistancefile>
+
+        <ssl>
+            <cert>exampleserver.crt</cert>
+            <key>exampleserver.key</key>
+        </ssl>
+
+        <!-- This is the main user that has all permissions and also Interclacks -->
+        <username>santa</username>
+        <password>WorkSmarterNotHarder</password>
+
+        <throttle>
+            <maxsleep>5000</maxsleep>
+            <step>1</step>
+        </throttle>
+    </clacks>
+
+=end code
+
+=head2 Server
+
+The server code itself is as simple as it gets. All he needs to do is load Net::Clacks::Server and call its run method.
+
+But to make sure he can easily test local changes to Net::Clacks without having to "make install" it every time, he also
+added a bit of boilerplate code to support the "--debug" command line flag:
+
+=begin code
+
+    #!/usr/bin/env perl
+
+    use v5.40;
+    use strict;
+    use warnings;
+    use diagnostics;
+    use utf8;
+    use Carp;
+
+    my $isDebugging = 0;
+
+    BEGIN {
+        if(defined($ARGV[1]) && $ARGV[1] eq "--debug") {
+            print("Development INC activated\n\n");
+            unshift @INC, "/home/santa/src/Net-Clacks/lib";
+
+            $isDebugging = 1;
+        }
+    };
+
+    use Net::Clacks::Server;
+
+    my $configfile = shift @ARGV;
+    croak("No Config file parameter") if(!defined($configfile) || $configfile eq '');
+
+    my $worker = Net::Clacks::Server->new($isDebugging, $configfile);
+    $worker->run;
+
+=end code
+
+=head2 Running the server
+
+Now Santa can simply run the server with:
+
+    perl server.pl server.xml
+
+=head2 Design decisions
+
+There are multiple ways to track events in Net::Clacks. One way would be that every time a present is produced, the machines NOTIFY
+the LISTENer. But that would mean the listener would recieve 1000's of messages per minute and count them.
+
+But there's a smarter way. Santa can just have the Net::Clacks server do all the counting by sending it INCREMENT command for a variable
+name. The variable will get autovivified on first use.
+
+To read the numbers minute-by-minute, Santa can just read the varible at the top of every minute. Of course, he can't just set the variable back
+to zero, as he would be in a race condition with the increment commands from the production lines. Fortunately, while the increment and decrement
+commands default to "1", they have an optional argument to use any arbitrary number.
+
+By reading out the current variable value, then sending this value as the decrement amount, Santa can avoid the race condition entirely. Well, technically,
+the value on the server side might not reach zero internally, but that doesn't matter, the minute-by-minute numbers as seen from the client side will still
+be correct. Dealing with asynchronous events give Santa a headache.
+
+=head2 Central client
+
+Clients need a lot less configuration than the server, so Santa doesn't need a special configuration file. For now, he can just hardcode the login information.
+
+The first thing he does is code up the monitoring client (monitor.pl):
+
+=begin code
+
+    #!/usr/bin/env perl
+
+    use v5.40;
+    use strict;
+    use warnings;
+    use diagnostics;
+    use mro 'c3';
+    use Carp;
+
+    use Net::Clacks::Client;
+    use Time::HiRes qw(sleep);
+
+    my $username = 'santa';
+    my $password = 'WorkSmarterNotHarder';
+    my $applicationname = 'monitoring';
+    my $is_caching = 0;
+    my $countername = 'FactoryOutput';
+
+    my $client = Net::Clacks::Client->new('127.0.0.1', 49888, $username, $password, $applicationname, $is_caching);
+
+    $client->ping(); # We need to regularly send a ping() to the server to avoid disconnects
+    $client->doNetwork(); # Do the actual network part, most commands just get buffered in a queue
+
+    my $nextping = time + 60;
+    my $timestamp = ''; # When program starts, report the current count (if any) immediately
+
+    while(1) {
+        if($nextping < time) {
+            $client->ping();
+            $nextping = time + 60;
+        }
+        $client->doNetwork();
+        while((my $msg = $client->getNext())) {
+            if($msg->{type} eq 'disconnect') {
+                print '+++ Disconnected by server, reason given: ', $msg->{data}, "\n";
+                last;
+            }
+        }
+
+        my $newtime = getMinuteTimestamp();
+        if($newtime ne $timestamp) {
+            # Time changed
+            $timestamp = $newtime;
+
+            my $produced = $client->retrieve($countername);
+            if(!defined($produced)) {
+                $produced = 0; # Only happens on initial startup when the clacks variable is not initialized
+                print "Initial startup!\n";
+            }
+            $client->decrement($countername, $produced); # Decrement the count by the number we just received
+            $client->doNetwork();
+
+            print $produced, "\t";
+
+            if($produced < 7610) {
+                print "ALERT!!!! PRODUCTION SHORTFALL!!!!!\n";
+            } else {
+                print "OK!\n";
+            }
+        }
+
+        sleep(0.1); # Let's run the loop 10 times a second, this should get us very close to the top of every minute without wasting too much CPU cycles
+    }
+    $client->disconnect();
+    exit(0);
+
+    sub getMinuteTimestamp {
+        # Quick-and-dirty hack, only changes at the start of every minute
+        my ($sec,$min, $hour, $mday,$mon, $year, $wday,$yday, $isdst) = localtime time;
+
+        return join(':', $year, $mon, $mday, $hour, $min);
+    }
+
+=end code
+
+=head2 Incrementing the counter
+
+For incrementing the counter, Santa created the creatively named, object-oriented package "OutputCounter". This can then be easily used in
+existing perl programs. 
+
+Before creating a proper distribution on his local CPAN ("DarkPAN") mirror, he just put this and a test program into a single file (factorymachine.pl):
+
+=begin code
+
+    #!/usr/bin/env perl
+
+    package OutputCounter;
+
+    use v5.40;
+    use strict;
+    use diagnostics;
+    use mro 'c3';
+    use Carp;
+
+    use Net::Clacks::Client;
+
+    sub new($proto, %config) {
+        my $class = ref($proto) || $proto;
+        my $self = bless \%config, $class;
+
+        my %defaults = (
+            ip => '127.0.0.1',
+            port => 49888,
+            username => 'santa',
+            password => 'WorkSmarterNotHarder',
+            applicationname => 'NonbrandStackablePlasticBlocks',
+            is_caching => 0,
+            countername => 'FactoryOutput',
+            nextping => time + 60,
+        );
+
+        foreach my $key (keys %defaults) {
+            if(!defined($self->{$key})) {
+                # Use the default
+                $self->{$key} = $defaults{$key};
+            }
+        }
+
+        $self->_createClient();
+
+        return $self;
+    }
+
+
+    sub _createClient($self) {
+        my $client = Net::Clacks::Client->new($self->{ip}, $self->{port}, $self->{username}, $self->{password}, $self->{applicationname}, $self->{is_caching});
+
+        $client->ping(); # We need to regularly send a ping() to the server to avoid disconnects
+        $client->doNetwork(); # Do the actual network part, most commands just get buffered in a queue
+
+        $self->{client} = $client;
+
+        return;
+    }
+
+    sub increment($self) {
+
+
+        if($self->{nextping} < time) {
+            $self->{client}->ping();
+            $self->{nextping} = time + 60;
+        }
+        $self->{client}->doNetwork();
+
+        while((my $msg = $self->{client}->getNext())) {
+            if($msg->{type} eq 'disconnect') {
+                # Got a disconnect. Throw away current connection and create a new one
+                print "Connection error\n";
+                $self->_createClient();
+                last;
+            }
+        }
+
+        $self->{client}->increment($self->{countername});
+        $self->{client}->doNetwork();
+    }
+
+    package main;
+
+    use v5.40;
+    use strict;
+    use diagnostics;
+    use mro 'c3';
+    use Carp;
+
+    use Time::HiRes qw(sleep);
+    #use OutputCounter;
+
+    my $counter = OutputCounter->new(applicationname => 'CandyCaneMaker');
+
+    while(1) {
+        $counter->increment();
+        sleep(0.05); # Increment ~20 times a second
+    }
+
+=end code
+
+=head2 Final thoughts
+
+This is a minimal example of what L<Net::Clacks> can do. Yes, it takes quite a bit of boilerplate code to get up and
+running, but that's true for a lot of network code. Net::Clacks is more designed for speed and reliability (including
+WHEN to spend those precious CPU cycles), than it is for simple coding. But, generally, the tradeoff can be a significant
+benefit. The author of Net::Clacks uses it in many commercial, production critical systems.
+
+=cut
