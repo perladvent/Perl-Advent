@@ -1,0 +1,106 @@
+Author: Paul Johnson <paul@pjcj.net>
+Title: Keeping the Elves Busy
+Topic: Parallel::ForkManager
+
+=encoding utf8
+
+=head1 Christmas Crisis
+
+Already well into advent, Santa's elves were busy in the workshop, checking
+lists, wrapping presents, and preparing for the big night.  That was the plan
+anyway.  But as Santa popped his head around the door, he saw that most of the
+elves were standing around looking at their phones or playing games with
+Rudolph.  Because the other reindeer wouldn't.
+
+"What's going on?" asked Santa.  "Why isn't everyone working?"
+
+"Well," explained Holly, the project manager, "this legacy inventory software
+we're using is single-threaded, so it can only handle one job at a time."  She
+explained that the elves took it in turns to pick up a new job, work on it and
+then mark it as completed.  But for the rest of the time there was nothing for
+them to do.
+
+"We've asked our supplier to update the software," she continued, "since we've
+got all these CPUs on our server just sitting there doing nothing.  But they
+told us it would cost $44 billion, and who has that sort of money?  At this
+rate we'll never get the presents ready by Christmas Eve."
+
+=head2 Parallel::ForkManager to the Rescue
+
+Santa considered the problem.  Holly was correct, the server had plenty of
+spare capacity.  So Santa checked out the repository and fired up his editor.
+He came across this method:
+
+=begin code
+
+  sub process_presents ($self) {
+    while (my $present = $self->get_next_present) {
+      $present->process;
+    }
+  }
+
+=end code
+
+"Aha!" thought Santa, "this is the bottleneck."  Just as Holly had explained,
+the software couldn't process a new present until the previous one had been
+completed.
+
+So Santa installed L<Parallel::ForkManager> and changed the method to this:
+
+=begin code
+
+  sub process_presents ($self) {
+    my $pm = Parallel::ForkManager->new(6);
+    while (my $present = $self->get_next_present) {
+      $pm->start and next;
+      $present->process;
+      $pm->finish;
+    }
+    $pm->wait_all_children;
+  }
+
+=end code
+
+=head2 The Elves Get Back to Work
+
+A quick test showed that all six elves were now kept busy.
+
+Santa asked Mrs Claus to review the code.  He explained that
+L<Parallel::ForkManager> is a module that wraps perl's native C<fork> function,
+allowing multiple processes to run in parallel.  It is simple to use and has an
+API which adds additional features.
+
+With the new code, six presents could be processed at once - one for each
+elf. The line C<< my $pm = Parallel::ForkManager->new(6); >> creates a new
+instance of the C<Parallel::ForkManager> class, allowing a maximum of six
+concurrent child processes.
+
+The C<start> method is called on the object to fork off a new child process. As
+with the core C<fork> function, the method returns the C<pid> of the child
+process to the parent and C<0> to the child.  So adding C<and next> means that
+the parent process immediately starts the next iteration of the loop.  If there
+are alreadxy six child processes running, the parent will wait for one to
+finish before starting a new one.
+
+The child process processes the present and then calls the C<finish> method to
+end the child process.
+
+The C<wait_all_children> method is called after the loop to wait for all child
+processes to finish before the method returns.
+
+Mrs Claus was impressed with the new code, but suggested that Santa added error
+handling, tests and documentation.
+
+=head2 Santa's Work is Done
+
+With Santa's changes in production the elves were back to work and the project
+was back on schedule.  Christmas was saved!
+
+Holly read through the documentation for L<Parallel::ForkManager> and noticed
+the API included methods such as C<run_on_finish> and C<run_on_wait>.  She
+added new tickets to use these methods to provide metrics to power a bunch of
+really exciting dashboards.
+
+Everyone was happy.  Except for Rudolph.
+
+=cut
