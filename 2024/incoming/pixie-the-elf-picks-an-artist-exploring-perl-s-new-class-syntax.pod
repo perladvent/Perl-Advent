@@ -1,0 +1,267 @@
+Author: Dave Cross <dave@perlhacks.com>
+Title: Pixie the Elf Picks an Artist: Exploring Perl's new class syntax
+Topic: 
+
+=encoding utf8
+
+=head2 The Problem: Repetitive Artists
+
+Pixie the Elf (whose parents had strange ideas about names), was well-known
+at the North Pole for her love of music. But she often found herself in a bit
+of a repetitive loop. It was just too easy to listen to the same artists over
+and over again. With 15 years of meticulously scrobbled data on
+L<Last.fm|https://last.fm/>, she wondered if she could leverage this
+information to diversify her playlists. Determined to find a solution, Pixie
+delved into the Last.fm API and, after some coding, developed
+C<pickanartist>, a Perl program designed to recommend artists she hadn't
+engaged with recently.
+
+=head2 Using PickAnArtist
+
+To break free from her musical monotony, Pixie used PickAnArtist as
+follows:
+
+=over 4
+
+=item 1
+
+B<Setup:> She cloned the PickAnArtist repository from GitHub and ensured all
+necessary dependencies were installed.
+
+=item 2
+
+B<Configuration:> Pixie set her Last.fm username and defined thresholds for
+minimum and maximum play counts to filter artists.
+
+=item 3
+
+B<Execution:> By running the script with her username, the program fetched
+her listening data, filtered artists based on the specified play counts, and
+randomly selected an artist for her to revisit:
+
+    pickanartist --user=pixiethelf --min=500 --max=1000
+
+=item 4
+
+B<Outcome:> The script displayed the name of an artist within the specified
+play count range, prompting Pixie to explore their music anew.
+
+    Belle & Sebastian (978 plays)
+
+Pixie found their latest album on ElfTunes and added it to her play queue.
+
+=back
+
+=head2 How C<pickanartist> works
+
+The C<pickanartist> program comprises two main components:
+
+=over 4
+
+=item 1
+
+B<The Command-Line Program:> Handles user input and initializes the process.
+
+=item 2
+
+B<The Perl Class:> Encapsulates the core functionality, utilizing Perl's
+modern class syntax.
+
+=back
+
+=head2 The command-line program
+
+The command-line program doesn't do anything complicated, it just creates
+an object of class App::LastFM::PickAnArtist (using values passed on the
+command line) and calls its `run()` method.
+
+=head2 The class
+
+The core functionality is all in the class - called App::LastFM::PickAnArtist.
+Pixie had written many Perl classes in her time, but she decided to use this
+as an excuse to try out the new Perl class syntax that had been introduced
+in Perl 5.38 and that is documented in
+L<perlclass|https://perldoc.perl.org/perlclass>.
+
+Normally, you would tell the Perl compiler that you were using the new class
+syntax by adding C<use feature 'class'> to your code. But Pixie had read
+about L<Feature::Compat::Class|https://metacpan.org/pod/Feature::Compat::Class>
+which makes the syntax available on earlier versions of Perl (as far back as
+5.14) and she wanted to use that in case one of her less up-to-date gnome
+colleagues wanted to use her code.
+
+The first nice thing about the new syntax was that you could replace the
+C<package> keyword with C<class> - to better define what the code was. So
+Pixie's file started like this:
+
+=begin code
+
+    use Feature::Compat::Class;
+
+    class App::LastFM::PickAnArtist;
+
+=end code
+
+She then added a feature she needed along with a useful module:
+
+=begin code
+
+    use feature 'say';
+    use Net::LastFM;
+
+=end code
+
+The next new keyword was C<field>, which you use to define attributes
+of the class (like C<has> in Moo or Moose). But in the new syntax, you're
+defining something more like a lexical (C<my>) variable that can be read by
+all methods inside the class. You can also add the C<:param> attribute to
+define the field as something that can be passed to the object constructor
+along with an expression to define a default value for the field.
+
+Pixie's three parameter fields looked like this:
+
+=begin code
+
+    field $username :param = 'pixietheelf';
+    field $min :param = 500;
+    field $max :param = 1000;
+
+=end code
+
+She then added a few more fields that would be useful when running the code:
+
+=begin code
+
+    field $lastfm = Net::LastFM->new(
+      api_key    => $ENV{LASTFM_API_KEY},
+      api_secret => $ENV{LASTFM_API_SECRET},
+    );
+    field $method = 'user.getTopArtists';
+    field @artists;
+    field $artist;
+
+=end code
+
+Looking back over the code, Pixie added a TODO comment reminding herself
+that she should really deal with the case when the environment variables
+weren't set. She'd do that... one day.
+
+Next, Pixie came to the methods for her class. There were three main
+differences to the OO Perl she had written before. Firstly, she could define
+methods with a C<method> keyword. Secondly, each method has access to the
+class fields - and you can just treat them like variables. And, finally, each
+method automatically has access to a C<$self> variable - without having to
+read it from the arguments!
+
+The first method was simple:
+
+=begin code
+
+    method run {
+      $self->getartists;
+      $self->pickartist;
+      $self->render;
+    }
+
+=end code
+
+Pixie was following good programming design practice here. She broke the
+problem down into simpler steps. One to get the artists from the LastFM
+API, one to pick an artist to recommend and one to display the results
+to the user.
+
+The next method was the most complex:
+
+=begin code
+
+    method getartists {
+      my $data;
+      my $page = 1;
+      do {
+        $data = $lastfm->request_signed(
+          method => $method,
+          user   => $username,
+          page   => $page,
+        );
+        for (@{$data->{topartists}{artist}}) {
+          next if $_->{playcount} > $max;
+          next if $_->{playcount} < $min;
+          push @artists, $_;
+        }
+        ++$page;
+      } until $data->{topartists}{artist}[-1]{playcount} < $min;
+
+      die "No artists with between $min and $max plays for $username\n"
+        unless @artists;
+    }
+
+=end code
+
+This is where Pixie makes the actual call to the LastFM API. Most of the
+complexity is caused by LastFM paging the data it gives you, so you might
+need to make multiple calls in order to get all the data you want.
+
+But at the end of this method, the C<@artists> field contains one element
+for each artist the user has listened to between the minumum and maximum
+requested number of times.
+
+The last two methods are so simple, that Pixie hesitated to even make them
+methods:
+
+=begin code
+
+    method pickartist {
+      $artist = $artists[ rand @artists ];
+    }
+
+    method render {
+      say "$artist->{name} ($artist->{playcount})";
+    }
+
+=end code
+
+Pixie's code is available on GitHub -
+L<github.com/davorg/pickanartist|https://github.com/davorg/pickanartist>
+
+=head2 Embracing Modern Perl
+
+Pixie is happy with the way the code worked out. She thinks that the new
+syntax makes her code far easier to read, maintain and extend. She
+particularly like the way that the fields looked and acted like ordinary
+variables. This made a lot of code far simpler. Under "classic" Perl class
+syntax (and even with Moo or Moose) you would print an attribute with code
+like this:
+
+    say "The name is ", $self->name;
+
+But the new syntax simplifies that to:
+
+    say "The name is $name";
+
+This syntax is a work in progress. It was first introduced with Perl 5.38 in
+2023 and Perl 5.40 added a few more features (for example, it will now
+auto-generate an accessor method for any field with the attribute C<:reader>)
+and it will, no doubt, gain more functionality when Perl 5.42 is released
+next year.
+
+That said, it isn't complete. It doesn't yet support roles and (for obvious
+reasons) it's missing the huge ecosystem of plugins and extensions that
+Moo/se has accumulated over the last twenty years.
+
+But don't let that stop you from trying it out. Pixie didn't need to use all
+of the features it currently has - so it can already do a lot more than is
+shown in her code.
+
+=head2 Conclusion
+
+Pixie’s story demonstrates how modern Perl features and powerful APIs like
+Last.fm can combine to solve real-world problems in elegant ways. Whether
+you’re a seasoned Perl hacker or just getting started, the perlclass syntax
+makes it easier than ever to write maintainable, feature-rich code.
+
+So, take a leaf out of Pixie’s book—or in this case, her playlist—and let
+Perl help you create something fun, practical, and uniquely yours.
+
+Happy coding, and may your playlists stay diverse and delightful!
+
+=cut
