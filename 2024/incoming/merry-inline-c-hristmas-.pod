@@ -1,0 +1,393 @@
+Author: Christos Argyropoulos
+Title: Merry Inline C(hristmas)
+Topic: Inline::C
+
+=encoding utf8
+
+=head2 Dancing through the Cnow 
+
+It is this time of the year, the time you have finally some time to catch up finishing the
+projects you were supposed to do the previous months. A blizzard of C code, like the arrows in 
+the movie 300 will descent upon you if you do, but you will end up in the naughty list of 
+researchers if you don't; for who will analyze your data if YOU drop the ball? 
+But fear not, because L<Inline::C> will save the day and Perl will make the glaCiers melt away.
+
+For the last couple of years, I have been using L<Inline::C> to leverage a large amount of C code
+related to biological sequence (text) analysis for my research work. Our group has been using portable
+sequencing technologies by L<Oxford Nanopore|https://nanoporetech.com/products/sequence/flongle> to measure
+RNA molecules in real-time as markers of kidney disease progression. The problem we are facing is that
+understanding the data is not trivial, and many traditional bioinformatic workflows need considerable 
+adaptation to work. Often, one has to combine exotic pieces of code that is available in C libraries into
+complex workflows that are non standard and require one to use the power of Perl to glue them together.
+Let's C how L<Inline::C> can help us with the mess.
+
+=head2 To A or not to A?
+
+The molecules I am interested at have a tail of A's at the end of the sequence, e.g. something line 
+ACTGCCATCAAGAAAAAAAAAAAAA , but the A's are irrelevant to the analysis I want to do. Often there are
+errors in the text, so that the sequence is not perfect, e.g.  one is looking at something like this
+ACTGCCATCAAGAAAAAAAAAAAAAAGTAACAAAA. The question is, how can I remove the A's at the end of the sequence
+knowing that the error exists? There is a Python program L<cutadapt|https://cutadapt.readthedocs.io/en/stable/>, 
+for this task, but note why I don't want to use it for my tasks:
+
+=for :list
+* I will have to fire off another process, which is slow
+* I will have to use the hard disk and pipes for IPC (slow)
+* My downstream data analyses take place in Perl and C, so I will have to convert the data back and forth
+
+Let's C how we can filter the noisy A's in Perl and then how we can add performance with L<Inline::C>.
+
+=head3 Regex for noisy A's
+
+The general idea here is to use a regex that puts an upper limit to the proportion of errors in the A tails
+of the sequence. For example something like this:
+
+=begin perl
+
+  my $polyA_min_25_pct_A = qr/
+                ( ## match a poly A tail which is 
+                  ## delimited at its 5' by *at least* one A
+                  A{1,}
+                      ## followed by the tail proper which has a    
+                  (?:     ## minimum composition of 25% A, i.e.
+                      ## we are looking for snippets with 
+                      (?: 
+                              ## up to 3 CTGs followed by at 
+                              ## least one A
+                              [CTG]{0,3}A{1,}    
+                      )
+                      |     ## OR
+                      (?: 
+                              ## at least one A followed by 
+                              ## up to 3 CTGs
+                              A{1,}[CTG]{0,3}
+                      )
+                  )+    ## extend as much as possible
+              )\z/xp;
+
+  # and then use it like this:
+  my $s = "ACTGCCATCAAGAAAAAAAAAAAAAAGTAACAAAA";
+  $s =~ m/$$polyA_min_25_pct_A/;
+  my $best_index = length $1;
+
+=end perl
+
+when one runs the code above, the C<$best_index> will be 29, i.e. the regex filtered out
+everything after: ACTGCC
+
+The cutadapt algorithm does not use a regex, but a simple scoring system to decide when to
+stop adding letters to the inferred tail. In particular, the algorithm considers all
+possible suffixes in the sequence of interest, and after filtering those that have more than 
+20% non-A letters, returns the position of the suffix with the largest score as the beginning 
+of the tail. The algorithm in Perl is shown below:
+
+=begin perl
+
+  sub perl_cutadapt {
+    my $s          = shift;
+    my $n          = length $s;
+    my $best_index = $n;
+    my $best_score = my $score = 0;
+    foreach my $i ( reverse( 0 .. $n - 1 ) ) {
+        my $nuc = substr $s, $i, 1;
+        $score += $nuc eq 'A' ? +1 : -2;
+        if ( $score > $best_score ) {
+            $best_index = $i;
+            $best_score = $score;
+        }
+    }
+    $best_index = $n - $best_index;
+    if ( $best_score < 0.4 * ( $best_index + 1 ) ) {
+        $best_index = $n;
+    }
+    return $best_index;
+}
+
+=end perl 
+
+The A part is deemed to be 23 letters long and the non-A part is inferred to be ACTGCCATCAAG
+
+=head3 Inline::C for performance
+
+The algorithm as implemented is not very fast, and for large or many sequences it can be very
+slow. But as we will C, we can use L<Inline::C> to speed things up. The C code is shown below:
+
+=begin perl
+
+
+  use Inline (
+      C         => 'DATA',
+  );
+  say _cutadapt_in_C($s);
+
+  __DATA__;
+  __C__
+
+
+  #include <stdlib.h> 
+  #include <string.h>
+  #include<stdio.h>  
+  #include <math.h>   
+
+  int _cutadapt_in_C(char *s) {
+      int n = strlen(s);
+      int best_index = n;
+      int best_score = 0;
+      int score = 0;
+      for (int i = n - 1; i >= 0; i--) {
+          char nuc = s[i];
+          if (nuc == 'A') {
+              score += 1;
+          }
+          else {
+              score -= 2;
+          }
+          if (score > best_score) {
+              best_index = i;
+              best_score = score;
+          }
+      }
+      best_index = (best_score < -0.4 * (best_index + 1)) ? n : n - best_index;
+      return best_index;
+
+  }
+
+=end perl
+
+But how fast is fast? Let's run a benchmark using different sequence lengths 
+and fixing the length of the A tail to be 20% of the sequence length. The 
+results (mean and standard deviation in microseconds over 2000 repetitions 
+for each length) are shown below (the benchmarking code may be found in the /scripts directory of 
+L<Bio::SeqAlignment::Examples::TailingPolyester>):
+
+| Algorithm     | Language | Target Sequence Length | | | |
+|--------------|----------|-----------------------|--------------------|-------------------|-----------------|
+|              |          | 100                   | 1000              | 2000             | 10000          |
+|--------------|----------|-----------------------|--------------------|-------------------|-----------------|
+| cutadapt     | Perl     | 16.0±2.5             | 150.0±11.1        | 310.0±21.0       | 1500.0±88.0    |
+| regex        | Perl     | 26.0±10.0            | 310.0±26.0        | 620.0±42.0       | 3200.0±140.0   |
+| cutadaptC    | Perl/C   | 0.6±1.0              | 3.1±1.1           | 6.0±1.4          | 28.0±4.3       |
+
+A nice 30-50x speedup for the C code over the Perl code. The savings are real, considering that 
+a typical long RNA-seq experiment may have 10^6 - 10^7 reads, and each read may have a length of 1000 bases.
+
+=head2 Making memories this C(hristmas)
+
+The C code is not very complex, but it is a good example of how one can use L<Inline::C> to speed up
+tasks. But the module can help with more than that. For example, one can use it to interface with
+other foreign code, by making and managing shared memory regions. Consider an example,
+in which we hijack the C<Newxz> and C<Safefree> functions from the Perl API to allocate and free
+memory areans to make C<$memory>. Such a variable is effectively a pointer to a memory arena, and 
+we can use it to store and retrieve data from it. Suppose that one had a library that took such an 
+arena as input and filled it with data. Then the arena could dance with any other library that
+expected a pointer to a memory arena. The library could be written in C, or Assembly. For example,
+this is how one can sum lots and lots of random numbers using either C or Assembly, under the
+loving embrace of Perl working with L<Inline::C>:
+
+=begin perl
+
+    use Inline (
+        C         => 'DATA',
+    );
+    use Inline (
+        C         => 'DATA',
+    );
+    my $number_of_doubles = 2_000_000;
+    my $memory = alloc_with_Newxz($number_of_doubles*8);
+    generate_random_double_array($memory, $number_of_doubles);
+
+    use Benchmark qw(:all);
+    cmpthese(
+        -1,
+        {
+            'C' => sub { sum_array_C($memory, $number_of_doubles) },
+            'ASM' => sub { sum_array_doubles($memory, $number_of_doubles) },
+            'ASM_AVX' => sub { sum_array_doubles_AVX_unaligned($memory, $number_of_doubles) },
+        }
+    );
+
+    free_with_Safefree($memory);
+
+
+    use Inline
+    ASM     => 'DATA',
+    AS      => 'nasm',
+    ASFLAGS => '-f elf64',
+    PROTO   => {
+        sum_array_doubles=> 'double(void *,size_t)',
+        sum_array_doubles_AVX_unaligned => 'double(void *,size_t)',
+
+    };
+
+
+    __DATA__;
+    __C__
+
+
+    #include <stdlib.h> 
+    #include <string.h>
+    #include<stdio.h>  
+    #include <math.h>   
+
+
+    int _cutadapt_in_C(char *s) {
+        int n = strlen(s);
+        int best_index = n;
+        int best_score = 0;
+        int score = 0;
+        for (int i = n - 1; i >= 0; i--) {
+            char nuc = s[i];
+            if (nuc == 'A') {
+                score += 1;
+            }
+            else {
+                score -= 2;
+            }
+            if (score > best_score) {
+                best_index = i;
+                best_score = score;
+            }
+        }
+        best_index = (best_score < -0.4 * (best_index + 1)) ? n : n - best_index;
+        return best_index;
+
+    }
+
+    #define IsSVValidPtr(sv)  do { \
+        if (!SvOK((sv))) { \
+            croak("Pointer is not defined"); \
+        } \
+        if (!SvIOK((sv))) { \
+            croak("Pointer does not contain an integer"); \
+        } \
+        IV value = SvIV((sv)); \
+        if (value <= 0) { \
+                croak("Pointer is negative or zero"); \
+        } \
+    } while(0)
+
+    #define SetTypedPtr(ptr,sv, type) type *ptr; \
+        ptr = (type *) SvIV((sv))
+
+
+    void generate_random_double_array(SV *sv, size_t num_elements) {
+        IsSVValidPtr(sv);
+        SetTypedPtr(array, sv, double);
+        for (size_t i = 0; i < num_elements; ++i) {
+            array[i] = ((double)rand() / RAND_MAX) * 10.0 - 5.0;
+        }
+    }
+
+    double sum_array_C(SV *sv, size_t length) {
+        IsSVValidPtr(sv);
+        double sum = 0.0;
+        SetTypedPtr(array, sv, double);
+        for (size_t i = 0; i < length; i++) {
+            sum += array[i];
+        }
+        return sum;
+    }
+
+
+
+    // get a buffer
+    SV* alloc_with_Newxz(size_t length) {
+        char* array ;
+        Newxz(array, length, char);
+        return newSVuv(PTR2UV(array));
+    }
+
+    void free_with_Safefree(size_t address) {
+        void* buffer = (void*)address;
+        Safefree(buffer);
+    }
+
+
+    __ASM__
+    NSE    equ 4 ; number of SIMD double elements per iteration
+    DOUBLE equ 8 ; number of bytes per double
+    ; Use RIP-relative memory addressing
+    default rel
+
+    ; Mark stack as non-executable for Binutils 2.39+
+    section .note.GNU-stack noalloc noexec nowrite progbits
+
+    SECTION .text
+
+    global sum_array_doubles
+    sum_array_doubles: ; based on Kusswurm listing 5-7c
+        ; Initialize
+        vxorpd xmm0, xmm0, xmm0 ; sum = 0.0
+        sub rdi, DOUBLE              ; rdi = &array[-1]
+
+        Loop1:
+            add rdi, DOUBLE
+            vaddsd xmm0, xmm0, qword [rdi]
+            sub rsi, 1
+            jnz Loop1
+        ret
+
+
+    global sum_array_doubles_AVX_unaligned
+    sum_array_doubles_AVX_unaligned: ; based on Kusswurm listing 9-4d
+        vxorpd ymm0, ymm0, ymm0         ; sum = 0.0      
+
+                                        ; i = 0 in the comments of this block
+        lea r10,[rdi - DOUBLE]          ; r10 = &array[i-1]
+        cmp rsi, NSE                    ; check if we have at least NSE elements
+        jb Remainder_AVX                ; if not, jump to remainder
+        lea r10, [rdi-NSE * DOUBLE]     ; r10 = &array[i-NSE]
+
+
+        Loop1_AVX:
+            add r10, DOUBLE * NSE        ; r10 = &array[i]
+            vaddpd ymm0, ymm0, [r10]     ; sum += array[i]
+            sub rsi, NSE                 ; decrement the counter
+            cmp rsi, NSE                 ; check if we have at least NSE elements
+            jae Loop1_AVX                ; if so, loop again
+
+        ; Reduce packed sum using SIMD addition
+        vextractf128 xmm1, ymm0, 1      ; extract the high 128 bits
+        vaddpd xmm2, xmm1, xmm0         ; sum += high 128 bits
+        vhaddpd xmm0, xmm2, xmm2        ; sum += low 128 bits
+        test rsi, rsi                   ; check if we have any elements left
+        jz End_AVX                      ; if not, jump to the end
+
+        add r10, DOUBLE * NSE  - DOUBLE ; r10 = &array[i-1]
+        
+
+        ; Handle the remaining elements
+        Remainder_AVX:
+            add r10, DOUBLE
+            vaddsd xmm0, xmm0, qword [r10]
+            sub rsi, 1
+            jnz Remainder_AVX
+
+        End_AVX:
+        ;vmovsd xmm0, xmm5
+        ret
+
+=end perl
+
+In this example we make 2 million of doubles, fill them up with random numbers
+and then benchmark their sum them up in either C or Assembly. For the latter
+we ccan use your grandfather's era Assembly or bring to the table a vectorized
+version that uses SIMD instructions (in this case AVX extensions). In my
+old Xeon, this is what I get:
+
+          Rate     ASM       C ASM_AVX
+ASM      565/s      --     -0%    -68%
+C        565/s      0%      --    -68%
+ASM_AVX 1778/s    215%    215%      --
+
+In my applications, I use this trick to interface with vectorized, hand optimized
+Assembly code, when intrinsics fail to deliver performance in C. But even in such cases,
+the memory management is done by Perl through L<Inline::C>.
+
+=head2 Conclusions
+
+Give your self a present this C(hristmas) and learn how to use L<Inline::C> to speed things up.
+And if making memories seems too much, fear not, the L<Task::MemManager> module that I wrote up,
+will cut you some slaCk.
+
+=cut
