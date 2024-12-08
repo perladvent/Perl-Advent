@@ -1,0 +1,400 @@
+Author: brian d foy <briandfoy@pobox.com>
+Title: Santa's Naughty and Nice Data Formats
+Topic: Data::Rx
+
+=encoding utf8
+
+=head2 Santa's Naughty and Nice Data Formats
+
+Santa faces some of the same technology issues that many of us have
+faced. After a succession of elves half-implemented a reindeer
+tracking system, his reindeer database is in a sad state, there's
+nobody to fix it, and his naughty list has a special section for
+people who create dirty data.
+
+Now he needs to fix up his records so he can
+generate the reports his compliance elves keep hassling him about (a whole
+other thing—don't ask). That same compliance team also makes Santa use auditable source control, so
+his L<data and programs are in
+GitHub|https://github.com/briandfoy/santas-reindeers-rx-perl-advent-2024>.
+
+One file, F<data/donner.json>, started with this data:
+
+    #!vim json
+
+    {
+      "Name": "Donner",
+      "aliases": [
+        "Dunder",
+        "Donder"
+      ],
+      "start-date": "1823-12-24"
+    }
+
+Another file, F<data/rudolph.json>, has similar data but with slightly
+different field names and a different date format. This one must have
+come fromt the new interns who had to guess what to do because there
+aren't any docs:
+
+    #!vim json
+
+    {
+      "name": "Rudolph",
+      "start_date": "12/24/1939"
+    }
+
+These differences mean that some reindeers are left out of some of the
+reindeer games because their records are simply skipped.
+
+=head2 Enter Data::Rx
+
+At first this seems like a simple problem of checking each hash
+to ensure it has the right set of keys. The same goes for its values.
+That could be its own Perl program. But, as the data structure gets
+more and more complicated, so does the code. Santa is an old-school,
+zero-conf, minimal code sorta guy.
+
+L<Data::Rx> provides a way to declare what a data structure should
+look like and what sort of values it should have. Santa knows it's
+going to take a minute to clean up all of his files, so he'll start
+with two things he knows. He wants the fields to be C<name> and
+C<start_date>. He creates his Rx specification as a Perl data structure:
+
+=begin perl
+
+	my $record = {
+		type     => '//rec',
+		required => {
+			name       => { type => '//str' },
+			start_date => { type => '//str' },
+			},
+		};
+
+=end perl
+
+This says that there is a record type (think "hash"), that there are
+two required keys, and that the values for those keys are strings. This
+Perl data structure is the basis for the schema that L<Data::Rx>
+creates and which Santa then uses to validate a data structure:
+
+    #!perl
+
+	use Data::Rx;
+	my $rx = Data::Rx->new;
+	my $schema = $rx->make_schema($record);
+
+	eval { $schema->assert_valid($data) };
+
+Putting that together with the boring programming work gets Santa his
+starting program:
+
+=begin perl
+
+	use v5.14;
+
+	use Data::Rx;
+	use Mojo::File;
+	use Mojo::JSON;
+
+	my $record = {
+		type     => '//rec',
+		required => {
+			name       => { type => '//str' },
+			start_date => { type => '//str' },
+			},
+		};
+
+	my $rx = Data::Rx->new;
+	my $schema = $rx->make_schema($record);
+
+	foreach my $file ( sort @ARGV ) {
+		say "Checking $file";
+
+		my $data = eval { Mojo::JSON::decode_json( Mojo::File->new($file)->slurp ) };
+		unless( $data ) {
+			my $error = $@ =~ s/\.^/\n/gmr;
+			say "\tCould not read <$file>: $error";
+			next;
+			}
+
+		eval { $schema->assert_valid($data) };
+		my $at = $@;
+		next unless length $at;
+
+		foreach my $failure ( @{ $at->failures } ) {
+			say "\t$failure";
+			}
+		};
+
+=end perl
+
+Santa runs his progam on a couple of the files, knowing he's going to get
+several errors. Just with the two files shown earlier, Santa finds that
+there are some misnamed fields ("unexpected entries")
+and missing values for required entries:
+
+    #!vim bash
+
+	$ perl bin/validate data/rudolph.json data/donner.json
+	Checking data/donner.json
+		Failed //rec: found unexpected entries: Name aliases start-date (error: unexpected at $data)
+		Failed //rec: no value given for required entry start_date (error: missing at $data)
+		Failed //rec: no value given for required entry name (error: missing at $data)
+	Checking data/rudolph.json
+
+He'll fix these up in a moment, but he has to run out to the workshop
+to handle a slow down on the toy train assembly line. That gives you
+some time to investigate Rx.
+
+=head2 The Rx Language
+
+The L<Rx language|https://rx.codesimply.com> allows us to easily
+specify basic structure as well as extend it for more complex types. The
+L<Data::Rx> module implements this for Perl, but the language can be
+implemented in anything (and just about is). We can write out our specification
+in just about anything too, but we'll stick to Perl for now.
+
+In Perl, this starts with a hash with the key C<type> to specify what
+the first element should be. In this case, the type is C<//rec>, the
+Rx name for a hash (dictionary, map, JSON object, and so on):
+
+=begin perl
+
+	my $record = {
+		type => '//rec',
+		};
+
+=end perl
+
+There are many other types, but at the top level you probably have
+a C<//rec>, C<//arr> (array), C<//map> (all values are the same type),
+or a C<//seq> (sequence).
+
+Next, we can specify the required keys, and specify the value that
+each of these keys takes. Each of the values is another Rx specification,
+and in this case, each of them is a string (C<//str>):
+
+=begin perl
+
+	my $record = {
+		type     => '//rec',
+		required => {
+			name       => { type => '//str' },
+			start_date => { type => '//str' },
+			},
+		};
+
+=end perl
+
+Once we have our schema, we tell L<Data::Rx> to create the Perl
+object we can use to validate the data:
+
+=begin perl
+
+	my $rx = Data::Rx->new;
+	my $schema = $rx->make_schema($record);
+
+=end perl
+
+To apply the schema to a Perl data structure, we call C<assert_valid>,
+which throws an exception if the validation fails:
+
+=begin perl
+
+	eval { $schema->assert_valid($data) };
+
+=end perl
+
+There's also a binary C<check>, but that only reports yes or no. That
+could be valuable in some cases, such as when we don't want to see
+thousands of lines of errors in continuous integration.
+
+But now Santa has got the toy trains running again, so he's back to
+working on his data problems.
+
+=head2 Fixing the data errors
+
+Santa fixes up the field names easily enough to get the new C<data/donner.json>:
+
+    #!vim json
+
+    {
+      "aliases": [
+        "Dunder",
+        "Donder"
+      ],
+      "name": "Donner",
+      "start_date": "1823-12-24"
+    }
+
+Some of the errors, but he still has an error for the C<aliases> key:
+
+    #!vim bash
+
+	$ perl bin/validate data/rudolph.json data/donner.json
+	Checking data/donner.json
+		Failed //rec: found unexpected entries: Name aliases (error: unexpected at $data)
+	Checking data/rudolph.json
+
+To handle C<aliases>, Santa needs to specify an array. In Rx, an array
+has values that are all the same type (say, all strings). Santa
+extends his specification a little. He makes the C<aliases> field
+optional. It's okay if Donner has aliases (more than one even), and it's
+okay if Rudolph doesn't have that field at all:
+
+=begin perl
+
+	my $record = {
+		type     => '//rec',
+		required => {
+			name       => { type => '//str' },
+			start_date => { type => '//str' },
+			},
+		optional => {
+			aliases => {
+				type => '//arr',
+				contents => '//str'
+				}
+			},
+		};
+
+=end perl
+
+Now both files validate:
+
+    #!vim bash
+
+	$ perl bin/validate data/rudolph.json data/donner.json
+	Checking data/donner.json
+	Checking data/rudolph.json
+
+=head2 Custom types
+
+Santa still has a problem because the date formats in his two test
+records don't match. The values are both strings, but that's it. Donner
+has C<1823-12-24> but Rudolph has C<12/24/1939>.
+
+Santa defines a new package that inherits from
+L<Data::Rx::CommonType::EasyNew>. This package defines C<type_uri>,
+which is the name for the new type, and C<assert_valid>, which is the
+Perl subroutine that calls C<fail> with the parts that L<Data::Rx>
+needs to report the error:
+
+=begin perl
+
+	package Reindeer::YYYYMMDD {
+		use parent 'Data::Rx::CommonType::EasyNew';
+
+		sub type_uri {
+			'tag:example.com,EXAMPLE:rx/reindeer-date',
+			}
+
+		sub assert_valid {
+			my ($self, $value) = @_;
+			return 1 unless defined $value;
+			$value =~ /\A(?:\d\d\d\d)-\d\d-\d\d\z/a or $self->fail({
+				error => [ qw(type) ],
+				message => "date value is not YYYY-MM-DD",
+				value => $value,
+				})
+			}
+		}
+
+=end perl
+
+(You can put this in a separate file and load it with C<use>, or stick
+it right in the current program.)
+
+To use this new type, Santa loads it as part of the call to C<new>:
+
+=begin perl
+
+	my $rx = Data::Rx->new({
+	  type_plugins => [qw(
+		Reindeer::YYYYMMDD
+	  )],	});
+
+=end perl
+
+Now Santa's program catches the date format error:
+
+    #!vim bash
+
+	$ perl bin/validate data/rudolph.json data/donner.json
+	Checking data/donner.json
+	Checking data/rudolph.json
+		Failed tag:example.com,EXAMPLE:rx/reindeer-date: date value is not YYYY-MM-DD (error: type at $data->{start_date})
+
+Santa didn't have to change anything in the meat of his program. Everything
+in the C<foreach> loop stayed the same and he only has the change his
+Rx specification. Whoever invented Rx and L<Data::Rx> are quickly moving
+to the top of his Nice list (and that would be the double nice Rik SIGNES).
+
+
+I write about this sort of thing quite a bit in
+L<Effective Perl Programming|https://www.effectiveperlprogramming.org/>
+and L<Mastering Perl|https://www.masteringperl.org/>. Moving things out
+of logic and into configuration makes the program easier to modify and
+the data easier to understand.
+
+=head2 The schema as configuration
+
+Since Santa's L<Data::Rx> schema is really a data structure, anything that can
+create that data structure can be its source. For example, Santa could
+put it in a YAML file (if you'd rather have JSON, you can do that instead):
+
+    #!vim yaml
+
+	---
+	type: '//rec'
+	required:
+		name:
+			type: '//str'
+		start_date:
+			type: 'tag:example.com,EXAMPLE:rx/reindeer-date'
+	optional:
+		aliases:
+			type: '//arr'
+			contents: '//str'
+
+In Santa's program, he loads his schema with the L<YAML> module instead
+of defining it as code. The rest of the program stays the same:
+
+=begin perl
+
+	use YAML;
+
+	my $record = YAML::LoadFile( 'rx.yml' );
+
+=end perl
+
+By having the schema outside of the Perl source, Santa can reuse it
+with other tools. So far, Rx has only very limited support for custom
+types, so those parts still have to live in code.
+
+=head2 See Data::Rx in action
+
+I used a very simple example to give you the flavor of Rx, but I'm
+using this on actual data structures for
+L<CPAN Security Advisories|https://github.com/briandfoy/cpan-security-advisory>. Each reported CPAN distribution has a file dedicated to
+it, and there are certain pieces of information we want to collect for each
+distribution and for each advisory in that distribution. Some of that
+is hand-edited, which inevitably leads to mistakes.
+
+Adding Data::Rx tests, as in
+L<xt/validate.t|https://github.com/briandfoy/cpan-security-advisory/blob/master/xt/validate.t> and L<xt/validate-db.t|https://github.com/briandfoy/cpan-security-advisory/blob/master/xt/validate-db.t>, allows us to check every data file for
+structure, format, and values.
+
+In those tests you'll see more of Rx's core types, more custom types,
+and more complicated structures.
+
+=head2 Further Reading
+
+=for :list
+* L<The Rx language|https://rx.codesimply.com>
+* L<The Data::Rx module|https://metacpan.org/pod/Data::Rx>
+* L<Santa's GitHub repo|https://github.com/briandfoy/santas-reindeers-rx-perl-advent-2024>
+* L<The History of Santa's Reindeer|https://www.altogetherchristmas.com/traditions/reindeer.html>
+* L<The Running Reindeer Ranch|https://runningreindeer.com>
+
+=cut

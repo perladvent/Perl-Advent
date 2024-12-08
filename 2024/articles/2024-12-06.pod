@@ -1,0 +1,285 @@
+Author: lincoln.stein@gmail.com
+Title: Have Yourself an AI Christmas!
+Topic: OpenAI::API
+
+=encoding utf8
+
+Ah for the good old days, when every Christmas season my family would
+gather in front of the roaring hearth, our glue, glitter, paint
+brushes, pens and card stock all spread out as we lovingly created
+personal Christmas cards for our friends and family.
+
+But who has time for that now? Nowadays, if my family sends out cards
+at all, we buy them in bulk at the local stationery store.
+
+Santa would not approve.
+
+=head2 AI to the Rescue!
+
+We've already surrendered our coding to Copilot, our research to
+ChatGPT, and have replaced our real-life friends with simulated
+personalities on Character.ai. So why not let AI do our Christmas
+greetings for us?
+
+L<OpenAI::API> to the rescue! This handy-dandy Perl module exposes
+OpenAI's API to Perl, and lets you do chat, text completion, and
+image generation from the command line. What we're going to do is:
+
+=over
+
+=item 1. Get a description of the type of card to generate and (optionally) the name of its recipient.
+
+=item 2. Call OpenAI's chat API to turn the description into an image generation prompt.
+
+=item 3. Call OpenAI's image generation API to generate an image from the prompt and store it online.
+
+=item 4. Use L<Browser::Open> to display the image in your favorite web browser.
+
+=back
+
+When you run the script it does this:
+
+   > perl merry_xmas.pl "A humorous card for my Uncle Jim, who loves cats"
+   The AI elves are hard at work (tippity tappity)...done!
+
+Your browser will then open up and display something like this:
+
+=for html
+<img src="xmas-card-for-uncle-jim.png" />
+
+=head2 Prerequisites
+
+For this script to work, you'll need to install the L<Browser::Open>
+and L<OpenAI::API> modules from CPAN. You'll also need to register an
+OpenAI account, get an API key, and add the key to your environment
+using the name L<OPENAI_API_KEY>. Instructions for this can be found
+at L<https://platform.openai.com/docs/quickstart>.
+
+=head2 The Main Script!
+
+Here's the main script. Save it as merry_xmas.pl:
+
+=begin perl
+
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use lib './lib';
+use Browser::Open 'open_browser';
+use ChristmasCard;
+
+die <<END unless @ARGV;
+Usage: $0 "card description"
+   Generate a Christmas card from a brief description.
+   If the description contains the recipient's name, the name will
+   be incorporated in the card's greeting.
+END
+
+my $description = "@ARGV";
+
+print STDERR "The AI elves are hard at work (tippity tappity)...";
+my $url = ChristmasCard->make_card($description);
+print STDERR "...done!\n";
+
+open_browser($url);
+
+=end perl
+
+This script imports the C<ChristmasCard.pm> module which does the
+actual work. It then uses C<@ARGV> to read the description of the card
+from the command line and passes it to the
+C<ChristmasCard-E<gt>make_card()> method. This method returns a URL to the
+image and passes it to the L<Browser::Open> C<open_browser()> function
+to display the image. You can then download the image, attach it to an
+email, etc.
+
+=head2 The ChristmasCard library
+
+The second and last piece is the C<ChristmasCard> library. Save this
+file as C<ChristmasCard.pm> in a subdirectory named C<lib>.
+
+=begin perl
+
+#########################################################3
+package ChristmasCard::Request::ImageGenerator;
+
+use Types::Standard qw(Str Enum);
+
+use Moo;
+use strictures 2;
+use namespace::clean;
+
+extends 'OpenAI::API::Request::Image::Generation';
+
+has model   => ( is => 'ro', isa => Str, );
+has quality => ( is => 'ro', isa => Enum [ 'standard', 'hd' ], );
+
+#########################################################3
+package ChristmasCard::Response::ImageGenerator;
+use strictures 2;
+use Moo;
+
+extends 'OpenAI::API::Response::Image::Generation';
+
+has 'revised_prompt' => (
+    is => 'ro',
+    required => 0,
+    );
+
+#########################################################3
+package ChristmasCard;
+
+use strict;
+use warnings;
+use OpenAI::API::Request::Chat;
+
+sub make_card {
+    my $class = shift;
+    my $description = shift;
+    my $prompt = $class->make_prompt($description);
+    return $class->make_image($prompt);
+}
+
+sub make_prompt {
+    my $class = shift;
+    my $description = shift || 'A nostalgic illustration typical of Christmases past.';
+    my $prompt =<<END;
+Please generate a text prompt in 120 words or less that can be passed to
+the OpenAI image generator to generate the illustration for a Christmas card.
+If the name of the recipient is mentioned in the description, write out
+"Merry Christmas <recipient>".
+
+The following text describes the image:
+
+$description
+END
+
+    my $req = OpenAI::API::Request::Chat->new(
+	model => 'gpt-4o-mini',
+	messages => [
+	    {role => "system", "content" => "You are a helpful assistant."},
+	    {role => "user",   "content" => $prompt},
+	],
+      );
+    my $resp = $req->send();
+    return $resp->{choices}[0]{message}{content};
+}
+
+sub make_image {
+    my $class = shift;
+    my $prompt = shift or die "Usage: \$card->image(\$prompt)";
+    my $req = ChristmasCard::Request::ImageGenerator->new(
+	model  => 'dall-e-3',
+	prompt => $prompt,
+	quality => 'hd',
+	n => 1,
+	response_format => 'url',
+	);
+    my $resp = $req->send();
+    return $resp->{data}[0]{'url'};
+}
+
+1;
+
+=end perl
+
+Ignore the first few blocks of code at the top of the file for now,
+and take a look at the section that begins with C<package
+ChristmasCard;>. This package begins by importing
+L<OpenAI::API::Request::Chat>, which is the programmatic interface to
+ChatGPT. It then defines the top-level method, C<make_card()>. This
+method takes the card description provided by the user, and passes it
+to a method called C<make_prompt()> which calls ChatGPT to take the
+description and turn it into a full image prompt suitable for
+generating a christmas card. For example, if the prompt is "A humorous
+card for my Uncle Jim, who loves cats", the resulting prompt might be
+something along the lines of:
+
+  A whimsical Christmas card design featuring a cozy living room
+  scene. In the center, a fluffy cat wearing a Santa hat is playfully
+  tangled in colorful Christmas lights. Surrounding the cat are
+  cheerful holiday decorations, including a beautifully decorated
+  tree, stockings hung by the fireplace, and a few playful kittens
+  peeking out from under the tree. Snow gently falls outside the
+  window, creating a warm, festive atmosphere. The text at the top
+  reads, "Merry Christmas Uncle Jim!" in playful, bold letters. The
+  overall vibe should be humorous and heartwarming, perfect for a
+  cat-loving uncle.
+
+This prompt is now passed to the C<make_image()> method, which
+generates the image and returns its URL.
+
+Let's have a look at the C<make_prompt()> method. It adds a preface to
+the card description that tells ChatGPT what we're aiming for. The
+resulting instruction passed to ChatGPT will look like this:
+
+  Please generate a less than 120 words text prompt that can be passed
+  to the OpenAI image generator to generate the illustration for a
+  Christmas card.  If the name of the recipient is mentioned in the
+  description, write out "Merry Christmas <recipient>".
+
+  The following text describes the image:
+
+  A humorous card for my Uncle Jim, who loves cats
+
+We now open a new chat connection using
+C<OpenAI::API::Request::Chat-E<gt>new()>, and specify the language model
+to use and the messages to send to it. In this case, we use the
+C<gpt-4o-mini> model, and pass the language model a context-setting
+message of "You are a helpful assistant" followed by the instruction
+we generated earlier. We then call the resulting object's C<send()>
+method, and return the content of the language model's response. (The
+response object is actually a nested set of hashes that contains a lot
+of metadata about the transaction in addition to the response itself.)
+
+Let's look at the C<make_image()> method, which generates the
+image. We take the image-generation prompt from the previous step, and
+pass it to C<ChristmasCard::Request::ImageGenerator-E<gt>new()>. In
+addition to the prompt, we pass arguments for the AI model to use
+(C<dall-e-3>), the quality of the image (C<hd> for high definition),
+the number of images to generate, and the C<response_format>. You can
+either request a URL or the actual image data. We choose the C<url>
+format because it is easier to deal with.
+
+We then call the returned request object's C<send()> method to get a
+response, navigate to the URL nested deep inside the response object
+like a chocolate Santa in a stocking, and return it.
+
+Now we'll talk about the two packages defined at the top of
+C<ChristmasCard.pm>, one named
+C<ChristmasCard::Request::ImageGenerator> and the other named
+C<ChristmasCard::Response::ImageGenerator>. The L<OpenAI::API> module
+is equipped with a class called
+L<OpenAI::API::Request::Image::Generation> which handles image
+generation requests. Unfortunately this module is a bit out of date
+and neither handles the newer C<dall-e-3> model nor supports the C<hd>
+format, both of which generate much nicer cards than the older
+versions.
+
+Fortunately the OpenAI module is well-designed and easy to extend. The
+C<ChristmasCard::Request::ImageGenerator> module, imported at the top
+of L<ChristmasCard.pm>, extends
+L<OpenAI::API::Request::Image::Generation> to define two new
+generation parameters: C<model> and C<quality>. We use the Moose
+subclassing mechanism, which provides the C<extends> operator to
+generate a subclass of L<OpenAI::API::Request::Image::Generation>, and
+the C<has> operator to add two new typed accessors to the
+C<ChristmasCard::Request::ImageGenerator> class.
+
+L<OpenAI::API> requires every request generator to have a
+corresponding response parser. We define
+C<ChristmasCard::Response::ImageGenerator> to be a subclass of
+L<OpenAI::API::Response::Image::Generation>, and add a new
+C<revised_prompt> accessor to it in order to accommodate a new field
+returned by the C<dall-e-3>.
+
+=head2 Conclusion
+
+And there you have it! Now, if you're ambitious -- or maybe just lazy
+-- you can create a text file of friend and family names and their
+personal idiosyncrasies. Read from the file, write a little loop
+around C<ChristmasCard-E<gt>make_card()>, and get all your Christmas
+cards done in two shakes of the Easter bunny's tail.
+
+Time to hit the eggnog!
