@@ -4,7 +4,7 @@ Topic: Valiant
 
 =encoding utf8
 
-=head1 Using Valiant for Validations in Agendum: A Deep Dive into DBIx::Class Integration
+=head1 Using Valiant for Validations in Agendum: A Dive into DBIx::Class Integration
 
 L<Agendum|https://github.com/jjn1056/Agendum> is a single user task-tracking application built on Perl 
 L<Catalyst> and L<DBIx::Class>. I'm using it as a testbed to experiment with various new approaches to
@@ -24,7 +24,7 @@ database.  This is especially useful in a web application where the data is ofte
 database and the user for editing.  If this offends your sense of architectural purity, there are
 ways to use L<Valiant> that are more separate from the database layer, but I'm not going to cover that in
 this article.  You'll have to look over the documentation yourself ;).  In any case this approach has worked
-well for many other frameworks such as Ruby on Rails, and I think it's worth considering for Perl as well.
+well for many other frameworks such as Ruby on Rails, so I think it's worth considering for Perl as well.
 
 This article will not cover all the ins and outs of L<Valiant> but I will provide an overview of the
 features that are most relevant to this discussion.  Hopefully this will provoke your interest enough to
@@ -63,7 +63,7 @@ be a valid email address.  Let's see how this works in practice:
 
 This will return a hash:
   
-    ( email => ['Email is not a email address'] )
+    ( email => ['Email is not an email address'] )
 
 There's a lot of different ways to define validations, to customize error messages, and to retrieve the
 errors.  You can also define custom validators, and you can define validations that are conditional on
@@ -151,7 +151,7 @@ The task description must be present and between 2 and 2000 characters.
 
 The task due date must be present and a valid date that is greater than or
 equal to the current date.  This validation is only enforced when the due
-date is changed.
+date is created or actually changed in an update.
 
 =item Task Priority
 
@@ -185,12 +185,13 @@ overwhelming.  Feel free to tinker as you wish.
 
 So how do we integrate L<Valiant> with L<DBIx::Class>?  There are two L<DBIx::Class> components that 
 you need to add to your result sources and your resultsets, which integrate L<Valiant> with L<DBIx::Class>
-and addtionally provide extra features to make it work more like how you'd expect it.  We also provide
-some additional features to L<DBIx::Class> to make it easier to work with L<Valiant> in the context of
+and additionally provide extra features to make it work more like how you'd expect it.  We also provide
+some value added features to L<DBIx::Class> to make it easier to work with L<Valiant> in the context of
 a web application, such as full recursive update and create.  You can check out the core documentation
 at you leisure (L<DBIx::Class::Valiant>, L<DBIx::Class::Valiant::Result>,
-L<DBIx::Class::Valiant::ResultSet>) , but I'll provide a brief overview here
-using code from Agendum.  First here's the Schema class:
+L<DBIx::Class::Valiant::ResultSet>) , but I'll provide a brief overview here using code from Agendum.  
+First here's the Schema class (if you are not super familiar with L<DBIx::Class> you might want to
+check out the L<DBIx::Class> documentation before continuing):
 
     package Agendum::Schema;
 
@@ -205,7 +206,7 @@ using code from Agendum.  First here's the Schema class:
     __PACKAGE__->load_namespaces(
       default_resultset_class => "DefaultRS");
 
-There's really nothing here directly related to L<Valiant> but I wanted to show you the schema class
+There's nothing here directly related to L<Valiant> but I wanted to show you the schema class
 for completeness.  Here's the base result class:
 
     package Agendum::Schema::Result;
@@ -250,7 +251,7 @@ Here's the base resultset class:
 Again I'm installing the core L<DBIx::Class::Valiant::ResultSet> component, as well as some other
 components that are useful for web applications.  Our component again is first in the list.
 
-Lasting here's the default resultset class, which was mentioned in the Schema class.   This is 
+Lastly here's the default resultset class, which was mentioned in the Schema class.  This is 
 the resultset DBIC uses when you don't have a custom one for a given result source:
 
     package Agendum::Schema::DefaultRS;
@@ -297,12 +298,12 @@ see the full code in the Agendum repository.
     );
 
 This first part is just the standard L<DBIx::Class> stuff.  We define the table, the columns, the primary
-key, and the relationships.  BTW you can use L<DBIx::Class::Candy> with this if you like, my integrations
-support that and you can read about it in the docs.  However might might have noticed the C<track_storage>
+key, and the relationships.  BTW you can use L<DBIx::Class::Candy> with this if you like, L<Valiant> integrations
+support that and you can read about it in the docs.  However you might have noticed the C<track_storage>
 flag on the status field.   We need that for the status validations since we will be comparing the state in
-the database to the new proposed value.
+the database to the new proposed value.  It's provided by the C<DBIx::ClassResultClass::TrackColumns> component.
 
-The next part is where we add the L<Valiant> stuff:
+The next part is where we start adding the L<Valiant> stuff:
 
     __PACKAGE__->accept_nested_for('task_labels', {allow_destroy=>1});
     __PACKAGE__->accept_nested_for('comments', {allow_destroy=>1});
@@ -337,6 +338,7 @@ status values. You have a few ways to describe the list of valid values, but in 
 method:
 
     sub status_list {
+      my ($self) = shift;
       return qw(pending in_progress on_hold blocked canceled completed);
     }
 
@@ -346,7 +348,10 @@ I also specify that this validation only runs on update (not create) and only if
 This is to prevent running the validation when the object is first created, since we won't have any 'old' values
 for the comparison.   Additionally we only want to run this validation if the status field is changed since some
 of the validation logic depends on 'old state verses new state'.  This is a common pattern in web applications
-where you want to allow the user to update a field without changing it.
+where the user submits the entire form and then you have to on the server side distinguish between fields that
+have changes and those that didn't.  For many validations such as 'presence' running the validation for each
+request has no downside other than additional overhead, but for the status field the rules are complex enough
+that we want to be more selective.
 
 I also define a custom validator for the status field via a method which is called when the status is
 updated and changed.  Here's that method:
@@ -354,17 +359,20 @@ updated and changed.  Here's that method:
     sub valid_status($self, $attribute_name, $value, $opt) {
       my $old = $self->get_column_storage($attribute_name);
 
-      # If the task is not pending, it can't return to pending
+      # If the task is not pending, it can't return to pending (ie once a task is 
+      # started it can't be unstarted)
       if($value eq 'pending' && $old ne 'pending') {
         $self->errors->add($attribute_name, "can't return to pending", $opt);
       }
 
-      # If the task is completed, it can't change to any other status
+      # If the task is completed, it can't change to any other status (ie once a task is
+      # finished it can't be unfinished)
       if($old eq 'completed' && $value ne 'completed') {
         $self->errors->add($attribute_name, "task is already finished", $opt);
       }
 
-      # If the tas is on hold or blocked, it can't be moved to completed
+      # If the task is on hold or blocked, it can't be moved to completed.  You need to
+      # unhold or unblock it first.
       if ($old eq 'on_hold' && $value eq 'completed') {
         $self->errors->add($attribute_name, "on hold can't change to completed", $opt);
       }
@@ -373,7 +381,9 @@ updated and changed.  Here's that method:
       }  
     }
 
-So in this method we enforce the more complex state transition rules for the status field.  This can
+So in this method we enforce the more complex state transition rules for the status field.
+
+So when using L<Valiant> you have a lot of options for describing validaion rules.  These can
 be as complex or simple as you need.  For the simple stuff we try to stick with the built in validators
 so we can be declaritive about the rules but when you need power L<Valiant> makes it easy to drop
 into an arbitrarily complex method.
@@ -389,10 +399,10 @@ The last bit is the due date validation:
       )
     );
 
-Here qe use the C<date> validator to ensure the value is a valid date, and then
+Here we use the C<date> validator to ensure the value is a valid date, and then
 we use the C<min_eq> option to ensure the date is greater than or equal to the current date.  We only
 enforce this validation if the due date is changed.  Otherwise we'd get validation errors whenever
-a task was late and the user tried to change a different field or add a comment.
+a task was late and the user tried to change a different field such as descriptions, or adding a comment.
 
 Finally the C<Comment> result class has a validation.  It's not much so I will just show all the code:
 
@@ -418,13 +428,14 @@ Finally the C<Comment> result class has a validation.  It's not much so I will j
       { 'foreign.task_id' => 'self.task_id' }
     );
 
+    # Here's the validation rule
     __PACKAGE__->validates(content => (presence=>1, length=>[2,2000]));
 
 So the content field is required and must be between 2 and 2000 characters.
 
 =head2 Using the Validations
 
-In Agendum, these validations are run from the Catalyst controllers which gather field info from
+In Agendum, these validations are run from the L<Catalyst> controllers which gather field info from
 a POST request.  However if you are just writing a test script you can run the validations directly
 on the object.  Here's an example (it's from C<t/advent.t> in the Agendum repository):
 
