@@ -38,6 +38,14 @@ work.  I will ask our bioinformatic software developers to tackle the problem."
 And so gentle reader that is how we arrived at a simple, but tedious task of
 converting the genomic coordinates in this bed file:
 
+  RS20000581      44      66      RSVA_1_LEFT     1       +
+  RS20000581      434     464     RSVA_1_RIGHT    1       -
+  RS20000581      359     385     RSVA_2_LEFT     2       +
+  RS20000581      749     773     RSVA_2_RIGHT    2       -
+  RS20000581      669     699     RSVA_3_LEFT     1       +
+  RS20000581      1057    1083    RSVA_3_RIGHT    1       -
+  RS20000581      990     1016    RSVA_4_LEFT     2       +
+  RS20000581      1366    1389    RSVA_4_RIGHT    2       -
 
 So that it would contain the correct coordinates from a different RSV-A subtype
 RefSeq.  It quickly became apparent that this problem could be solved much more quickly
@@ -47,10 +55,53 @@ solution available in the existing base of Perl code.  But how to proceed?
 =head2 Using the Awesome Power of Perl in Bioinformatics
 
 Each of the two genome files are simple text files consisting of an alphabet of
-four letters (A, C, G, and T) (I know, I know, both SARS-CoV-2 and RSV are
-technically RNA viruses, so a purist would replace the 'T' with a 'U', but in
-real life we just use T, it makes life simpler).    
+four letters (A, C, G, and T) ( technically RSV, similar to SARS-CoV-2 is an RNA virus,
+but life is simpler if we use 'T' instead of 'U'), all we need is a so-called "Global Alignment"
+of the two full-length sequences (they are each just over 15,000 bases in length).  What we
+really want to know is where all of the longest stretches of identical sequences are located
+in the viral chromosomes.  Fortunately an algorithm to calculate this was published by
+L<Needleman and Wunsch|https://en.wikipedia.org/wiki/Needleman%E2%80%93Wunsch_algorithm> back in 1970;
+it is considered a classic example of dynamic programming (which builds up the answer without consuming
+vast amounts of memory).  Furthermore, the National Center of Biotechnology Information (NCBI) maintains
+a L<server|https://blast.ncbi.nlm.nih.gov/Blast.cgi?PAGE_TYPE=BlastSearch&PROG_DEF=blastn&BLAST_PROG_DEF=blastn&BLAST_SPEC=GlobalAln&LINK_LOC=BlastHomeLink> we can use to upload any two closely related nucleotide sequences.
 
+The output from the N-W Global Alignment looks like this:
+
+  Query  2177   GTGTGATTAACTACAGTGTATTAGATTTGACAGCAGAAGAACTAGAGGCTATCAAACATC  2236
+                |||||||||||||||||||| |||| ||||||||||||||||||||||||||||||||||
+  Sbjct  2221   GTGTGATTAACTACAGTGTACTAGACTTGACAGCAGAAGAACTAGAGGCTATCAAACATC  2280
+  
+  Query  2237   AGCTTAATCCAAAAGATAATGATGTAGAGCTTTGAGTTAATAAAAAGGTGGGGCAAATAA  2296
+                ||||||||||||||||||||||||||||||||||||||||||||||  ||||||||||||
+  Sbjct  2281   AGCTTAATCCAAAAGATAATGATGTAGAGCTTTGAGTTAATAAAAAA-TGGGGCAAATAA  2339
+
+Where the the top sequence in each pair is a stretch of 60 bases from the Edinburgh RefSeq
+(Labeled 'Query') and the bottom sequence in each pair is the matching stretch
+from the NCBI RefSeq (Labeled 'Sbjct').  The unix pipe symbols denote a perfect match
+between the sequences at that base.
+
+Notice that the numbering systems are slightly offset, AND that there is a gap
+introduced with a hyphen in-between the A at 2327, and the T at 2328 in the Sbjct,
+directly across from the G at position 2384 in the Query.  That can be interpreted
+as a single nucleotide insertion in the Query genome.  So creating the mapping table
+between the two coordinate systems is not trivial.  The sequences only share 94 percent
+identity over about 15,200 nucleotides, which means they diverge 6 percent of the time.
+
+To simplify the construction of our look up table we can use grep to filter the
+starting alignment into two different subsets, 
+
+=begin code
+
+  grep ^Query nw_alignment.txt > just_rows_from_edinburgh_refseq.txt
+  grep ^Sbjct nw_alignment.txt > just_rows_from_ncbi_refseq.txt
+
+=end code
+
+N.B. you will have to go in an manually remove the first extraneous Query line
+from the first file.  These become the first two input files to our script, the third file
+is the primer bed file we are starting with.
+
+=head2 Our Script that Creates a Look-up Table, and then Swaps Coordinates in a bed File
 
 =begin perl
 
@@ -168,22 +219,21 @@ exit;
 
 =end perl
 
-A C<code> section can syntax-highlight non-Perl too:
+=head2 Conclusion
 
-=begin code
+When you run the script save the output to file, and then use C<grep undef> to see if there were
+any coordinates which could NOT be successfully mapped.  If there are then you can use C<grep -v undef>
+to save a copy without those lines.
 
-  # inside "code" blocks, make syntax-highlighted code
-  # with Pod::Elemental::Transformer::Codebox
+In principal, the flow and the steps used here could work with any paired RefSeqs for a pathogenic virus
+where you have created DNA sequencing amplicons with PCR primers from one coordinate system, but you
+want to be able to use your regular pipelines to align the fastq reads to a different RefSeq.
 
-=end code
+If you have some paired-end fastq files from RSV (or another RNA virus) you can get an idea
+of the processing steps to use to generate consensus.fasta files L<here|https://github.com/pathogen-genomics/cdph-rsv>.
 
+During the COVID19 Global Pandemic these consensus.fasta files were essential for constructing the
+phylogenetic trees used by Epidemiologists to identify outbreaks of new strains.
 
-=head2 Lists
-
-=for :list
-* short list syntax from Pod::Elemental::Transformer::List
-* duck
-* duck
-* goose
 
 =cut
