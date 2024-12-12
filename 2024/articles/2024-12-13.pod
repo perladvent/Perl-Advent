@@ -4,16 +4,16 @@ Topic: Net::Clacks
 
 =encoding utf8
 
-=head2 Meeting the quota
+=head2 Meeting the Quota
 
-Santa has a big problem. The worlds population is growing, and there are over 2 billion children alive today. Long
+Santa has a big problem. The world's population is growing, and there are over 2 billion children alive today. Long
 ago, he had already turned his cute little shop into a big production facility. The elves have been trained to run
 highly sophisticated production lines 24/7 all year round.
 
 But it's a huge task. Literally every second counts. While Santa guards the exact numbers very closely (especially
 his naughty/nice list), we can make some estimates:
 
-    *) Most children fall under the nice category. Since Santas wouldn't know the final result until he starts his delivery run, let's assume 
+    *) Most children fall under the nice category. Since Santa wouldn't know the final result until he starts his delivery run, let's assume
     that he has to produce presents for everyone. Make that 2 billion children from ages zero to fourteen.
 
     *) Each child gets, on average, 2 presents
@@ -27,28 +27,27 @@ the others have to pick up the pace, or children will have a bad christmas exper
 
 =head2 Monitoring
 
-The elves already implemented monthly, weekly and even daily reports in their warehouse management systems. But now they want to production numbers
-every minute to react more quickly to any problems.
+The elves already implemented monthly, weekly and even daily reports in their warehouse management systems. But now they want production numbers
+every minute in order to be able to react more quickly to any problems.
 
-While they can run the other reports from their warehouse managment system, getting the minute-by-minute data in real time proved a bit more
+While they can run the other reports from their warehouse management system, getting the minute-by-minute data in real time proved a bit more
 tricky. So Santa decided to do some Perl coding to solve that problem. The production lines already use Perl in their control systems, so reporting the numbers
 should be easy to add to the codebase.
 
-After some googling, he found an article on PerlMonks about a module called L<Net::Clacks> that could do (more-or-less) real-time communication between programs. 
+After some googling, he found an article on PerlMonks about a module called L<Net::Clacks> that could do (more-or-less) real-time communication between programs.
 So he decided to give it a try.
 
-=head2 Server configuration
+=head2 Server Configuration
 
 Since this is a network application, it needs to be secured. A self-signed certificate will do nicely for testing (but Santa also set a reminder to learn about
-that LetsEncrypt thing after the christmas season). For now, he just copied&pasted some awefully weird openssl command line to get the job done:
+that LetsEncrypt thing after the Christmas season). For now, he just copied&pasted some awfully weird openssl command line to get the job done:
 
     yes '' | openssl req -new -newkey rsa:4096 -x509 -sha256 -days 36500 -nodes -out exampleserver.crt -keyout exampleserver.key
 
 To set up the server itself, Santa also created a simple XML configuration file (server.xml). For testing, Santa uses 127.0.0.1 to run tests, but will change that
 to the correct IP later (the exact network setup in Santas factory is proprietary information, though).
 
-=begin code
-
+    #!vim xml
     <clacks>
         <appname>Clacks Master</appname>
         <ip>127.0.0.1</ip>
@@ -72,16 +71,14 @@ to the correct IP later (the exact network setup in Santas factory is proprietar
         </throttle>
     </clacks>
 
-=end code
-
 =head2 Server
 
-The server code itself is as simple as it gets. All he needs to do is load Net::Clacks::Server and call its run method.
+The server code itself is as simple as it gets. All he needs to do is load L<Net::Clacks::Server> and call its run method.
 
-But to make sure he can easily test local changes to Net::Clacks without having to "make install" it every time, he also
-added a bit of boilerplate code to support the "--debug" command line flag:
+But to make sure he can easily test local changes to L<Net::Clacks> without having to "make install" it every time, he also
+added a bit of boilerplate code to support the C<--debug> command line flag:
 
-=begin code
+    #!vim perl
 
     #!/usr/bin/env perl
 
@@ -111,23 +108,21 @@ added a bit of boilerplate code to support the "--debug" command line flag:
     my $worker = Net::Clacks::Server->new($isDebugging, $configfile);
     $worker->run;
 
-=end code
-
-=head2 Running the server
+=head2 Running the Server
 
 Now Santa can simply run the server with:
 
     perl server.pl server.xml
 
-=head2 Design decisions
+=head2 Design Decisions
 
-There are multiple ways to track events in Net::Clacks. One way would be that every time a present is produced, the machines NOTIFY
-the LISTENer. But that would mean the listener would recieve 1000's of messages per minute and count them.
+There are multiple ways to track events in L<Net::Clacks>. One way would be that every time a present is produced, the machines NOTIFY
+the LISTENer. But that would mean the listener would receive 1000's of messages per minute and count them.
 
-But there's a smarter way. Santa can just have the Net::Clacks server do all the counting by sending it INCREMENT command for a variable
+But there's a smarter way. Santa can just have the L<Net::Clacks> server do all the counting by sending it INCREMENT command for a variable
 name. The variable will get autovivified on first use.
 
-To read the numbers minute-by-minute, Santa can just read the varible at the top of every minute. Of course, he can't just set the variable back
+To read the numbers minute-by-minute, Santa can just read the variable at the top of every minute. Of course, he can't just set the variable back
 to zero, as he would be in a race condition with the increment commands from the production lines. Fortunately, while the increment and decrement
 commands default to "1", they have an optional argument to use any arbitrary number.
 
@@ -135,13 +130,13 @@ By reading out the current variable value, then sending this value as the decrem
 the value on the server side might not reach zero internally, but that doesn't matter, the minute-by-minute numbers as seen from the client side will still
 be correct. Dealing with asynchronous events give Santa a headache.
 
-=head2 Central client
+=head2 Central Client
 
 Clients need a lot less configuration than the server, so Santa doesn't need a special configuration file. For now, he can just hardcode the login information.
 
 The first thing he does is code up the monitoring client (monitor.pl):
 
-=begin code
+    #!vim perl
 
     #!/usr/bin/env perl
 
@@ -216,16 +211,14 @@ The first thing he does is code up the monitoring client (monitor.pl):
         return join(':', $year, $mon, $mday, $hour, $min);
     }
 
-=end code
-
-=head2 Incrementing the counter
+=head2 Incrementing the Counter
 
 For incrementing the counter, Santa created the creatively named, object-oriented package "OutputCounter". This can then be easily used in
-existing perl programs. 
+existing perl programs.
 
 Before creating a proper distribution on his local CPAN ("DarkPAN") mirror, he just put this and a test program into a single file (factorymachine.pl):
 
-=begin code
+    #!vim perl
 
     #!/usr/bin/env perl
 
@@ -318,13 +311,11 @@ Before creating a proper distribution on his local CPAN ("DarkPAN") mirror, he j
         sleep(0.05); # Increment ~20 times a second
     }
 
-=end code
-
-=head2 Final thoughts
+=head2 Final Thoughts
 
 This is a minimal example of what L<Net::Clacks> can do. Yes, it takes quite a bit of boilerplate code to get up and
-running, but that's true for a lot of network code. Net::Clacks is more designed for speed and reliability (including
+running, but that's true for a lot of network code. L<Net::Clacks> is more designed for speed and reliability (including
 WHEN to spend those precious CPU cycles), than it is for simple coding. But, generally, the tradeoff can be a significant
-benefit. The author of Net::Clacks uses it in many commercial, production critical systems.
+benefit. The author of L<Net::Clacks> uses it in many commercial, production critical systems.
 
 =cut
