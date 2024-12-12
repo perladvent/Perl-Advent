@@ -73,6 +73,12 @@ for year in 1999 $(seq 2011 2024); do
     cd ..
 done
 
+for year in $(seq 2000 2024); do
+    if test -d "out/$year"; then
+        cp favicon.ico "out/$year/"
+    fi
+done
+
 cp ./*.html out/
 cp RSS.xml out/
 cp -R images out/
