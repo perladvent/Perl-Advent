@@ -43,6 +43,7 @@ but you can also declare model level validations when you have rules that apply 
 or to multiple attributes.  The rules are defined in a simple DSL that is easy to read and write.  Here's
 an example:
 
+    #!vim perl
     package MyApp::Model::User;
 
     use Moo;
@@ -58,12 +59,14 @@ This adds two validation rules to the C<User> class.  The first rule says that t
 be present (i.e. not C<undef> or an empty string).  The second rule says that the C<email> attribute must
 be a valid email address.  Let's see how this works in practice:
 
+    #!vim perl
     my $user = MyApp::Model::User->new(name=>'John', email=>'not_an_email');
     $user->validate;
     my %errors = $user->errors->to_hash(full_messages=>1);
 
 This will return a hash:
 
+    #!vim perl
     ( email => ['Email is not an email address'] )
 
 There's a lot of different ways to define validations, to customize error messages, and to retrieve the
@@ -194,6 +197,7 @@ L<DBIx::Class::Valiant::ResultSet>) , but I'll provide a brief overview here usi
 First here's the Schema class (if you are not super familiar with L<DBIx::Class> you might want to
 check out the L<DBIx::Class> documentation before continuing):
 
+    #!vim perl
     package Agendum::Schema;
 
     use base 'DBIx::Class::Schema';
@@ -210,6 +214,7 @@ check out the L<DBIx::Class> documentation before continuing):
 There's nothing here directly related to L<Valiant> but I wanted to show you the schema class
 for completeness.  Here's the base result class:
 
+    #!vim perl
     package Agendum::Schema::Result;
 
     use base 'DBIx::Class';
@@ -236,6 +241,7 @@ working on figuring out if this can be relaxed, but for now it's a requirement.
 
 Here's the base resultset class:
 
+    #!vim perl
     package Agendum::Schema::ResultSet;
 
     use base 'DBIx::Class::ResultSet';
@@ -255,6 +261,7 @@ components that are useful for web applications.  Our component again is first i
 Lastly here's the default resultset class, which was mentioned in the Schema class.  This is
 the resultset DBIC uses when you don't have a custom one for a given result source:
 
+    #!vim perl
     package Agendum::Schema::DefaultRS;
 
     use base 'Agendum::Schema::ResultSet';
@@ -267,6 +274,7 @@ Ok, so far there is nothing really interesting.  The real magic happens in the r
 C<Task> result class.   I will introduce the code in sections with explanations but you can always
 see the full code in the Agendum repository.
 
+    #!vim perl
     package Agendum::Schema::Result::Task;
 
     use Agendum::Syntax;
@@ -306,6 +314,7 @@ the database to the new proposed value.  It's provided by the C<DBIx::ClassResul
 
 The next part is where we start adding the L<Valiant> stuff:
 
+    #!vim perl
     __PACKAGE__->accept_nested_for('task_labels', {allow_destroy=>1});
     __PACKAGE__->accept_nested_for('comments', {allow_destroy=>1});
 
@@ -315,6 +324,7 @@ nested updates and creates for the C<task_labels> and C<comments> relationships.
 applications where you might want to update a task and its labels and comments all in one go.  I force you
 to specify this support as a security feature.  The next bit defines the validations:
 
+    #!vim perl
     __PACKAGE__->validates(title => (presence=>1, length=>[2,48]));
     __PACKAGE__->validates(description => (presence=>1, length=>[2,2000]));
 
@@ -323,6 +333,7 @@ to specify this support as a security feature.  The next bit defines the validat
 
 Basic validations for required fields and minimum and maximum lengths.  The next bit is a bit more complex:
 
+    #!vim perl
     __PACKAGE__->validates(status => (
         presence => 1,
         inclusion => \&status_list,
@@ -338,6 +349,7 @@ Status is an enum field, so we use the C<inclusion> validator to ensure the valu
 status values. You have a few ways to describe the list of valid values, but in this case I'm using a
 method:
 
+    #!vim perl
     sub status_list {
       my ($self) = shift;
       return qw(pending in_progress on_hold blocked canceled completed);
@@ -357,6 +369,7 @@ that we want to be more selective.
 I also define a custom validator for the status field via a method which is called when the status is
 updated and changed.  Here's that method:
 
+    #!vim perl
     sub valid_status($self, $attribute_name, $value, $opt) {
       my $old = $self->get_column_storage($attribute_name);
 
@@ -391,6 +404,7 @@ into an arbitrarily complex method.
 
 The last bit is the due date validation:
 
+    #!vim perl
     __PACKAGE__->validates(due_date => (
         presence => 1,
         date => {
@@ -407,6 +421,7 @@ a task was late and the user tried to change a different field such as descripti
 
 Finally the C<Comment> result class has a validation.  It's not much so I will just show all the code:
 
+    #!vim perl
     package Agendum::Schema::Result::Comment;
 
     use Agendum::Syntax;
@@ -440,6 +455,7 @@ In Agendum, these validations are run from the L<Catalyst> controllers which gat
 a POST request.  However if you are just writing a test script you can run the validations directly
 on the object.  Here's an example (it's from C<t/advent.t> in the Agendum repository):
 
+    #!vim perl
     use Test::Most;
     use Test::DBIx::Class -schema_class => 'Agendum::Schema';
 
@@ -463,6 +479,7 @@ on the object.  Here's an example (it's from C<t/advent.t> in the Agendum reposi
 
 This would output something like:
 
+    #!vim perl
     +{
       comments => [
         "Comments Are Invalid",
