@@ -4,26 +4,24 @@ Topic: Valiant
 
 =encoding utf8
 
-=head1 Using Valiant for Validations in Agendum: A Dive into DBIx::Class Integration
-
 =for html
 <img src="valiant_logo.webp" height=250 width=250 style='float:left;padding-right:1em' />
 
-L<Agendum|https://github.com/jjn1056/Agendum> is a single user task-tracking application built on Perl 
+L<Agendum|https://github.com/jjn1056/Agendum> is a single user task-tracking application built on Perl
 L<Catalyst> and L<DBIx::Class>. I'm using it as a testbed to experiment with various new approaches to
 building web applications with this venerable framework as well as a platform to demo those experiments
 in articles and at conferences.
 
 One concern of any web framework is data validation.   Perl has no lack of validation libraries, including
 some that have L<Catalyst> integrations.   To this list of options I've added my own approach, L<Valiant>
-which I hope has enough distinguishing features to merit your interest.   
+which I hope has enough distinguishing features to merit your interest.
 
 L<Valiant> can be used in several ways, but in this article I'm going to focus on how I've integrated it
 with L<DBIx::Class> in Agendum.  I recognize many people prefer validation as a layer separate from the
 physical database model, but I've found that for many applications it's useful to have the validation
 declaratively defined in the model layer.  This allows for a single source of truth for the validation
 rules, and also allows for the validation to be automatically applied when the data changed on the
-database.  This is especially useful in a web application where the data is often roundtripped between the 
+database.  This is especially useful in a web application where the data is often roundtripped between the
 database and the user for editing.  If this offends your sense of architectural purity, there are
 ways to use L<Valiant> that are more separate from the database layer, but I'm not going to cover that in
 this article.  You'll have to look over the documentation yourself ;).  In any case this approach has worked
@@ -45,6 +43,7 @@ but you can also declare model level validations when you have rules that apply 
 or to multiple attributes.  The rules are defined in a simple DSL that is easy to read and write.  Here's
 an example:
 
+    #!vim perl
     package MyApp::Model::User;
 
     use Moo;
@@ -60,12 +59,14 @@ This adds two validation rules to the C<User> class.  The first rule says that t
 be present (i.e. not C<undef> or an empty string).  The second rule says that the C<email> attribute must
 be a valid email address.  Let's see how this works in practice:
 
+    #!vim perl
     my $user = MyApp::Model::User->new(name=>'John', email=>'not_an_email');
     $user->validate;
     my %errors = $user->errors->to_hash(full_messages=>1);
 
 This will return a hash:
-  
+
+    #!vim perl
     ( email => ['Email is not an email address'] )
 
 There's a lot of different ways to define validations, to customize error messages, and to retrieve the
@@ -96,7 +97,7 @@ Here's an overview of the database model for Agendum, which we'll use as a demo 
             |   task_labels   |
             +-----------------+
             | *task_id* (FK)  |
-            | *label_id* (FK) |     
+            | *label_id* (FK) |
             +-----------------+
                    |
                    v
@@ -113,7 +114,7 @@ The database model is pretty simple:
 
 =item Tasks
 
-Stores core information for each task, including the title, description, due_date, priority, and status. 
+Stores core information for each task, including the title, description, due_date, priority, and status.
 This is the main entity in the application.
 
 =item Labels
@@ -162,9 +163,9 @@ The task priority must be present and be a number between 1 and 5
 
 =item Task Status
 
-The task status must be present and be one of 'pending', 'in_progress', 
+The task status must be present and be one of 'pending', 'in_progress',
 'on_hold', 'blocked', 'canceled', or 'completed'.  A task cannot return
-to 'Pending' once it's begun.  In addition, once a task is set to completed it 
+to 'Pending' once it's begun.  In addition, once a task is set to completed it
 cannot be changed to any other status. Lastly a task that is 'on hold' or 'blocked'
 can't be set to completed directly.
 
@@ -186,16 +187,17 @@ overwhelming.  Feel free to tinker as you wish.
 
 =head2 Valiant and DBIx::Class
 
-So how do we integrate L<Valiant> with L<DBIx::Class>?  There are two L<DBIx::Class> components that 
+So how do we integrate L<Valiant> with L<DBIx::Class>?  There are two L<DBIx::Class> components that
 you need to add to your result sources and your resultsets, which integrate L<Valiant> with L<DBIx::Class>
 and additionally provide extra features to make it work more like how you'd expect it.  We also provide
 some value added features to L<DBIx::Class> to make it easier to work with L<Valiant> in the context of
 a web application, such as full recursive update and create.  You can check out the core documentation
 at your leisure (L<DBIx::Class::Valiant>, L<DBIx::Class::Valiant::Result>,
-L<DBIx::Class::Valiant::ResultSet>) , but I'll provide a brief overview here using code from Agendum.  
+L<DBIx::Class::Valiant::ResultSet>) , but I'll provide a brief overview here using code from Agendum.
 First here's the Schema class (if you are not super familiar with L<DBIx::Class> you might want to
 check out the L<DBIx::Class> documentation before continuing):
 
+    #!vim perl
     package Agendum::Schema;
 
     use base 'DBIx::Class::Schema';
@@ -212,6 +214,7 @@ check out the L<DBIx::Class> documentation before continuing):
 There's nothing here directly related to L<Valiant> but I wanted to show you the schema class
 for completeness.  Here's the base result class:
 
+    #!vim perl
     package Agendum::Schema::Result;
 
     use base 'DBIx::Class';
@@ -229,7 +232,7 @@ Here you can see I'm installing the core L<DBIx::Class::Valiant::Result> compone
 components that are useful for web applications.  The C<Valiant::Result::HTML::FormFields> component is
 useful for generating form fields in a web application, and the C<ResultClass::TrackColumns> component
 is useful for tracking changes to the database model.  You will see later that we need that to make the
-status validations work.  
+status validations work.
 
 The C<InflateColumn::DateTime> component is useful for working with L<DateTime> objects in the database model.
 
@@ -238,6 +241,7 @@ working on figuring out if this can be relaxed, but for now it's a requirement.
 
 Here's the base resultset class:
 
+    #!vim perl
     package Agendum::Schema::ResultSet;
 
     use base 'DBIx::Class::ResultSet';
@@ -254,9 +258,10 @@ Here's the base resultset class:
 Again I'm installing the core L<DBIx::Class::Valiant::ResultSet> component, as well as some other
 components that are useful for web applications.  Our component again is first in the list.
 
-Lastly here's the default resultset class, which was mentioned in the Schema class.  This is 
+Lastly here's the default resultset class, which was mentioned in the Schema class.  This is
 the resultset DBIC uses when you don't have a custom one for a given result source:
 
+    #!vim perl
     package Agendum::Schema::DefaultRS;
 
     use base 'Agendum::Schema::ResultSet';
@@ -269,6 +274,7 @@ Ok, so far there is nothing really interesting.  The real magic happens in the r
 C<Task> result class.   I will introduce the code in sections with explanations but you can always
 see the full code in the Agendum repository.
 
+    #!vim perl
     package Agendum::Schema::Result::Task;
 
     use Agendum::Syntax;
@@ -308,15 +314,17 @@ the database to the new proposed value.  It's provided by the C<DBIx::ClassResul
 
 The next part is where we start adding the L<Valiant> stuff:
 
+    #!vim perl
     __PACKAGE__->accept_nested_for('task_labels', {allow_destroy=>1});
     __PACKAGE__->accept_nested_for('comments', {allow_destroy=>1});
 
-Since L<DBIx::Class::Valiant::Result> adds support for nested updates and creates (and optionally deletes) we 
+Since L<DBIx::Class::Valiant::Result> adds support for nested updates and creates (and optionally deletes) we
 need to tell the result class which relationships we want to support this for.  In this case we want to support
 nested updates and creates for the C<task_labels> and C<comments> relationships.  This is useful for web
 applications where you might want to update a task and its labels and comments all in one go.  I force you
 to specify this support as a security feature.  The next bit defines the validations:
 
+    #!vim perl
     __PACKAGE__->validates(title => (presence=>1, length=>[2,48]));
     __PACKAGE__->validates(description => (presence=>1, length=>[2,2000]));
 
@@ -325,6 +333,7 @@ to specify this support as a security feature.  The next bit defines the validat
 
 Basic validations for required fields and minimum and maximum lengths.  The next bit is a bit more complex:
 
+    #!vim perl
     __PACKAGE__->validates(status => (
         presence => 1,
         inclusion => \&status_list,
@@ -340,6 +349,7 @@ Status is an enum field, so we use the C<inclusion> validator to ensure the valu
 status values. You have a few ways to describe the list of valid values, but in this case I'm using a
 method:
 
+    #!vim perl
     sub status_list {
       my ($self) = shift;
       return qw(pending in_progress on_hold blocked canceled completed);
@@ -359,10 +369,11 @@ that we want to be more selective.
 I also define a custom validator for the status field via a method which is called when the status is
 updated and changed.  Here's that method:
 
+    #!vim perl
     sub valid_status($self, $attribute_name, $value, $opt) {
       my $old = $self->get_column_storage($attribute_name);
 
-      # If the task is not pending, it can't return to pending (ie once a task is 
+      # If the task is not pending, it can't return to pending (ie once a task is
       # started it can't be unstarted)
       if($value eq 'pending' && $old ne 'pending') {
         $self->errors->add($attribute_name, "can't return to pending", $opt);
@@ -381,7 +392,7 @@ updated and changed.  Here's that method:
       }
       if ($old eq 'blocked' && $value eq 'completed') {
         $self->errors->add($attribute_name, "blocked can't change to completed", $opt);
-      }  
+      }
     }
 
 So in this method we enforce the more complex state transition rules for the status field.
@@ -393,11 +404,12 @@ into an arbitrarily complex method.
 
 The last bit is the due date validation:
 
+    #!vim perl
     __PACKAGE__->validates(due_date => (
         presence => 1,
         date => {
           min_eq => sub { pop->today },
-          if => 'is_column_changed', 
+          if => 'is_column_changed',
         }
       )
     );
@@ -409,6 +421,7 @@ a task was late and the user tried to change a different field such as descripti
 
 Finally the C<Comment> result class has a validation.  It's not much so I will just show all the code:
 
+    #!vim perl
     package Agendum::Schema::Result::Comment;
 
     use Agendum::Syntax;
@@ -442,6 +455,7 @@ In Agendum, these validations are run from the L<Catalyst> controllers which gat
 a POST request.  However if you are just writing a test script you can run the validations directly
 on the object.  Here's an example (it's from C<t/advent.t> in the Agendum repository):
 
+    #!vim perl
     use Test::Most;
     use Test::DBIx::Class -schema_class => 'Agendum::Schema';
 
@@ -465,6 +479,7 @@ on the object.  Here's an example (it's from C<t/advent.t> in the Agendum reposi
 
 This would output something like:
 
+    #!vim perl
     +{
       comments => [
         "Comments Are Invalid",
@@ -492,8 +507,8 @@ the model (L<Valiant::HTML::FormBuilder>) but covering that is beyond the scope 
 
 I hope this article has given you a basic overview of how to use L<Valiant> with L<DBIx::Class>.  I skipped
 on a few of the more advanced features, such as custom validators, delegating validation to other objects,
-internationalization, filtering, using the form builder and more.  If you want to get a feel 
-for some of those things you can play with the Agendum application and read more about them in the full 
+internationalization, filtering, using the form builder and more.  If you want to get a feel
+for some of those things you can play with the Agendum application and read more about them in the full
 L<Valiant> documentation.
 
 I'm always looking for feedback on L<Valiant> and the L<DBIx::Class> integration.  If you have any thoughts
