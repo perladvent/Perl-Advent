@@ -2,8 +2,6 @@ Author: JJ Merelo <jjmerelo@gmail.com>
 Title: Perl, my child, is love in Github Actions
 Topic: GitHub actions
 
-=pod
-
 =encoding utf8
 
 =for :html
@@ -19,16 +17,17 @@ set up the QA pipelines properly. And fast. With Perl. And what's best to have
 stuff dome quickly? Like tinsel in Christmas, boilerplate is what takes you
 there.
 
-=head2 Let's talk a bit about GitHub actions
+=head2 Let's talk a bit about GitHub Actions
 
 There are several kinds of GitHub actions. You can create them using a Docker
-container or JavaScript. But there's a thirds kind called L<composite
+container or JavaScript. But there's a third kind called L<composite
 actions|https://docs.github.com/en/actions/sharing-automations/creating-actions/creating-a-composite-action>.
 
-A composite action essentially is a combinations of several steps that might
+A composite action essentially is a combination of several steps that might
 include other actions or running scripts. You can basically include the whole
 action in a single file, like this.
 
+    #!vim yaml
     name: 'Hello Perl'
     description: 'Simplest Perl composite action'
     branding:
@@ -56,8 +55,8 @@ great deal, useful if you want to know the values of certain variables. But it
 can be used as first steps to any action, to debug it... and it uses Perl to do
 so.
 
-It's not very widely known, but you can add a `shell` key to any step in a
-GitHub action so that it interprets whatever is in the `run` step; the C<{0}>
+It's not very widely known, but you can add a C<shell> key to any step in a
+GitHub action so that it interprets whatever is in the C<run> step; the C<{0}>
 will be substituted by the name of a (I guess) temporal file that contains the
 step. So this is kinda
 
@@ -72,6 +71,7 @@ as far as I can tell, in other runners too).
 
 You can go ahead and test it this way:
 
+    #!vim yaml
     name: Run basic action
     on:
       push:
@@ -90,6 +90,7 @@ it's fast since it's not using anything that's not already in the Ubuntu runner.
 Who said badly formatted? Maybe we can do it better? Right-on, let's use
 L<JSON::PP>. Change the last step in C<action.yml> to:
 
+    #!vim yaml
      - run: |
          use JSON::PP;
          print JSON::PP->new->ascii->pretty->allow_nonref->encode( \%ENV );
@@ -97,10 +98,10 @@ L<JSON::PP>. Change the last step in C<action.yml> to:
 
 This is going to be a bit nicer. But what gives? We're not using CPAN. Right,
 there are quite a bit of CPAN modules already installed there, just like this
-one. Since `perl` is there, and `cpan` too, you will have at least any module
+one. Since C<perl> is there, and C<cpan> too, you will have at least any module
 that goes with any of them (CGI is no longer there, so you will not be able to
 deploy a website while your action is running). L<JSON::PP> is one of those core
-L<modules>, so no big deal. And no big time: this takes all of 0 seconds to run
+modules, so no big deal. And no big time: this takes all of 0 seconds to run
 (OK, not really 0, but that's what's reported. Probably takes a small fraction
 of a second). Why would it take longer? All you need to run the action is
 already there, set up for you to use.
@@ -141,6 +142,7 @@ the README has the same version as the latest published
 one|https://github.com/JJ/github-action-check-version-in-readme-is-latest>). So
 let's put the code that does the action in a module:
 
+    #!vim perl
     package Markdowner;
 
     use feature 'signatures';
@@ -156,7 +158,7 @@ let's put the code that does the action in a module:
 Just a simple regex to check what we said. But code that is not tested is
 broken, so let add a test:
 
-    # -*- mode:cperl -*-
+    #!vim perl
 
     use lib qw(lib ../lib);
     use Markdowner qw(headerOK);
@@ -180,6 +182,7 @@ Your questions will be answered in due time.
 
 Because right next we will, or course, be testing this via Actions:
 
+    #!vim yaml
     name: Perl tests
 
     on:
@@ -226,6 +229,7 @@ no big deal, since actions are going to run in the action runner.
 Of course, you have to actually I<do> something with this for the action to work. So you can write something like this in a file called C<action.src.pl>:
 
 
+    #!vim perl
     use v5.34;
     use feature 'signatures';
 
@@ -276,6 +280,7 @@ fatpack the whole thing into a single file C<action.pl>. This is what we will
 actually pack into the action-packed action. OK, maybe that's an action too
 many. Anyway, we can now define the action metadata this way:
 
+    #!vim yaml
     inputs:
       directories:
         description: 'Directories to look for files'
@@ -294,10 +299,11 @@ the single file without needing to adjust library directories or anything like
 that. It just works. The specific step takes around 1 second, with is 100% more
 than it did when it took 0 seconds, but still. Not a great deal.
 
-With this, Santa was happy because he could set up a GitHub actions for his
+With this, Santa was happy because he could set up GitHub Actions for his
 newsletter/letter/whatever I said above that used markdown repository. Be it in
 its own action or as part or another, this will be quite enough:
 
+    #!vim yaml
     steps:
     - name: checkout
       uses: actions/checkout@v4
