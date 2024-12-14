@@ -1,0 +1,324 @@
+Author: JJ Merelo <jjmerelo@gmail.com>
+Title: Perl, my child, is love in Github Actions
+Topic: GitHub actions
+
+=pod
+
+=encoding utf8
+
+=for :html
+<img src="/2024/share/static/elf-ci.jpg">
+
+=head1 Perl, my child, is love in Github Actions
+
+Santa saw Christmas was approaching and there was so much stuff to do already. A
+lot of it had to do with quality assurance: were the newsletters added properly
+to the repository? Did those newsletter include whatever needed to be included
+in the first place? Were they properly formatted?
+
+As any self-respecting Christmas-coding shop, Santa used GitHub. And needed to
+set up the QA pipelines properly. And fast. With Perl. And what's best to have
+stuff dome quickly? Like tinsel in Christmas, boilerplate is what takes you
+there.
+
+=head2 Let's talk a bit about GitHub actions
+
+There are several kinds of GitHub actions. You can create them using a Docker
+container or JavaScript. But there's a thirds kind called L<composite
+actions|https://docs.github.com/en/actions/sharing-automations/creating-actions/creating-a-composite-action>.
+
+A composite action essentially is a combinations of several steps that might
+include other actions or running scripts. You can basically include the whole
+action in a single file, like this.
+
+    name: 'Hello Perl'
+    description: 'Simplest Perl composite action'
+    branding:
+      icon: 'briefcase'
+      color: 'blue'
+    inputs:
+      action-input:
+        description: 'What it is about'
+        required: false # or not
+        default: 'World'
+    runs:
+      using: "composite"
+      steps:
+        - run: print %ENV;
+          shell: perl {0}
+        - name: Print input
+          env:
+            TEMPLATE_INPUT: ${{ inputs.action-input}}
+          run: print $ENV{'ACTION_INPUT'}
+          shell: perl {0}
+
+This is a very basic C<action.yml> file, that placed in your main directory will
+simply print the environment variables to your GitHub actions visible log. Not a
+great deal, useful if you want to know the values of certain variables. But it
+can be used as first steps to any action, to debug it... and it uses Perl to do
+so.
+
+It's not very widely known, but you can add a `shell` key to any step in a
+GitHub action so that it interprets whatever is in the `run` step; the C<{0}>
+will be substituted by the name of a (I guess) temporal file that contains the
+step. So this is kinda
+
+    perl possibly_temporary_file_that_contains_print_ENV.pl
+
+(It might create a temporary file with a shebang and run it, TBH I don't
+know)
+
+But see, we're not using any kind of container or downloaded module or anything
+else. Just the very basic stuff that's already there in the Ubuntu runner (and,
+as far as I can tell, in other runners too).
+
+You can go ahead and test it this way:
+
+    name: Run basic action
+    on:
+      push:
+    jobs:
+      test:
+        runs-on: ubuntu-latest
+        name: Run basic action
+        steps:
+        - name: Run basic test
+          uses: JJ/perl-advent-2024-test-action-1@main
+
+(or whatever else you named it). It will simply print a wall of environment
+variable names and values, badly formatted. But the point is, it just works and
+it's fast since it's not using anything that's not already in the Ubuntu runner.
+
+Who said badly formatted? Maybe we can do it better? Right-on, let's use
+L<JSON::PP>. Change the last step in C<action.yml> to:
+
+     - run: |
+         use JSON::PP;
+         print JSON::PP->new->ascii->pretty->allow_nonref->encode( \%ENV );
+       shell: perl {0}
+
+This is going to be a bit nicer. But what gives? We're not using CPAN. Right,
+there are quite a bit of CPAN modules already installed there, just like this
+one. Since `perl` is there, and `cpan` too, you will have at least any module
+that goes with any of them (CGI is no longer there, so you will not be able to
+deploy a website while your action is running). L<JSON::PP> is one of those core
+L<modules>, so no big deal. And no big time: this takes all of 0 seconds to run
+(OK, not really 0, but that's what's reported. Probably takes a small fraction
+of a second). Why would it take longer? All you need to run the action is
+already there, set up for you to use.
+
+What else is in there? A probably incomplete list is
+L<here|https://gist.github.com/JJ/edf3a39d68525439978da2a02763d42b> but I am not
+totally sure it's up to date; in fact, I I<know> that L<LWP::Protocol::https has
+disappeared|https://github.com/actions/runner-images/issues/10567>, so there is
+that. If I had to make broad categories of the modules we can find, there are
+the Debian configuration related modules, L<LWP> and auxiliaries, C<git> and
+HTML stuff, and odds and ends. There are enough goodies there that I would look
+first before installing something via cpan, which takes time, you need to set up
+a cache, and so on.
+
+The caveat? All that is pretty much undocumented, so anything you rely on (as
+the above mentioned C<LWP::Protocol::https> might disappear from one version of
+the runner to the next.
+
+=head2 But there's a lot of boilerplate
+
+Right-on, there is. Files need to be created, values need to be filled, and
+doing it from scratch can be cumbersome and CoPilot is not there to help you. No
+sweat. Just use L<this
+template|https://github.com/JJ/perl-composite-action-template> for an
+action. Instantiate it, and hit the ground running.
+
+In fact, there's a bit more there: a C<lib> directory, a C<cpanfile> and some
+other things. We'll get to that later. Meanwhile, let's return our attention to
+old Santa, who wants all his newsletters properly formatted, that is, the first
+line must contain a Markdown header: C<#> followed by a space, and then a
+capital letter. A proper headline through and through.
+
+We can do a proper module here to test our stuff. In the spirit of Unix (and
+Perl), we can do very simple actions, that take very little time, and which we
+can combine different ways or just run independently (like for instance L<this
+very useful -and underappreciated- action that just checks that the example in
+the README has the same version as the latest published
+one|https://github.com/JJ/github-action-check-version-in-readme-is-latest>). So
+let's put the code that does the action in a module:
+
+    package Markdowner;
+
+    use feature 'signatures';
+
+    use parent Exporter;
+
+    our @EXPORT_OK = qw(headerOK);
+
+    sub headerOK( $fileContent ) {
+      return $fileContent =~ /^\#\h+[A-Z]/;
+    }
+
+Just a simple regex to check what we said. But code that is not tested is
+broken, so let add a test:
+
+    # -*- mode:cperl -*-
+    
+    use lib qw(lib ../lib);
+    use Markdowner qw(headerOK);
+    
+    use Test::More;
+    
+    for my $str ( ("# Yes", "#    FOO", "# Bar" )) {
+      ok( headerOK( $str ), "«$str» is OK" );
+    }
+    
+    for my $badStr ( ("#Yes", "#    foo", "#\nBar" )) {
+      isnt( headerOK( $badStr ), 1, "«$badStr» fails" );
+    }
+    
+    done_testing;
+
+You might wonder why I'm using L<Test::More>, which is 
+deprecated-ish in favor of Test2::Bundle::More, instead of the latter. 
+Along with why I'm using a feature pragma instead of the more precise C<use V5.36>.
+Your questions will be answered in due time.
+
+Because right next we will, or course, be testing this via Actions:
+
+    name: Perl tests
+
+    on:
+      push:
+        branches: '*'
+      pull_request:
+        branches: '*'
+    
+    jobs:
+      build-in-container:
+        runs-on: ubuntu-latest
+    
+        strategy:
+          fail-fast: false
+          matrix:
+            version:
+              - '5.32'
+              - '5.34'
+              - '5.30'
+    
+        name: Test perl v${{ matrix.version }}
+        steps:
+          - uses: actions/checkout@v4
+    
+          - name: Regular tests with ${{ matrix.version }}
+            env:
+              PERL_VERSION: ${{ matrix.version }}
+            run: prove --exec "perl -Mv$PERL_VERSION" -lv t/
+
+
+The version that the runner uses is 5.34; for the time being the default Ubuntu
+runner is all it has.  And we want to use that default runner. See here? No
+setup necessary; we just set up the matrix, check out, and run the tests!
+Actually, we are kinda cheating here. Since the only perl we do have in the
+runner is the 5.34 version, we need to simulate the other versions via a not
+very well known option of `prove` that allows us to tell it which version pragma
+is going to precede the running of the test. Since we don't have any other
+version to override it, it will simply run 5.34 I<as if> it was running the
+version in the matrix. This test again clocks in at 0 seconds in GitHub actions,
+the only fraction of the action taking up a bit more being checkout. Again, fast
+as fast can be as long as you can put up with testing stuff with 5.34, which is
+no big deal, since actions are going to run in the action runner.
+
+Of course, you have to actually I<do> something with this for the action to work. So you can write something like this in a file called C<action.src.pl>:
+
+
+    use v5.34;
+    use feature 'signatures';
+
+    use lib qw(lib);
+
+    use Markdowner qw(headerOK);
+    use GitHub::Actions;
+
+    my @directories = split(" ", $ENV{'DIRS'});
+
+    start_group("Markdown headers");
+    for my $dir (@directories) {
+      my @markdownFiles = glob("$dir/*.md");
+      for my $mdFile (@markdownFiles) {
+        open my $mdfh, "<", $mdFile;
+        my $firstLine = <$mdfh>;
+        close $mdfh;
+        chop( $firstLine );
+        if ( headerOK( $firstLine ) ) {
+          debug "«$firstLine» is proper markdown ho, ho, ho";
+        } else {
+          error_on_file( "Haar! «$firstLine» is not proper markdown", $mdFile, 1, 1 );
+        }
+      }
+    }
+    end_group;
+
+Which takes as input a string with whitespace-separated directories, looks up
+markdown files (with the extension C<.md>), and checks if the header is OK. But
+before doing that, it issues a C<start_group> command from
+L<GitHub::Actions>. This is a no-dependencies CPAN module by YT that perlizes
+GitHub actions commands so that you don't have to worry about them; in this
+case, it makes all text to be enclosed in a I<group> so that the output is not
+too verbose; too many messages can occlude actual errors or warnings. Because it
+will also print if the first line of the markdown files is OK, and Santa can be
+happy about his newsletters and memos being properly formatted, or maybe not, in
+which he will turn into a pirate and issue an error indicating the name of the
+file (and the line and columns, but this is not important in this case).
+
+You can check how it goes, for instance, L<in this
+run|https://github.com/JJ/perl-advent-2024-test-action-2/actions/runs/12098612575>
+(actually, while you're at it, you can check the whole repository
+L<here|https://github.com/JJ/perl-advent-2024-test-action-2>).
+
+Still not there, however. Now what we have is a CPAN module, didn't you sell us
+on the motto "No setup required"? Right on, I did, which is why now you need to
+fatpack the whole thing into a single file C<action.pl>. This is what we will
+actually pack into the action-packed action. OK, maybe that's an action too
+many. Anyway, we can now define the action metadata this way:
+
+    inputs:
+      directories:
+        description: 'Directories to look for files'
+        default: .
+    runs:
+      using: "composite"
+      steps:
+        - uses: actions/checkout@v4
+        - run: ${GITHUB_ACTION_PATH}/action.pl
+          env:
+            DIRS: ${{ inputs.directories }}
+          shell: bash
+
+It checks out the repository that holds the action, but it actually needs just
+the single file without needing to adjust library directories or anything like
+that. It just works. The specific step takes around 1 second, with is 100% more
+than it did when it took 0 seconds, but still. Not a great deal.
+
+With this, Santa was happy because he could set up a GitHub actions for his
+newsletter/letter/whatever I said above that used markdown repository. Be it in
+its own action or as part or another, this will be quite enough:
+
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: Run over this repo
+      uses: repo/action-name@main
+      with:
+        directories: ". docs"
+
+Haar! There was a bad file in the batch! Without failing the whole step, which
+wouldn't look good on the repo badges, GitHub reported "1 error" in
+"Annotations" for the workflow, and then
+
+     Run over this repo: docs/this-is-bad.md#L1
+     Haar! «Just bad» is not proper markdown
+
+He called the responsible elf after running C<git blame> on the bad file, who
+said of course that "Ha ha I was just testing ha. That's a mighty good
+workflow. Merry Christmas to you!"
+
+Santa smiled broadly and said "That it is. Perl, my child, is love in GitHub actions" Merry Christmas everyone!
+
+=cut
