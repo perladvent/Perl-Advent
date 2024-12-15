@@ -1,0 +1,215 @@
+Author: E. Choroba
+Title: Annotating Christmas Trees
+Topic: Natural Language Processing, Graph Visualisation
+
+=encoding utf8
+
+=head2 Lesser-known businesses
+
+Everybody knows that the North Pole™ produces and delivers Christmas gifts,
+but it’s not the sole business they’re into. In fact, they’ve recently engaged
+in production of Christmas ornaments and Christmas cards, too.
+
+As is common, starting a new business brings new problems. The elves needed a
+way to design decorated Christmas trees to evaluate their ornament proposals
+and their combinations. They started by planting small trees and decorating
+them by hand, but quickly found out this approach didn’t scale as more and
+more (and bigger and bigger) trees were needed.
+
+At a C-level meeting, Santa listened to laments of the managing elf
+responsible for the ornaments and narrowed his eyes at another young elf at
+the other corner of the table.
+
+“You had something for arranging trees, right?” asked Santa.
+
+“Yes, but…” spluttered the elf.
+
+“Let’s meet after lunch and see how we can share the knowledge,” commanded
+Santa.
+
+=head2 There’s trees and there’s trees
+
+In the afternoon (by the way, it was already dark, since it was the North Pole
+and summer was over) Santa met with the COO and CCO (where the second letter
+stands for Ornaments or Cards, respectively).The CBO (Chief Baubles Officer)
+was missing as his department was merged with the Ornaments in the last
+workforce shaping to trim the fat.
+
+“Can you show us what your department uses to visualise trees?” asked Santa,
+turning to the CCO.
+
+“Our developers found this open source tool called
+L<TrEd|https://github.com/ufal/TrEd>, which stands for ‘Tree Editor’,” replied
+the elf. “And they’re still discovering new features it has. You can do much
+more than view the trees: you can easily change their structure, add
+attributes to nodes and edges, add secondary relations that turn the trees
+into full graphs, and there are also tools for searching large treebanks.”
+
+“I hate the jargon,” muttered Santa and turned to the COO, “but I guess you’re
+following.”
+
+“Actually, not really,” replied the COO, “we need to arrange the ornaments,
+but we don’t want to change the structure of the trees. How is such a thing
+needed to produce a Christmas card, anyway?”
+
+“We hear similar questions often,” said the CCO keeping a stiff upper lip. “At
+the beginning, we only produced English Christmas cards, so we didn’t need
+anything like that. But several years ago we started printing the cards in
+other languages, too, and we needed a way to translate all the greetings and
+wishes. We started with elvish translators, but we found ourselves in your
+boots, so to say: the approach didn’t scale.
+
+“We needed an automated process. We reached for statistical machine
+translation, but for that, we needed large aligned corpora in both the source
+and target languages.”
+
+“Corpora?” asked Santa raising an eyebrow.
+
+“Large collections of texts. And we quickly found out aligning the individual
+words wasn’t enough, as the grammar in various languages can change the words
+in different roles. The sentence structure stays usually much more similar
+across languages than individual words and their order. That’s why we started
+annotating the trees.”
+
+“Decorating,” said Santa and nodded to the COO hopefully.
+
+“No, annotating,” explained the CCO. “I’m talking about trees in the
+graph-theory sense. We arrange the words in a sentence to a tree and annotate
+the relations between them with their syntactic roles: this word is a subject
+of this verb, that word is an adverbial of that word,” and he started to
+gesticulate wildly.
+
+“Wait, wait,” the COO interrupted him, “can you show us what you’re talking
+about? I still have no idea.”
+
+“Ho ho ho,” said Santa, “a picture is worth a thousand words!”
+
+=head2 Diving deeper
+
+The CCO opened his ChristmasPad and typed something into a terminal. “See?
+This is Ukrainian, by the way.”
+
+=for html
+<p><img src="annot-trees-img/ukr.svg"></p>
+
+“That’s impressive,” admitted Santa, “but I fear there’s some kind of
+confusion.”
+
+“Let’s have a look at a simpler example in English,” replied the CCO and
+quickly typed on the keyboard. “The annotated sentence is I<Is that Microwave
+that you gave Dan really expensive?>”
+
+=for html
+<p><img src="annot-trees-img/microwave.svg"></p>
+
+“You can see the pronoun I<that> references the word I<microwave>, and the
+word I<microwave> is an object of the verb I<give> in a semantic sense which
+we can also capture.”
+
+“No, no,” tried Santa to stop him, “linguistics is not our concern.”
+
+“That”s great!” rejoiced the CCO. “I’ve always wondered whether TrEd can be
+used outside of linguistics. There already is one such use: The tree editor
+serves as a client to a search engine. You assemble a tree and the engine
+searches your tree data to find where the tree would fit. The trick is you can
+specify different relations than the ordinary parent–child one.”
+
+“Ho ho ho,” nodded Santa, “Christmas is a family time!”.
+
+“I mean this,” explained the CCO and again showed them his screen.
+
+=for html
+<p><img src="annot-trees-img/pmltq.svg"></p>
+
+“Normally, the parent would be at the top, but here, we’re using the reversed
+relation, so the query will search for all nominal subjects whose parent is
+B<not> a verb.”
+
+“How can something that’s not a verb have a subject?” wondered Santa.
+
+“Let me show you the English example with the microwave again. The Universal
+Dependencies style uses adjectives in copula constructions as parents of the
+subject and the auxiliary verb. The word I<expensive> is not a verb, but the
+I<microwave> is its nominal subject.”
+
+“I fear this whole thing is of no use for us,” sighed the COO. “What
+programming language is the tool written in?”
+
+“Perl,” replied the CCO. “It uses L<Tk::Canvas> to edit the trees, which makes
+it rather easy to extend if you need more features.”
+
+“At least something our team would understand. And the search engine is also
+written in Perl?” asked the COO again.
+
+“There are in fact two implementations,” replied the CCO. “One uses SQL on
+L<Postgres|https://www.postgresql.org/> to store and query the data, but it’s
+only suitable for data that don’t change, as updating the database is quite
+slow. The second implementation uses Perl and is great for querying frequently
+changing data. If the data are large, you need some kind of parallelism to
+compensate its less favourable speed, we run it over
+L<slurm|https://github.com/SchedMD/slurm>. But you can also write your queries
+directly in Perl. This will show you exactly the same trees as the query I
+showed you before.” And he again used the terminal.
+
+  btred -N -T -e '
+      FPosition()
+          if $this->{deprel} eq "nsubj"
+          && $this->parent->{upostag} ne "VERB"
+      ' data/*.conllu | tred -l-
+
+“Also, if you need to process the data without all the power TrEd offers, you
+can just use L<Treex::PML>, the library that TrEd is based on. It implements
+the Prague Markup Language used as TrEd’s native data format. The previous
+five-liner turns almost into a screenful,” and he opened Elven Mate at
+Creating Scripts (EMaCS) and started to type, interrupted several times by
+squinting into the documentation.
+
+  #!/usr/bin/perl
+  use warnings;
+  use strict;
+  use feature qw{ say };
+
+  my $ud_path;
+  BEGIN { $ud_path = $ENV{UD_DIR} }
+
+  use lib "$ud_path/libs";
+
+  use Treex::PML qw{ ImportBackends AddResourcePath };
+
+  my @backends = ImportBackends('UD');
+  AddResourcePath("$ud_path/resources");
+
+  my $schema = 'Treex::PML::Factory'->createPMLSchema({
+      use_resources => 1,
+      filename      => "ud_schema.xml"});
+
+  for my $file (@ARGV) {
+      my $doc = 'Treex::PML::Factory'->createDocumentFromFile(
+          $file, {backends => \@backends});
+
+      my $tree_no = 1;
+      for my $tree ($doc->trees) {
+          my $node_no = 1;
+          for my $node ($tree->descendants) {
+              say "$file##$tree_no.$node_no"
+                  if $node->{deprel} eq "nsubj"
+                  && $node->parent->{upostag} ne "VERB";
+              ++$node_no;
+          }
+          ++$tree_no;
+      }
+  }
+
+
+=head2 No happy ending?
+
+“It’s interesting, but I don’t see how our department could benefit from it,”
+shrugged the COO.
+
+Santa seemed lost in thought. “Maybe your department can’t,” murmured he, “but
+we have many other departments that need solutions…”
+
+He dismissed the meeting by pointing at the door and strode towards his
+office. Can B<you> think of a way how you could benefit from the tool?
+
+=cut
