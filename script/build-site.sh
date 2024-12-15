@@ -7,6 +7,9 @@
 #
 # To build the entire month for the current year
 # ./script/build-site.sh --single-year 2024 --today 2024-12-31
+#
+# Watch the filesystem:
+# find 2024/articles | entr ./script/build-site.sh --single-year 2024 --today 2024-12-25
 
 pwd
 set -eu -o pipefail
