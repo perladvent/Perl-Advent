@@ -157,6 +157,50 @@ showed you before.” And he again used the terminal.
           && $this->parent->{upostag} ne "VERB"
       ' data/*.conllu | tred -l-
 
+“Also, if you need to process the data without all the power TrEd offers, you
+can just use L<Treex::PML>, the library that TrEd is based on. It implements
+the Prague Markup Language used as TrEd’s native data format. The previous
+five-liner turns almost into a screenful,” and he opened Elven Mate at
+Creating Scripts (EMaCS) and started to type, interrupted several times by
+squinting into the documentation.
+
+  #!/usr/bin/perl
+  use warnings;
+  use strict;
+  use feature qw{ say };
+
+  my $ud_path;
+  BEGIN { $ud_path = $ENV{UD_DIR} }
+
+  use lib "$ud_path/libs";
+
+  use Treex::PML qw{ ImportBackends AddResourcePath };
+
+  my @backends = ImportBackends('UD');
+  AddResourcePath("$ud_path/resources");
+
+  my $schema = 'Treex::PML::Factory'->createPMLSchema({
+      use_resources => 1,
+      filename      => "ud_schema.xml"});
+
+  for my $file (@ARGV) {
+      my $doc = 'Treex::PML::Factory'->createDocumentFromFile(
+          $file, {backends => \@backends});
+
+      my $tree_no = 1;
+      for my $tree ($doc->trees) {
+          my $node_no = 1;
+          for my $node ($tree->descendants) {
+              say "$file##$tree_no.$node_no"
+                  if $node->{deprel} eq "nsubj"
+                  && $node->parent->{upostag} ne "VERB";
+              ++$node_no;
+          }
+          ++$tree_no;
+      }
+  }
+
+
 =head2 No happy ending?
 
 “It’s interesting, but I don’t see how our department could benefit from it,”
