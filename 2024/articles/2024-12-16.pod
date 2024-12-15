@@ -4,30 +4,30 @@ Topic: Inline::C
 
 =encoding utf8
 
-=head2 Dancing through the Cnow 
+=head2 Dancing through the Cnow
 
 It is this time of the year, the time you have finally some time to catch up finishing the
-projects you were supposed to do the previous months. A blizzard of C code, like the arrows in 
-the movie 300 will descent upon you if you do, but you will end up in the naughty list of 
-researchers if you don't; for who will analyze your data if YOU drop the ball? 
+projects you were supposed to do the previous months. A blizzard of C code, like the arrows in
+the movie 300 will descent upon you if you do, but you will end up in the naughty list of
+researchers if you don't; for who will analyze your data if YOU drop the ball?
 But fear not, because L<Inline::C> will save the day and Perl will make the glaCiers melt away.
 
 For the last couple of years, I have been using L<Inline::C> to leverage a large amount of C code
 related to biological sequence (text) analysis for my research work. Our group has been using portable
 sequencing technologies by L<Oxford Nanopore|https://nanoporetech.com/products/sequence/flongle> to measure
 RNA molecules in real-time as markers of kidney disease progression. The problem we are facing is that
-understanding the data is not trivial, and many traditional bioinformatic workflows need considerable 
+understanding the data is not trivial, and many traditional bioinformatic workflows need considerable
 adaptation to work. Often, one has to combine exotic pieces of code that is available in C libraries into
 complex workflows that are non standard and require one to use the power of Perl to glue them together.
 Let's C how L<Inline::C> can help us with the mess.
 
 =head2 To A or not to A?
 
-The molecules I am interested at have a tail of A's at the end of the sequence, e.g. something line 
+The molecules I am interested at have a tail of A's at the end of the sequence, e.g. something line
 ACTGCCATCAAGAAAAAAAAAAAAA , but the A's are irrelevant to the analysis I want to do. Often there are
 errors in the text, so that the sequence is not perfect, e.g.  one is looking at something like this
 ACTGCCATCAAGAAAAAAAAAAAAAAGTAACAAAA. The question is, how can I remove the A's at the end of the sequence
-knowing that the error exists? There is a Python program L<cutadapt|https://cutadapt.readthedocs.io/en/stable/>, 
+knowing that the error exists? There is a Python program L<cutadapt|https://cutadapt.readthedocs.io/en/stable/>,
 for this task, but note why I don't want to use it for my tasks:
 
 =for :list
@@ -45,20 +45,20 @@ of the sequence. For example something like this:
 =begin perl
 
   my $polyA_min_25_pct_A = qr/
-                ( ## match a poly A tail which is 
+                ( ## match a poly A tail which is
                   ## delimited at its 5' by *at least* one A
                   A{1,}
-                      ## followed by the tail proper which has a    
+                      ## followed by the tail proper which has a
                   (?:     ## minimum composition of 25% A, i.e.
-                      ## we are looking for snippets with 
-                      (?: 
-                              ## up to 3 CTGs followed by at 
+                      ## we are looking for snippets with
+                      (?:
+                              ## up to 3 CTGs followed by at
                               ## least one A
-                              [CTG]{0,3}A{1,}    
+                              [CTG]{0,3}A{1,}
                       )
                       |     ## OR
-                      (?: 
-                              ## at least one A followed by 
+                      (?:
+                              ## at least one A followed by
                               ## up to 3 CTGs
                               A{1,}[CTG]{0,3}
                       )
@@ -77,8 +77,8 @@ everything after: ACTGCC
 
 The cutadapt algorithm does not use a regex, but a simple scoring system to decide when to
 stop adding letters to the inferred tail. In particular, the algorithm considers all
-possible suffixes in the sequence of interest, and after filtering those that have more than 
-20% non-A letters, returns the position of the suffix with the largest score as the beginning 
+possible suffixes in the sequence of interest, and after filtering those that have more than
+20% non-A letters, returns the position of the suffix with the largest score as the beginning
 of the tail. The algorithm in Perl is shown below:
 
 =begin perl
@@ -103,7 +103,7 @@ of the tail. The algorithm in Perl is shown below:
     return $best_index;
 }
 
-=end perl 
+=end perl
 
 The A part is deemed to be 23 letters long and the non-A part is inferred to be ACTGCCATCAAG
 
@@ -124,10 +124,10 @@ slow. But as we will C, we can use L<Inline::C> to speed things up. The C code i
   __C__
 
 
-  #include <stdlib.h> 
+  #include <stdlib.h>
   #include <string.h>
-  #include<stdio.h>  
-  #include <math.h>   
+  #include<stdio.h>
+  #include <math.h>
 
   int _cutadapt_in_C(char *s) {
       int n = strlen(s);
@@ -154,10 +154,10 @@ slow. But as we will C, we can use L<Inline::C> to speed things up. The C code i
 
 =end perl
 
-But how fast is fast? Let's run a benchmark using different sequence lengths 
-and fixing the length of the A tail to be 20% of the sequence length. The 
-results (mean and standard deviation in microseconds over 2000 repetitions 
-for each length) are shown below (the benchmarking code may be found in the /scripts directory of 
+But how fast is fast? Let's run a benchmark using different sequence lengths
+and fixing the length of the A tail to be 20% of the sequence length. The
+results (mean and standard deviation in microseconds over 2000 repetitions
+for each length) are shown below (the benchmarking code may be found in the /scripts directory of
 L<Bio::SeqAlignment::Examples::TailingPolyester>):
 
 | Algorithm     | Language | Target Sequence Length | | | |
@@ -168,7 +168,7 @@ L<Bio::SeqAlignment::Examples::TailingPolyester>):
 | regex        | Perl     | 26.0±10.0            | 310.0±26.0        | 620.0±42.0       | 3200.0±140.0   |
 | cutadaptC    | Perl/C   | 0.6±1.0              | 3.1±1.1           | 6.0±1.4          | 28.0±4.3       |
 
-A nice 30-50x speedup for the C code over the Perl code. The savings are real, considering that 
+A nice 30-50x speedup for the C code over the Perl code. The savings are real, considering that
 a typical long RNA-seq experiment may have 10^6 - 10^7 reads, and each read may have a length of 1000 bases.
 
 =head2 Making memories this C(hristmas)
@@ -177,8 +177,8 @@ The C code is not very complex, but it is a good example of how one can use L<In
 tasks. But the module can help with more than that. For example, one can use it to interface with
 other foreign code, by making and managing shared memory regions. Consider an example,
 in which we hijack the C<Newxz> and C<Safefree> functions from the Perl API to allocate and free
-memory areans to make C<$memory>. Such a variable is effectively a pointer to a memory arena, and 
-we can use it to store and retrieve data from it. Suppose that one had a library that took such an 
+memory areans to make C<$memory>. Such a variable is effectively a pointer to a memory arena, and
+we can use it to store and retrieve data from it. Suppose that one had a library that took such an
 arena as input and filled it with data. Then the arena could dance with any other library that
 expected a pointer to a memory arena. The library could be written in C, or Assembly. For example,
 this is how one can sum lots and lots of random numbers using either C or Assembly, under the
@@ -224,10 +224,10 @@ loving embrace of Perl working with L<Inline::C>:
     __C__
 
 
-    #include <stdlib.h> 
+    #include <stdlib.h>
     #include <string.h>
-    #include<stdio.h>  
-    #include <math.h>   
+    #include<stdio.h>
+    #include <math.h>
 
 
     int _cutadapt_in_C(char *s) {
@@ -330,7 +330,7 @@ loving embrace of Perl working with L<Inline::C>:
 
     global sum_array_doubles_AVX_unaligned
     sum_array_doubles_AVX_unaligned: ; based on Kusswurm listing 9-4d
-        vxorpd ymm0, ymm0, ymm0         ; sum = 0.0      
+        vxorpd ymm0, ymm0, ymm0         ; sum = 0.0
 
                                         ; i = 0 in the comments of this block
         lea r10,[rdi - DOUBLE]          ; r10 = &array[i-1]
@@ -354,7 +354,7 @@ loving embrace of Perl working with L<Inline::C>:
         jz End_AVX                      ; if not, jump to the end
 
         add r10, DOUBLE * NSE  - DOUBLE ; r10 = &array[i-1]
-        
+
 
         ; Handle the remaining elements
         Remainder_AVX:
