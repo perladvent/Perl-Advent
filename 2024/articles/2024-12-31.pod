@@ -1,0 +1,512 @@
+Author: José Joaquín Atria <jjatria@cpan.org>
+Title: Santa will be watching
+Topic: OpenTelemetry, Observability
+
+=encoding utf8
+
+Another busy Christmas period loomed, and the North Pole was tirelessly
+working to get the final preparations ready. Inside a brightly lit meeting
+room Santa cleared his throat.
+
+"This is all very interesting, very... *yawn* ...stimulating", he said,
+picking at some cookie crumbs that fell from his beard to the table. "But
+how is that going to help us? How does ... absorbability help us deliver
+gifts?"
+
+"Observability", corrected Ada Slashdóttir, the team's senior elf.
+
+"Yeah, that's what I said", said Santa. "What does it do for us?"
+
+As their platform had started to grow, the elves had struggled to keep
+track on where the bottlenecks were. And now that they had migrated parts
+of it to microservices and their platform was becoming more distributed,
+even the tools they were familiar were starting to become unwieldy.
+
+"We need to have a way to see from the outside how our system behaves
+internally, Santa", said Ada. "That's observability. So it doesn't
+I<directly> help us send gifts, but it helps us keep things running
+smoothly, and I<that> helps us send gifts".
+
+"Isn't that what logs do?", asked Duende Juniorsson, the team's junior
+elf, who was trying to catch up. "We already have logs in our services.
+Can't we use those?"
+
+Santa liked logs. Yule logs in particular.
+
+"We can, for sure", said Gnomo Knullpointer, who had recently joined
+Santa's workshop as a coding elf. "Logs are useful because they have been
+around forever, so they are well supported. But they have their
+limitations, specially now that a single request can touch several
+separate microservices before we are done with it. We'd have to correlate
+logs across services, which is not easy."
+
+"Correlating logs is difficult, but there are other kinds of telemetry
+we can use", said Ada. "In particular, we can uses I<traces> to track
+a request across services. This is called 'distributed tracing'. Let me
+show you how it works."
+
+=head2 Integrating with Mojolicious
+
+Ada then opened the code for the I<Naught-or-Not> service, a L<Mojolicious>
+application that checked whether a specific child has been naughty or nice:
+
+    #!perl
+    # Naught-or-Not: the 'naughty or nice' service
+    use Mojolicious::Lite -signatures;
+    use Mojo::SQLite;
+
+    helper sql => sub { state $sql = Mojo::SQLite->new };
+
+    app->sql->migrations->name('santa')->from_string(<<'EOF')->migrate;
+    -- 1 up
+    create table naughty (id integer unique, naughty bool);
+    -- 1 down
+    drop table naughty;
+    EOF
+
+    get '/is-naughty/:id' => sub ($c) {
+        my $id = $c->param('id');
+        my $db = app->sql->db;
+
+        # If we have a value for this ID, return it
+
+        my $row = $db
+          ->select( naughty => ['naughty'] => { id => $id } )
+          ->hashes
+          ->first;
+
+        return $c->render( json => { naughty => $row->{naughty} } ) if $row;
+
+        # Otherwise, generate one and store it before returning
+
+        my $naughty = !!( int rand 2 ); # Randomised naughtiness!
+
+        $db->insert( naughty => { id => $id, naughty => $naughty } );
+
+        $c->render( json => { naughty => $naughty } );
+    };
+
+"The first thing we'll need to do", said Ada, "is get this code to start
+generating telemetry data. Traces in particular."
+
+"Wait a second", said Gnomo. "If we start touching the code to generate
+this telemetry, we run the risk of introducing bugs. Not to mention that
+we have a lot of code, we'll never be able to do it all by hand..."
+
+Santa was starting to sweat.
+
+"We won't have to. We can use L<OpenTelemetry> to do what is called 'zero
+code instrumentation', which will get us most of the way there. The first
+thing we'll need to do is load up the L<OpenTelemetry::SDK> in our
+application. This will read the configuration from the environment and
+set things up internally so any telemetry we generate gets exported correctly.
+And since we are using L<Mojolicious> we can use
+L<Mojolicious::Plugin::OpenTelemetry> to actually generate telemetry data
+from our routes, all without actually touching any of the controller code."
+
+    #!perl
+    use Mojolicious::Lite -signatures;
+    use OpenTelemetry::SDK;
+    use Mojo::SQLite;
+
+    plugin 'OpenTelemetry';
+
+    ...
+
+"And that's it?", asked Duende a little disappointed. He was already looking
+forward to touching a lot of code.
+
+"Pretty much. The rest is just configuration. You can already see this in
+motion by running the code and telling it to export the traces to the
+console", said Ada, feeling pedagogic.
+
+    #!vim bash
+    $ OTEL_TRACES_EXPORTER=console ./server get '/is-naughty/123'
+    [2024-12-16 23:24:29.37268] [821150] [trace] [nLc70JabTxup] GET "/is-naughty/123"
+    [2024-12-16 23:24:29.37288] [821150] [trace] [nLc70JabTxup] Routing to a callback
+    {
+        'attributes' => {
+            'client.address' => '127.0.0.1',
+            'client.port' => '47534',
+            'http.request.method' => 'GET',
+            'http.response.status_code' => 200,
+            'http.route' => '/is-naughty/:id',
+            'network.protocol.version' => '1.1',
+            'server.address' => '127.0.0.1',
+            'server.port' => '36703',
+            'url.path' => '/is-naughty/123',
+            'user_agent.original' => 'Mojolicious (Perl)'
+        },
+        'dropped_attributes' => 0,
+        'dropped_events' => 0,
+        'dropped_links' => 0,
+        'end_timestamp' => '1734391469.37503',
+        'events' => [],
+        'instrumentation_scope' => {
+            'name' => 'server',
+            'version' => ''
+        },
+        'kind' => 2,
+        'links' => [],
+        'name' => 'GET /is-naughty/:id',
+        'parent_span_id' => '0000000000000000',
+        'resource' => {
+            'process.command' => './server',
+            'process.command_args' => [
+                'get',
+                '/is-naughty/123'
+            ],
+            'process.executable.name' => 'perl',
+            'process.executable.path' => '/home/user/.perl/perls/perl-5.40.0/bin/perl',
+            'process.pid' => 821150,
+            'process.runtime.name' => 'perl',
+            'process.runtime.version' => 'v5.40.0',
+            'telemetry.sdk.language' => 'perl',
+            'telemetry.sdk.name' => 'opentelemetry',
+            'telemetry.sdk.version' => '0.024'
+        },
+        'span_id' => '3823100b9ca26a91',
+        'start_timestamp' => '1734391469.3732',
+        'status' => {
+            'code' => 0,
+            'description' => ''
+        },
+        'trace_flags' => 1,
+        'trace_id' => '795c45630d3615ba1ebf524661bf01ac',
+        'trace_state' => ''
+    }
+
+A wall of text (pretty printed here for clarity) appeared in front of the
+elves. Santa seized the opportunity to look like he knew what was going on by
+looking at the text in silence while thinking about what to have for lunch.
+
+After a couple of seconds Gnomo and Duende had pieced it together. It was all
+there! Data about the request itself, how long it took, where it came from,
+and even details about what code had generated it... and all of that without
+having to touch any of the core logic!
+
+"This is very cool", said Gnomo, who had been reading through
+L<OpenTelemetry::Guides::Quickstart> and was already making sense of things.
+"And it seems we can get even more data if we load some of the instrumentation
+libraries that are already out there. This route uses a database, so we could
+use the L<OpenTelemetry::Instrumentation::DBI> to get L<DBI> to also generate
+telemetry".
+
+    #!perl
+    use Mojolicious::Lite -signatures;
+    use OpenTelemetry::SDK;
+    use OpenTelemetry::Instrumentation 'DBI';
+    use Mojo::SQLite;
+
+    plugin 'OpenTelemetry';
+
+    ...
+
+Now running the test command printed even more output, this time including
+traces for all the DB operations, including the ones that executed when the
+service initially came up and ran the database migrations, etc.
+
+"What about our other services? Not all of them are using L<Mojolicious>",
+said Duende, thinking that maybe I<then> he'd have the chance to touch some
+code.
+
+=head2 Integrating with Dancer2
+
+Ada loaded up the code for the Gift Allocation service, which was implemented
+in L<Dancer2>. This service made a call to Naught-or-Not to check whether
+this child had been naughty, and allocated either a lump of coal or one of
+the gifts from the child's wishlist.
+
+    #!perl
+    package Gift::Assignment;
+
+    use Dancer2;
+    use HTTP::Tiny;
+
+    set serializer => 'JSON';
+
+    my $ua = HTTP::Tiny->new;
+
+    post '/gift/assign' => sub {
+        my $id = body_parameters->get('id');
+        my $res = $ua->get("$ENV{NAUGHT_OR_NOT_HOST}/is-naughty/$id");
+
+        unless ( $res->{success} ) {
+            status $res->{status};
+            return { error => $res->{reason} };
+        }
+
+        my $body = decode_json $res->{content};
+        return { gift => 'coal' } if $body->{naughty};
+
+        my @wants = body_parameters->get_all('wants');
+        { gift => $wants[ int rand @wants ] };
+    };
+
+"Like with the L<Mojolicious> service, integrating this with L<OpenTelemetry>
+requires no code changes", said Ada. Duende's heart sank. Was he going to get
+to touch I<any> code? "All we need to do is load the
+L<Dancer2::Plugin::OpenTelemetry> plugin".
+
+"And like with the L<DBI> instrumentation, since this route is using an HTTP
+client, we can load L<OpenTelemetry::Instrumentation::HTTP::Tiny> to get
+telemetry for the requests it makes!", chimed in Gnomo, who was neck-deep in
+L<the documentation for instrumentation libraries|OpenTelemetry::Guides::Instrumentations>
+and getting very excited.
+
+The import list now looked like this:
+
+    #!perl
+    package Gift::Assignment;
+
+    use Dancer2;
+    use Dancer2::Plugin::OpenTelemetry;
+    use OpenTelemetry::Instrumentation 'HTTP::Tiny';
+
+    set serializer => 'JSON';
+
+    ...
+
+"Hold on a second... what happened to the L<HTTP::Tiny> import?", asked
+Duende, who was trying to follow along to find ways to contribute.
+
+"Oh, we that's done automatically when we load the instrumentation library,
+so we don't need to write that twice", said Ada".
+
+"And what about the L<OpenTelemetry::SDK> import? Don't we need it here as
+well?", continued Duende.
+
+"Ah, well spotted, Duende!", replied Ada. "We do need it, but we only need
+to load it once. Since this service will have more controllers once it's
+finished, loading it in each one would be a hassle, so it's better to load it
+once at the entry point. In this case, since we are using L<Plack> to mount
+it, we can load that in the top-level L<PSGI> file".
+
+    #!perl
+    #!/usr/bin/env perl
+
+    use strict;
+    use warnings;
+    use lib 'lib';
+
+    use Gift::Assignment;
+    use OpenTelemetry::SDK;
+    use Plack::Builder;
+
+    builder {
+        Gift::Assignment->psgi_app;
+    }
+
+Once again they tested it. They brought up the server configured to send
+traces to the terminal, and made a request:
+
+    #!vim bash
+    $ curl -X POST \
+        -H 'Content-Type: application/json' \
+        -d '{"id":123, "wants":["teddy_bear", "crochet"]}' \
+        http://localhost:5000/gift/assign
+
+As the traces appeared in the logs now for both services, Gnomo spotted
+something. "Hey look! Ignore everything in the traces except for those span
+and trace IDs". Pretty printed for your convenience, this is what he was
+looking at:
+
+    naught-or-not  | {
+      'name' => 'SELECT "naughty" FROM "naughty" WHERE "id" = ?',
+      'parent_span_id' => '88b066b24f372f39',
+      'span_id' => '932cf74c171b705e',
+      'trace_id' => '16073bf43d281a0693ec7d5a9f4860a4',
+    }
+    naught-or-not  | {
+      'name' => 'GET /is-naughty/:id',
+      'parent_span_id' => '7bd198e5a6ddd5fd',
+      'span_id' => '88b066b24f372f39',
+      'trace_id' => '16073bf43d281a0693ec7d5a9f4860a4',
+    }
+    gifts          | {
+      'name' => 'GET',
+      'parent_span_id' => 'd9718758cefd39d4',
+      'span_id' => '7bd198e5a6ddd5fd',
+      'trace_id' => '16073bf43d281a0693ec7d5a9f4860a4',
+    }
+    gifts          | {
+      'name' => 'POST /gift/assign',
+      'parent_span_id' => '0000000000000000',
+      'span_id' => 'd9718758cefd39d4',
+      'trace_id' => '16073bf43d281a0693ec7d5a9f4860a4',
+    }
+
+Santa wondered if this is what it felt like to see the woman in the red dress.
+
+"What are we looking at?", said Duende.
+
+"They are all linked!", replied Gnomo excitedly. "They have the same
+C<trace_id>, and the C<parent_span_id> in each one is the same as the
+C<span_id> of the one that came before it, which appears lower in the logs".
+
+"Well, except for that one at the bottom. That one just has a bunch of
+zeroes as the C<parent_span_id>", commented Duende.
+
+"Yes, that is called the I<root span>", said Ada. "The fact that it has a
+null C<parent_span_id> tells us that this is the span that initiated the
+trace".
+
+"We could write something that would aggregate these data and present them
+in a neater way", said Gnomo. "Maybe something using a kind of flamegraph
+like the ones from L<Devel::NYTProf>, which are great".
+
+"We don't have to!", said Ada.
+"L<The OpenTelemetry project|https://opentelemetry.io> has already done
+that for us. We can use the
+L<OpenTelemetry Collector|https://opentelemetry.io/docs/collector> to
+aggregate all sorts of telemetry data generated via L<OpenTelemetry> and
+then configure it to send that data to whatever external service or platform
+we want".
+
+"Oh, so it's vendor agnostic too?", said Gnomo. "That's very good".
+
+Santa's eye twitched at the mention of "agnostic". This was a touchy subject
+in the North Pole. He looked at Helga Hakrniüs, the Public Relations elf
+in the corner of the room who quietly shook their head. Santa let his breath
+out and wiped his brow.
+
+"Yes, that's one of OpenTelemetry's key selling points", said Ada. "Vendor
+agnostic on the consumer side, and platform agnostic on the producer side,
+so you can use it in services written not only in all sorts of frameworks
+like we just saw, but also in all sorts of languages. They even have
+L<a demo application|https://opentelemetry.io/docs/demo> where you can see
+this in motion".
+
+"Is this true for Perl as well?", said Gnomo. "We can obviously use it in
+L<Mojolicious> and L<Dancer2>, but what about other frameworks, like
+L<Catalyst>? I heard that's what the Milk-and-Cookies team was using for
+their service. Or plain L<CGI>? We still have a bunch of those in the older
+parts of the code".
+
+"Yes!", said Ada. "The Perl implementation is relatively new, so there's
+still work to do, but we do have L<Plack::Middleware::OpenTelemetry> that we
+can use for any server that uses L<Plack>. The integration might not be as
+close, but it does work. And it's only a matter of time before more
+instrumentation libraries get released".
+
+"So how do we use this Collector?", asked Duende.
+
+"I'm glad you asked", replied Ada.
+
+=head2 From the terminal to the browser
+
+"The L<OpenTelemetry> distribution on CPAN has an example collector stack
+that we can use to see how things go together", continued Ada. "There is also
+L<a similar example managed by the developers of the collector itself|https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/examples/demo>,
+and a more realistic example in the
+L<OpenTelemetry demo|https://opentelemetry.io/docs/demo> I mentioned before.
+We can use the one from CPAN to illustrate things for now".
+
+    #!vim bash
+    git clone https://github.com/jjatria/perl-opentelemetry
+    cd perl-opentelemetry/examples/collector
+    docker compose up --build
+
+"And then we tell the services to talk to it?", asked Gnomo.
+
+"Yes", said Ada. "We need to set a couple of environment variables for each
+deployment so that they can talk to the collector. It's probably easier to
+show this with a docker compose file".
+
+    #!vim yaml
+    services:
+      naught-or-not:
+        build:
+          context: mojo
+        container_name: naught-or-not
+        volumes:
+        - ./mojo:/app
+        command:
+        - hypnotoad
+        - ./server
+        - --foreground
+        environment:
+          IO_ASYNC_LOOP: Mojo
+          OTEL_BSP_MAX_EXPORT_BATCH_SIZE: 1
+          OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost
+          OTEL_SERVICE_NAME: naught-or-not
+          OTEL_TRACES_EXPORTER: otlp
+        network_mode: host
+
+      gifts:
+        build:
+          context: dancer
+        container_name: gifts
+        volumes:
+        - ./dancer:/app
+        command:
+        - plackup
+        - --server
+        - Net::Async::HTTP::Server
+        - ./server.psgi
+        environment:
+          NAUGHT_OR_NOT_HOST: http://localhost:8080
+          OTEL_BSP_MAX_EXPORT_BATCH_SIZE: 1
+          OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost
+          OTEL_SERVICE_NAME: gifts
+          OTEL_TRACES_EXPORTER: otlp
+        network_mode: host
+
+"In both cases we need to set C<OTEL_SERVICE_NAME> to something meaningful
+so we can identify where the traces come from. We also need to set
+C<OTEL_TRACES_EXPORTER> to C<otlp>, which is the protocol used by the
+collector, and C<OTEL_EXPORTER_OTLP_ENDPOINT> to the host that we are sending
+the telemetry to. In this case, both of these are set to their default values,
+but it's good for now to be explicit".
+
+"What about that C<OTEL_BSP_MAX_EXPORT_BATCH_SIZE>?", asked Duende. He had
+already learned the hard way that a batch of one was a little pointless.
+
+"Oh, that's only for testing. In a realistic scenario we can increase that
+to limit the number of requests that we make to the collector", said Ada.
+
+"So the communication with the collector happens off-band?", asked Gnomo.
+
+"Yes. When exporting to the console we got each span as it was produced,
+but in a production environment you'd expect many times more spans to be
+produced, and it would be very expensive to export each one as it came. It's
+more efficient to batch them and send them all together when enough of them
+are ready. The Perl L<OpenTelemetry> implementation uses
+a L<batch span processor|OpenTelemetry::SDK::Trace::Span::Processor::Batch>
+written on top of L<IO::Async> to do this".
+
+Santa wondered if his elves lived in the same planet as he did. He was glad
+there were people in the room who knew about this so he didn't have to.
+
+"Is that why we need the C<IO_ASYNC_LOOP> variable in the L<Mojolicious>
+environment?", asked Gnomo.
+
+"Yes", said Ada. "We need that because L<Mojolicious> has its own event
+loop, so we need to tell L<IO::Async> to use it".
+
+"I see. And that's why in the L<Dancer2> environment we use
+L<Net::Async::HTTP::Server>, because L<Dancer2> doesn't have an event loop,
+and this gives it one", said Gnomo.
+
+"Exactly", said Ada. "And now, if we run this so it talks to the collector
+stack, and make some queries, we can see the traces in our browser. That
+stack connects the collector to a L<Jaeger|https://www.jaegertracing.io>
+instance, which we should be able to see at L<http://localhost:16686>".
+
+=for :html
+<img src="jaeger.png">
+
+"Incidentally", said Ada, "I've put all the files for what we've been
+talking about in
+L<a repository you can check out|https://github.com/jjatria/perl-advent-otel-example-2024>
+if you want to run things yourself".
+
+Santa was happy to finally be able to see some pretty pictures. And as he
+looked at his elves, all excitedly looking around and exploring the data,
+he felt an warm sense of pride and joy to see them learning and growing and
+getting things done.
+
+With this out of the way, he could finally get back to what mattered most:
+having those milk and cookies.
+
+=cut
