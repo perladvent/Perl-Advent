@@ -445,7 +445,146 @@ deleted the code since, and we now depend on the CPAN module.
 Here are a few examples of what it does, assuming we want to bump the
 example code to v5.40:
 
-TODO: insert code examples
+=over 4
+
+=item *
+
+simply bump the version number:
+
+=begin perl
+
+    print "Hello, world!\n";
+
+=end perl
+
+becomes:
+
+=begin perl
+
+    use v5.40;
+    print "Hello, world!\n";
+
+=end perl
+
+=item *
+
+remove compatibility modules that become unnecessary once the
+corresponding feature is enabled by the bundle:
+
+=begin perl
+
+    use Say::Compat;
+    say "Hello, world";
+
+=end perl
+
+becomes:
+
+=begin perl
+
+    use v5.40;
+    say "Hello, world";
+
+=end perl
+
+=item *
+
+remove warnings about experimental signatures, once they come out of experimental:
+
+=begin perl
+
+    use v5.20;
+    use feature 'signatures';
+    no warnings 'experimental::signatures';
+
+    sub greeting ( $who ) { "Hello, $who!" }
+    say greeting "world";
+
+=end perl
+
+becomes:
+
+=begin perl
+
+    use v5.40;
+
+    sub greeting ( $who ) { "Hello, $who!" }
+    say greeting "world";
+
+=end perl
+
+=item *
+
+rewrites prototypes when enabling the C<signatures> feature:
+
+=begin perl
+
+    use v5.10;
+    sub greeting ( $ ) { sprintf "Hello, %s!", shift }
+    say greeting "world";
+
+=end perl
+
+becomes:
+
+=begin perl
+
+    use v5.40;
+    sub greeting :prototype( $ ) { sprintf "Hello, %s!", shift }
+    say greeting "world";
+
+=end perl
+
+=item *
+
+disable features that might cause problems, and add a warning about them:
+
+=begin perl
+
+    use v5.10;
+    say "hello, world!" | "@";    # flip the capital bit on the first letter
+
+=end perl
+
+becomes:
+
+=begin perl
+
+    use v5.40;
+
+    # IMPORTANT: Please double-check the use of bitwise operators
+    # before removing the `no feature 'bitwise';` line below.
+    # See manual pages 'feature' (section "The 'bitwise' feature")
+    # and 'perlop' (section "Bitwise String Operators") for details.
+    no feature 'bitwise';
+    say "hello, world!" | "@";    # flip the capital bit on the first letter
+
+=end perl
+
+=item *
+
+In safe mode, stop at the last version that compiles
+(v5.38 disabled the C<bareword_filehandles> feature,
+turning their use into a compile-time error):
+
+=begin perl
+
+    open FH, 'greeting.txt' or die "Can't open file: $!";
+    print FH "Hello, world!\n";
+
+=end perl
+
+becomes:
+
+=begin perl
+
+    use v5.36;
+    open FH, 'greeting.txt' or die "Can't open file: $!";
+    print FH "Hello, world!\n";
+
+=end perl
+
+=back
 
 Since the module is meant to upgrade older Perl code, I made sure it
 can run on C<perl> binaries as old as v5.10. And it can use C<perl5.10.0>
