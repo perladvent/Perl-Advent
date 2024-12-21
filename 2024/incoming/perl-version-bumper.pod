@@ -53,14 +53,16 @@ formats, either as a floating-point number, or a v-string):
 New versions of Perl come with bug fixes, speed improvements, deprecations
 and also new features. It's still the same old Perl, that will continue
 to run your existing code. Perl version upgrades are so simple and
-drama-less they're almost boring.
+drama-less they're almost boring. (The Perl 5 Porters support the two
+most recent stable releases of Perl, which should be reason enough to
+upgrade your binary.)
 
 Long story short, Perl is extremely backwards compatible. This means that
 sensibly-written code from 20 years ago should still run under the
 next release of Perl. In other words, any C<perl> interpreter should
 understand code written against older versions of the Perl I<language>
 just fine. As I have personally experimented, this actually even applies
-to scripts targetting the Perl 4 language!
+to scripts targetting version 4 of the language!
 
 With such a strong commitment to backwards compatibility, how does
 one even introduce new features to the language? To quote from
@@ -101,7 +103,7 @@ Note that enabling features always happens in the current lexical scope.
 =head3 The gift of choice
 
 Backwards-compatibility is preserved thanks to a compromise: people have
-to I<opt-in> to the new features. The unfortunate side-effect is that
+to I<opt in> to the new features. The unfortunate side-effect is that
 Perl will continue to look the same (sometimes giving the feeling it's
 stagnating) until you enable the new features!
 
@@ -112,7 +114,7 @@ many were. The L<Syntax::Construct> module has an exhaustive list of
 "syntactic constructs that are not implemented via the C<feature> pragma,
 but are still not compatible with older versions of Perl".
 
-Perl v5.40 knows about 25 features. While they could be enabled or
+Perl v5.40 knows about 25 features. While they can be enabled or
 disabled (some features are used to disable undesirable constructs,
 like indirect object notation) one by one, there is a better way than
 25 lines of boilerplate.
@@ -126,8 +128,8 @@ several operations:
 
 The first thing that C<use VERSION> does is to declare which minimum
 version of C<perl> (the interpreter) you expect to run your code. If you
-demand a version that is larger than that of the perl binary currently
-running your code, it's going to die at compile time.
+demand a version later than that of the perl binary currently running
+your code, it's going to die at compile time.
 
     $ perl -Mv5.38 -e1
     Perl v5.38.0 required--this is only v5.36.0, stopped.
@@ -154,7 +156,7 @@ corresponding feature bundle. For example:
 
 =end perl
 
-is equivalent to:
+will implicitly load the corresponding feature bundle:
 
 =begin perl
 
@@ -162,8 +164,8 @@ is equivalent to:
 
 =end perl
 
-and will enable the C<say>, C<state> and C<switch> features. The
-compiler will now understand the corresponding keywords, and behave
+which will enable the C<say>, C<state> and C<switch> features. The
+parser will now understand the corresponding keywords, and behave
 accordingly. Error messages might differ a lot when a feature is
 enabled or not.
 
@@ -177,7 +179,7 @@ will enable C<strict>, C<use v5.36> will enable C<warnings> and C<use
 v5.40> will import L<builtin> functions (using a similar version bundle
 scheme: see L<builtin/Version-Bundles>).
 
-Note that this is a lexical pragma, meaning that you could declare
+Note that C<use VERSION> is a lexical pragma, meaning that you could declare
 different version bundles for different parts of your code. For
 consistency, it's really recommended that you pick one version, and
 stick with it for the entire file. In fact, a future release of C<perl>
@@ -190,10 +192,11 @@ following two operations in a single line of code:
 
 =head4 Enable modern Perl features
 
-Perl features are generally used to introduce experimental features
-without making them part of the "official" language. Features become
-official when they are included in a feature bundle. Failed experiments
-can be removed safely if they never come out of the experimental phase.
+Before features become part of the "official" language, they are often
+introduced as experiments. Experimental features are available only when
+requested via C<use feature>, and aren't part of a bundle. In fact,
+they'll even issue warnings when you use them. (See L<experimental>
+for more about this.)
 
 For example, the C<signatures> feature was introduced in C<perl> v5.20,
 and remained experimental until v5.34. That meant that, as long as the
@@ -209,13 +212,13 @@ immediately added to the C<:5.38> feature bundle.
 
 =head4 Deprecate discouraged features
 
-Bundles have also been used to deprecate and disable features that have
-become discouraged. These are made part of the C<:default> feature bundle,
+Bundles have also been used to disable features that have become
+discouraged. These are made part of the C<:default> feature bundle,
 and not included in later bundles.
 
 Doing it this way makes it possible to preserve the behaviour of
-ancient, unmaintained, scripts and modules. Even if they load some
-feature bundle (via C<use VERSION>), any deprecated feature they might
+ancient, unmaintained scripts and modules. Even if they load some
+feature bundle (via C<use VERSION>), any discouraged feature they might
 use will also be (retroactively) included in that bundle, preserving
 backward compatibitlity.
 
@@ -225,8 +228,9 @@ C<bareword_filehandles> came to be "removed" from later versions of Perl.
 This is the strategy the L<Perl Steering Council|perlgov/The Steering Council>
 has chosen to best stretch the language between the continuous
 introduction of new features and the preservation of backwards
-compatibility. For the record, many Perl 4 (which is actually Perl 3,
-from late 1989) scripts still run fine with perl 5.40.
+compatibility. For the record, many Perl 4 (which is functionally
+identical to Perl 3, from late 1989) scripts still run fine with C<perl>
+v5.40.
 
 =head2 Why pick a Perl version?
 
@@ -277,25 +281,11 @@ It's of course possible to include experimental features, or re-enable
 deprecated features (the latter is really not recommended), to fine-tune
 the specific dialect of Perl in which the code is written.
 
-Always use a I<stable> version number with C<use VERSION>. The point is to
-I<declare> which version of the Perl I<language> your code is targetting.
-
 Future versions of C<perl> implicitly promise that they will understand
 the dialect of Perl declared by C<use VERSION>, and that they will run
 it to the best of their abilities.
 
 =head2 The Once and Future Perl
-
-Every year, a new version of C<perl> comes out. The C<perl> binary is
-updated, and so is the Perl language. The Perl 5 Porters support the
-two most recent stable releases of Perl, which gives you a good reason
-to upgrade your binary. You don't have to upgrade the version of the
-language your code uses, though.
-
-If you use Perl in 2024, you don't have to write code like the dot-com
-bubble is about to burst. (Be wary of the AI bubble, though...)
-You can easily signal your code was written in the last decade,
-and enjoy the recent evolutions of the language.
 
 =head3 The new "use strict and warnings"
 
