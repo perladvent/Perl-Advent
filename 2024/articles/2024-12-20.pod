@@ -106,117 +106,124 @@ is the primer bed file we are starting with.
 
 =begin perl
 
-#!/usr/bin/env perl
-use strict;
-use warnings;
+    #!/usr/bin/env perl
+    use strict;
+    use warnings;
 
-my $query_input = $ARGV[0];
-my $subject_input = $ARGV[1];
-my $input_bed = $ARGV[2];
+    my $query_input = $ARGV[0];
+    my $subject_input = $ARGV[1];
+    my $input_bed = $ARGV[2];
 
-open my ($FH1), '<', $query_input or die "Could not open $query_input for reading\n";
-open my ($FH2), '<', $subject_input or die "Could not open $subject_input for reading\n";
+    open my ($FH1), '<', $query_input or die "Could not open $query_input for reading\n";
+    open my ($FH2), '<', $subject_input or die "Could not open $subject_input for reading\n";
 
-my @global_array = ();
-$global_array[0] = { query => undef,
-		     sbjct => undef,
-		   };
+    my @global_array = ();
+    $global_array[0] = { query => undef,
+        sbjct => undef,
+    };
 
-# This global counter serves as the index for the first data structure
-# that captures the information at each place in the aligned sequences
-my $counter = 0;
+    # This global counter serves as the index for the first data structure
+    # that captures the information at each place in the aligned sequences
+    my $counter = 0;
 
-# Parse the rows of the first file
-while ( <$FH1> ) {
-    chomp;
-    # Each of these filtered rows has the same structure, in addition to
-    # A, C, G, and T, the N-W output can also contain hyphens (dashes), so
-    # our regex has to include that in the string we are capturing
-    my ($seq) = $_ =~ m/Query\s+\d+\s+([\w\-]+)\s+\d+/;
-    # Parse the 60 nucleotide string into individual characters
-    my @qchars = split(//, $seq);
-    foreach my $q ( @qchars ) {
-        $counter++;
-        # Load up the array of hashrefs with the symbols
-	$global_array[$counter]{query} = $q;
+    # Parse the rows of the first file
+    while ( <$FH1> ) {
+        chomp;
+        # Each of these filtered rows has the same structure, in addition to
+        # A, C, G, and T, the N-W output can also contain hyphens (dashes), so
+        # our regex has to include that in the string we are capturing
+        my ($seq) = $_ =~ m/Query\s+\d+\s+([\w\-]+)\s+\d+/;
+
+        # Parse the 60 nucleotide string into individual characters
+        my @qchars = split(//, $seq);
+        foreach my $q ( @qchars ) {
+            $counter++;
+            # Load up the array of hashrefs with the symbols
+            $global_array[$counter]{query} = $q;
+        }
     }
-}
-close $FH1;
+    close $FH1;
 
 
-$counter = 0;
-while ( <$FH2> ) {
-    chomp;
-    my ($seq) = $_ =~ m/Sbjct\s+\d+\s+([\w\-]+)\s+\d+/;
-    my @schars = split(//, $seq);
-    foreach my $s ( @schars ) {
-        $counter++;
-	$global_array[$counter]{sbjct} = $s;
+    $counter = 0;
+    while ( <$FH2> ) {
+        chomp;
+        my ($seq) = $_ =~ m/Sbjct\s+\d+\s+([\w\-]+)\s+\d+/;
+        my @schars = split(//, $seq);
+        foreach my $s ( @schars ) {
+            $counter++;
+            $global_array[$counter]{sbjct} = $s;
+        }
     }
-}
-close $FH2;
+    close $FH2;
 
-# Now we process the information in each element of the
-# @global_array, and store that in this global hash
-# the keys of this hash are genomic coordinates for the
-# Edinburgh RSVA RefSeq and the values are the genomic
-# coordinates of the NCBI RSVA RefSeq
-my %ncbi_coordinates_of = ();
+    # Now we process the information in each element of the
+    # @global_array, and store that in this global hash
+    # the keys of this hash are genomic coordinates for the
+    # Edinburgh RSVA RefSeq and the values are the genomic
+    # coordinates of the NCBI RSVA RefSeq
+    my %ncbi_coordinates_of = ();
 
-my $qcounter = 0;
-my $scounter = 0;
+    my $qcounter = 0;
+    my $scounter = 0;
 
-# There is nothing useful in the [0] element
-foreach my $i ( 1..$#global_array ) {
-    my $key = undef;
-    my $value = undef;
-    # If the string from the N-W output contains a '-' then we
-    # need to handle those differently.  We only increment the
-    # $qcounter when the value in 'query' matches a letter
-    if ( $global_array[$i]{query} =~ m/\w/ ) {
-        $qcounter++;
-        $key = $qcounter;
-        if ( $global_array[$i]{sbjct} =~ m/\w/ ) {
+    # There is nothing useful in the [0] element
+    foreach my $i ( 1..$#global_array ) {
+        my $key = undef;
+        my $value = undef;
+
+        # If the string from the N-W output contains a '-' then we
+        # need to handle those differently.  We only increment the
+        # $qcounter when the value in 'query' matches a letter
+        if ( $global_array[$i]{query} =~ m/\w/ ) {
+            $qcounter++;
+            $key = $qcounter;
+            if ( $global_array[$i]{sbjct} =~ m/\w/ ) {
+                $scounter++;
+                $value = $scounter;
+            }
+            $ncbi_coordinates_of{$key} = $value;
+        }
+        else {
             $scounter++;
-	    $value = $scounter;
-	}
-        $ncbi_coordinates_of{$key} = $value;
+            next;
+        }
     }
-    else {
-	$scounter++;
-	next;
-    }
-}
 
-# After all of that manipulation and data wrangling, the problem now becomes
-# very simple.  We read in the starting primer bed file and iterate over each
-# TSV record.  We use the information in columns 2 and 3 to query the
-# %ncbi_coordinates_of hash, and insert the coordinates we want from the hash
-# values.  The modified record is immediately printed to STDOUT
+    # After all of that manipulation and data wrangling, the problem now becomes
+    # very simple.  We read in the starting primer bed file and iterate over each
+    # TSV record.  We use the information in columns 2 and 3 to query the
+    # %ncbi_coordinates_of hash, and insert the coordinates we want from the hash
+    # values.  The modified record is immediately printed to STDOUT
 
-open my ($FH3), '<', $input_bed or die "Could not open $input_bed for reading\n";
+    open my ($FH3), '<', $input_bed or die "Could not open $input_bed for reading\n";
 
-while ( <$FH3> ) {
-    my @fields = split(/\t/, $_);
-    # Change the sequence name in column 1
-    $fields[0] = 'NC_038235.1';
-    # It is formally possible that either the 'start' or the 'end' of the
-    # Query sequence is NOT in the %ncbi_coordinates_of hash, so check for this
-    unless ( exists $ncbi_coordinates_of{$fields[1]} and exists $ncbi_coordinates_of{$fields[2]} ) {
-        $fields[1] = $fields[2] = 'undef';
+    while ( <$FH3> ) {
+        my @fields = split(/\t/, $_);
+
+        # Change the sequence name in column 1
+        $fields[0] = 'NC_038235.1';
+
+        # It is formally possible that either the 'start' or the 'end' of the
+        # Query sequence is NOT in the %ncbi_coordinates_of hash, so check for this
+
+        unless ( exists $ncbi_coordinates_of{$fields[1]} and exists $ncbi_coordinates_of{$fields[2]} ) {
+            $fields[1] = $fields[2] = 'undef';
+            print join("\t", @fields);
+            next;
+        }
+
+        # Sometimes the 'start' and 'end' coordinates from the Query sequence ARE keys in the
+        # %ncbi_coordinates_of hash, but the corresponding values from the Sbjct sequence are undef
+        # so continue processing gracefully when this occurs
+
+        $fields[1] = $ncbi_coordinates_of{$fields[1]} //= 'undef';
+        $fields[2] = $ncbi_coordinates_of{$fields[2]} //= 'undef';
         print join("\t", @fields);
-        next;
     }
-    # Sometimes the 'start' and 'end' coordinates from the Query sequence ARE keys in the
-    # %ncbi_coordinates_of hash, but the corresponding values from the Sbjct sequence are undef
-    # so continue processing gracefully when this occurs
-    $fields[1] = $ncbi_coordinates_of{$fields[1]} //= 'undef';
-    $fields[2] = $ncbi_coordinates_of{$fields[2]} //= 'undef';
-    print join("\t", @fields);
-}
-close $FH3;
+    close $FH3;
 
-exit;
+    exit;
 
 =end perl
 
@@ -243,7 +250,7 @@ Image credit: Nextstrain.org (The L<UShER|https://github.com/yatisht/usher> suit
 mutation annotated trees (MAT) has an option to generate JSON outputs pre-formatted for display at Nextstrain!)
 
 N.B.: In accordance with the laws of Canada, Denmark, and Russia, the clinical metadata and any other personal
-health information (PHI) for these samples has been de-identified. 
+health information (PHI) for these samples has been de-identified.
 
 These are two versions of the RSVA Global phylogenentic tree, showing a subtree of the samples that the most
 highly related to the two sequences from Santa's workshop.  The trees are shown rotated 90 degrees, so the "root"
@@ -268,10 +275,19 @@ want to be able to use your regular pipelines to align the fastq reads to a diff
 
 If you would like to test/replicate/hack the code above, here are links to the three input files
 I used:
+
 =for html
-<a href="RS20000581_RSVA_reference.fasta">The RSVA Reference sequence used with the Edinburgh group's primers</a>
-<a href="NC_038235.1.fa">The RSVA RefSeq downloaded from NCBI (GenBank)</a>
-<a href="RSVA.primer.bed">The RSVA PCR Primer bed file downloaded from the Edinburgh GitHub repo</a>
+<ul>
+  <li>
+    <a href="RS20000581_RSVA_reference.fasta">The RSVA Reference sequence used with the Edinburgh group's primers</a>
+  </li>
+  <li>
+    <a href="NC_038235.1.fa">The RSVA RefSeq downloaded from NCBI (GenBank)</a>
+  </li>
+  <li>
+    <a href="RSVA.primer.bed">The RSVA PCR Primer bed file downloaded from the Edinburgh GitHub repo</a>
+  </li>
+</ul>
 
 If you have some paired-end fastq files from RSV (or another RNA virus) you can get an idea
 of the processing steps to use to generate consensus.fasta files L<here|https://github.com/pathogen-genomics/cdph-rsv>.
