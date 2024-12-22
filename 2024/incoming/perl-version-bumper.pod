@@ -1,0 +1,609 @@
+
+Author: Philippe Bruhat (BooK) <book@cpan.org>
+Title: use VERSION
+Topic: Perl::Version::Bumper
+
+=encoding utf8
+
+=head2 A yearly non-December gift
+
+December is not the only season for gifts. Every year, sometime around
+the end of May, the Perl 5 Porters gift us with a new version of Perl. Or
+is it C<perl>?
+
+To quote L<perlfaq1/What's the difference between "perl" and "Perl"?>:
+
+=for html
+<blockquote>
+
+"Perl" is the name of the language. Only the "P" is capitalized.
+The name of the interpreter (the program which runs the Perl script)
+is "perl" with a lowercase "p".
+
+You may or may not choose to follow this usage. But never write "PERL",
+because perl is not an acronym.
+
+=for html
+</blockquote>
+
+The version of C<perl> (the interpreter) is what you get when you
+type C<perl -v> on the command-line:
+
+    $ perl -v
+    This is perl 5, version 40, subversion 0 (v5.40.0) built for x86_64-linux-gnu
+    
+    Copyright 1987-2024, Larry Wall
+    
+    Perl may be copied only under the terms of either the Artistic License or the
+    GNU General Public License, which may be found in the Perl 5 source kit.
+    
+    Complete documentation for Perl, including FAQ lists, should be found on
+    this system using "man perl" or "perldoc perl".  If you have access to the
+    Internet, point your browser at https://www.perl.org/, the Perl Home Page.
+
+You can also run this (the interpreter version is available in two different
+formats, either as a floating-point number, or a v-string):
+
+    $ perl -E 'say for $], $^V'
+    5.040000
+    v5.40.0
+
+=head2 What's in the box? New features!
+
+New versions of Perl come with bug fixes, speed improvements, deprecations
+and also new features. It's still the same old Perl, that will continue
+to run your existing code. Perl version upgrades are so simple and
+drama-less they're almost boring. (The Perl 5 Porters support the two
+most recent stable releases of Perl, which should be reason enough to
+upgrade your binary.)
+
+Long story short, Perl is extremely backwards compatible. This means that
+sensibly-written code from 20 years ago should still run under the
+next release of Perl. In other words, any C<perl> interpreter should
+understand code written against older versions of the Perl I<language>
+just fine. As I have personally experimented, this actually even applies
+to scripts targetting version 4 of the language!
+
+With such a strong commitment to backwards compatibility, how does
+one even introduce new features to the language? To quote from
+L<feature/DESCRIPTION>:
+
+=for html
+<blockquote>
+
+It is usually impossible to add new syntax to Perl without breaking some
+existing programs. This pragma provides a way to minimize that risk.
+
+=for html
+</blockquote>
+
+The L<feature> module was introduced in Perl v5.10, to make it possible
+to introduce new features to the language without breaking existing
+scripts. A typical example would be the C<say> feature, which makes it
+possible to add the C<say> keyword to the language without breaking
+older scripts that might have defined a C<sub say>.
+
+If one wanted to use the C<say> builtin, they would write:
+
+=begin perl
+
+    use feature 'say';
+    say "Hello, world!";
+
+=end perl
+
+And of course, code that already has a C<say> subroutine defined
+would continue to work the same, as long as the feature is not
+enabled. This leaves time for the code's author to look at their code
+and decide if they want to update it to take advantage of new
+features of the language.
+
+Note that enabling features always happens in the current lexical scope.
+
+=head3 The gift of choice
+
+Backwards-compatibility is preserved thanks to a compromise: people have
+to I<opt in> to the new features. The unfortunate side-effect is that
+Perl will continue to look the same (sometimes giving the feeling it's
+stagnating) until you enable the new features!
+
+It should be noted, however, that not all Perl features are guarded
+by the C<feature> module. Syntax constructs that were syntax errors
+in previous versions of Perl can be introduced without a guard, and
+many were. The L<Syntax::Construct> module has an exhaustive list of
+"syntactic constructs that are not implemented via the C<feature> pragma,
+but are still not compatible with older versions of Perl".
+
+Perl v5.40 knows about 25 features. While they can be enabled or
+disabled (some features are used to disable undesirable constructs,
+like indirect object notation) one by one, there is a better way than
+25 lines of boilerplate.
+
+=head2 C<use VERSION>
+
+A special case of the C<use> builtin is C<use VERSION>. It performs
+several operations:
+
+=head3 Enforce running with a minimum version of the perl binary
+
+The first thing that C<use VERSION> does is to declare which minimum
+version of C<perl> (the interpreter) you expect to run your code. If you
+demand a version later than that of the perl binary currently running
+your code, it's going to die at compile time.
+
+    $ perl -Mv5.38 -e1
+    Perl v5.38.0 required--this is only v5.36.0, stopped.
+    BEGIN failed--compilation aborted.
+
+Although the version in C<use VERSION> can be written in either v-string
+style (C<v5.36>) or numeric style (C<5.036>), it is strongly recommended
+to use the former, as it's more readable and matches with the way people
+talk about Perl versions. (Unless the code is expected to actually be
+run on a C<perl> older than v5.8, which was released in 2002).
+
+=head3 Load the corresponding feature bundle
+
+The C<feature> module also defines "feature bundles", which allows to load
+(or disable) multiple features together. (See L<feature/FEATURE-BUNDLES>
+for their definitions.)
+
+The special C<use VERSION> construct will implicitly load the
+corresponding feature bundle. For example:
+
+=begin perl
+
+   use v5.10;
+
+=end perl
+
+will implicitly load the corresponding feature bundle:
+
+=begin perl
+
+   use feature ':5.10';
+
+=end perl
+
+which will enable the C<say>, C<state> and C<switch> features. The
+parser will now understand the corresponding keywords, and behave
+accordingly. Error messages might differ a lot when a feature is
+enabled or not.
+
+Note that adding a subversion (e.g. C<use v5.36.3>) will have no effect
+on the bundles loaded (feature bundles are guaranteed to be the same for
+all sub-versions). It will of course have an effect on the interpreter
+version check described above.
+
+In addition to the implicit loading of features, C<use v5.12> or greater
+will enable C<strict>, C<use v5.36> will enable C<warnings> and C<use
+v5.40> will import L<builtin> functions (using a similar version bundle
+scheme: see L<builtin/Version-Bundles>).
+
+Note that C<use VERSION> is a lexical pragma, meaning that you could declare
+different version bundles for different parts of your code. For
+consistency, it's really recommended that you pick one version, and
+stick with it for the entire file. In fact, a future release of C<perl>
+will disallow changing the version once one has been declared. So,
+really, don't do that.
+
+The features included in bundles fall in two broad categories: new
+features, and deprecated features. Loading a bundle will perform the
+following two operations in a single line of code:
+
+=head4 Enable modern Perl features
+
+Before features become part of the "official" language, they are often
+introduced as experiments. Experimental features are available only when
+requested via C<use feature>, and aren't part of a bundle. In fact,
+they'll even issue warnings when you use them. (See L<experimental>
+for more about this.)
+
+For example, the C<signatures> feature was introduced in C<perl> v5.20,
+and remained experimental until v5.34. That meant that, as long as the
+C<perl> binary was more recent than v5.20, one could use signatures in
+their code with C<use feature 'signatures'>. That specific feature has
+been added to all bundles since C<:5.36>, which means that a single
+declaration (C<use v5.36>, or any later version) allows one to write
+Perl subroutines using signatures.
+
+Not all new features have to wait that long to become part of the
+language: C<module_true> was introduced in C<perl> v5.38, and was
+immediately added to the C<:5.38> feature bundle.
+
+=head4 Deprecate discouraged features
+
+Bundles have also been used to disable features that have become
+discouraged. These are made part of the C<:default> feature bundle,
+and not included in later bundles.
+
+Doing it this way makes it possible to preserve the behaviour of
+ancient, unmaintained scripts and modules. Even if they load some
+feature bundle (via C<use VERSION>), any discouraged feature they might
+use will also be (retroactively) included in that bundle, preserving
+backward compatibitlity.
+
+This is how the features C<indirect>, C<multidimensional> and
+C<bareword_filehandles> came to be "removed" from later versions of Perl.
+
+This is the strategy the L<Perl Steering Council|perlgov/The Steering Council>
+has chosen to best stretch the language between the continuous
+introduction of new features and the preservation of backwards
+compatibility. For the record, many Perl 4 (which is functionally
+identical to Perl 3, from late 1989) scripts still run fine with C<perl>
+v5.40.
+
+=head2 Why pick a Perl version?
+
+=head3 Line 0 semantics
+
+When C<perl> compiles Perl code, before it even reads the first byte of
+source code, it is in "Perl v5.8 compatibility mode". The C<:default>
+bundle is implicitly loaded (it only contains features that are
+backward-compatible with traditional Perl).
+
+This means that the "sensibly-written code from 20 years ago" mentioned
+above is very likely to just run unmodified, and simply work.
+
+As explained above, unguarded syntactic features are available from
+line 0.
+
+=head3 Line 1 semantics
+
+We've seen that C<use VERSION> automatically loads the corresponding
+feature bundle (and associated builtins). This single line of code enables
+all official features and disables all deprecated features for the given
+version of the Perl language.
+
+In other words, putting a C<use VERSION> line at the top (line 1) of a
+Perl script or module I<declares> which version of the I<Perl language>
+the code that follows is written under. And because the effect is lexical,
+a script can load other modules that declare they were written against
+a different version of the language, and everything works transparently.
+
+I strongly believe that C<use VERSION> should be the I<first line>
+of any Perl code.
+
+=head3 Declaring a baseline of the Perl language
+
+For decades, the first recommendation made to Perl beginners and people
+asking for help on a Perl forum was to add C<use strict; use warnings>
+at the beginning of their code. This made Perl more helpful, as it
+would point to likely errors in programming (like undeclared variables
+or undefined values).
+
+Since Perl v5.36, these two statements are implicitly included via
+C<use VERSION>. It also enables the official features of that version
+of the language, and disables the deprecated ones.
+
+Therefore, C<use VERSION> helps define a good I<baseline> for the Perl
+language, so that the compiler can fully understand the code that follows.
+It's of course possible to include experimental features, or re-enable
+deprecated features (the latter is really not recommended), to fine-tune
+the specific dialect of Perl in which the code is written.
+
+Future versions of C<perl> implicitly promise that they will understand
+the dialect of Perl declared by C<use VERSION>, and that they will run
+it to the best of their abilities.
+
+=head2 The Once and Future Perl
+
+=head3 The new "use strict and warnings"
+
+Since the time of "use strict and warnings" as minimum requirements for
+decent Perl code, the language has evolved, and brought in more useful
+features. It also deprecated ancient features that were deemed bad ideas
+in a modern context (such as the indirect object notation).
+
+Writing C<use VERSION> as the first (active) line of any Perl code
+will I<declare> to the C<perl> interpreter (and to whoever is reading
+the code) which version of the Perl I<language> the code that follows
+is written in.
+
+So, just put a C<use VERSION> line at the top of all your Perl files.
+
+Whenever a new stable version is released (which happens every year
+towards the end of May), you should at least read the L<perldelta> that
+accompanies it, and check if you see some new feature you think you'd
+want to use.
+
+There might exist some compatibility modules that you can use,
+to get a taste of those new features on a version of C<perl>
+that doesn't support them natively. They might behave slightly
+differently, though.
+
+C<v5.36> (released in May 2022) contains a very good mix of
+stable features (default C<strict> and C<warnings>, C<signatures>,
+C<isa>), as well as the removal of deprecated features (C<indirect>,
+C<multidimensional>).
+
+Most Linux distributions released in 2024 include a version of Perl that
+will support C<use v5.36>.
+
+=head2 Picking which version of Perl to code in
+
+The version of the Perl language you want to use will depend on the
+context in which the code is run. Private or proprietary code has
+different constraints than an Open Source project or library distributed
+on CPAN.
+
+Private or company code is only limited by the version of Perl used
+internally. It might be the stock C<perl> from the operating system
+selected by the organization. It might be a C<perl> compiled specifically
+for that purpose. Internal company or personal code can run on the
+bleeding edge!
+
+An Open Source project will usually be shipped with or installed on top
+of common operating systems, and will usually be tied to the version of
+C<perl> these operating systems package.
+
+The authors of modules distributed via CPAN distributions might want
+their code run on a broader selection of C<perl> versions.
+
+However, you're unlikely to be able to start writing code with the
+latest version of the language very quickly:
+
+=over 4
+
+=item *
+
+maybe you're stuck with the version released by your OS vendor
+(but, do you know how easy it is to compile your own Perl?);
+
+=item *
+
+maybe you compile your own Perl, but it's a core part of your
+infrastructure, and upgrading takes time; (although the Perl parts are
+likely to be the easiest ones, given Perl's track record with backward
+and forward compatibility)
+
+=item *
+
+maybe you're a CPAN author, and you still want to support older
+versions of Perl.
+
+=back
+
+=head3 Updating your Perl code at your own pace
+
+At work, across all of our tens of thousands of Perl modules, over 30
+different C<VERSION> are declared with C<use VERSION>. From v5.1 (someone
+typoed 5.010 as 5.001) up to v5.36, going through v5.10, v5.18.2 (someone
+didn't know the sub-version is ignored), v5.24, etc. Many files don't
+have a C<use VERSION> line (using the Perl flavor of 2002, when our Perl
+code base was started). The word for this is "legacy".
+
+Since the effect of C<use VERSION> is lexical, it's possible to upgrade
+the version of the language your code uses I<one file at a time> (or even
+one scope at a time, but see L<perl5400delta/Restrictions to use VERSION
+declarations> for why you'll probably want to stick with the whole file).
+
+I can confirm it's really nice to be able to first upgrade the Perl
+binary without changing a single line of code, and I<then> choose
+which files to upgrade first.
+
+That transition can be difficult, though:
+
+=over 4
+
+=item *
+
+v5.28 subtly changed the meaning of C<|>, C<&>, C<^> and C<~>
+(the C<bitwise> feature is enabled)
+
+=item *
+
+v5.36 won't understand C<$fido = new Camel "Amelia">
+(the C<indirect> feature is disabled)
+
+=item *
+
+v5.36 will complain about C<sub foo ($$)>
+(the C<signatures> feature is enabled, prototypes must be declared as an attribute)
+
+=item *
+
+v5.38 will complain about C<open FH, $file>
+(the C<bareword_filehandles> feature is disabled)
+
+=back
+
+Picking exactly which version of the Perl L<language> to use is the actual
+question one has to answer. And the answer will be different if one
+is a CPAN author, a hobbyist writing their own tools, an Open Source
+application developer or a developer for a company's web application
+or internal tooling. The answer depends on several factors: one of
+them is the programmer's desire to use recent Perl language features,
+and another is their expectations regarding the minimum version of the
+C<perl> I<binary> the code is expected to run on.
+
+=head3 Updating your Perl code faster
+
+With tens of thousands of files to potentially update, I didn't imagine
+for one second that I would do it manually. And even if my colleagues
+would also help, I knew that upgrading the C<use VERSION> line in their
+code would make some of them uneasy.
+
+So I wrote a module that would take Perl code, statically analyze it using
+L<PPI>, and bump the declared version to the requested one, while being
+extra careful about the issues detailed above (and others). Since that
+code contained no company secret, I was allowed to open source it.
+
+The code now lives on CPAN as L<Perl::Version::Bumper>. And has improved
+a lot since my last commit in the company repository. I've actually
+deleted the code since, and we now depend on the CPAN module.
+
+Here are a few examples of what it does, assuming we want to bump the
+example code to v5.40:
+
+=over 4
+
+=item *
+
+simply bump the version number:
+
+=begin perl
+
+    print "Hello, world!\n";
+
+=end perl
+
+becomes:
+
+=begin perl
+
+    use v5.40;
+    print "Hello, world!\n";
+
+=end perl
+
+=item *
+
+remove compatibility modules that become unnecessary once the
+corresponding feature is enabled by the bundle:
+
+=begin perl
+
+    use Say::Compat;
+    say "Hello, world";
+
+=end perl
+
+becomes:
+
+=begin perl
+
+    use v5.40;
+    say "Hello, world";
+
+=end perl
+
+=item *
+
+remove warnings about experimental signatures, once they come out of experimental:
+
+=begin perl
+
+    use v5.20;
+    use feature 'signatures';
+    no warnings 'experimental::signatures';
+
+    sub greeting ( $who ) { "Hello, $who!" }
+    say greeting "world";
+
+=end perl
+
+becomes:
+
+=begin perl
+
+    use v5.40;
+
+    sub greeting ( $who ) { "Hello, $who!" }
+    say greeting "world";
+
+=end perl
+
+=item *
+
+rewrites prototypes when enabling the C<signatures> feature:
+
+=begin perl
+
+    use v5.10;
+    sub greeting ( $ ) { sprintf "Hello, %s!", shift }
+    say greeting "world";
+
+=end perl
+
+becomes:
+
+=begin perl
+
+    use v5.40;
+    sub greeting :prototype( $ ) { sprintf "Hello, %s!", shift }
+    say greeting "world";
+
+=end perl
+
+=item *
+
+disable features that might cause problems, and add a warning about them:
+
+=begin perl
+
+    use v5.10;
+    say "hello, world!" | "@";    # flip the capital bit on the first letter
+
+=end perl
+
+becomes:
+
+=begin perl
+
+    use v5.40;
+
+    # IMPORTANT: Please double-check the use of bitwise operators
+    # before removing the `no feature 'bitwise';` line below.
+    # See manual pages 'feature' (section "The 'bitwise' feature")
+    # and 'perlop' (section "Bitwise String Operators") for details.
+    no feature 'bitwise';
+    say "hello, world!" | "@";    # flip the capital bit on the first letter
+
+=end perl
+
+=item *
+
+In safe mode, stop at the last version that compiles
+(v5.38 disabled the C<bareword_filehandles> feature,
+turning their use into a compile-time error):
+
+=begin perl
+
+    open FH, 'greeting.txt' or die "Can't open file: $!";
+    print FH "Hello, world!\n";
+
+=end perl
+
+becomes:
+
+=begin perl
+
+    use v5.36;
+    open FH, 'greeting.txt' or die "Can't open file: $!";
+    print FH "Hello, world!\n";
+
+=end perl
+
+=back
+
+Since the module is meant to upgrade older Perl code, I made sure it
+can run on C<perl> binaries as old as v5.10. And it can use C<perl5.10.0>
+to upgrade source code up to v5.40!
+
+The distribution contains a small command-line
+utility to process many files at a time:
+L<perl-version-bump|https://metacpan.org/dist/Perl-Version-Bumper/view/bin/perl-version-bump>.
+
+It runs in safe mode by default, meaning it will start at the version
+of the C<perl> used to run it, and decrease the target version number
+until the generated code compiles, or give up.
+
+If I can suggest some New Year Resolutions for 2025:
+
+=over 4
+
+=item *
+
+decide which version of the Perl I<language> you want to code against in your various projects,
+
+=item *
+
+start consistently adding C<use VERSION> on line 1 of all your Perl files,
+
+=item *
+
+and bump the existing versions where it makes sense!
+
+=back
+
+=cut
