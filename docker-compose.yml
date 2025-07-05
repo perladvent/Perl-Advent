@@ -1,0 +1,33 @@
+---
+services:
+  perl-advent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: perl-advent:latest
+    volumes:
+      - .:/app
+    command: >
+      bash -c "
+        echo 'Building Perl Advent Calendar site...' &&
+        bash script/build-site.sh &&
+        echo 'Build complete! Site is available in the ./out directory'
+      "
+
+  perl-advent-server:
+    image: perl-advent:latest
+    ports:
+      - '7007:7007'
+    volumes:
+      - ./out:/app/out
+    working_dir: /app/out
+    command: http_this --autoindex
+    init: true
+    tty: true
+    stdin_open: true
+    depends_on:
+      - perl-advent
+
+
+volumes:
+  out:

@@ -35,8 +35,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 static_build=out
-rm -rf $static_build
-mkdir $static_build
+# rm -rf $static_build
+# mkdir $static_build
 
 perl mkarchives $static_build
 
@@ -53,7 +53,7 @@ for year in 1999 $(seq 2011 2025); do
         continue
     fi
     target="$static_build/$year"
-    mkdir "$target"
+    mkdir -p "$target"
     cd "$year"
 
     asset_dir="share/static"
