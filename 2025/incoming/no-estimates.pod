@@ -1,0 +1,204 @@
+=encoding utf8
+
+=head1 Thirty Slices, Twenty-Four Days: How Christmas Was Saved By Abandoning Estimation
+
+=head2 The Crisis That Estimation Built
+
+December 1st. Vasco sat in the emergency management meeting with a sinking feeling in his stomach.
+
+"Project Veritas is I<not> going to be ready," the Senior Elf for Software Development announced. "New estimate: March."
+
+The room erupted. Back in January, that same team had promised the system would ship by Christmas. Management had approved Old Elf Morris's retirement based on that promise. Morris was now somewhere in the Caribbean, sending postcards and ignoring emails with his out-of-office: "I'm retired. Not my problem."
+
+The legacy NaughtyNice.pl—50,000 lines of Perl4 written in 1991—had been limping along all year. No one dared touch it. When someone tried a test run last week, it crashed with a cryptic error about C<$biglist> and package names. Nobody knew how Morris had kept it running.
+
+"Vasco," Santa said, turning to him with that look. "I need a solution. Form a skunkworks team, get me something that will work. We only have 24 days."
+
+"But—"
+
+"The Veritas team estimated it would be done. They're already three months late and counting. I don't want estimates. I want it working by Christmas Eve."
+
+Vasco stared at his notepad. 24 days. 2 billion kids. A completely new system. His team knew Perl inside and out—that was the obvious choice. But absolutely no time to figure out how long it would take.
+
+=head2 The No Estimates Gambit
+
+Vasco grabbed four of the best Perl elves he knew: Joel (web APIs), Wheeler (databases), and the testing team of Quinn and Alice. At a team meeting that afternoon, panic set in.
+
+"We should estimate how long—" Joel started.
+
+"No." Carmen appeared behind them. She'd been at the workshop since before Scrum was cool. "You've already lost if you start by guessing."
+
+"But management needs to know—"
+
+"Management knows when you need to be done. Management needs I<confidence> that you'll actually be done on time. They just watched a team spend a year being wrong about their estimates. Give them something better: the truth."
+
+Carmen laid out the approach: Stop trying to predict how long each task takes. Break the work into the smallest possible deployable slices—all the same size. Ship something working every single day. Measure your actual throughput. Use real data to forecast.
+
+"We list everything that needs to work," Carmen explained. "Then we break each piece until it's small enough to finish in one day—about a day's complexity. Everything gets normalized to that same size. We ship it. We count how many slices we're completing. After a few days, we know our velocity. Then it's just math."
+
+Vasco was skeptical. "What do I tell Santa when he asks when we'll be done?"
+
+"After three days, you tell him based on what you've I<actually> accomplished, not what you I<hope> to accomplish. Way more honest than 'six weeks' or whatever number feels safe to say."
+
+They had nothing to lose. The Veritas team had already proven that traditional estimation wasn't going to work.
+
+=head2 Week 1: Finding the Rhythm
+
+Day 1, Vasco and the team listed everything the system needed to do. Then they broke it down:
+
+S<~"Build behavior ingestion system"~ ← Too big, too vague>
+
+Instead:
+
+=over 4
+
+=item * Read CSV file of behavior reports → parse basic fields → store in database
+
+=item * Add field validation
+
+=item * Add deduplication logic
+
+=item * Handle different field elf data formats
+
+=item * Optimize for 2 billion records
+
+=back
+
+Each piece was something they could finish and deploy in a day.
+
+They counted: 30 total slices needed. Quick math: 30 slices × 1 day each = 30 days of work. They had 24 days.
+
+"We're not gonna get everything done," Vasco said.
+
+"Maybe," Carmen replied. "But you'll get faster as time goes on. Focus on shipping."
+
+By end of Day 1, they had working code:
+
+    use v5.40;
+    use experimental 'class';
+    
+    class BehaviorIngestor {
+        field $dbh :param;
+        
+        method ingest_csv($filename) {
+            open my $fh, '<', $filename or die $!;
+            
+            while (my $line = <$fh>) {
+                my ($kid_id, $behavior, $date) = split /,/, $line;
+                $dbh->do(
+                    'INSERT INTO behaviors (kid_id, behavior, date) VALUES (?, ?, ?)',
+                    undef, $kid_id, $behavior, $date
+                );
+            }
+        }
+    }
+
+Shipped. Tested. Working in staging. One slice complete.
+
+Day 2: Field validation added. Another slice done.
+
+Day 3: Deduplication logic. Third slice.
+
+=head2 Week 2: The Acceleration
+
+Something unexpected happened. By Day 7, they'd completed 10 slices total. The team was accelerating—they understood the codebase now, had their tooling working, found their rhythm.
+
+New velocity: ~1.4 slices per day.
+
+Remaining slices: 20.
+
+New math: 20 ÷ 1.4 = 14 days = December 22nd.
+
+They were going to make it.
+
+But Vasco didn't trust it yet. He'd seen too many projects look good early and then crater. He kept shipping, kept measuring.
+
+=head2 The Scope Creeps
+
+Day 16: Disaster. But not a technical one.
+
+The Mall Santa Union needed to be able to upload toy requests into the database. Marketing was demanding to know when that feature would be available. This had been promised by Project Veritas as part of their MVP—but it was never in Vasco's original scope.
+
+"We need this," the Senior Elf for Software Development said. "The union is getting anxious."
+
+In the old estimation world, this would trigger re-planning, re-estimating, panic, schedule slips, and probably a few arguments about whose fault it was.
+
+Vasco looked at the board. He broke down the toy request feature:
+
+=over 4
+
+=item * Add database table for requests (0.5 days)
+
+=item * Build upload endpoint (1 day)
+
+=item * Add validation logic (0.5 days)
+
+=back
+
+Two days of new work. He checked the remaining slices and their pace.
+
+"We can do it," Vasco told Santa during a project review. "But we'll need to drop the audit report generation and add it in January. The data is all stored and auditable in the database. We just won't have fancy reports on Christmas Eve."
+
+The key difference: They could I<see> the trade-off. The board showed exactly what was left. They weren't guessing about invisible remaining work—it was all visible.
+
+Santa nodded. Real data. Real options. No fantasy. "Do the toy requests. We'll get reports later."
+
+=head2 Week 4: The Finish
+
+December 22nd, 4 PM: The last core slice shipped. The system was working.
+
+December 23rd: Integration testing with real field elf data. A few bugs found and fixed (each was small because the slices were small).
+
+December 24th, 6 AM: NaughtyNice 3.0 went live.
+
+2 billion kids processed. Lists generated. Workshop shipping presents on schedule.
+
+Meanwhile, the Veritas team was still in a planning meeting, re-estimating their remaining work.
+
+=head2 What Made It Work
+
+After Christmas, Vasco and Carmen did a retrospective.
+
+The No Estimates approach worked because:
+
+B<Fixed scope from the start.> Santa gave them clear, non-negotiable requirements: ingest behavior data, score kids against criteria, generate nice/naughty lists, handle 2 billion records, be auditable. The scope was bounded. What WAS negotiable: which features shipped in December versus January. This is critical—No Estimates works when you can trade scope for time, not when everything is mandatory.
+
+B<Small slices kept problems small.> When the database scaling issue hit, it was one slice to fix, not a three-week replanning disaster.
+
+B<One-day slices protected focus.> The smallest unit of work became a contract: developers wouldn't be asked to context-switch in smaller units than one day. This meant uninterrupted focus time and fewer "quick questions" derailing progress.
+
+B<Daily shipping caught integration bugs immediately.> No "it works on my machine" surprises in week 3.
+
+B<Real data enabled real decisions.> When velocity dipped, they could see exactly what was left and have honest conversations about scope. "We can ship these 8 slices by Christmas, or these 12 slices by New Year's—your choice."
+
+B<No time wasted on estimation theater.> They spent zero hours in planning poker, zero hours defending estimates, zero hours re-estimating. They spent those hours shipping instead.
+
+B<Stakeholders had real visibility.> Santa could see the board. He knew what worked, what was left, what was at risk. Way better than "we're 73% complete."
+
+The irony? The whole crisis existed because someone had estimated Project Veritas would be done by Christmas. They're now three months late and still not shipping. Vasco's team delivered in 24 days by normalizing work to a single size and measuring reality instead of predicting the future.
+
+=head2 For Your Workshop
+
+Want to try No Estimates on your Perl projects?
+
+B<Start with bounded scope.> No Estimates works best when you can negotiate WHICH features ship, not WHEN you ship. If every feature is mandatory AND the deadline is fixed, you don't have a planning problem—you have a self-honesty problem. Define your must-haves clearly.
+
+B<Normalize to one size.> Traditional estimation is two steps from reality: estimate complexity, then estimate time. Fix time to one day and you only estimate complexity. What can you finish by tomorrow? "Add user authentication" becomes "login form," "password validation," "session handling." Complexity is easier to judge, and variance gets absorbed by the buffer.
+
+B<Measure throughput.> Count completed slices per week. That's your data.
+
+B<Make work visible.> A kanban board or even gantt chart showing what's done, what's next, what's left. No hiding.
+
+B<Use data to forecast.> After a few days, you know your pace. Remaining work ÷ pace = honest forecast. This is where you negotiate: "At current pace, these 10 slices ship by deadline. These other 5 slip to next month. Which matters more?"
+
+B<Keep stakeholders honest too.> Show them real progress. Let them reprioritize based on what's actually left.
+
+This Christmas season, give yourself the gift of predictability through measurement.
+
+May your deployments be frequent and your predictions be accurate.
+
+-----
+
+I<Vasco's NaughtyNice 3.0 processed 2,147,483,647 kids in 47 minutes on Christmas Eve. Project Veritas launched a Demo the following April. It was deprecated immediately because Vasco's system was already handling everything.>
+
+=cut
