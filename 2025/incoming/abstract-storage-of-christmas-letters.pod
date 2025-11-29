@@ -1,0 +1,311 @@
+Author: Bartosz Jarzyna <bbrtj.pro@gmail.com>
+Title: Abstract storage of Christmas letters
+Topic: Storage::Abstract
+
+=encoding utf8
+
+=for :html
+<img src="christmas-letters.png">
+
+Few things capture childhood wonder quite like a child writing a letter to
+Santa. The joy of watching the little ones list all the toys and sweets they
+desire. It's truly magical indeed. But have you ever wondered what happens to
+these letters after they get sent?
+
+Well, this isn't something Christmas Inc. would consider sharing in a
+LinkedIn post. Up until recently, this was... purely manual labour. Having very
+numerous elf workers with unlimited energy at their disposal surely delays the
+decision to digitalize processes. However, this year that decision has finally
+been made. No more manual reading of letters - they would now be gathered and
+fed to an AI to read and pull kids' wishes out of them.
+
+There's just one problem - the team responsible for gathering and storing the
+letters hadn't yet decided on where they are going to be stored! They managed
+to decide that the storage must work like a filesystem, with directories named
+C<naughty> and C<nice> containing files named the same as the sender. But would
+it be stored in an actual filesystem? A database? A cloud storage? Maybe a mix
+of those? They just didn't know yet! Even worse, that team consisted of only the
+most undecided elves in the entire corporation - you never know if this
+decision will be final or not. To make up for their clumsiness, the code needed
+to be written in a way that will make it easy to change the underlying source
+of data easily.
+
+An elf named Frosty was tasked with writing a LetterStore service, which must
+deliver an API action to serve contents of the letters. Frosty could write a
+proper abstraction that will fetch him a letter content and replace it later if
+needed, but maybe there's a better way? Skimming through CPAN, he noticed a
+module called L<Storage::Abstract>, which seemed to be doing exactly what he
+needed. He could get a module now and use it for testing in local filesystem,
+and if the location of the letters ever change, he will only need to write /
+acquire a driver for that storage, replace it in the configuration, and
+everything will work exactly the same!
+
+There were a couple of problems - the module was listed as beta quality, and not
+many storage drivers existed for it yet. But he heard that a stable release of
+the module was planned very soon, and last-minute suggestions or reviews were
+welcome. As for the drivers, well, he would have to write the code himself
+anyway, so he could as well write a it as Storage::Abstract driver.
+
+With his mind set on using the module, he started writing code. First, he wrote
+a small package that will build a Storage::Abstract instance and let it be
+reconfigured via a package variable:
+
+=begin perl
+
+    package LetterStore;
+
+    use v5.42;
+    use Storage::Abstract;
+
+    # for now, assume some local directory
+    our %STORAGE_CONFIG = (
+        driver => 'Directory',
+        directory => '/home/santa/letters',
+    );
+
+    sub get
+    {
+        state $instance = Storage::Abstract->new(%STORAGE_CONFIG);
+        return $instance;
+    }
+
+=end perl
+
+This package always returns the same instance, so it can only be reconfigured
+before C<get> function is used. This was okay, since Frosty did not expect his
+colleagues to be crazy enough to modify the storage location dynamically.
+
+Next, he wrote a small L<Mojolicious> application which implemented the
+LetterStore service. It contained two actions - C</letters/count> to fetch the
+total number of letters, and C</letters> to fetch them. To avoid returning too
+many letters at once, he decided that they will be returned in pages, C<5> at a
+time. The action to return them returns C<cursor>, which may return an index of
+the next letter to fetch if there are more letters. This value can be appended
+into the action URL to fetch the next page:
+
+=begin perl
+
+    #!/usr/bin/env perl
+
+    use v5.42;
+    use Mojolicious::Lite;
+    use List::Util qw(min);
+    use LetterStore;
+
+    use constant RESPONSE_SIZE => 5;
+
+    # get the storage and fetch the list of files. This assumes that new files
+    # will not be added at runtime, but it can be refreshed periodically if needed
+    my $store = LetterStore->get;
+    my $store_list = $store->list;
+
+    get '/letters/count' => sub ($c) {
+        return $c->render(json => {count => scalar $store_list->@*});
+    };
+
+    get '/letters/:cursor' => {cursor => 0} => sub ($c) {
+        # cursor will be an index of next letter to fetch - must be a positive integer
+        my $cursor = $c->stash('cursor');
+        return $c->render(json => {error => 'bad cursor'}, status => 422)
+            if $cursor =~ /\D/;
+
+        # fetch a list of filenames
+        my $next_cursor = $cursor + RESPONSE_SIZE;
+        my @files = $store_list->@[$cursor .. min($next_cursor - 1, $store_list->$#*)];
+
+        my @response_data;
+        foreach my $filename (@files) {
+            # extract child name and conduct from path
+            my ($conduct, $child_name) = $filename =~ m{ ([^/]+) / ([^/]+) $}x;
+
+            # fetch file content
+            my $fh = $store->retrieve($filename);
+            my $file_content = join '', $fh->getlines;
+
+            # add data to response
+            push @response_data, {
+                conduct => $conduct,
+                child => $child_name,
+                letter => $file_content,
+            };
+        }
+
+        # no cursor if we don't have any more data
+        $next_cursor = undef if $next_cursor > $store_list->$#*;
+
+        $c->render(json => {
+            data => \@response_data,
+            cursor => $next_cursor,
+        });
+    };
+
+    app->start;
+
+=end perl
+
+That wasn't too hard and worked. Or did it? Errors at this stage would be
+unacceptable, as they could cause Christmas Inc. to lose credibility and crash
+its stock price. He had to test it, but how can he do it most efficiently? Use
+a temporary directory?
+
+As it turned out, there's a better way. Thanks to Storage::Abstract being so
+abstract, you can set your test script to use C<Memory> driver, which keeps
+everything inside Perl's memory, yet still acts the same as any other driver!
+This method is faster, requires no extra modules to be imported and no cleanup
+after the test:
+
+=begin perl
+
+    use v5.42;
+    use Test2::V0;
+    use Test::Mojo;
+    use LetterStore;
+    use Mojo::File qw(curfile);
+
+    # point our storage to Memory. Needs to be done early,
+    # before the script is loaded
+    %LetterStore::STORAGE_CONFIG = (
+        driver => 'Memory',
+    );
+
+    # fill the storage with sample letters
+    my %wishlist = get_letters();
+    my $storage = LetterStore->get;
+
+    foreach my ($conduct, $names) (%wishlist) {
+        foreach my ($name, $letter) ($names->%*) {
+            # scalar reference marks content, unlike plain string which marks a
+            # local filename
+            $storage->store("/$conduct/$name", \$letter);
+        }
+    }
+
+    # load LetterStore service
+    my $script = curfile->sibling('letter_store.pl');
+    my $t = Test::Mojo->new($script);
+
+    ##################
+    #    TEST IT!    #
+    ##################
+
+    subtest 'should have the right number of letters' => sub {
+        $t->get_ok('/letters/count')
+            ->status_is(200)
+            ->json_is('/count', 6, 'count ok');
+    };
+
+    subtest 'should get first set of letters' => sub {
+        test_letters(undef, 5, 5);
+    };
+
+    subtest 'should get second set of letters' => sub {
+        test_letters(5, 1, undef);
+    };
+
+    done_testing;
+
+    sub test_letters($cursor, $expected_data_count, $expected_next_cursor)
+    {
+        $t->get_ok('/letters' . ($cursor ? "/$cursor" : ''))
+            ->status_is(200)
+            ->json_has('/cursor')
+            ->json_has('/data');
+
+        my $response = $t->tx->res->json;
+        is scalar $response->{data}->@*, $expected_data_count, 'data count ok';
+        is $response->{cursor}, $expected_next_cursor, 'cursor ok';
+
+        foreach my $letter_data ($response->{data}->@*) {
+            my $conduct = $letter_data->{conduct};
+            my $name = $letter_data->{child};
+
+            is $conduct, in_set(keys %wishlist), 'conduct ok';
+            is $wishlist{$conduct}{$name}, $letter_data->{letter}, 'letter content ok';
+        }
+    }
+
+    sub get_letters
+    {
+        return (
+            nice => {
+
+                Timmy => <<~LETTER,
+                Dear Santa,
+
+                I've been really good this year! I'd love some toys for Christmas -
+                maybe some action figures and a cool board game.
+
+                Thank you for bringing presents to all the kids!
+                LETTER
+
+                Susie => <<~LETTER,
+                Dear Santa,
+
+                I've been good all year and I'm so excited for Christmas! Please bring
+                me a unicorn toy, some colored markers, and a dollhouse.
+
+                Thank you for making Christmas magical!
+                LETTER
+
+                Lisa => <<~LETTER,
+                Dear Santa,
+
+                Hi! I hope your reindeer are doing good. This year I was nice mostly.
+
+                For Christmas I want:
+                - A bicycle
+                - A puppy
+                - A Nintendo Switch
+                - A skateboard
+                - A guitar
+                - A trampoline
+
+                Can you bring all of them? Please?
+                LETTER
+
+            },
+            naughty => {
+
+                Sammy => <<~LETTER,
+                Dear Santa,
+
+                This year I've tried hard to be good. I hope you'll visit me on
+                Christmas Eve! I really want a skateboard and some art supplies - oh,
+                and maybe a video game too.
+
+                You're the best!
+                LETTER
+
+                Maggie => <<~LETTER,
+                Dear Santa,
+
+                I know I haven't been perfect this year - I've talked back and gotten
+                into trouble a few times. Would you bring me a roller skate and a
+                gaming headset for Christmas? I promise to be better next year!
+
+                I hope you'll still visit me!
+                LETTER
+
+                Stevie => <<~LETTER,
+                Hey Santa,
+
+                I want a drone, a remote control car, and the new gaming console. I
+                better get them or I'm telling everyone you're not real.
+                LETTER
+            },
+        );
+    }
+
+=end perl
+
+Test script had proven that the service worked as expected. Moreover,
+L<Storage::Abstract> had more cool tools in its disposal that could prove
+useful later, like a C<Composite> meta-driver which lets you use more than one
+driver at once. All it lacks is an ecosystem of drivers, but everyone has to
+start somewhere, right?
+
+Frosty shared his thoughts and experiences with the author of
+the module, so that he can make a more informed decision about releasing the
+stable version. Thanks to elf's work, every child I<should> get their present
+this year!
+
