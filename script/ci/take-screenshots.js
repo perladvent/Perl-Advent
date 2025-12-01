@@ -1,0 +1,117 @@
+#!/usr/bin/env node
+/**
+ * Take screenshots of article previews
+ *
+ * Usage: CHANGED_FILES="file1.pod\nfile2.pod" YEAR=2025 node script/ci/take-screenshots.js
+ *
+ * Environment variables:
+ *   CHANGED_FILES - Newline-separated list of changed POD files
+ *   YEAR - The year to look for articles in (defaults to current year)
+ */
+
+const { chromium } = require('playwright');
+const fs = require('fs');
+const path = require('path');
+
+async function takeScreenshots() {
+  const changedFilesEnv = process.env.CHANGED_FILES;
+  if (!changedFilesEnv) {
+    console.log('No CHANGED_FILES environment variable set');
+    return [];
+  }
+  const changedFiles = changedFilesEnv.trim().split('\n').filter(f => f);
+  const year = process.env.YEAR || new Date().getFullYear().toString();
+  const browser = await chromium.launch();
+  const screenshotInfo = [];
+
+  for (const file of changedFiles) {
+    console.log(`Processing: ${file}`);
+
+    let htmlFile;
+    const basename = path.basename(file, '.pod');
+
+    if (file.includes('incoming')) {
+      // For incoming files, find the rendered HTML by searching the output
+      const outDir = `out/${year}`;
+      const files = fs.readdirSync(outDir).filter(f => f.endsWith('.html'));
+      // incoming files are rendered with sequential dates, find by content or use first available
+      // Since render-incoming.pl assigns sequential dates starting from current day + 1
+      // We need to check which HTML files exist and match them
+      const htmlFiles = files.filter(f => f.match(/^\d{4}-\d{2}-\d{2}\.html$/));
+      if (htmlFiles.length > 0) {
+        // Try to find the article by checking if the content matches
+        for (const hf of htmlFiles) {
+          const content = fs.readFileSync(path.join(outDir, hf), 'utf8');
+          // Check if this HTML contains content from our POD file
+          const podContent = fs.readFileSync(file, 'utf8');
+          // Extract title from POD
+          const titleMatch = podContent.match(/^Title:\s*(.+)$/m);
+          if (titleMatch && content.includes(titleMatch[1])) {
+            htmlFile = hf;
+            break;
+          }
+        }
+        // Fallback to last HTML file if no match found
+        if (!htmlFile) {
+          htmlFiles.sort();
+          htmlFile = htmlFiles[htmlFiles.length - 1];
+        }
+      }
+    } else if (file.includes('articles')) {
+      // For articles, the filename directly maps to HTML
+      htmlFile = basename + '.html';
+    }
+
+    if (!htmlFile) {
+      console.log(`Could not determine HTML file for ${file}, skipping`);
+      continue;
+    }
+
+    const url = `http://localhost:8000/${year}/${htmlFile}`;
+    console.log(`Taking screenshots of: ${url}`);
+
+    // Use the basename directly - for date-formatted names like 2025-12-01, keep the date
+    // For other names like 'my-article', use as is
+    const safeArticleName = (basename || 'article').replace(/[^a-zA-Z0-9-_]/g, '-');
+
+    // Desktop screenshot
+    const desktopPage = await browser.newPage();
+    await desktopPage.setViewportSize({ width: 1920, height: 1080 });
+    await desktopPage.goto(url, { waitUntil: 'networkidle' });
+    await desktopPage.waitForTimeout(1000); // Wait for syntax highlighting
+    const desktopPath = `screenshots/${safeArticleName}-desktop.png`;
+    await desktopPage.screenshot({ path: desktopPath, fullPage: true });
+    await desktopPage.close();
+    console.log(`Saved: ${desktopPath}`);
+
+    // Mobile screenshot
+    const mobilePage = await browser.newPage();
+    await mobilePage.setViewportSize({ width: 375, height: 667 });
+    await mobilePage.goto(url, { waitUntil: 'networkidle' });
+    await mobilePage.waitForTimeout(1000); // Wait for syntax highlighting
+    const mobilePath = `screenshots/${safeArticleName}-mobile.png`;
+    await mobilePage.screenshot({ path: mobilePath, fullPage: true });
+    await mobilePage.close();
+    console.log(`Saved: ${mobilePath}`);
+
+    screenshotInfo.push({
+      article: file,
+      htmlFile: htmlFile,
+      desktop: desktopPath,
+      mobile: mobilePath
+    });
+  }
+
+  await browser.close();
+
+  // Write screenshot info for later steps
+  fs.writeFileSync('screenshots/info.json', JSON.stringify(screenshotInfo, null, 2));
+  console.log('Screenshot info saved to screenshots/info.json');
+
+  return screenshotInfo;
+}
+
+takeScreenshots().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

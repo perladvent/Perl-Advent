@@ -26,8 +26,11 @@ jobs:
         id: detect
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          # Get list of changed POD files in 2025/incoming or 2025/articles
-          CHANGED_FILES=$(git diff --name-only origin/main...HEAD | grep -E '2025/(incoming|articles)/.*\.pod$' || true)
+          YEAR=$(date +%Y)
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
+
+          # Get list of changed POD files in YEAR/incoming or YEAR/articles
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD | grep -E "${YEAR}/(incoming|articles)/.*\.pod$" || true)
 
           if [ -z "$CHANGED_FILES" ]; then
             echo "No article files changed"
@@ -38,21 +41,17 @@ jobs:
           echo "Changed article files:"
           echo "$CHANGED_FILES"
 
-          # Store as comma-separated list for later
+          # Store as newline-separated list for later
           echo "changed_files<<EOF" >> "$GITHUB_OUTPUT"
           echo "$CHANGED_FILES" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
           echo "has_articles=true" >> "$GITHUB_OUTPUT"
 
-      - name: 🐧 Install vim for Text-VimColor
-        if: steps.detect.outputs.has_articles == 'true'
-        run: apt-get install -y vim
-
-      - name: 📝 Install vim-perl
-        if: steps.detect.outputs.has_articles == 'true'
-        run: >
-          cd inc/vim-perl &&
-          make install
+      - name: 🛑 Exit if no articles changed
+        if: steps.detect.outputs.has_articles != 'true'
+        run: |
+          echo "No article files changed, skipping workflow"
+          exit 0
 
       - name: 🧅 Install deps using cpm
         if: steps.detect.outputs.has_articles == 'true'
@@ -61,42 +60,27 @@ jobs:
           cpanfile: 'cpanfile'
           sudo: false
 
-      - name: 🍴 Install Forked WWW-AdventCalendar
+      - name: 📦 Install build dependencies
         if: steps.detect.outputs.has_articles == 'true'
-        run: >
-          cd inc/WWW-AdventCalendar &&
-          dzil authordeps | xargs cpm install -g &&
-          dzil install
-
-      - name: 🍴 Install Forked Pod-Elemental-Transformer-SynHi
-        if: steps.detect.outputs.has_articles == 'true'
-        run: >
-          cd inc/Pod-Elemental-Transformer-SynHi &&
-          dzil authordeps | xargs cpm install -g &&
-          dzil install
-
-      - name: 🍴 Install Forked PPI-HTML
-        if: steps.detect.outputs.has_articles == 'true'
-        run: >
-          cd inc/PPI-HTML &&
-          perl -I. Makefile.PL &&
-          make install
+        run: bash script/ci/install-deps.sh
 
       - name: 📚 Build site
         if: steps.detect.outputs.has_articles == 'true'
+        env:
+          YEAR: ${{ steps.detect.outputs.year }}
         run: |
           # For incoming articles, use render-incoming.pl approach
           if echo "${{ steps.detect.outputs.changed_files }}" | grep -q "incoming"; then
             perl script/render-incoming.pl
           else
-            ./script/build-site.sh --single-year 2025 --today 2025-12-25
+            ./script/build-site.sh --single-year "$YEAR" --today "${YEAR}-12-25"
           fi
 
       - name: 🖼️ Setup Node.js for Playwright
         if: steps.detect.outputs.has_articles == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: 🎭 Install Playwright
         if: steps.detect.outputs.has_articles == 'true'
@@ -107,6 +91,9 @@ jobs:
       - name: 📸 Take screenshots
         if: steps.detect.outputs.has_articles == 'true'
         id: screenshots
+        env:
+          CHANGED_FILES: ${{ steps.detect.outputs.changed_files }}
+          YEAR: ${{ steps.detect.outputs.year }}
         run: |
           mkdir -p screenshots
 
@@ -134,110 +121,8 @@ jobs:
             exit 1
           fi
 
-          # Create screenshot script
-          cat > /tmp/screenshot.js << 'SCRIPT_EOF'
-          const { chromium } = require('playwright');
-          const fs = require('fs');
-          const path = require('path');
-
-          async function takeScreenshots() {
-            const changedFiles = process.env.CHANGED_FILES.trim().split('\n').filter(f => f);
-            const browser = await chromium.launch();
-            const screenshotInfo = [];
-
-            for (const file of changedFiles) {
-              console.log(`Processing: ${file}`);
-
-              let htmlFile;
-              const basename = path.basename(file, '.pod');
-
-              if (file.includes('incoming')) {
-                // For incoming files, find the rendered HTML by searching the output
-                const outDir = 'out/2025';
-                const files = fs.readdirSync(outDir).filter(f => f.endsWith('.html'));
-                // incoming files are rendered with sequential dates, find by content or use first available
-                // Since render-incoming.pl assigns sequential dates starting from current day + 1
-                // We need to check which HTML files exist and match them
-                const htmlFiles = files.filter(f => f.match(/^\d{4}-\d{2}-\d{2}\.html$/));
-                if (htmlFiles.length > 0) {
-                  // Try to find the article by checking if the content matches
-                  for (const hf of htmlFiles) {
-                    const content = fs.readFileSync(path.join(outDir, hf), 'utf8');
-                    // Check if this HTML contains content from our POD file
-                    const podContent = fs.readFileSync(file, 'utf8');
-                    // Extract title from POD
-                    const titleMatch = podContent.match(/^Title:\s*(.+)$/m);
-                    if (titleMatch && content.includes(titleMatch[1])) {
-                      htmlFile = hf;
-                      break;
-                    }
-                  }
-                  // Fallback to last HTML file if no match found
-                  if (!htmlFile) {
-                    htmlFiles.sort();
-                    htmlFile = htmlFiles[htmlFiles.length - 1];
-                  }
-                }
-              } else if (file.includes('articles')) {
-                // For articles, the filename directly maps to HTML
-                htmlFile = basename + '.html';
-              }
-
-              if (!htmlFile) {
-                console.log(`Could not determine HTML file for ${file}, skipping`);
-                continue;
-              }
-
-              const url = `http://localhost:8000/2025/${htmlFile}`;
-              console.log(`Taking screenshots of: ${url}`);
-
-              const articleName = basename.replace(/^\d{4}-\d{2}-\d{2}$/, basename) || basename;
-              const safeArticleName = (articleName || 'article').replace(/[^a-zA-Z0-9-_]/g, '-');
-
-              // Desktop screenshot
-              const desktopPage = await browser.newPage();
-              await desktopPage.setViewportSize({ width: 1920, height: 1080 });
-              await desktopPage.goto(url, { waitUntil: 'networkidle' });
-              await desktopPage.waitForTimeout(1000); // Wait for syntax highlighting
-              const desktopPath = `screenshots/${safeArticleName}-desktop.png`;
-              await desktopPage.screenshot({ path: desktopPath, fullPage: true });
-              await desktopPage.close();
-              console.log(`Saved: ${desktopPath}`);
-
-              // Mobile screenshot
-              const mobilePage = await browser.newPage();
-              await mobilePage.setViewportSize({ width: 375, height: 667 });
-              await mobilePage.goto(url, { waitUntil: 'networkidle' });
-              await mobilePage.waitForTimeout(1000); // Wait for syntax highlighting
-              const mobilePath = `screenshots/${safeArticleName}-mobile.png`;
-              await mobilePage.screenshot({ path: mobilePath, fullPage: true });
-              await mobilePage.close();
-              console.log(`Saved: ${mobilePath}`);
-
-              screenshotInfo.push({
-                article: file,
-                htmlFile: htmlFile,
-                desktop: desktopPath,
-                mobile: mobilePath
-              });
-            }
-
-            await browser.close();
-
-            // Write screenshot info for later steps
-            fs.writeFileSync('screenshots/info.json', JSON.stringify(screenshotInfo, null, 2));
-            console.log('Screenshot info saved to screenshots/info.json');
-
-            return screenshotInfo;
-          }
-
-          takeScreenshots().catch(err => {
-            console.error(err);
-            process.exit(1);
-          });
-          SCRIPT_EOF
-
-          CHANGED_FILES="${{ steps.detect.outputs.changed_files }}" node /tmp/screenshot.js
+          # Run screenshot script
+          node script/ci/take-screenshots.js
 
           # Stop server
           kill $SERVER_PID || true
@@ -259,70 +144,5 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const path = require('path');
-
-            // Read screenshot info
-            let screenshotInfo = [];
-            try {
-              screenshotInfo = JSON.parse(fs.readFileSync('screenshots/info.json', 'utf8'));
-            } catch (e) {
-              console.log('No screenshot info found');
-              return;
-            }
-
-            if (screenshotInfo.length === 0) {
-              console.log('No screenshots were generated');
-              return;
-            }
-
-            // Get workflow run info for artifact link
-            const runId = context.runId;
-            const repo = context.repo;
-            const artifactUrl = `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId}`;
-
-            // Build comment body
-            let body = `## 📸 Article Preview Screenshots\n\n`;
-            body += `Generated at: ${new Date().toISOString()}\n\n`;
-
-            for (const info of screenshotInfo) {
-              body += `### ${info.article}\n\n`;
-              body += `**Rendered as:** \`${info.htmlFile}\`\n\n`;
-              body += `| View | Resolution | File |\n`;
-              body += `|------|------------|------|\n`;
-              body += `| 🖥️ Desktop | 1920x1080 | \`${path.basename(info.desktop)}\` |\n`;
-              body += `| 📱 Mobile | 375x667 | \`${path.basename(info.mobile)}\` |\n\n`;
-              body += `---\n\n`;
-            }
-
-            body += `📥 [Download full-resolution screenshots from workflow artifacts](${artifactUrl})\n`;
-
-            // Find and update existing comment or create new one
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: repo.owner,
-              repo: repo.repo,
-              issue_number: context.payload.pull_request.number
-            });
-
-            const botComment = comments.find(comment =>
-              comment.user.type === 'Bot' &&
-              comment.body.includes('Article Preview Screenshots')
-            );
-
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: repo.owner,
-                repo: repo.repo,
-                comment_id: botComment.id,
-                body: body
-              });
-              console.log('Updated existing comment');
-            } else {
-              await github.rest.issues.createComment({
-                owner: repo.owner,
-                repo: repo.repo,
-                issue_number: context.payload.pull_request.number,
-                body: body
-              });
-              console.log('Created new comment');
-            }
+            const postPRComment = require('./script/ci/post-pr-comment.js');
+            await postPRComment(github, context);
