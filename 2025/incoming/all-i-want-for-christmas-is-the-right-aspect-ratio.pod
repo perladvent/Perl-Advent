@@ -1,0 +1,460 @@
+Author: Dave Cross <dave@perlhacks.com>
+Title: All I Want for Christmas Is the Right Aspect Ratio
+Topic: App::BlurFill
+
+=encoding utf8
+
+=head2 A bad start to Christmas
+
+=for :html
+<img src="pixie-the-elf_blur.png">
+
+Pixie the Elf (whose parents had strange ideas about names) was not having
+a good December.
+
+This year she’d been seconded from Santa’s Workshop to the North Pole
+Communications Department. Her job was to prepare a huge batch of festive
+images: hero banners for the NaughtyOrNice dashboard, thumbnails for the
+Sleigh Tracking app, preview cards for Elfbook, and even a few social posts
+for Santa’s surprisingly popular “Reels from the Sleigh”.
+
+All of those systems wanted I<different aspect ratios>.
+
+The NaughtyOrNice dashboard wanted 16:9. The old in-house bulletin board insisted on 4:3.
+Elfbook square-cropped everything. One particularly opinionated goblin had
+even insisted on a tall “story” format.
+
+And all Pixie had were a couple of folders of lovely but badly sized photos:
+Santa in front of the Northern Lights, reindeer in flight, close-ups of toys, and the
+occasional candid shot of Mrs Claus trying out the new espresso machine.
+
+Every time she tried to resize them, the same thing happened:
+
+=over 4
+
+=item *
+
+Crop the image to fit the rectangle → chop off a reindeer’s antlers.
+
+=item *
+
+Add black bars → looks like a dodgy pirate stream.
+
+=item *
+
+Stretch to fit → Santa suddenly looked like he’d gained even more weight.
+
+=back
+
+There I<had> to be a better way.
+
+So she did what she always did when stuck: topped up her mug of hot chocolate,
+opened her laptop, and started scrolling through r/elftech.
+
+About three threads down, a title caught her eye:
+
+I<“Reformatting images with blurred backgrounds in Perl”>
+
+The post was talking about a module called
+L<App::BlurFill|https://metacpan.org/dist/App-BlurFill>. It promised to take
+a source image and produce a new one at a fixed width and height, filling
+the “spare” space with a blurred version of the same image instead of
+ugly borders.
+
+“That’s I<exactly> what I need,” Pixie muttered. “No more cropped reindeer
+noses.”
+
+=head2 What App::BlurFill does
+
+At its heart, App::BlurFill is a simple Perl class for generating images
+with a blurred background fill. You give it:
+
+=over 4
+
+=item *
+
+an input image file
+
+=item *
+
+a desired width and height
+
+=back
+
+and it:
+
+=over 4
+
+=item 1.
+
+Loads the original image using Imager. 
+
+=item 2.
+
+Creates a blurred version of that image as the background. 
+
+=item 3.
+
+Scales the original image to fit inside the requested rectangle, preserving aspect ratio.
+
+=item 4.
+
+Centres the original image on top of the blurred background.
+
+=item 5.
+
+Writes out a new image file, typically named something like picture_blur.jpg. 
+
+=back
+
+By default, it aims at 650×350 pixels, which turned out to be just about
+perfect for one of Santa’s dashboards. 
+
+Even better, the distribution doesn’t just give you a Perl class and leave
+you to it. It comes with:
+
+=over 4
+
+=item *
+
+A Perl API (the class itself).
+
+=item *
+
+A command-line program: C<blurfill>. 
+
+=item *
+
+A Dancer2 web app so you can do it all in the browser. 
+
+=item *
+
+A [Docker container](https://hub.docker.com/r/davorg/app-blurfill) that bundles
+the web app so any elf with Docker can run it.
+
+=back
+
+Pixie decided to try all four.
+
+=head2 1. Using App::BlurFill from Perl
+
+Pixie’s first target was the NaughtyOrNice dashboard. That app already had
+a background job that prepared images whenever new photos arrived in the
+“Workshop Photos” bucket. Dropping a bit of Perl in there was easy.
+
+She installed the module the usual way:
+
+    cpanm App::BlurFill
+
+Then, in her image processing script, she added:
+
+    use App::BlurFill;
+
+    my $blur_fill = App::BlurFill->new(
+      file   => 'images/santa-aurora.jpg',
+      width  => 1200,
+      height => 630,   # Nice “social card” size
+    );
+
+    my $output = $blur_fill->process;
+    print "Blurred image saved to $output\n";
+
+The constructor accepts:
+
+=over 4
+
+=item *
+
+file – input image (required)
+
+=item *
+
+width – output width (defaults to 650)
+
+=item *
+
+height – output height (defaults to 350)
+
+=item *
+
+output – optional explicit output filename; otherwise a _blur file is
+generated for you. 
+
+=back
+
+The C<process> method does all the work and returns the path to the new file. 
+
+She wired that into the job that prepared thumbnails for the dashboard,
+redeployed, and refreshed the page.
+
+Where she’d previously had:
+
+=over 4
+
+=item *
+
+A letterboxed or cropped Santa…
+
+=back
+
+…she now had:
+
+=over 4
+
+=item *
+
+A perfectly centred Santa in the middle, with a soft, blurred version of
+the same photo filling the rest of the space. No black bars, no weird
+stretching.
+
+=back
+
+“Right,” she smiled. “That’s the dashboard sorted.”
+
+=head2 2. Letting the command line do the work
+
+The next problem was the content team.
+
+Not every elf is comfortable editing Perl code, but plenty of them are
+happy running commands in a terminal — especially once Pixie had written
+“DO NOT PANIC” across the workshop cheat sheet.
+
+Luckily, App::BlurFill ships with a command-line program, C<blurfill>. 
+
+The syntax is:
+
+    blurfill [-w width] [-h height] [-o output_filename] image_filename
+
+If you omit the options, it uses the defaults:
+
+=over 4
+
+=item *
+
+-w → defaults to 650
+
+=item *
+
+-h → defaults to 350
+
+=item *
+
+-o → defaults to the input name with _blur appended, e.g. elfies.png →
+elfies_blur.png 
+
+=back
+
+So Pixie wrote a quick note on the internal wiki:
+
+    # Standard hero image (1200x630)
+    blurfill -w 1200 -h 630 aurora-santa.jpg
+
+    # Story-style tall image (1080x1920)
+    blurfill -w 1080 -h 1920 reindeer-selfie.png
+
+Within minutes, the marketing elves were gleefully pushing perfectly
+formatted images into their social media queues. They didn’t need to know how
+the magic worked — just that the result looked better than anything they’d
+done in their old image editor.
+
+=head2 3. A point-and-click Dancer2 web app
+
+Of course, there were still a few elves who were allergic to terminals.
+
+“Is there a web page where I can just upload an image?” one of them asked
+plaintively. “Preferably without any of those scary flags?”
+
+Pixie was ready for this as well.
+
+The distribution includes a Dancer2 web interface, App::BlurFill::Web.
+There’s even a ready-made PSGI app in bin/app.psgi that just does:
+
+    use App::BlurFill::Web;
+
+    App::BlurFill::Web->to_app;
+
+Under the hood, that web app offers:
+
+=over 4
+
+=item *
+
+C<GET /> – shows a form where you can upload an image and (optionally) choose
+width and height.
+
+=item *
+
+C<POST /blur> – processes the upload, produces the blurred image, and returns
+a results page showing the output with a download link.  
+
+=item *
+
+C<GET /download/:filename> – serves the processed file directly for download.
+
+=back
+
+Width and height default to the same familiar values (650×350) if you don’t
+specify them.
+
+In a typical development environment, Pixie could run:
+
+    plackup bin/app.psgi
+
+Suddenly any elf could:
+
+=over 4
+
+=item *
+
+Visit the page.
+
+=item *
+
+Pick sleigh-team-photo.jpg.
+
+=item *
+
+Type 1200 and 675 into the width/height fields.
+
+=item *
+
+Click “Generate resized image”
+
+=item *
+
+Get back a nice preview and a link to the finished image.
+
+=back
+
+=head2 4. Putting it in a box: the Docker container
+
+Everything worked beautifully on Pixie’s machine.
+
+But Pixie had been burned before by elves trying to reproduce her setup:
+
+I<“It works on your laptop, but not in the Reindeer Barn!”>
+
+This time, she wanted a packaged solution: no “install Imager”, no “which
+version of Perl?”, no “do we have the right system libraries?”.
+
+Conveniently, the project provides a pre-built Docker container that runs the
+web app. The details are in the 
+L<DOCKER.md|https://github.com/davorg-cpan/app-blurfill/blob/main/docker/DOCKER.md>
+file on GitHub, with copy-and-paste commands for pulling and running the
+image in a single step.
+
+That meant:
+
+=over 4
+
+=item *
+
+The DevOps goblins could run the same container on their Kubernetes cluster.
+
+=item *
+
+Workshop elves could run it on their own machines if they liked.
+
+=item *
+
+Everyone saw the same web UI, and everyone got the same results.
+
+=back
+
+Pixie just had to share one short internal link to the instructions, and
+the entire organisation suddenly had a standard way of producing
+correctly sized images.
+
+=head2 Result: Happier reindeer, better images
+
+By Christmas week, the difference was obvious:
+
+=over 4
+
+=item *
+
+The NaughtyOrNice dashboard was full of crisp hero images, all perfectly sized.
+
+=item *
+
+The sleigh-tracking mobile app had consistent, professional-looking cards
+instead of a strange mixture of crops and letterboxing.
+
+=item *
+
+Social posts looked like they’d been designed by a real creative studio,
+not rushed together in an ageing bitmap editor.
+
+=back
+
+Most importantly, the reindeer union stopped complaining about losing
+antlers, hooves, or tails in badly cropped shots.
+
+On Christmas Eve, Santa stopped by Pixie’s desk.
+
+“I’ve been seeing these lovely blurred-background images all over our
+systems,” he said. “It makes everything feel much more… professional. What
+changed?”
+
+Pixie grinned.
+
+“I stopped cropping the photos,” she said. “And I started letting
+App::BlurFill do the hard work.”
+
+Santa nodded thoughtfully.
+
+“Very good. Put the module on the ‘Nice’ list,” he said. “And while you’re
+at it, make sure we’ve got a blurred-background version of the sleigh for my new profile picture.”
+
+=head2 Your own festive blur-filled images
+
+If you find yourself juggling awkward aspect ratios this December, you can
+take the same approach as Pixie:
+
+=over 4
+
+=item *
+
+Use the Perl API when you want to integrate into existing scripts or web apps.
+
+=item *
+
+Use the blurfill CLI for batch processing from the command line.
+
+=item *
+
+Use the Dancer2 web app when you want a friendly upload-and-click interface.
+
+=item *
+
+Use the Docker container to give your whole team a standardised, reproducible
+setup.
+
+=back
+
+And the nice thing is: it isn’t just for Christmas dashboards. The same
+blurred-background trick works beautifully for:
+
+=over 4
+
+=item *
+
+Website hero images
+
+=item *
+
+Social media cards
+
+=item *
+
+Video thumbnails
+
+=back
+
+Anything where you need a fixed aspect ratio but don’t want to lose the
+important bits of your image
+
+Just like Pixie, you might find that a little bit of Perl and a tasteful
+blur are all you need to make your images look more magical.
+
+=cut
