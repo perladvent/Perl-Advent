@@ -59,5 +59,5 @@ my $branch = 'publish/' . $ymd;
 `git push`;
 `gh pr create --title 'publish $ymd' --fill`;
 
-say "This script does not automatically move images to $year/share";
+say "This script does not automatically move images to $year/share/static";
 say 'You will need to do this manually.'
