@@ -7,7 +7,7 @@ shared. Adding an image is by no means required and you should feel free to
 ignore this message entirely. However, if you'd like to add an image, it's as
 simple as:
 
-* Adding the image to the `2024/share/static` folder like `2024/share/static/some-graphic.png`
+* Adding the image to the `2025/share/static` folder like `2025/share/static/some-graphic.png`
 * Including the image as HTML in your article
 
 The HTML would look like:

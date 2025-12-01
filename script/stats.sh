@@ -9,7 +9,7 @@ for year in $(seq 2000 2010); do
     echo "$year $(printf "%0.s🎄" $(seq 1 "$found"))"
 done
 
-for year in $(seq 2011 2024); do
+for year in $(seq 2011 2025); do
     found=$(find "$year/articles" | grep -c pod$)
     echo "$year $(printf "%0.s🎄" $(seq 1 "$found"))"
 done
