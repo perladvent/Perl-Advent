@@ -101,11 +101,13 @@ Topic: Module::Name
 
 ### Common POD Patterns
 
-**IMPORTANT**: Use `=for html` (not `=for :html`) for raw HTML:
+**Raw HTML blocks**:
 ```pod
 =for html
   <img src="image-name.png" alt="description" style="float: right; margin: 0 0 1em 1em; width: 300px;">
 ```
+
+Note: Both `=for html` and `=for :html` are valid POD syntax and work correctly in this codebase.
 
 **Syntax-highlighted code blocks**:
 ```pod
@@ -137,19 +139,14 @@ L<text|https://url.com>  # External link
 - Reference in articles with relative path: `src="image-name.png"`
 
 ### Common Issue: Images Not Rendering
-1. **Wrong POD directive**: Use `=for html` not `=for :html` (the colon causes escaping)
-2. **Wrong directory**: Images must be in `YEAR/share/static/` not `YEAR/incoming/`
-3. **Not copied during assign-date**: The script reminds you, but images must be moved manually
+1. **Wrong directory**: Images must be in `YEAR/share/static/` not `YEAR/incoming/`
+2. **Not copied during assign-date**: The script reminds you, but images must be moved manually
+3. **Missing indentation**: HTML content in `=for html` blocks should be indented
 
-Example fix:
+Example:
 ```pod
-# WRONG - HTML will be escaped
-=for :html
-<img src="image.png">
-
-# CORRECT - HTML will render
 =for html
-  <img src="image.png">
+  <img src="image.png" alt="description">
 ```
 
 ## Important Conventions
@@ -201,7 +198,7 @@ Example fix:
 
 ### Image Not Loading
 1. Verify image is in `YEAR/share/static/`
-2. Check POD uses `=for html` (without colon)
+2. Check HTML content in `=for html` blocks is properly indented
 3. Rebuild and check `out/YEAR/` contains the image
 4. Verify HTML isn't escaped in generated file
 
