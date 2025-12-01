@@ -16,6 +16,7 @@ use feature qw( say state );
 
 use DateTime        ();
 use Getopt::Kingpin ();
+use Path::Tiny qw( path );
 my $kingpin = Getopt::Kingpin->new;
 $kingpin->flags->get('help')->short('h');
 
@@ -45,10 +46,18 @@ my $target_date = DateTime->new(
     day   => "$day_of_month",
 );
 my $ymd              = $target_date->ymd;
-my $publish_location = $year . '/articles/' . $ymd . '.pod';
+my $publish_dir = path( $year, 'articles' );
+$publish_dir->mkdir;
+
+my $publish_location = $publish_dir->child( $ymd . '.pod' );
 
 my $branch = 'publish/' . $ymd;
 
 `git switch -c $branch`;
 `git mv $article $publish_location`;
 `git commit $article $publish_location -m "$ymd"`;
+`git push`;
+`gh pr create --title 'publish $ymd' --fill`;
+
+say "This script does not automatically move images to $year/share";
+say 'You will need to do this manually.'
