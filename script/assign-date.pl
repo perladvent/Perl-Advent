@@ -2,7 +2,7 @@
 
 =head1 SYNOPSIS
 
-    find 2024/incoming | fzf | xargs -I {} perl script/assign-date.pl --article {} --day 2
+    find $(perl -E 'say 1900+(localtime)[5]')/incoming | fzf | xargs -I {} perl script/assign-date.pl --article {} --day 2
 
 =head1 DESCRIPTION
 
