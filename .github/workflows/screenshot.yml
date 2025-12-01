@@ -118,14 +118,21 @@ jobs:
 
           # Wait for server to be ready
           sleep 3
+          SERVER_READY=false
           for i in $(seq 1 10); do
             if curl -s http://localhost:8000/ > /dev/null; then
               echo "Server is ready"
+              SERVER_READY=true
               break
             fi
             echo "Waiting for server... attempt $i"
             sleep 2
           done
+
+          if [ "$SERVER_READY" = "false" ]; then
+            echo "Error: Server failed to start after 10 attempts"
+            exit 1
+          fi
 
           # Create screenshot script
           cat > /tmp/screenshot.js << 'SCRIPT_EOF'
@@ -184,8 +191,8 @@ jobs:
               const url = `http://localhost:8000/2025/${htmlFile}`;
               console.log(`Taking screenshots of: ${url}`);
 
-              const articleName = basename.replace(/^\d{4}-\d{2}-\d{2}$/, '') || basename;
-              const safeArticleName = articleName.replace(/[^a-zA-Z0-9-_]/g, '-');
+              const articleName = basename.replace(/^\d{4}-\d{2}-\d{2}$/, basename) || basename;
+              const safeArticleName = (articleName || 'article').replace(/[^a-zA-Z0-9-_]/g, '-');
 
               // Desktop screenshot
               const desktopPage = await browser.newPage();
@@ -281,10 +288,10 @@ jobs:
             for (const info of screenshotInfo) {
               body += `### ${info.article}\n\n`;
               body += `**Rendered as:** \`${info.htmlFile}\`\n\n`;
-              body += `#### Desktop View (1920x1080)\n`;
-              body += `![Desktop Preview](${artifactUrl})\n\n`;
-              body += `#### Mobile View (375x667)\n`;
-              body += `![Mobile Preview](${artifactUrl})\n\n`;
+              body += `| View | Resolution | File |\n`;
+              body += `|------|------------|------|\n`;
+              body += `| 🖥️ Desktop | 1920x1080 | \`${path.basename(info.desktop)}\` |\n`;
+              body += `| 📱 Mobile | 375x667 | \`${path.basename(info.mobile)}\` |\n\n`;
               body += `---\n\n`;
             }
 
