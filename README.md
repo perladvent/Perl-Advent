@@ -57,7 +57,7 @@ cpm install -g WWW::AdventCalendar App::HTTPThis
 Then build all recent calendars
 
 ```bash
-for year in $(seq 2011 2024); do cd $year && advcal -c advent.ini -o `pwd` && cd ..; done
+for year in $(seq 2011 2025); do cd $year && advcal -c advent.ini -o `pwd` && cd ..; done
 ```
 
 ### 3. Test (locally)
