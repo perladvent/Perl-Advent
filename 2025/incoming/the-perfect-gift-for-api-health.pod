@@ -1,0 +1,387 @@
+Author: Mohammad Sajid Anwar <mohammad.anwar@yahoo.com>
+Title: The Perfect Gift for Your API's Health
+Topic: OpenAPI::Linter
+
+=encoding utf8
+
+=head1 OpenAPI::Linter - The Perfect Gift for Your API's Health
+
+=head2 A Gift for Your API
+
+'Twas the night before deployment, and all through the code,
+Not an API was stirring, not even a load;
+The specifications were hung by the chimney with care,
+In hopes that Saint Linter soon would be there!
+
+L<OpenAPI|https://www.openapis.org> has become the standard for I<designing>, I<building> and I<documenting RESTful APIs>, much like how Santa's list organises who's naughty and nice. However, ensuring your I<OpenAPI specifications> are both syntactically correct and follow best practices can be as challenging as navigating through a snowstorm.
+
+Just as elves check toys before they leave the workshop, L<OpenAPI::Linter|https://metacpan.org/dist/OpenAPI-Linter> brings comprehensive validation and linting capabilities directly into your I<Perl> applications and development workflow, helping you catch issues before they disappoint your I<API> consumers on Christmas morning.
+
+=head2 The Workshop's Quality Inspector
+
+C<OpenAPI::Linter> is the Chief Elf of your API workshop - a dual-purpose tool that provides both structural validation against the official I<OpenAPI JSON Schema> (checking if the toy has all its parts) and custom linting for best practices (ensuring it's well-made and safe). It automatically detects your I<OpenAPI> version and applies the appropriate validation rules, supporting versions C<3.0.x> through C<3.1.x>, much like how Santa adapts his delivery route for different continents.
+
+=head2 Unwrapping the Package
+
+Installing from I<CPAN> is as easy as unwrapping a Christmas present:
+
+    $ cpanm -vS OpenAPI::Linter
+
+Or if you prefer the traditional chimney method:
+
+    $ cpan OpenAPI::Linter
+
+The module has minimal dependencies (just like Santa's sack is magic) and will automatically install C<JSON::Validator> for schema validation and C<YAML::XS> for I<YAML> file parsing - think of them as helpful reindeer pulling the sleigh!
+
+=head3 The Naughty and Nice Lists
+
+Let's create two API specifications - one that's been naughty and one that's been nice this year:
+
+File: F<naughty-api.yml> (The one that might get coal)
+
+    openapi: 3.0.3
+    info:
+      title: Sample User API
+      # version: 1.0.0  # INTENTIONALLY COMMENTED OUT - Naughty!
+      description: A sample API for user management
+      # license:  # INTENTIONALLY MISSING - Very naughty!
+      contact:
+        name: API Team
+        email: api@example.com
+
+File: F<nice-api.yml> (The one that gets presents)
+
+    openapi: 3.1.0
+    info:
+      title: Sample User API
+      version: 1.0.0
+      description: A sample API for user management
+      license:
+        name: MIT
+        url: https://opensource.org/licenses/MIT
+      contact:
+        name: API Team
+        email: api@example.com
+        url: https://example.com/support
+    paths:
+      /toys:
+        get:
+          summary: List all toys
+          description: Returns a list of all toys in the store.
+          responses:
+            '200':
+              description: OK
+
+=head2 Your First Sleigh Ride
+
+Let's take our new linter for a spin around the North Pole! Here's a simple script to check if your API has been naughty or nice:
+
+File: F<check_api.pl>
+
+    use OpenAPI::Linter;
+
+    print "Checking API specifications...\n";
+    print "Loading the sleigh (linter)...\n";
+
+    my $linter = OpenAPI::Linter->new(spec => $ARGV[0]);
+
+    print "\nChecking if all the reindeer are present (schema validation)...\n";
+    my @schema_errors = $linter->validate_schema;
+
+    if (@schema_errors) {
+        print "🎅 Uh oh! Found missing reindeer (schema errors):\n";
+        foreach my $error (@schema_errors) {
+            print "   🦌 " . $linter->format_schema_error($error->{message}) . "\n";
+        }
+    } else {
+        print "✅ All reindeer present and accounted for!\n";
+    }
+
+    print "\nChecking toy quality (linting issues)...\n";
+    my @linting_issues = $linter->find_issues;
+
+    if (@linting_issues) {
+        print "🔧 Some toys need polishing:\n";
+        foreach my $issue (@linting_issues) {
+            my $emoji = $issue->{level} eq 'ERROR' ? '🎄' : '🌟';
+            print "   $emoji [$issue->{level}] $issue->{message}\n";
+        }
+    } else {
+        print "🎁 All toys are perfectly crafted! Ready for delivery!\n";
+    }
+
+Output when checking our naughty API:
+
+    $ perl check_api.pl naughty-api.yml
+    Checking API specifications...
+    Loading the sleigh (linter)...
+
+    Checking if all the reindeer are present (schema validation)...
+    🎅 Uh oh! Found missing reindeer (schema errors):
+       🦌   - /info/version: Missing property.
+       🦌   - /paths: Missing property.
+
+    Checking toy quality (linting issues)...
+    🔧 Some toys need polishing:
+       🎄 [ERROR] Missing paths
+       🎄 [ERROR] Missing info.version
+       🌟 [WARN] Missing info.license
+
+Output when checking our nice API:
+
+    $ perl check_api.pl nice-api.yml
+    Checking API specifications...
+    Loading the sleigh (linter)...
+
+    Checking if all the reindeer are present (schema validation)...
+    ✅ All reindeer present and accounted for!
+
+    Checking toy quality (linting issues)...
+    🎁 All toys are perfectly crafted! Ready for delivery!
+
+=head2 Checking the Naughty List
+
+C<validate_schema> performs structural validation against the official I<OpenAPI JSON Schema>, much like Santa checks his list twice:
+
+File: F<santas_check.pl>
+
+    use OpenAPI::Linter;
+
+    print "🎅 Santa is checking his list...\n";
+
+    my $linter = OpenAPI::Linter->new(spec => {
+        openapi => '3.0.0',
+        info => {
+            title   => 'Nice API',
+            version => '1.0.0'
+        },
+        paths => {}
+    });
+
+    my $errors = $linter->validate_schema;
+
+    if (@$errors) {
+        print "❌ Found naughty APIs!\n" . join("\n", @$errors);
+        print "\nBetter get them fixed before Christmas!\n";
+    } else {
+        print "✅ All APIs are on the nice list!\n";
+        print "Ho ho ho! Merry Christmas!\n";
+    }
+
+=head2 Finding Coal in Your Stocking
+
+C<find_issues> performs best-practice checks beyond basic schema validation. It's like having an elf quality inspector for your API toys:
+
+File: F<elf_inspector.pl>
+
+    use OpenAPI::Linter;
+
+    my $spec = {
+        openapi => '3.0.0',
+        info => {
+            title   => 'Toy API',
+            version => '1.0.0'
+            # Missing description and license - oops!
+        },
+        paths => {
+            '/toys' => {
+                'get' => {
+                    responses => {
+                        '200' => {
+                            description => 'OK'
+                        }
+                    }
+                    # Missing operation description - the elf forgets sometimes!
+                }
+            }
+        }
+    };
+
+    my $linter = OpenAPI::Linter->new(spec => $spec);
+    my @issues = $linter->find_issues;
+
+    print "🔍 Elf inspection report:\n";
+    print "=" x 30 . "\n";
+
+    foreach my $issue (@issues) {
+        my $severity = $issue->{level} eq 'ERROR' ? 'COAL' : 'POLISH NEEDED';
+        printf "%-15s %s\n", "[$severity]", $issue->{message};
+    }
+
+    print "\n" . scalar(@issues) . " issues found.\n";
+    if (@issues) {
+        print "Better fix these before the big delivery!\n";
+    }
+
+=head2 Sorting the Ornaments
+
+Just as you might sort Christmas ornaments by color or size, C<find_issues> supports filtering by I<severity level> and message patterns:
+
+File: F<sort_ornaments.pl>
+
+    use OpenAPI::Linter;
+
+    my $linter = OpenAPI::Linter->new(spec => $ARGV[0]);
+
+    print "🎄 Sorting through the ornament box...\n\n";
+
+    # Get only the red bulbs (errors)
+    my @red_ornaments = $linter->find_issues(level => 'ERROR');
+
+    # Get the shiny silver tinsel (description warnings)
+    my @silver_tinsel = $linter->find_issues(
+        level => 'WARN',
+        pattern => qr/description/i
+    );
+
+    # Get all the path-related snowflakes
+    my @snowflakes = $linter->find_issues(
+        pattern => qr/^Missing description for \w+/
+    );
+
+    print "🔴 Red bulbs (errors): " . scalar(@red_ornaments) . "\n";
+    print "✨ Silver tinsel (description warnings): " . scalar(@silver_tinsel) . "\n";
+    print "❄️  Snowflakes (path issues): " . scalar(@snowflakes) . "\n";
+
+    my $total = scalar(@red_ornaments) + scalar(@silver_tinsel) + scalar(@snowflakes);
+    print "\nTotal ornaments in the box: $total\n";
+
+=head2 A Complete Christmas Dinner
+
+Here's a complete example that validates a realistic API specification - think of it as preparing the entire Christmas feast:
+
+File: F<christmas_feast.pl>
+
+    use OpenAPI::Linter;
+
+    print "🎄 Preparing the Christmas API feast...\n";
+    print "Checking all ingredients (validating $ARGV[0])...\n\n";
+
+    eval {
+        my $linter = OpenAPI::Linter->new(spec => $ARGV[0]);
+
+        print "1. Checking the turkey (schema validation)...\n";
+        my @schema_errors = $linter->validate_schema;
+
+        if (@schema_errors) {
+            print "   ❗ The turkey is undercooked! Schema issues found:\n";
+            foreach my $error (@schema_errors) {
+                print "      🦃 " . $linter->format_schema_error($error->{message}) . "\n";
+            }
+            print "\n   🚨 Can't serve the feast with schema errors!\n";
+            exit 1;
+        }
+
+        print "   ✅ Turkey is perfectly cooked!\n\n";
+
+        print "2. Tasting the sides (linting checks)...\n";
+        my @issues = $linter->find_issues;
+
+        my ($lumps_in_gravy, $missing_spices) = (0, 0);
+        foreach my $issue (@issues) {
+            if ($issue->{level} eq 'ERROR') {
+                $lumps_in_gravy++;
+                print "   ❗ LUMP IN GRAVY: $issue->{message}\n";
+            } else {
+                $missing_spices++;
+                print "   ⚠️  NEEDS SPICE: $issue->{message}\n";
+            }
+        }
+
+        if ($lumps_in_gravy) {
+            print "\n   🚨 $lumps_in_gravy lump(s) in the gravy - feast is ruined!\n";
+            exit 1;
+        } elsif ($missing_spices) {
+            print "\n   ⚠️  $missing_spices side(s) need more spice, but feast is edible!\n";
+            print "   Consider adding more flavor for next year.\n";
+            exit 0;
+        } else {
+            print "\n   🎉 Feast is perfect! All dishes are seasoned just right!\n";
+            print "   Merry Christmas and bon appétit!\n";
+            exit 0;
+        }
+    };
+
+    if ($@) {
+        print "\n🔥 The kitchen is on fire! Failed to process $ARGV[0]: $@\n";
+    }
+
+=head2 Santa's Little Helper
+
+C<OpenAPI::Linter> comes with a convenient command-line tool C<openapi-linter> - think of it as your own personal elf helper:
+
+=head3 The Quick Workshop Check
+
+    $ openapi-linter --spec naughty-api.yml
+    [ERROR] Missing paths
+    [ERROR] Missing info.version
+    [WARN] Missing info.license
+
+    Summary: 2 ERRORs, 1 WARN
+
+=head3 The Detailed Workshop Audit
+
+    $ openapi-linter --spec naughty-api.yml --validate
+    Running schema validation for naughty-api.yml...
+      - /info/version: Missing property.
+      - /paths: Missing property.
+
+    Summary: 2 ERRORs, 0 WARNs
+
+=head3 The Workshop Report
+
+    $ openapi-linter --spec naughty-api.yml --json
+    {
+        "summary" : {
+            "errors" : 2,
+            "warnings" : 1
+        },
+        "issues" : [
+            {
+                "message" : "Missing paths",
+                "location" : "naughty-api.yml:1:1",
+                "level" : "ERROR",
+                "path" : "paths"
+            },
+            {
+                "message" : "Missing info.version",
+                "location" : "naughty-api.yml:1:1",
+                 "level" : "ERROR",
+                 "path" : "info.version"
+            },
+            {
+                "message" : "Missing info.license",
+                "location" : "naughty-api.yml:1:1",
+                "path" : "info.license",
+                "level" : "WARN"
+            }
+        ]
+    }
+
+=head2 All the Elves Work Together
+
+C<OpenAPI::Linter> automatically detects and supports all the hard-working elves in your workshop:
+
+    🎅 OpenAPI 3.0.x Workshop: 3.0.0, 3.0.1, 3.0.2, 3.0.3
+    🦌 OpenAPI 3.1.x Workshop: 3.1.0, 3.1.1
+
+The version is auto-detected from the openapi field (Santa knows which workshop he's in), but you can explicitly tell him:
+
+    my $linter = OpenAPI::Linter->new(
+        spec    => $spec,
+        version => '3.1.0'  # "Head to the new workshop, Santa!"
+    );
+
+=head2 A Gift That Keeps on Giving
+
+C<OpenAPI::Linter> is the gift that keeps on giving throughout the year! It helps you maintain high-quality I<API specifications> by catching issues early in the development process, ensuring your APIs don't end up on the naughty list.
+
+Whether you're using it in your I<CI/CD> pipeline (Santa's delivery tracking system), as a I<pre-commit> hook (elf quality check before toys leave the workshop), or integrated directly into your application, it ensures your I<OpenAPI> specifications are both valid and follow best practices.
+
+Remember: A well-linted API is like a perfectly wrapped present - it shows you care about the person receiving it (your API consumers)!
+
+=head2 🎅 Merry Coding and Happy Holidays! 🎄
+
+May your APIs be well-documented, your tests pass, and your deployments be as smooth as Santa's sleigh ride!
+
+=cut
