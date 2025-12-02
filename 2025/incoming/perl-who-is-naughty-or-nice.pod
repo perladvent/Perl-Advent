@@ -1,0 +1,158 @@
+Author: Charlie Gonzalez <itcharlie@gmail.com>
+Title: Perl who is Naughty or Nice?
+Topic: Random::Contact Getopt::long 
+
+=encoding utf8
+
+=head1 Elfs are scrambling
+
+Santa's ETL framework went down and now the elfs are tasked with writing a perl script to process the "Naughty or Nice" master feed files. 
+To tackle this problem Chaz (one of Santa's elfs)  will generate a sample feed file and use it as test data for a new perl script.
+
+=head1 Test Data Format
+
+Chaz needs to be able to conform with the original format of the feed file ( a csv file ) with the following fields :
+
+first_name
+last_name
+street_address
+city
+state
+postal_code
+Naughty_or_Nice_flag 
+
+while thinking about this problem he remembered a perl module named "Data::Random::Contact" that he found while searching for a module to generate random data via MetaCpan.
+So he borrowed a laptop from the toy factory and started working on a script. 
+
+=head1 Random Data Generator script
+
+The data from Data::Random::Contact L<https://metacpan.org/pod/Data::Random::Contact> is actually generated from Fakenamegenerator.com
+to make the test data as close to production use Chaz wrote the script to generate at least 200 records.  
+
+ 
+=begin perl 
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Data::Dumper;
+use Data::Random::Contact;
+
+# write out a ramdomly generated list of demographic data
+my $rand = Data::Random::Contact->new();
+
+for ( my $i = 0 ; $i < 200 ; $i++ ) {
+
+    #returns a hashref
+    my $person = $rand->person();
+
+    # only print if postal code is def
+    if ( $person->{address}{home}{postal_code} ) {
+        my  $n_or_n = int(rand(2));
+        print join( ',',
+            $person->{given},
+            $person->{surname},
+            $person->{address}{home}{street_1},
+            $person->{address}{home}{city},
+            $person->{address}{home}{region},
+            $person->{address}{home}{postal_code},
+            $n_or_n ) . "\n";
+
+    }
+
+}
+
+
+=end perl
+
+=head1 The Test Data
+
+Its a few hours before Christmas and Chaz has already wrote a perl script that will generated random data needed to test his new data extractor program.  
+
+here is an example of the test data :
+
+=begin csv
+
+Howard,Rogers,2617 Broad Avenue,Memphis,Tennessee,38112,0
+Irene,Hoskins,3720 Butler St.,Pittsburgh,Pennsylvania,15201,0
+Melvin,Hoskins,120 S. 1st Street,Louisville,Kentucky,40202,1
+Danny,Arnold,1692 N. Van Buren St.,Milwaukee,Wisconsin,53202,1
+T
+
+=end csv
+
+
+=head1 Use Getop::Long to select Naughty and Nice output files
+
+Chaz is very close to the last 2 hours of christmas eve and now has a working Perl script that will output Naughty and/or Nice kids from the list in separate files.  
+Chaz also had to consider the fact that the master file of kids can sent in batches of a few hundred records at a time so he had to add some argument options to allow for passing a file as an argument and to select whether the output file will contain Naughty or Nice kids. 
+
+=begin perl 
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Data::Dumper;
+use Getopt::Long;
+
+my $nice    = '';
+my $naughty = '';
+my $file;
+
+# parse options
+GetOptions(
+    "nice"    => \$nice,
+    "naughty" => \$naughty,
+    "file=f"  => \$file,
+) or die("Unable to parse information");
+
+if ( ( $nice eq "" ) and ( $naughty eq "" ) ) {
+    die "Need nice or naughty option";
+}
+
+my $in_fh;
+
+# Create a filehandle from file option or default csv file.
+if ($file) {
+    open( my $in_fh, '<', $file ) or die( "Unable to open " . $file );
+}
+else {
+    open( $in_fh, '<', 'master_list.csv' )
+      or die("Unable to open master_list.csv");
+}
+
+our ( $nice_fh, $naughty_fh );
+
+# Create file handle for Nice and Naughty files if set.
+if ($nice) {
+    open( $nice_fh, '>', 'Nice_list.csv' )
+      or die("Unable to open Nice_list.csv");
+
+}
+if ($naughty) {
+    open( $naughty_fh, '>', 'Naughty_list.csv' )
+      or die("Unable to open Naughty_list.csv");
+}
+
+while ( my $rec = <$in_fh> ) {
+    $rec =~ s/\R//g;
+
+    # filter out the nice kids
+    my @fields = split( /,/, $rec );
+
+    if ($nice) {
+
+        # Nice kids get printed
+        if ( $fields[6] == 1 ) { print $nice_fh ( $rec . "\n" ); }
+    }
+    if ($naughty) {
+
+        # Naughty kids get printed
+        if ( $fields[6] == 0 ) { print $naughty_fh ( $rec . "\n" ); }
+    }
+
+}
+
+
+=end perl
+
+
