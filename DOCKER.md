@@ -131,17 +131,75 @@ docker rmi perl-advent:latest
 
 ## CI Usage
 
-For GitHub Actions or other CI systems, the Docker setup works out of the box:
+Both the `test.yml` and `build.yml` workflows use Docker Compose to ensure consistency between local development and CI.
+
+### Docker Layer Caching
+
+Both workflows use GitHub Actions cache (`type=gha`) to share Docker layers between workflow runs and across different workflows. This means:
+
+- The first workflow run builds all layers (~5 minutes)
+- Subsequent runs reuse cached layers (~30 seconds)
+- Different workflows (test vs build) share the same cache
+- The image only rebuilds when the Dockerfile or dependencies change
+
+### Test Workflow
 
 ```yaml
-- name: Build site
-  run: docker compose run --rm perl-advent
+- uses: actions/checkout@v6
+  with:
+    submodules: true
+- name: Set up Docker Buildx
+  uses: docker/setup-buildx-action@v3
+- name: Build Docker image
+  uses: docker/bake-action@v6
+  with:
+    files: docker-compose.yml
+    load: true
+    set: |
+      *.cache-from=type=gha
+      *.cache-to=type=gha,mode=max
+- name: Run tests
+  run: docker compose run --rm perl-advent prove -lr t
+```
 
+### Build and Deploy Workflow
+
+```yaml
+- uses: actions/checkout@v6
+  with:
+    submodules: true
+- name: Set up Docker Buildx
+  uses: docker/setup-buildx-action@v3
+- name: Build Docker image
+  uses: docker/bake-action@v6
+  with:
+    files: docker-compose.yml
+    load: true
+    set: |
+      *.cache-from=type=gha
+      *.cache-to=type=gha,mode=max
+- name: Build articles
+  run: docker compose run --rm perl-advent
+- name: Copy built site from Docker volume
+  run: docker compose run --rm perl-advent cp -r /app/out /app/out-ci
+- name: Move built site to host
+  run: mv out-ci out
+```
+
+The key difference in CI is that we need to copy the built site from the Docker volume to the host filesystem so GitHub Actions can upload it as an artifact.
+
+### Screenshot Generation
+
+If you need to generate screenshots in CI:
+
+```yaml
+- name: Start web server
+  run: docker compose up -d perl-advent-server
 - name: Generate screenshot
   run: |
-    docker compose up -d perl-advent-server
-    # Your screenshot commands here
-    docker compose down
+    # Your screenshot commands here (e.g., using Playwright)
+- name: Stop server
+  run: docker compose down
 ```
 
 Since CI environments are ephemeral, the named volume will be automatically cleaned up after each run.
