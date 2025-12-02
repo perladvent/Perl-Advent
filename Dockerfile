@@ -6,8 +6,9 @@ RUN apt-get update && apt-get install -y vim git
 # Set working directory
 WORKDIR /app
 
-# Clone and set up the project
-COPY . .
+# Copy only dependency-related files first (for layer caching)
+COPY cpanfile ./
+COPY inc/ ./inc/
 
 # Initialize git repo to satisfy Dist::Zilla's git checks
 # The broken .git worktree pointers prevent dzil from working properly
@@ -38,3 +39,10 @@ RUN cd inc/Pod-Elemental-Transformer-SynHi && \
 RUN cd inc/PPI-HTML && \
     perl -I. Makefile.PL && \
     make install
+
+# Remove the temporary git repo before copying the rest of the application
+RUN rm -rf /app/.git /app/inc/*/.git
+
+# Copy the rest of the application
+# This layer will invalidate on any source change, but dependencies above are cached
+COPY . .

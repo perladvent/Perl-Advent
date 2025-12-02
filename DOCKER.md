@@ -254,6 +254,34 @@ The `build-site.sh` script runs `rm -rf out` to ensure clean builds. Without the
 
 By mounting a named volume at `/app/out`, we "shadow" that directory. Changes to `/app/out` inside the container only affect the volume, not your host filesystem.
 
+### Dockerfile Layer Optimization
+
+The Dockerfile is optimized for fast rebuilds using Docker's layer caching:
+
+```dockerfile
+# Layer 1-3: Base image and system packages (rarely change)
+FROM perldocker/perl-tester:5.40
+RUN apt-get update && apt-get install -y vim git
+WORKDIR /app
+
+# Layer 4-5: Copy only dependency files (change when adding/updating deps)
+COPY cpanfile ./
+COPY inc/ ./inc/
+
+# Layer 6-11: Install all dependencies (cache invalidates only when deps change)
+RUN cpm install -g --cpanfile=cpanfile --with-develop
+# ... install forked modules ...
+
+# Layer 12-13: Copy application code (invalidates on any source change)
+COPY . .
+```
+
+**Build time breakdown:**
+- **Dependency layers (6-11)**: ~4 minutes (cached unless cpanfile/inc/ changes)
+- **Application layer (12-13)**: ~1 second (invalidates on any article/config change)
+
+This means editing articles or configuration files triggers only a ~1 second rebuild, not a full 5-minute dependency reinstall.
+
 ### Dependency Installation
 
 The Dockerfile installs dependencies in this order:
