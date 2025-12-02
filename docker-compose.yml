@@ -1,0 +1,34 @@
+---
+services:
+  perl-advent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: perl-advent:latest
+    volumes:
+      - .:/app
+      - build-output:/app/out  # Use named volume so rm -rf won't affect host
+    command: >
+      bash -c "
+        echo 'Building Perl Advent Calendar site...' &&
+        bash script/build-site.sh &&
+        echo 'Build complete! Site is available in the ./out directory'
+      "
+
+  perl-advent-server:
+    image: perl-advent:latest
+    ports:
+      - '7007:7007'
+    volumes:
+      - build-output:/app/out  # Share the same named volume
+    working_dir: /app/out
+    command: http_this --autoindex
+    init: true
+    tty: true
+    stdin_open: true
+    depends_on:
+      - perl-advent
+
+
+volumes:
+  build-output:  # Named volume persists between runs
