@@ -35,8 +35,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 static_build=out
-# rm -rf $static_build
-# mkdir $static_build
+# Clean output directory (delete contents, not the directory itself for Docker volume mounts)
+if [ -d "$static_build" ]; then
+    rm -rf ${static_build:?}/*
+else
+    mkdir $static_build
+fi
 
 perl mkarchives $static_build
 
