@@ -5,7 +5,7 @@ Topic: System Security Auditing
 =encoding utf8
 
 =for :html
-<img src="the-ghost-of-perl-developer-surveys-past-present-and-future.png" alt="The Ghost of Perl Developer Surveys Past, Present, and Future" style="float: right; margin: 0 0 1em 1em; width: 300px;"/>
+<img src="elf_runnig_perl_script.png" alt="Stopping the Evil Grinch" style="float: right; margin: 0 0 1em 1em; width: 300px;"/>
 
 It was a quiet December evening when Santa's elves received an urgent update. The Evil Grinch planned to infect all the computers in Santa's toy factory to ruin Christmas. The elves did not panic, as they had the magical tools needed to defend the workshop:
 
@@ -75,6 +75,14 @@ Next, they created a Perl script to run the reports:
   use Log::Log4perl qw(:easy);
   use Dotenv;
 
+  Log::Log4perl->easy_init(
+    {
+        level => $DEBUG,
+        file  => ">>test.log"
+    }
+  );
+
+
   Readonly::Scalar my $lynis_file  => '/home/user/lynis-report.dat';
   Readonly::Scalar my $clamav_file => '/home/user/clamav.log';
 
@@ -104,6 +112,31 @@ Next, they created a Perl script to run the reports:
           $clamav_file
       );
   }
+
+  sub _execute_cmd {
+    my ( $cmd, $file ) = @_;
+
+    my $cmd_str = join ' ', @{$cmd};
+    if ( $file eq '/home/user/clamav.log' ) {
+        # accept error
+        system( @{$cmd} );
+    }
+    else {
+        system( @{$cmd} ) == 0 or die "can not excute $cmd_str: $?";
+    }
+    return;
+}
+
+    sub run_report {
+        my ( $cmd, $file ) = @_;
+
+        if ( -f $file ) {
+            unlink $file;
+        }
+
+        _execute_cmd( $cmd, $file );
+        return;
+    }
 
 At this point, the magical script was running the reports. The final step was to send them via email. The elves created a Gmail app password and stored it in a protected C<.mail_env> file:
 
