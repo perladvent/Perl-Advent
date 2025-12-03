@@ -60,7 +60,7 @@ Perform a comprehensive review checking for:
   - Inline vim highlighting with `#!vim <language>` (e.g., `#!vim bash`, `#!vim perl`)
   - Code blocks using vim highlighting must have a 2-space indent
   - Plain indented code without highlighting should be flagged for author review
-- Links formatted correctly: Both `L<Module::Name>`, `L<text|url>` (POD) and `[text](url)` (Markdown) are acceptable
+- Links formatted correctly: Both `L<Module::Name>` and `L<text|url>` (POD) are acceptable
 - Headings use correct levels (`=head2`, `=head3`)
 
 ### Technical Content

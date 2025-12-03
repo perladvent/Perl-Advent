@@ -14,16 +14,22 @@ jobs:
   build-job:
     name: Test
     runs-on: ubuntu-latest
-    container:
-      image: perldocker/perl-tester:5.36
     steps:
       - uses: actions/checkout@v6
-      - name: Install vim for Text-VimColor
-        run: apt-get install -y vim
-      - name: Install deps using cpm
-        uses: perl-actions/install-with-cpm@v1
         with:
-          cpanfile: 'cpanfile'
-          sudo: false
-      - name: prove
-        run: prove -lr t
+          submodules: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🐳 Build Docker image
+        uses: docker/bake-action@v6
+        with:
+          files: docker-compose.yml
+          load: true
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
+
+      - name: 🧪 Run tests
+        run: docker compose run --rm perl-advent prove -lr t

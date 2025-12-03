@@ -51,13 +51,84 @@ $publish_dir->mkdir;
 
 my $publish_location = $publish_dir->child( $ymd . '.pod' );
 
+# Find and move files (images, audio, etc.) referenced in the article
+my @moved_files = find_and_move_files( $article, $year );
+
 my $branch = 'publish/' . $ymd;
 
-`git switch -c $branch`;
+# Check if we're already on the target branch
+my $current_branch = `git branch --show-current`;
+chomp $current_branch;
+
+if ( $current_branch ne $branch ) {
+    # Check if branch exists
+    my $branch_exists = system("git rev-parse --verify $branch >/dev/null 2>&1") == 0;
+
+    if ($branch_exists) {
+        `git switch $branch`;
+    }
+    else {
+        `git switch -c $branch`;
+    }
+}
+
 `git mv $article $publish_location`;
-`git commit $article $publish_location -m "$ymd"`;
+
+# Add moved files to git
+for my $file (@moved_files) {
+    `git add $file`;
+}
+
+my @files_to_commit = ( $article, $publish_location, @moved_files );
+my $commit_cmd = 'git commit ' . join( ' ', map { qq{"$_"} } @files_to_commit ) . qq{ -m "$ymd"};
+`$commit_cmd`;
 `git push`;
 `gh pr create --title 'publish $ymd' --fill`;
 
-say "This script does not automatically move images to $year/share/static";
-say 'You will need to do this manually.'
+if (@moved_files) {
+    say "Moved " . scalar(@moved_files) . " file(s) to $year/share/static:";
+    say "  - $_" for @moved_files;
+}
+else {
+    say "No files found to move.";
+}
+
+sub find_and_move_files {
+    my ( $article_path, $year ) = @_;
+
+    my $article_file = path($article_path);
+    return unless $article_file->exists;
+
+    my $content      = $article_file->slurp_utf8;
+    my $incoming_dir = $article_file->parent;
+    my $static_dir   = path( $year, 'share', 'static' );
+    $static_dir->mkpath;
+
+    my @moved_files;
+
+    # Get all non-POD files in the incoming directory
+    my @potential_files = grep { $_->is_file && $_->basename !~ /\.pod$/ } $incoming_dir->children;
+
+    for my $file (@potential_files) {
+        my $filename = $file->basename;
+
+        # Check if this file is referenced in the article
+        if ( $content =~ /\Q$filename\E/ ) {
+            my $dest_file = $static_dir->child($filename);
+
+            # Use git mv to move the file
+            my $cmd = qq{git mv "$file" "$dest_file"};
+            `$cmd`;
+
+            if ( $? == 0 ) {
+                push @moved_files, $dest_file->stringify;
+                say "Found and moved: $filename";
+            }
+            else {
+                warn "Failed to move $filename: $!";
+            }
+        }
+    }
+
+    return @moved_files;
+}
