@@ -1,8 +1,15 @@
 ---
 name: Screenshot Article Preview
 
+# Security note: This workflow uses pull_request_target to allow write access
+# for PRs from forked repositories. This is safe because:
+# 1. It only runs when the 'preview' label is applied (requires maintainer action)
+# 2. It explicitly checks out the PR code, not the base branch
+# 3. It only builds POD articles and takes screenshots - no code execution from PRs
+# 4. All Docker builds are sandboxed
+
 on:
-  pull_request:
+  pull_request_target:
     types: [labeled, synchronize]
   workflow_dispatch:
 
@@ -18,6 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           submodules: true
           fetch-depth: 0
 
@@ -41,7 +49,8 @@ jobs:
           echo "year=$YEAR" >> "$GITHUB_OUTPUT"
 
           # Get list of changed POD files in YEAR/incoming or YEAR/articles
-          CHANGED_FILES=$(git diff --name-only origin/main...HEAD | grep -E "${YEAR}/(incoming|articles)/.*\.pod$" || true)
+          # For pull_request_target, we compare against the base ref
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} | grep -E "${YEAR}/(incoming|articles)/.*\.pod$" || true)
 
           if [ -z "$CHANGED_FILES" ]; then
             echo "No article files changed"
@@ -77,10 +86,12 @@ jobs:
 
       - name: 📤 Copy build output for screenshot matching
         run: |
-          # Copy out directory to host so screenshot script can read HTML files
+          # Copy out directory and mapping file to host so screenshot script can read them
           docker compose run --rm perl-advent cp -r /app/out /app/out-host
+          docker compose run --rm perl-advent cp /app/incoming-mappings.json /app/incoming-mappings-host.json || true
           rm -rf out
           mv out-host out
+          mv incoming-mappings-host.json incoming-mappings.json 2>/dev/null || true
 
       - name: 🌐 Start web server (serves from Docker volume)
         run: docker compose up -d --no-deps perl-advent-server

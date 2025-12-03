@@ -24,6 +24,25 @@ async function takeScreenshots() {
   const browser = await chromium.launch();
   const screenshotInfo = [];
 
+  // Load incoming article mappings
+  let mappings = {};
+  const hasIncomingFiles = changedFiles.some(f => f.includes('incoming'));
+
+  if (hasIncomingFiles) {
+    try {
+      const mappingData = JSON.parse(fs.readFileSync('incoming-mappings.json', 'utf8'));
+      // Convert array to lookup object keyed by incoming file path
+      mappings = Object.fromEntries(
+        mappingData.map(m => [m.incoming, m.html])
+      );
+      console.log('Loaded article mappings:', mappings);
+    } catch (e) {
+      console.error('ERROR: incoming-mappings.json not found but incoming articles detected');
+      console.error('This should have been created by render-incoming.pl');
+      throw e;
+    }
+  }
+
   for (const file of changedFiles) {
     console.log(`Processing: ${file}`);
 
@@ -31,31 +50,13 @@ async function takeScreenshots() {
     const basename = path.basename(file, '.pod');
 
     if (file.includes('incoming')) {
-      // For incoming files, find the rendered HTML by searching the output
-      const outDir = `out/${year}`;
-      const files = fs.readdirSync(outDir).filter(f => f.endsWith('.html'));
-      // incoming files are rendered with sequential dates, find by content or use first available
-      // Since render-incoming.pl assigns sequential dates starting from current day + 1
-      // We need to check which HTML files exist and match them
-      const htmlFiles = files.filter(f => f.match(/^\d{4}-\d{2}-\d{2}\.html$/));
-      if (htmlFiles.length > 0) {
-        // Try to find the article by checking if the content matches
-        for (const hf of htmlFiles) {
-          const content = fs.readFileSync(path.join(outDir, hf), 'utf8');
-          // Check if this HTML contains content from our POD file
-          const podContent = fs.readFileSync(file, 'utf8');
-          // Extract title from POD
-          const titleMatch = podContent.match(/^Title:\s*(.+)$/m);
-          if (titleMatch && content.includes(titleMatch[1])) {
-            htmlFile = hf;
-            break;
-          }
-        }
-        // Fallback to last HTML file if no match found
-        if (!htmlFile) {
-          htmlFiles.sort();
-          htmlFile = htmlFiles[htmlFiles.length - 1];
-        }
+      // Use the mapping file to find which HTML file this incoming article was rendered to
+      if (mappings[file]) {
+        htmlFile = mappings[file];
+        console.log(`Found HTML file from mapping: ${htmlFile}`);
+      } else {
+        console.error(`No mapping found for ${file}`);
+        console.error('This should not happen - render-incoming.pl should have created the mapping');
       }
     } else if (file.includes('articles')) {
       // For articles, the filename directly maps to HTML
