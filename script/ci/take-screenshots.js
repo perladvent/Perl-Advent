@@ -67,7 +67,8 @@ async function takeScreenshots() {
       continue;
     }
 
-    const url = `http://localhost:8000/${year}/${htmlFile}`;
+    const port = process.env.SERVER_PORT || '8000';
+    const url = `http://localhost:${port}/${year}/${htmlFile}`;
     console.log(`Taking screenshots of: ${url}`);
 
     // Use the basename directly - for date-formatted names like 2025-12-01, keep the date
@@ -75,31 +76,48 @@ async function takeScreenshots() {
     const safeArticleName = (basename || 'article').replace(/[^a-zA-Z0-9-_]/g, '-');
 
     // Desktop screenshot
+    let desktopPath = null;
     const desktopPage = await browser.newPage();
-    await desktopPage.setViewportSize({ width: 1920, height: 1080 });
-    await desktopPage.goto(url, { waitUntil: 'networkidle' });
-    await desktopPage.waitForTimeout(1000); // Wait for syntax highlighting
-    const desktopPath = `screenshots/${safeArticleName}-desktop.png`;
-    await desktopPage.screenshot({ path: desktopPath, fullPage: true });
-    await desktopPage.close();
-    console.log(`Saved: ${desktopPath}`);
+    try {
+      await desktopPage.setViewportSize({ width: 1920, height: 1080 });
+      await desktopPage.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      await desktopPage.waitForTimeout(1000); // Wait for syntax highlighting
+      desktopPath = `screenshots/${safeArticleName}-desktop.png`;
+      await desktopPage.screenshot({ path: desktopPath, fullPage: true });
+      console.log(`Saved: ${desktopPath}`);
+    } catch (err) {
+      console.error(`Failed to screenshot desktop view of ${file}: ${err.message}`);
+      desktopPath = null;
+    } finally {
+      await desktopPage.close();
+    }
 
     // Mobile screenshot
+    let mobilePath = null;
     const mobilePage = await browser.newPage();
-    await mobilePage.setViewportSize({ width: 375, height: 667 });
-    await mobilePage.goto(url, { waitUntil: 'networkidle' });
-    await mobilePage.waitForTimeout(1000); // Wait for syntax highlighting
-    const mobilePath = `screenshots/${safeArticleName}-mobile.png`;
-    await mobilePage.screenshot({ path: mobilePath, fullPage: true });
-    await mobilePage.close();
-    console.log(`Saved: ${mobilePath}`);
+    try {
+      await mobilePage.setViewportSize({ width: 375, height: 667 });
+      await mobilePage.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      await mobilePage.waitForTimeout(1000); // Wait for syntax highlighting
+      mobilePath = `screenshots/${safeArticleName}-mobile.png`;
+      await mobilePage.screenshot({ path: mobilePath, fullPage: true });
+      console.log(`Saved: ${mobilePath}`);
+    } catch (err) {
+      console.error(`Failed to screenshot mobile view of ${file}: ${err.message}`);
+      mobilePath = null;
+    } finally {
+      await mobilePage.close();
+    }
 
-    screenshotInfo.push({
-      article: file,
-      htmlFile: htmlFile,
-      desktop: desktopPath,
-      mobile: mobilePath
-    });
+    // Only add to screenshot info if at least one screenshot succeeded
+    if (desktopPath || mobilePath) {
+      screenshotInfo.push({
+        article: file,
+        htmlFile: htmlFile,
+        desktop: desktopPath,
+        mobile: mobilePath
+      });
+    }
   }
 
   await browser.close();

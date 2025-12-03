@@ -15,13 +15,23 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'preview')
     name: Generate article screenshots
     runs-on: ubuntu-latest
-    container:
-      image: perldocker/perl-tester:5.38
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: true
           fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🐳 Build Docker image
+        uses: docker/bake-action@v6
+        with:
+          files: docker-compose.yml
+          load: true
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
 
       - name: 🔍 Detect changed articles
         id: detect
@@ -54,25 +64,25 @@ jobs:
           echo "No article files changed, skipping workflow"
           exit 1
 
-      - name: 🧅 Install deps using cpm
-        uses: perl-actions/install-with-cpm@v1
-        with:
-          cpanfile: 'cpanfile'
-          sudo: false
-
-      - name: 📦 Install build dependencies
-        run: bash script/ci/install-deps.sh
-
       - name: 📚 Build site
         env:
           YEAR: ${{ steps.detect.outputs.year }}
         run: |
-          # For incoming articles, use render-incoming.pl approach
+          # For incoming articles, first copy them to articles/ with sequential dates
           if echo "${{ steps.detect.outputs.changed_files }}" | grep -q "incoming"; then
-            perl script/render-incoming.pl
+            docker compose run --rm perl-advent bash -c "perl script/render-incoming.pl && bash script/build-site.sh --single-year $YEAR --today ${YEAR}-12-25"
           else
-            ./script/build-site.sh --single-year "$YEAR" --today "${YEAR}-12-25"
+            docker compose run --rm perl-advent bash script/build-site.sh --single-year "$YEAR" --today "${YEAR}-12-25"
           fi
+
+      - name: 📤 Copy build output for screenshot matching
+        run: |
+          # Copy out directory to host so screenshot script can read HTML files
+          docker compose run --rm perl-advent cp -r /app/out /app/out-host
+          mv out-host out
+
+      - name: 🌐 Start web server (serves from Docker volume)
+        run: docker compose up -d --no-deps perl-advent-server
 
       - name: 🖼️ Setup Node.js for Playwright
         uses: actions/setup-node@v4
@@ -89,21 +99,16 @@ jobs:
         env:
           CHANGED_FILES: ${{ steps.detect.outputs.changed_files }}
           YEAR: ${{ steps.detect.outputs.year }}
+          SERVER_PORT: 7007
         run: |
           mkdir -p screenshots
 
-          # Start HTTP server in background
-          cd out
-          python3 -m http.server 8000 &
-          SERVER_PID=$!
-          cd ..
-
-          # Wait for server to be ready
+          # Wait for server to be ready and serving the year directory
           sleep 3
           SERVER_READY=false
           for i in $(seq 1 10); do
-            if curl -s http://localhost:8000/ > /dev/null; then
-              echo "Server is ready"
+            if curl -s "http://localhost:7007/$YEAR/" > /dev/null; then
+              echo "Server is ready and serving $YEAR directory"
               SERVER_READY=true
               break
             fi
@@ -119,12 +124,13 @@ jobs:
           # Run screenshot script
           node script/ci/take-screenshots.js
 
-          # Stop server
-          kill $SERVER_PID || true
-
           # List screenshots
           echo "Generated screenshots:"
           ls -la screenshots/
+
+      - name: 🛑 Stop web server
+        if: always()
+        run: docker compose down
 
       - name: 📤 Upload screenshots as artifacts
         uses: actions/upload-artifact@v4
@@ -134,6 +140,7 @@ jobs:
           retention-days: 30
 
       - name: 💬 Post PR comment with screenshots
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |

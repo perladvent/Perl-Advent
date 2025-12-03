@@ -20,6 +20,12 @@ const fs = require('fs');
 const path = require('path');
 
 async function postPRComment(github, context) {
+  // Verify we're in a pull request context
+  if (!context.payload.pull_request) {
+    console.log('Not a pull request context, skipping comment');
+    return;
+  }
+
   // Read screenshot info
   let screenshotInfo = [];
   try {
@@ -48,8 +54,16 @@ async function postPRComment(github, context) {
     body += `**Rendered as:** \`${info.htmlFile}\`\n\n`;
     body += `| View | Resolution | File |\n`;
     body += `|------|------------|------|\n`;
-    body += `| 🖥️ Desktop | 1920x1080 | \`${path.basename(info.desktop)}\` |\n`;
-    body += `| 📱 Mobile | 375x667 | \`${path.basename(info.mobile)}\` |\n\n`;
+    if (info.desktop) {
+      body += `| 🖥️ Desktop | 1920x1080 | \`${path.basename(info.desktop)}\` |\n`;
+    } else {
+      body += `| 🖥️ Desktop | 1920x1080 | ⚠️ Failed to generate |\n`;
+    }
+    if (info.mobile) {
+      body += `| 📱 Mobile | 375x667 | \`${path.basename(info.mobile)}\` |\n\n`;
+    } else {
+      body += `| 📱 Mobile | 375x667 | ⚠️ Failed to generate |\n\n`;
+    }
     body += `---\n\n`;
   }
 
