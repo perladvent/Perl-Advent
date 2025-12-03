@@ -60,6 +60,12 @@ Perform a comprehensive review checking for:
   - Inline vim highlighting with `#!vim <language>` (e.g., `#!vim bash`, `#!vim perl`)
   - Code blocks using vim highlighting must have a 2-space indent
   - Plain indented code without highlighting should be flagged for author review
+- **Markdown syntax in POD**: Flag any Markdown-style formatting that should be converted to POD:
+  - Backticks around code/inline literals: `foo` should be C<foo>
+  - Markdown links: `[text](url)` should be L<text|url>
+  - Markdown headings: `## Heading` should be `=head2 Heading`
+  - Markdown bold/italic: `**bold**` or `*italic*` should be B<bold> or I<italic>
+  - Markdown code blocks: ` ```perl ` should be `=begin perl` / `=end perl`
 - Links formatted correctly: Both `L<Module::Name>` and `L<text|url>` (POD) are acceptable
 - Headings use correct levels (`=head2`, `=head3`)
 
@@ -105,6 +111,23 @@ For each accepted change:
 1. Use the Edit tool to apply the fix to the article file
 2. Confirm the change was applied successfully
 
+## Step 5a: Format Perl Code Blocks with perltidy
+
+After applying all approved changes, format inline Perl code blocks:
+
+1. Extract all `=begin perl` / `=end perl` code blocks from the article
+2. For each code block:
+   - Run the code through `perltidy` to ensure consistent formatting
+   - Use standard perltidy options (default settings)
+   - Replace the original code block with the tidied version
+3. Command to use:
+   ```bash
+   # Extract code, run through perltidy, update article
+   perltidy --standard-output --standard-error-output
+   ```
+4. Note: Only format code blocks, not inline code examples in regular paragraphs
+5. Show the user which code blocks were reformatted and ask for confirmation before applying
+
 ## Step 6: Summary and Next Steps
 
 After reviewing all issues:
@@ -132,9 +155,9 @@ After reviewing all issues:
    - **Discard changes** - Don't commit anything
 
 5. If user chooses to commit and push:
-   a. Show the branch and remote that will be pushed to
-   b. Create commit with descriptive message following repo conventions:
+   a. Stage and commit changes with descriptive message following repo conventions:
       ```bash
+      git add {article_file}
       git commit -m "Editorial review: fix grammar and POD formatting
 
       - Fixed spelling/grammar issues
@@ -142,14 +165,25 @@ After reviewing all issues:
       - [Other specific changes]
       "
       ```
-   c. Confirm push destination:
+   b. Check if the PR is from a fork by examining the author:
       ```bash
-      git status  # Shows "Your branch is ahead of..."
+      gh pr view {NUMBER} --json author,headRefName --jq '{author: .author.login, branch: .headRefName}'
       ```
-   d. Push to author's branch:
-      ```bash
-      git push
-      ```
+   c. If the PR is from a fork (author is different from repo owner):
+      - Add the author's fork as a remote using SSH:
+        ```bash
+        git remote add {author} git@github.com:{author}/Perl-Advent.git
+        ```
+      - Push to the author's fork:
+        ```bash
+        git push {author} {current_branch}:{head_branch}
+        ```
+      - Example: `git push fleetfootmike fleetfootmike/main:main`
+   d. If the PR is from the same repo (not a fork):
+      - Push directly:
+        ```bash
+        git push
+        ```
    e. Confirm the PR has been updated with the commit
 
 ## Step 7: Cleanup (if requested)
