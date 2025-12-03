@@ -7,27 +7,33 @@ Topic: System Security Auditing
 =for :html
 <img src="elf_runnig_perl_script.png" alt="Stopping the Evil Grinch" style="float: right; margin: 0 0 1em 1em; width: 300px;"/>
 
-It was a quiet December evening when Santa's elves received an urgent update. The Evil Grinch planned to infect all the computers in Santa's toy factory to ruin Christmas. The elves did not panic, as they had the magical tools needed to defend the workshop:
+During a December evening in Santa's workshop, the security team received an urgent alert:
+a malicious actor, known as the "Evil Grinch," intended to compromise the systems running
+the toy production environment. Fortunately, the team already relied on several essential
+security tools:
 
 =over 4
 
-=item * Lynis
+=item * Lynis for system auditing
 
-=item * ClamAV
+=item * ClamAV for malware scanning
 
-=item * Perl
+=item * Perl to orchestrate everything
 
 =back
 
-=head2 Installing Lynis without sudo
+=head2 Installing Lynis Without Sudo
 
-The first step was to install Lynis in a way that could be run by a script. They used the following commands:
+Because the environment restricted sudo usage, Lynis was
+installed in the user's home directory using the following commands:
 
   #!vim bash
   wget https://downloads.cisofy.com/lynis/lynis-3.1.6.tar.gz
   tar -xvf lynis-3.1.6.tar.gz
-  touch /home/user/bin/lynis
-  chmod 775 /home/user/bin/lynis
+  mkdir -p /home/user/bin
+  chmod 775 /home/user/bin
+
+With this wrapper script, Lynis was executable without requiring sudo privileges.
 
   cat << 'EOF' > /home/user/bin/lynis
   #!/bin/bash
@@ -38,7 +44,11 @@ The first step was to install Lynis in a way that could be run by a script. They
   ./lynis "$@"
   EOF
 
+  chmod 775 /home/user/bin/lynis
+
 =head2 Installing ClamAV
+
+ClamAV was installed using the system package manager:
 
   #!vim bash
   sudo apt update
@@ -46,7 +56,9 @@ The first step was to install Lynis in a way that could be run by a script. They
 
 =head2 Building the Perl Cron Script
 
-The Perl script was responsible for running the reports and sending them via email to Santa. First, the elves installed the required Perl modules:
+A Perl script was created to automate security reporting and deliver the results via email.
+
+First, the necessary Perl dependencies were installed:
 
   #!vim bash
   cpanm Moo \
@@ -60,7 +72,17 @@ The Perl script was responsible for running the reports and sending them via ema
         Readonly \
         Log::Log4perl
 
-Next, they created a Perl script to run the reports:
+The script is meant to run daily and exits early if it is not the last day of the month,
+determined via:
+
+  DateTime->now()->is_last_day_of_month()
+
+Logging is handled by the Log::Log4perl module. The core of the script is the run_report
+function, which deletes any previous report file and executes each command.
+Because ClamAV errors are expected when scanning protected or locked files,
+the ClamAV call is allowed to return a non-zero exit code.
+
+Below is the Perl script:
 
   #!vim perl
   #!/usr/bin/env perl
@@ -68,7 +90,6 @@ Next, they created a Perl script to run the reports:
   use strict;
   use warnings;
 
-  use Data::Dumper;
   use DateTime;
   use Cwd;
   use Readonly;
@@ -76,74 +97,98 @@ Next, they created a Perl script to run the reports:
   use Dotenv;
 
   Log::Log4perl->easy_init(
-    {
-        level => $DEBUG,
-        file  => ">>test.log"
-    }
+      {
+          level => $DEBUG,
+          file  => ">>test.log"
+      }
   );
-
 
   Readonly::Scalar my $lynis_file  => '/home/user/lynis-report.dat';
   Readonly::Scalar my $clamav_file => '/home/user/clamav.log';
 
   if ( DateTime->now()->is_last_day_of_month() ) {
-      $logger->debug('It is the last day of the month! Preparing reports:');
+
+      $logger->debug('Last day of month detected. Preparing reports.');
+
       my $env = Dotenv->load('.mail_env');
 
-      $logger->debug('Run Lynis report');
+      $logger->debug('Running Lynis report');
       run_report(
           [
-              '/home/user/bin/lynis', 'audit',
-              'system', '--profile',
-              '/home/user/custom.prf'
+              '/home/user/bin/lynis', 'audit', 'system',
+              '--profile', '/home/user/custom.prf'
           ],
           $lynis_file
       );
 
-      $logger->debug('Run ClamAV report');
+      $logger->debug('Running ClamAV report');
       run_report(
           [
               'clamscan', '-r', '-i',
               '--exclude-dir=^/proc',
               '--exclude-dir=^/sys',
               '--exclude-dir=^/dev',
-              '/home/user', "--log=$clamav_file", '-v'
+              '/home/user',
+              "--log=$clamav_file",
+              '-v'
           ],
           $clamav_file
       );
   }
 
   sub _execute_cmd {
-    my ( $cmd, $file ) = @_;
+      my ( $cmd, $file ) = @_;
 
-    my $cmd_str = join ' ', @{$cmd};
-    if ( $file eq '/home/user/clamav.log' ) {
-        # accept error
-        system( @{$cmd} );
-    }
-    else {
-        system( @{$cmd} ) == 0 or die "can not excute $cmd_str: $?";
-    }
-    return;
-}
+      my $cmd_str = join ' ', @{$cmd};
 
-    sub run_report {
-        my ( $cmd, $file ) = @_;
+      if ( $file eq '/home/user/clamav.log' ) {
+          # Accept non-zero exit code for ClamAV
+          system( @{$cmd} );
+      }
+      else {
+          system( @{$cmd} ) == 0
+              or die "Cannot execute $cmd_str: $?";
+      }
+      return;
+  }
 
-        if ( -f $file ) {
-            unlink $file;
-        }
+  sub run_report {
+      my ( $cmd, $file ) = @_;
 
-        _execute_cmd( $cmd, $file );
-        return;
-    }
+      if ( -f $file ) {
+          unlink $file;
+      }
 
-At this point, the magical script was running the reports. The final step was to send them via email. The elves created a Gmail app password and stored it in a protected C<.mail_env> file:
+      _execute_cmd( $cmd, $file );
+      return;
+  }
+
+To send reports securely, a Gmail App Password was stored in a protected file:
 
   #!vim bash
   chmod 600 .mail_env
 
-Then they created C<SendMail.pm> inside the C<lib> folder:
+Then the SendMail class was implemented inside lib/SendMail.pm.  
+The class defines the following attributes:
+
+  has sasl_username => ( is => 'ro', required => 1, isa => Str );
+  has sasl_password => ( is => 'ro', required => 1, isa => Str );
+  has from          => ( is => 'ro', required => 1, isa => Str );
+  has to            => ( is => 'ro', required => 1, isa => ArrayRef );
+  has email_body    => ( is => 'ro', required => 1, isa => Str );
+  has attachments   => ( is => 'ro', required => 1, isa => ArrayRef );
+  has subject       => ( is => 'ro', required => 1, isa => Str );
+
+which are used internally to create an Email::MIME object and an Email::Sender::Transport::SMTP object,
+stored in:
+
+      has message   => ( is => 'ro', lazy => 1, isa => Object, builder => '_build_message' );
+      has transport => ( is => 'ro', lazy => 1, isa => Object, builder => '_build_transport' );
+
+attributes.  
+Finally, the class implements the send_email method, a simple wrapper over Email::Sender::Simple::sendmail.
+
+The full body of the class is below:
 
   #!vim perl
   package SendMail;
@@ -162,19 +207,18 @@ Then they created C<SendMail.pm> inside the C<lib> folder:
   has to            => ( is => 'ro', required => 1, isa => ArrayRef );
   has email_body    => ( is => 'ro', required => 1, isa => Str );
   has attachments   => ( is => 'ro', required => 1, isa => ArrayRef );
-  has name          => ( is => 'ro', required => 1, isa => Str );
   has subject       => ( is => 'ro', required => 1, isa => Str );
 
-  has message => ( is => 'ro', lazy => 1, isa => Object, builder => '_build_message' );
+  has message   => ( is => 'ro', lazy => 1, isa => Object, builder => '_build_message' );
   has transport => ( is => 'ro', lazy => 1, isa => Object, builder => '_build_transport' );
 
   sub _build_message {
       my $self = shift;
 
-      my $files     = $self->attachments();
-      my @file_list = ();
-      foreach my $file (@{$files}) {
-          my @file_parts = split /\//, $file;
+      my @file_list;
+      foreach my $file ( @{ $self->attachments } ) {
+          my @file_parts = split '/', $file;
+
           my $mime = Email::MIME->create(
               attributes => {
                   filename     => $file_parts[-1],
@@ -184,6 +228,7 @@ Then they created C<SendMail.pm> inside the C<lib> folder:
               },
               body => io($file)->binary->all,
           );
+
           push @file_list, $mime;
       }
 
@@ -196,42 +241,39 @@ Then they created C<SendMail.pm> inside the C<lib> folder:
                   encoding     => "quoted-printable",
                   charset      => "US-ASCII",
               },
-              body_str => "Automatic reports!",
+              body_str => $self->email_body,
           ),
       );
-      my $email = Email::MIME->create(
+
+      return Email::MIME->create(
           header_str => [
               From    => $self->from,
-              To      => $self->to,
-              Subject => $self->subject
+              To      => join(',', @{ $self->to }),
+              Subject => $self->subject,
           ],
-          parts => [@parts],
+          parts => \@parts,
       );
-
-      return $email;
   }
 
   sub _build_transport {
       my $self = shift;
 
-      my $transport = Email::Sender::Transport::SMTP->new(
+      return Email::Sender::Transport::SMTP->new(
           {
               host          => 'smtp.gmail.com',
-              port          => 465,        # or 587 with STARTTLS
-              ssl           => 1,          # or 0 for STARTTLS
-              sasl_username => $self->sasl_username(),
-              sasl_password => $self->sasl_password(),
+              port          => 465,
+              ssl           => 1,
+              sasl_username => $self->sasl_username,
+              sasl_password => $self->sasl_password,
           }
       );
-
-      return $transport;
   }
 
   sub send_email {
       my $self = shift;
 
       try {
-          sendmail($self->message, { transport => $self->transport });
+          sendmail( $self->message, { transport => $self->transport } );
       }
       catch {
           print "|$_|";
@@ -240,7 +282,7 @@ Then they created C<SendMail.pm> inside the C<lib> folder:
       return 1;
   }
 
-Finally, they loaded the package in the main script:
+The package was used intergated in the main script as follows:
 
   #!vim perl
   use lib 'lib';
@@ -252,19 +294,18 @@ Finally, they loaded the package in the main script:
           sasl_password => $env->{cron_password},
           from          => $env->{cron_mail},
           to            => $to,
-          email_body    => 'Security report!',
-          attachments   => [$lynis_file, $clamav_file],
-          subject       => 'Security report',
-          name          => 'test'
+          email_body    => 'Security report attached.',
+          attachments   => [ $lynis_file, $clamav_file ],
+          subject       => 'Security Report',
       }
   );
 
 =head2 Adding to Crontab
 
-The elves scheduled the script to run automatically:
+The monthly automation was scheduled as follows:
 
   #!vim bash
   crontab -e
   0 10 * * * cd /home/user/scripts && /home/user/perl5/perlbrew/bin/perlbrew exec --with perl-5.42.0 perl security_report.pl >/dev/null 2>&1
 
-Merry Christmas, and happy Perl programming to all!
+Happy auditing and secure coding!
