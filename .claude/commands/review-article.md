@@ -111,6 +111,23 @@ For each accepted change:
 1. Use the Edit tool to apply the fix to the article file
 2. Confirm the change was applied successfully
 
+## Step 5a: Format Perl Code Blocks with perltidy
+
+After applying all approved changes, format inline Perl code blocks:
+
+1. Extract all `=begin perl` / `=end perl` code blocks from the article
+2. For each code block:
+   - Run the code through `perltidy` to ensure consistent formatting
+   - Use standard perltidy options (default settings)
+   - Replace the original code block with the tidied version
+3. Command to use:
+   ```bash
+   # Extract code, run through perltidy, update article
+   perltidy --standard-output --standard-error-output
+   ```
+4. Note: Only format code blocks, not inline code examples in regular paragraphs
+5. Show the user which code blocks were reformatted and ask for confirmation before applying
+
 ## Step 6: Summary and Next Steps
 
 After reviewing all issues:
