@@ -132,9 +132,9 @@ After reviewing all issues:
    - **Discard changes** - Don't commit anything
 
 5. If user chooses to commit and push:
-   a. Show the branch and remote that will be pushed to
-   b. Create commit with descriptive message following repo conventions:
+   a. Stage and commit changes with descriptive message following repo conventions:
       ```bash
+      git add {article_file}
       git commit -m "Editorial review: fix grammar and POD formatting
 
       - Fixed spelling/grammar issues
@@ -142,14 +142,25 @@ After reviewing all issues:
       - [Other specific changes]
       "
       ```
-   c. Confirm push destination:
+   b. Check if the PR is from a fork by examining the author:
       ```bash
-      git status  # Shows "Your branch is ahead of..."
+      gh pr view {NUMBER} --json author,headRefName --jq '{author: .author.login, branch: .headRefName}'
       ```
-   d. Push to author's branch:
-      ```bash
-      git push
-      ```
+   c. If the PR is from a fork (author is different from repo owner):
+      - Add the author's fork as a remote using SSH:
+        ```bash
+        git remote add {author} git@github.com:{author}/Perl-Advent.git
+        ```
+      - Push to the author's fork:
+        ```bash
+        git push {author} {current_branch}:{head_branch}
+        ```
+      - Example: `git push fleetfootmike fleetfootmike/main:main`
+   d. If the PR is from the same repo (not a fork):
+      - Push directly:
+        ```bash
+        git push
+        ```
    e. Confirm the PR has been updated with the commit
 
 ## Step 7: Cleanup (if requested)
