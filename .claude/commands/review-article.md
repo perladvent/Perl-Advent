@@ -60,6 +60,12 @@ Perform a comprehensive review checking for:
   - Inline vim highlighting with `#!vim <language>` (e.g., `#!vim bash`, `#!vim perl`)
   - Code blocks using vim highlighting must have a 2-space indent
   - Plain indented code without highlighting should be flagged for author review
+- **Markdown syntax in POD**: Flag any Markdown-style formatting that should be converted to POD:
+  - Backticks around code/inline literals: `foo` should be C<foo>
+  - Markdown links: `[text](url)` should be L<text|url>
+  - Markdown headings: `## Heading` should be `=head2 Heading`
+  - Markdown bold/italic: `**bold**` or `*italic*` should be B<bold> or I<italic>
+  - Markdown code blocks: ` ```perl ` should be `=begin perl` / `=end perl`
 - Links formatted correctly: Both `L<Module::Name>` and `L<text|url>` (POD) are acceptable
 - Headings use correct levels (`=head2`, `=head3`)
 
