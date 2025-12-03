@@ -1,0 +1,148 @@
+---
+name: Screenshot Article Preview
+
+on:
+  pull_request:
+    types: [labeled, synchronize]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  screenshot:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'preview')
+    name: Generate article screenshots
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🐳 Build Docker image
+        uses: docker/bake-action@v6
+        with:
+          files: docker-compose.yml
+          load: true
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
+
+      - name: 🔍 Detect changed articles
+        id: detect
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          YEAR=$(date +%Y)
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
+
+          # Get list of changed POD files in YEAR/incoming or YEAR/articles
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD | grep -E "${YEAR}/(incoming|articles)/.*\.pod$" || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No article files changed"
+            echo "has_articles=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Changed article files:"
+          echo "$CHANGED_FILES"
+
+          # Store as newline-separated list for later
+          echo "changed_files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGED_FILES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "has_articles=true" >> "$GITHUB_OUTPUT"
+
+      - name: 🛑 Exit if no articles changed
+        if: steps.detect.outputs.has_articles != 'true'
+        run: |
+          echo "No article files changed, skipping workflow"
+          exit 1
+
+      - name: 📚 Build site
+        env:
+          YEAR: ${{ steps.detect.outputs.year }}
+        run: |
+          # For incoming articles, first copy them to articles/ with sequential dates
+          if echo "${{ steps.detect.outputs.changed_files }}" | grep -q "incoming"; then
+            docker compose run --rm perl-advent bash -c "perl script/render-incoming.pl && bash script/build-site.sh --single-year $YEAR --today ${YEAR}-12-25"
+          else
+            docker compose run --rm perl-advent bash script/build-site.sh --single-year "$YEAR" --today "${YEAR}-12-25"
+          fi
+
+      - name: 📤 Copy build output for screenshot matching
+        run: |
+          # Copy out directory to host so screenshot script can read HTML files
+          docker compose run --rm perl-advent cp -r /app/out /app/out-host
+          mv out-host out
+
+      - name: 🌐 Start web server (serves from Docker volume)
+        run: docker compose up -d --no-deps perl-advent-server
+
+      - name: 🖼️ Setup Node.js for Playwright
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: 🎭 Install Playwright
+        run: |
+          npm install playwright
+          npx playwright install chromium --with-deps
+
+      - name: 📸 Take screenshots
+        id: screenshots
+        env:
+          CHANGED_FILES: ${{ steps.detect.outputs.changed_files }}
+          YEAR: ${{ steps.detect.outputs.year }}
+          SERVER_PORT: 7007
+        run: |
+          mkdir -p screenshots
+
+          # Wait for server to be ready and serving the year directory
+          sleep 3
+          SERVER_READY=false
+          for i in $(seq 1 10); do
+            if curl -s "http://localhost:7007/$YEAR/" > /dev/null; then
+              echo "Server is ready and serving $YEAR directory"
+              SERVER_READY=true
+              break
+            fi
+            echo "Waiting for server... attempt $i"
+            sleep 2
+          done
+
+          if [ "$SERVER_READY" = "false" ]; then
+            echo "Error: Server failed to start after 10 attempts"
+            exit 1
+          fi
+
+          # Run screenshot script
+          node script/ci/take-screenshots.js
+
+          # List screenshots
+          echo "Generated screenshots:"
+          ls -la screenshots/
+
+      - name: 🛑 Stop web server
+        if: always()
+        run: docker compose down
+
+      - name: 📤 Upload screenshots as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: article-screenshots
+          path: screenshots/
+          retention-days: 30
+
+      - name: 💬 Post PR comment with screenshots
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const postPRComment = require('./script/ci/post-pr-comment.js');
+            await postPRComment(github, context);
