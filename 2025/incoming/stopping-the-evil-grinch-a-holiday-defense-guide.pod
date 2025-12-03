@@ -23,206 +23,206 @@ It was a quiet December evening when Santa's elves received an urgent update. Th
 
 The first step was to install Lynis in a way that could be run by a script. They used the following commands:
 
-    wget https://downloads.cisofy.com/lynis/lynis-3.1.6.tar.gz
-    tar -xvf lynis-3.1.6.tar.gz
-    touch /home/user/bin/lynis
-    chmod 775 /home/user/bin/lynis
+  #!vim bash
+  wget https://downloads.cisofy.com/lynis/lynis-3.1.6.tar.gz
+  tar -xvf lynis-3.1.6.tar.gz
+  touch /home/user/bin/lynis
+  chmod 775 /home/user/bin/lynis
 
-    cat << 'EOF' > /home/user/bin/lynis
-    #!/bin/bash
-    LYNIS_DIR="/home/user/lynis-3.1.6"
-    export LYNIS_LOG_FILE="/home/user/lynis-logs/lynis.log"
-    export LYNIS_REPORT_FILE="/home/user/lynis-logs/lynis-report.dat"
-    cd "$LYNIS_DIR" || exit 1
-    ./lynis "$@"
-    EOF
-
----
+  cat << 'EOF' > /home/user/bin/lynis
+  #!/bin/bash
+  LYNIS_DIR="/home/user/lynis-3.1.6"
+  export LYNIS_LOG_FILE="/home/user/lynis-logs/lynis.log"
+  export LYNIS_REPORT_FILE="/home/user/lynis-logs/lynis-report.dat"
+  cd "$LYNIS_DIR" || exit 1
+  ./lynis "$@"
+  EOF
 
 =head2 Installing ClamAV
 
-    sudo apt update
-    sudo apt install clamav clamav-daemon -y
-
----
+  #!vim bash
+  sudo apt update
+  sudo apt install clamav clamav-daemon -y
 
 =head2 Building the Perl Cron Script
 
 The Perl script was responsible for running the reports and sending them via email to Santa. First, the elves installed the required Perl modules:
 
-    cpanm Moo Email::Sender::Simple Email::Sender::Transport::SMTP Email::MIME Try::Tiny Types::Standard IO::All DateTime Readonly Log::Log4perl
+  #!vim bash
+  cpanm Moo Email::Sender::Simple Email::Sender::Transport::SMTP Email::MIME Try::Tiny Types::Standard IO::All DateTime Readonly Log::Log4perl
 
 Next, they created a Perl script to run the reports:
 
-    #!/usr/bin/env perl
+  #!vim perl
+  #!/usr/bin/env perl
 
-    use strict;
-    use warnings;
+  use strict;
+  use warnings;
 
-    use Data::Dumper;
-    use DateTime;
-    use Cwd;
-    use Readonly;
-    use Log::Log4perl qw(:easy);
-    use Dotenv;
+  use Data::Dumper;
+  use DateTime;
+  use Cwd;
+  use Readonly;
+  use Log::Log4perl qw(:easy);
+  use Dotenv;
 
-    Readonly::Scalar my $lynis_file  => '/home/user/lynis-report.dat';
-    Readonly::Scalar my $clamav_file => '/home/user/clamav.log';
+  Readonly::Scalar my $lynis_file  => '/home/user/lynis-report.dat';
+  Readonly::Scalar my $clamav_file => '/home/user/clamav.log';
 
-    if ( DateTime->now()->is_last_day_of_month() ) {
-        $logger->debug('It is the last day of the month! Preparing reports:');
-        my $env = Dotenv->load('.mail_env');
+  if ( DateTime->now()->is_last_day_of_month() ) {
+      $logger->debug('It is the last day of the month! Preparing reports:');
+      my $env = Dotenv->load('.mail_env');
 
-        $logger->debug('Run Lynis report');
-        run_report(
-            [
-                '/home/user/bin/lynis', 'audit',
-                'system', '--profile',
-                '/home/user/custom.prf'
-            ],
-            $lynis_file
-        );
+      $logger->debug('Run Lynis report');
+      run_report(
+          [
+              '/home/user/bin/lynis', 'audit',
+              'system', '--profile',
+              '/home/user/custom.prf'
+          ],
+          $lynis_file
+      );
 
-        $logger->debug('Run ClamAV report');
-        run_report(
-            [
-                'clamscan', '-r', '-i',
-                '--exclude-dir=^/proc',
-                '--exclude-dir=^/sys',
-                '--exclude-dir=^/dev',
-                '/home/user', "--log=$clamav_file", '-v'
-            ],
-            $clamav_file
-        );
-    }
+      $logger->debug('Run ClamAV report');
+      run_report(
+          [
+              'clamscan', '-r', '-i',
+              '--exclude-dir=^/proc',
+              '--exclude-dir=^/sys',
+              '--exclude-dir=^/dev',
+              '/home/user', "--log=$clamav_file", '-v'
+          ],
+          $clamav_file
+      );
+  }
 
 At this point, the magical script was running the reports. The final step was to send them via email. The elves created a Gmail app password and stored it in a protected `.mail_env` file:
 
-    chmod 600 .mail_env
+  #!vim bash
+  chmod 600 .mail_env
 
 Then they created `SendMail.pm` inside the `lib` folder:
 
-    package SendMail;
-    use Moo;
+  #!vim perl
+  package SendMail;
+  use Moo;
 
-    use Email::Sender::Simple qw(sendmail);
-    use Email::Sender::Transport::SMTP;
-    use Email::MIME;
-    use Try::Tiny;
-    use Types::Standard qw(Str ArrayRef Object);
-    use IO::All;
+  use Email::Sender::Simple qw(sendmail);
+  use Email::Sender::Transport::SMTP;
+  use Email::MIME;
+  use Try::Tiny;
+  use Types::Standard qw(Str ArrayRef Object);
+  use IO::All;
 
-    has sasl_username => ( is => 'ro', required => 1, isa => Str );
-    has sasl_password => ( is => 'ro', required => 1, isa => Str );
-    has from          => ( is => 'ro', required => 1, isa => Str );
-    has to            => ( is => 'ro', required => 1, isa => ArrayRef );
-    has email_body    => ( is => 'ro', required => 1, isa => Str );
-    has attachments   => ( is => 'ro', required => 1, isa => ArrayRef );
-    has name          => ( is => 'ro', required => 1, isa => Str );
-    has subject       => ( is => 'ro', required => 1, isa => Str );
+  has sasl_username => ( is => 'ro', required => 1, isa => Str );
+  has sasl_password => ( is => 'ro', required => 1, isa => Str );
+  has from          => ( is => 'ro', required => 1, isa => Str );
+  has to            => ( is => 'ro', required => 1, isa => ArrayRef );
+  has email_body    => ( is => 'ro', required => 1, isa => Str );
+  has attachments   => ( is => 'ro', required => 1, isa => ArrayRef );
+  has name          => ( is => 'ro', required => 1, isa => Str );
+  has subject       => ( is => 'ro', required => 1, isa => Str );
 
-    has message => ( is => 'ro', lazy => 1, isa => Object, builder => '_build_message' );
-    has transport => ( is => 'ro', lazy => 1, isa => Object, builder => '_build_transport' );
+  has message => ( is => 'ro', lazy => 1, isa => Object, builder => '_build_message' );
+  has transport => ( is => 'ro', lazy => 1, isa => Object, builder => '_build_transport' );
 
-    sub _build_message {
-        my $self = shift;
+  sub _build_message {
+      my $self = shift;
 
-        my $files     = $self->attachments();
-        my @file_list = ();
-        foreach my $file (@{$files}) {
-            my @file_parts = split /\//, $file;
-            my $mime = Email::MIME->create(
-                attributes => {
-                    filename     => $file_parts[-1],
-                    content_type => "text/plain",
-                    encoding     => "quoted-printable",
-                    name         => $file_parts[-1],
-                },
-                body => io($file)->binary->all,
-            );
-            push @file_list, $mime;
-        }
+      my $files     = $self->attachments();
+      my @file_list = ();
+      foreach my $file (@{$files}) {
+          my @file_parts = split /\//, $file;
+          my $mime = Email::MIME->create(
+              attributes => {
+                  filename     => $file_parts[-1],
+                  content_type => "text/plain",
+                  encoding     => "quoted-printable",
+                  name         => $file_parts[-1],
+              },
+              body => io($file)->binary->all,
+          );
+          push @file_list, $mime;
+      }
 
-        my @parts = (
-            @file_list,
-            Email::MIME->create(
-                attributes => {
-                    content_type => "text/plain",
-                    disposition  => "attachment",
-                    encoding     => "quoted-printable",
-                    charset      => "US-ASCII",
-                },
-                body_str => "Automatic reports!",
-            ),
-        );
-        my $email = Email::MIME->create(
-            header_str => [
-                From    => $self->from,
-                To      => $self->to,
-                Subject => $self->subject
-            ],
-            parts => [@parts],
-        );
+      my @parts = (
+          @file_list,
+          Email::MIME->create(
+              attributes => {
+                  content_type => "text/plain",
+                  disposition  => "attachment",
+                  encoding     => "quoted-printable",
+                  charset      => "US-ASCII",
+              },
+              body_str => "Automatic reports!",
+          ),
+      );
+      my $email = Email::MIME->create(
+          header_str => [
+              From    => $self->from,
+              To      => $self->to,
+              Subject => $self->subject
+          ],
+          parts => [@parts],
+      );
 
-        return $email;
-    }
+      return $email;
+  }
 
-    sub _build_transport {
-        my $self = shift;
+  sub _build_transport {
+      my $self = shift;
 
-        my $transport = Email::Sender::Transport::SMTP->new(
-            {
-                host          => 'smtp.gmail.com',
-                port          => 465,        # or 587 with STARTTLS
-                ssl           => 1,          # or 0 for STARTTLS
-                sasl_username => $self->sasl_username(),
-                sasl_password => $self->sasl_password(),
-            }
-        );
+      my $transport = Email::Sender::Transport::SMTP->new(
+          {
+              host          => 'smtp.gmail.com',
+              port          => 465,        # or 587 with STARTTLS
+              ssl           => 1,          # or 0 for STARTTLS
+              sasl_username => $self->sasl_username(),
+              sasl_password => $self->sasl_password(),
+          }
+      );
 
-        return $transport;
-    }
+      return $transport;
+  }
 
-    sub send_email {
-        my $self = shift;
+  sub send_email {
+      my $self = shift;
 
-        try {
-            sendmail($self->message, { transport => $self->transport });
-        }
-        catch {
-            print "|$_|";
-        };
+      try {
+          sendmail($self->message, { transport => $self->transport });
+      }
+      catch {
+          print "|$_|";
+      };
 
-        return 1;
-    }
+      return 1;
+  }
 
 Finally, they loaded the package in the main script:
 
-    use lib 'lib';
-    use SendMail;
+  #!vim perl
+  use lib 'lib';
+  use SendMail;
 
-    my $mailer = SendMail->new(
-        {
-            sasl_username => $env->{cron_mail},
-            sasl_password => $env->{cron_password},
-            from          => $env->{cron_mail},
-            to            => $to,
-            email_body    => 'Security report!',
-            attachments   => [$lynis_file, $clamav_file],
-            subject       => 'Security report',
-            name          => 'test'
-        }
-    );
-
----
+  my $mailer = SendMail->new(
+      {
+          sasl_username => $env->{cron_mail},
+          sasl_password => $env->{cron_password},
+          from          => $env->{cron_mail},
+          to            => $to,
+          email_body    => 'Security report!',
+          attachments   => [$lynis_file, $clamav_file],
+          subject       => 'Security report',
+          name          => 'test'
+      }
+  );
 
 =head2 Adding to Crontab
 
 The elves scheduled the script to run automatically:
 
-    crontab -e
-    0 10 * * * cd /home/dragos/projects/scripts && /home/dragos/perl5/perlbrew/bin/perlbrew exec --with perl-5.42.0 perl test_email.pl >/dev/null 2>&1
-
----
+  #!vim bash
+  crontab -e
+  0 10 * * * cd /home/user/scripts && /home/user/perl5/perlbrew/bin/perlbrew exec --with perl-5.42.0 perl security_report.pl >/dev/null 2>&1
 
 Merry Christmas, and happy Perl programming to all!
