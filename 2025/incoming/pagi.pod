@@ -1,0 +1,499 @@
+Author: John Napiorkowski <jjnapiork@cpan.org>
+Title: The Ghost of Web Frameworks Future
+Topic: PAGI
+
+=encoding utf8
+
+=head2 A message from Christmas Yet to Come
+
+It was a cold December night when the Ghost of Web Frameworks Future
+visited young Petra the Programmer.
+
+"I have something to show you," the spectral figure intoned, gesturing
+toward Petra's laptop. "The future of Perl web development."
+
+Petra squinted at her screen. She'd been wrestling with a familiar problem:
+her company's venerable Catalyst application needed real-time features.
+WebSockets. Server-Sent Events. The kind of persistent, bidirectional
+connections that made traditional request-response frameworks break out
+in a cold sweat.
+
+"I've tried everything," she sighed. "I could rewrite the whole thing in
+Mojolicious, but that's months of work. Or I could bolt on a separate
+WebSocket server, but then I have two systems to maintain..."
+
+The Ghost smiled knowingly. "What if I told you there was another way?
+A specification designed from the ground up for asynchronous Perl web
+applications? One that could run your legacy PSGI apps alongside shiny
+new async code?"
+
+Petra leaned forward. "Tell me more."
+
+=head2 Enter PAGI: The Spiritual Successor to PSGI
+
+PAGI - the B<Perl Asynchronous Gateway Interface> - is a new specification
+for async-capable Perl web applications. If PSGI was Perl's answer to
+Python's WSGI, then PAGI is Perl's answer to Python's ASGI.
+
+The key insight is simple: modern web applications need more than
+request-response. They need:
+
+=over 4
+
+=item *
+
+B<WebSockets> for real-time bidirectional communication
+
+=item *
+
+B<Server-Sent Events> for efficient server push
+
+=item *
+
+B<Streaming responses> for large files and live data
+
+=item *
+
+B<Lifecycle hooks> for connection pooling and startup/shutdown
+
+=back
+
+PSGI, brilliant as it was, assumed a synchronous world where each request
+got a response and that was that. PAGI embraces the asynchronous reality
+of modern web development.
+
+=head2 The PAGI Interface
+
+At its heart, a PAGI application is beautifully simple - an async coderef
+with three parameters:
+
+  #!vim perl
+  use Future::AsyncAwait;
+  use experimental 'signatures';
+
+  async sub app ($scope, $receive, $send) {
+      # $scope   - hashref of connection metadata
+      # $receive - async coderef to get events FROM the client
+      # $send    - async coderef to send events TO the client
+  }
+
+The C<$scope> hashref tells you what kind of connection you're dealing with:
+
+=over 4
+
+=item *
+
+C<http> - A standard HTTP request/response
+
+=item *
+
+C<websocket> - A persistent WebSocket connection
+
+=item *
+
+C<sse> - A Server-Sent Events stream
+
+=item *
+
+C<lifespan> - Process startup/shutdown lifecycle
+
+=back
+
+Events flow in both directions as hashrefs with a C<type> key. It's
+event-driven programming, but with the ergonomics of async/await.
+
+=head2 Your First PAGI Application
+
+Let's start with the classic: Hello World over HTTP.
+
+  #!vim perl
+  # examples/01-hello-http/app.pl
+  use Future::AsyncAwait;
+  use experimental 'signatures';
+
+  async sub app ($scope, $receive, $send) {
+      # We only handle HTTP - throw for anything else
+      die "Unsupported: $scope->{type}" if $scope->{type} ne 'http';
+
+      # Send the response headers
+      await $send->({
+          type    => 'http.response.start',
+          status  => 200,
+          headers => [['content-type', 'text/plain']],
+      });
+
+      # Send the body and signal we're done
+      await $send->({
+          type => 'http.response.body',
+          body => 'Hello from PAGI!',
+          more => 0,
+      });
+  }
+
+Run it with:
+
+  #!vim bash
+  pagi-server --app examples/01-hello-http/app.pl --port 5000
+  curl http://localhost:5000/
+  # => Hello from PAGI!
+
+Notice how the response is split into two events: C<http.response.start>
+for headers, and C<http.response.body> for content. This separation is
+what enables streaming - you can send multiple body chunks with
+C<< more => 1 >> before the final C<< more => 0 >>.
+
+=head2 Real-Time with WebSockets
+
+Now for the exciting part. Here's a WebSocket echo server:
+
+  #!vim perl
+  # examples/04-websocket-echo/app.pl
+  use Future::AsyncAwait;
+  use experimental 'signatures';
+
+  async sub app ($scope, $receive, $send) {
+      if ($scope->{type} eq 'websocket') {
+          # Accept the WebSocket connection
+          await $send->({ type => 'websocket.accept' });
+
+          # Event loop: receive messages and echo them back
+          while (1) {
+              my $event = await $receive->();
+
+              if ($event->{type} eq 'websocket.receive') {
+                  my $message = $event->{text} // $event->{bytes};
+                  await $send->({
+                      type => 'websocket.send',
+                      text => "Echo: $message",
+                  });
+              }
+              elsif ($event->{type} eq 'websocket.disconnect') {
+                  last;  # Client disconnected, exit loop
+              }
+          }
+      }
+      elsif ($scope->{type} eq 'http') {
+          # Serve a simple HTML page for testing
+          await $send->({
+              type    => 'http.response.start',
+              status  => 200,
+              headers => [['content-type', 'text/html']],
+          });
+          await $send->({
+              type => 'http.response.body',
+              body => '<script>ws=new WebSocket("ws://localhost:5000/ws");'
+                    . 'ws.onmessage=e=>console.log(e.data)</script>'
+                    . '<p>Open console and type: ws.send("Hello")</p>',
+              more => 0,
+          });
+      }
+      else {
+          die "Unsupported: $scope->{type}";
+      }
+  }
+
+The pattern is the same: await events from C<$receive>, send responses
+via C<$send>. But now we have a persistent connection with an event loop
+that keeps running until the client disconnects.
+
+Test it:
+
+  #!vim bash
+  pagi-server --app examples/04-websocket-echo/app.pl --port 5000
+  websocat ws://localhost:5000/ws
+  Hello
+  # => Echo: Hello
+
+=head2 The PSGI Bridge: Bringing Legacy Apps to the Future
+
+"But wait," Petra interrupted. "I have thousands of lines of Catalyst code.
+I can't rewrite everything!"
+
+The Ghost nodded sagely. "You don't have to. PAGI includes a bridge."
+
+One of PAGI's killer features is its ability to wrap existing PSGI
+applications. Your battle-tested Catalyst, Dancer, or Plack app can run
+alongside new PAGI code on the same server.
+
+PAGI ships with C<PAGI::App::WrapPSGI> which handles all the translation
+for you:
+
+  #!vim perl
+  use PAGI::App::WrapPSGI;
+
+  # Your existing PSGI application (could be Catalyst, Dancer, etc.)
+  my $legacy_psgi_app = sub {
+      my $env = shift;
+      return [
+          200,
+          ['Content-Type' => 'text/plain'],
+          ['Hello from legacy PSGI!'],
+      ];
+  };
+
+  # Wrap it for PAGI - that's it!
+  my $wrapper = PAGI::App::WrapPSGI->new(psgi_app => $legacy_psgi_app);
+  $wrapper->to_app;
+
+The wrapper handles all the complexity: building the PSGI C<%env> from the
+PAGI scope, collecting request bodies, translating headers, and converting
+responses back to PAGI events. It even supports PSGI's streaming response
+interface.
+
+For a real-world Catalyst app, it's just as simple:
+
+  #!vim perl
+  use PAGI::App::WrapPSGI;
+  use MyApp;  # Your Catalyst application
+
+  my $wrapper = PAGI::App::WrapPSGI->new(
+      psgi_app => MyApp->psgi_app
+  );
+  $wrapper->to_app;
+
+This means you can:
+
+=over 4
+
+=item *
+
+Run your existing Catalyst app under PAGI
+
+=item *
+
+Add WebSocket endpoints alongside your legacy routes
+
+=item *
+
+Gradually migrate to async as needed
+
+=item *
+
+Share connection pools and state between old and new code
+
+=back
+
+The bridge handles the translation between PAGI's event-based model and
+PSGI's synchronous interface transparently.
+
+=head2 PAGI::Simple: For When You Want Express, Not Assembly
+
+"This is powerful," Petra admitted, "but it's also... verbose. Do I really
+need to manually send response headers every time?"
+
+The Ghost chuckled. "Of course not. Meet PAGI::Simple."
+
+PAGI ships with a micro-framework inspired by Express.js and Sinatra.
+It handles the low-level event plumbing so you can focus on your
+application logic:
+
+  #!vim perl
+  # examples/simple-01-hello/app.pl
+  use PAGI::Simple;
+
+  my $app = PAGI::Simple->new(name => 'My App');
+
+  # Simple text response
+  $app->get('/' => sub ($c) {
+      $c->text('Hello, World!');
+  });
+
+  # Path parameters and JSON
+  $app->get('/users/:id' => sub ($c) {
+      my $id = $c->path_params->{id};
+      $c->json({ user_id => $id, name => 'Santa Claus' });
+  });
+
+  # POST with body parsing
+  $app->post('/api/data' => sub ($c) {
+      my $data = $c->json_body;
+      $c->json({ received => $data, status => 'ok' });
+  });
+
+  $app->to_app;
+
+WebSockets are just as clean:
+
+  #!vim perl
+  # WebSocket chat with PAGI::Simple
+  use PAGI::Simple;
+
+  my $app = PAGI::Simple->new(name => 'Chat');
+
+  $app->websocket('/chat' => sub ($ws) {
+      $ws->on(open => sub {
+          $ws->send('Welcome to the chat!');
+      });
+
+      $ws->on(message => sub ($data) {
+          # Broadcast to all connected clients
+          $ws->broadcast("Someone said: $data");
+      });
+
+      $ws->on(close => sub {
+          print "Client disconnected\n";
+      });
+  });
+
+  $app->to_app;
+
+And Server-Sent Events for real-time dashboards:
+
+  #!vim perl
+  # SSE with PAGI::Simple
+  use PAGI::Simple;
+
+  my $app = PAGI::Simple->new(name => 'Dashboard');
+
+  $app->sse('/events' => sub ($sse) {
+      # Send events periodically
+      my $count = 0;
+      $sse->on(connect => sub {
+          # This would typically be triggered by real events
+          $sse->send({ count => ++$count });
+      });
+  });
+
+  $app->to_app;
+
+PAGI::Simple includes:
+
+=over 4
+
+=item *
+
+Express-style routing with path parameters
+
+=item *
+
+Built-in JSON parsing and response helpers
+
+=item *
+
+Session management with pluggable stores
+
+=item *
+
+Middleware support (CORS, logging, rate limiting, etc.)
+
+=item *
+
+Static file serving
+
+=item *
+
+WebSocket rooms and broadcasting
+
+=item *
+
+SSE channels with pub/sub
+
+=back
+
+=head2 The Road Ahead
+
+The Ghost began to fade. "Remember, young programmer: this is a vision of
+what could be, not what must be. PAGI needs champions to make it real."
+
+PAGI is currently in early beta. It passes its tests, the examples work,
+but it's not yet battle-tested for production. What it needs now is:
+
+=over 4
+
+=item *
+
+Adventurous developers willing to experiment
+
+=item *
+
+Feedback on the API and specification
+
+=item *
+
+Testing with real-world applications
+
+=item *
+
+Framework authors interested in building on PAGI
+
+=back
+
+PAGI is not on CPAN at the time of this writing but the repository is at
+L<https://github.com/jjn1056/pagi> and its ready for your experimentations.
+Just don't use it for production just yet, unless you really, really know
+what you are doing.
+
+If you're interested in the future of asynchronous Perl web development -
+if you want WebSockets and SSE without abandoning your existing codebase -
+PAGI might be exactly what you're looking for.
+
+Petra smiled as dawn broke over her keyboard. She had work to do, but for
+the first time in months, she felt excited about it.
+
+Maybe the future of Perl web development was brighter than she'd thought.
+
+=head2 Getting Started
+
+Ready to try PAGI yourself?
+
+  #!vim bash
+  git clone https://github.com/jjn1056/pagi.git
+  cd pagi
+  cpanm --installdeps .                    # Install dependencies
+  prove -l t/                  # Run the tests
+
+  # Try the examples
+  pagi-server --app examples/01-hello-http/app.pl --port 5000
+  pagi-server --app examples/simple-01-hello/app.pl --port 5000
+
+The repository includes:
+
+=over 4
+
+=item *
+
+9 raw PAGI examples demonstrating the protocol
+
+=item *
+
+4 PAGI::Simple examples showing the micro-framework
+
+=item *
+
+Complete specification documents
+
+=item *
+
+A reference server implementation
+
+=back
+
+Happy holidays, and happy hacking!
+
+=head2 See Also
+
+=over 4
+
+=item *
+
+L<PAGI Repository|https://github.com/jjn1056/pagi>
+
+=item *
+
+L<ASGI (Python)|https://asgi.readthedocs.io/> - The inspiration
+
+=item *
+
+L<PSGI|https://metacpan.org/pod/PSGI> - The predecessor
+
+=item *
+
+L<IO::Async|https://metacpan.org/pod/IO::Async> - The async foundation
+
+=item *
+
+L<Future::AsyncAwait|https://metacpan.org/pod/Future::AsyncAwait> - Making async readable
+
+=back
+
+=cut
