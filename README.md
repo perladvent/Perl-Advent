@@ -26,6 +26,8 @@ will automatically see the updates.
 
 ## The website
 
+**Using Docker?** See [DOCKER.md](DOCKER.md) for containerized build and preview instructions.
+
 ### 0. Add previous year to `archives.yaml`
 
 Currently this needs to be run manually once per year, in the new year.

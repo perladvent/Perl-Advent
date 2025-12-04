@@ -87,6 +87,16 @@ Useful for testing calendar behavior:
 docker compose run --rm perl-advent bash -c "bash script/build-site.sh --today 2025-12-15"
 ```
 
+### Preview Calendar at Any Date
+
+You can combine both options to preview a single year's calendar as it would appear on any specific date during December:
+
+```bash
+docker compose run --rm perl-advent bash -c "bash script/build-site.sh --single-year 2025 --today 2025-12-06"
+```
+
+This is useful for testing how articles appear as they're published day-by-day throughout the month.
+
 ### Access Built Files Locally
 
 The built files are stored in a Docker volume, not directly on your filesystem. To access them:
