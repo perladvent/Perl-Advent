@@ -1,0 +1,149 @@
+Author: Mike Whitaker <mike@altrion.org>
+Title: ToyCo want to push new toy updates
+Topic: Mojolicious::Lite, JSON, HTTPie
+
+=encoding utf8
+
+=for :html
+<img src="ernest-sophie.png">
+
+=head2 ToyCo are not happy...
+
+Sophie cleared her throat, waited for Ernest, Santa's right-hand elf,
+to look up from his screen. "Boss. We have a problem."
+
+"Oh?" He sighed. "What now?"
+
+She gestured at the tablet she was holding. "You know that script we had
+that fetched new arrivals from their API? Well... it seems Santa wants
+those updates the instant they appear, so every department is running that
+script once a minute, and it's crippling ToyCo's servers." A pause. "Um, also
+we get duplicates because there are multiple copies of it running."
+
+Ernest managed a slight frazzled grin. "You know how to fix that, at least."
+
+She nodded. "Yes, but ToyCo also said they could push us a feed, if we set
+up a web server to accept it. How do we do that?"
+
+=head2 Mojolicious::Lite
+
+He chuckled for real this time. "Oh? that all? Easy. Watch and learn, young
+elf." With a few keystrokes, he opened an edit window on a new file called
+C<toyco_app.pl>.
+
+    #!vim perl
+    #!/usr/bin/env perl
+
+    use Mojolicious::Lite;
+
+Sophie perked up. "What's that?"
+
+"That? It's a very simple module that allows us to run up a web server. Here..."
+
+    #!vim perl
+    post "/feeds/toyco" => sub {
+        my $c = shift;
+    };
+
+"It comes," he explained, "With a bunch of little helper subs that basically make up
+a tiny Domain Specific Language that will allow us to define stuff. So C<post> says
+we want to accept a POST request at that URL, and then the C<$c> argument contains
+the data we'll need to handle."
+
+Sophie hmmed. "And we just tell them the URL? How...?"
+
+He smirked. "I'll get to that. First up, let's parse the data. I'm assuming it's
+coming in the request body in the same JSON format as the last time?"
+
+A nod. "Yes, but one item at a time, rather than a list."
+
+Ok. That's easy. Back to our POST handler. C<$c-E<gt>req> is basically our incoming
+request, and Mojo has a really fast JSON parser built in that will give us the
+request body as a perl data structure...
+
+    #!vim perl
+    post "/feeds/toyco" => sub {
+        my $c = shift;
+        my $item = $c->req->json;
+
+        add_to_db(
+            supplier => "ToyCo",
+            SKU      => $item->{sku},
+            name     => $item->{name},
+            cost     => $item->{wholesale_price},
+            RRP      => $item->{rrp},
+        );
+    };
+
+"Did they say if they expected any JSON back?"
+
+Another glance at her tablet. "Just an optional message field with some
+arbitrary text."
+
+Ernest hrmed. "Ok. Seems a bit pointless, but we could just do this before the
+end of the subroutine..."
+
+    #!vim perl
+    $c->render( json => { message => "Accepted" }, status => 200 );
+
+"...and there you go." He paused, laughed. "Whoops. Helps to start the app. So we
+stick this line at the end of the script proper..."
+
+    #!vim perl
+    app->start;
+
+=head2 Running and testing
+
+Sophie hid a smile, then paused and worried at her bottom lip. "That's all very
+well, but how do we run it?"
+
+Ernest gave her a pleased smile. "Thought you'd never ask. Ok. To test it, there's
+C<morbo>, which is their development runner..."
+
+   #!vim bash
+   morbo ./toyco_app.pl
+   Server available at http://*:3000
+
+"There. That opens it by default listening on port 3000, so you can now test it by
+feeding it data via something like C<HTTPie>."
+
+Sophie's eyes widened. "What's that?"
+
+He opened another terminal window. "It's a very handy script for making API requests
+- don't tell anyone, but it's written in Python. Google for it, and it's pretty
+easy to install - we have it on all our systems. So much easier than trying to remember
+all the incredibly cryptic flags for C<curl>. And you can do this... You give
+it the body parameters as just key/value pairs in this case, and..."
+
+    #!vim bash
+    http POST localhost:3000/feeds/toyco Content-Type:application/json \
+        name="Santa Hat" rrp=36.50 wholesale_price=20.00 SKU=TC-03451
+    HTTP/1.1 200 OK
+    Content-Length: 38
+    Content-Type: application/json; charset=utf-8
+    Date: Tue, 02 Dec 2025 11:33:52 GMT
+    {
+        "message": "Accepted"
+    }
+
+"...and there you go..."
+
+"But that's only development." Sophie frowned. "How do we get it up on production?"
+
+"There's any number of ways. L<https://docs.mojolicious.org> has pointers, but I guess
+what we'll do is ship it across to C<prod.northpole.net> when it's good and tested..."
+He gave her a sly grin. "That's your job, by the way... and then'll we'll run it up using
+the C<prefork> option under something like C<supervisor> to restart it if it ever
+gets killed for some reason."
+
+    #!vim bash
+    ./toyco_app.pl prefork -l https://prod.northpole.net:10000
+
+"And there we go." He sighed. "Right. Off you go and tidy that up and test it, and
+I'll get back to keeping Saint Nick out of Lima's restricted airspace."
+
+"Still?" Sophie giggled.
+
+"Still. Off with you, young elf."
+
+=cut

@@ -1,0 +1,147 @@
+Author: Mike Whitaker <mike@altrion.org>
+Title: Santa needs to know about new toys...
+Topic: LWP, JSON, constant
+
+=encoding utf8
+
+=for :html
+<img src="ernest-sophie.png">
+
+=head2 'Twas a few nights before Christmas...
+
+"Boss?"
+
+Santa sighed, looked up from where he was programming the SledNav in advance of
+Christmas Day. "Yes?"
+
+The junior elf had their usual pre-Christmas too-many-nights-coding, too-much-
+pizza, too-much-caffeine, too-little-sleep look. "New script for you to fetch
+the new toys off the distributor's site. Should save lots of time." They treated
+him to a frazzled, hopeful smile. "new_toys.pl, in the usual place."
+
+Saint Nick nodded. Waved them away. "Go. Go. Get some sleep."
+
+He knew what to expect, so didn't waste time this time.
+
+"ERNEST!"
+
+=head2 The problem
+
+Santa's right-hand elf hurried in. "Yes boss?"
+
+"Your minion's been at it again. See if you can figure out what this is supposed
+to do?"
+
+Ernest sighed. "If we weren't always in such a pre-Christmas rush..."
+
+Back at his desk, he opened the source code, winced, "Oh dear, oh dear, oh...
+Ewww...."
+
+Right on cue, Sophie, I<his> right-hand elf, appeared, trying to read over his
+shoulder. "What... oh... Ewwww... Parsing HTML with regexps? That's gross. What's
+it for...?"
+
+Ernest hrmed. "They're scraping the distributor's new arrivals page, trying to
+parse the results and sticking them in our product DB."
+
+She frowned. "Didn't the distributor say they had an API for that?" She pulled out her
+tablet. "Ah, yes. Here we are. ToyCo sent us a mail just after Black Friday.
+Forwarding it now."
+
+He gave her a grateful smile. "Thanks. Hopefully, this will be quick - I'm still
+trying to debug the SledNav code from L<2022|https://perladvent.org/2022/2022-12-02.html>
+- it's mostly brilliant, but apparently last year it managed to send the boss to London
+via Peru. Something about the wrong Paddington. But - watch and learn..." He scanned
+the email she'd just forwarded, started typing.
+
+    #!vim perl
+    use constant {
+       API_BASE => 'https://api.toyco.com/api/v2',
+       API_KEY  => 'rk_4F92bA7qLmN82xPT9hQw3D6zKp0RsvJ',
+    };
+
+"So those are just constants?"
+
+"Yup. At compile time, too. And they're at the top of the file if we need to change
+them for some reason, like ToyCo moving their endpoint, or expiring our key. And then
+we can use C<LWP> to do the fetching."
+
+"C<LWP>?" she queried.
+
+"Short for C<lib-www-perl>. For historical reasons. Lost in the midst of time. It does
+all the heavy lifting of making web requests for us."
+
+    #!vim perl
+    use LWP::UserAgent;
+    use URI;
+
+    my $ua  = LWP::UserAgent->new();
+    my $uri = URI->new( API_BASE . "/new_arrivals" );
+
+"That's the right endpoint?" Ernest asked.
+
+She checked her tablet. "Yes. Says here it returns JSON. And there's a link to the
+docs. But we do need to pass in the API key as an X-API-Key header or a query
+parameter."
+
+He chuckled. "We'll do the former. It's cleaner. Besides, LWP just lets us set
+headers as extra hash arguments to the C<get> call."
+
+    #!vim perl
+    my $response = $ua->get(
+       $uri,
+       'X-API-Key' => API_KEY
+    );
+
+"Better make sure we can parse the result, too."
+
+    #!vim perl
+    use JSON;
+    my $json_parser = JSON->new->utf8(0);
+
+She peered. "What's that do?"
+
+"Gives us a JSON parser object, then tells it to expect Perl Unicode strings.
+It is UTF8, right?"
+
+A glance down at the tablet. "Says so right here." She grinned. "What now?"
+
+Ernest started typing again.
+
+    #!vim perl
+    my $data = $json_parser->decode( $response->decoded_content );
+
+Sophie scratched her head. "Uh. Woah, hold on. What's the C<$response>?"
+
+"Actually," Ernest explained, "it's an C<HTTP::Message> object. The
+C<decoded_content> method tells it to return the response body after
+it's applied any C<Content-Encoding> headers, and specifically in our case
+it returns Perl Unicode strings, which is what we told JSON to expect."
+
+"Cool. Now what?"
+
+"Now?" Ernest grinned. "Now we have a bunch of new product data in the JSON
+that we can loop through - what fields did they say were in it?"
+
+Sophie oh'ed. "There's a SKU, an RRP, a wholesale price, a name..."
+
+"Right."
+
+    #!vim perl
+    foreach my $item (@$data) {
+        add_to_db(
+            supplier => "ToyCo",
+            SKU      => $item->{sku},
+            name     => $item->{name},
+            cost     => $item->{wholesale_price},
+            RRP      => $item->{rrp},
+        );
+    }
+
+He winked at her. "I'll leave the C<add_to_db> sub as an exercise for
+the eager student." A grin. "That'd be you. Off you go, I need to get back
+to not having Himself routed via South America again this year." A pause.
+"Oh, and for heavens sake add some error handling? You know what the Big
+Red Boss is like if things fall over with cryptic messages."
+
+=cut
