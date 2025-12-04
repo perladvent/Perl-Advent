@@ -31,4 +31,4 @@ a proposal.
 
 - [ ] Yes
 - [ ] No
-- [ ] I could possibly by convinced
+- [ ] I could possibly be convinced
