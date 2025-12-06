@@ -56,21 +56,33 @@ my @moved_files = find_and_move_files( $article, $year );
 
 my $branch = 'publish/' . $ymd;
 
-# Check if we're already on the target branch
-my $current_branch = `git branch --show-current`;
-chomp $current_branch;
+# Create worktree directory if it doesn't exist
+my $worktrees_dir = path('.worktrees');
+$worktrees_dir->mkdir unless $worktrees_dir->exists;
 
-if ( $current_branch ne $branch ) {
+# Set up worktree path
+my $worktree_path = $worktrees_dir->child($ymd);
+
+# Create worktree if it doesn't exist
+if ( !$worktree_path->exists ) {
     # Check if branch exists
     my $branch_exists = system("git rev-parse --verify $branch >/dev/null 2>&1") == 0;
 
     if ($branch_exists) {
-        `git switch $branch`;
+        say "Creating worktree for existing branch $branch";
+        system("git worktree add $worktree_path $branch");
     }
     else {
-        `git switch -c $branch`;
+        say "Creating worktree with new branch $branch";
+        system("git worktree add -b $branch $worktree_path");
     }
 }
+else {
+    say "Using existing worktree at $worktree_path";
+}
+
+# Change to worktree directory
+chdir $worktree_path or die "Cannot chdir to $worktree_path: $!";
 
 `git mv $article $publish_location`;
 
@@ -85,6 +97,8 @@ my $commit_cmd = 'git commit ' . join( ' ', map { qq{"$_"} } @files_to_commit ) 
 `git push`;
 `gh pr create --title 'publish $ymd' --fill`;
 
+my @existing_files = find_existing_files( $publish_location, $year );
+
 if (@moved_files) {
     say "Moved " . scalar(@moved_files) . " file(s) to $year/share/static:";
     say "  - $_" for @moved_files;
@@ -92,6 +106,14 @@ if (@moved_files) {
 else {
     say "No files found to move.";
 }
+
+if (@existing_files) {
+    say "Found " . scalar(@existing_files) . " file(s) already in $year/share/static:";
+    say "  - $_" for @existing_files;
+}
+
+say "\nWorktree created at: $worktree_path";
+say "To switch to this worktree: cd $worktree_path";
 
 sub find_and_move_files {
     my ( $article_path, $year ) = @_;
@@ -131,4 +153,31 @@ sub find_and_move_files {
     }
 
     return @moved_files;
+}
+
+sub find_existing_files {
+    my ( $article_path, $year ) = @_;
+
+    my $article_file = path($article_path);
+    return unless $article_file->exists;
+
+    my $content    = $article_file->slurp_utf8;
+    my $static_dir = path( $year, 'share', 'static' );
+    return unless $static_dir->exists;
+
+    my @existing_files;
+
+    # Get all files in the static directory
+    my @static_files = grep { $_->is_file } $static_dir->children;
+
+    for my $file (@static_files) {
+        my $filename = $file->basename;
+
+        # Check if this file is referenced in the article
+        if ( $content =~ /\Q$filename\E/ ) {
+            push @existing_files, $file->stringify;
+        }
+    }
+
+    return @existing_files;
 }
