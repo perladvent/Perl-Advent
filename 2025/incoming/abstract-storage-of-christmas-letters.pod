@@ -59,12 +59,11 @@ reconfigured via a package variable:
 
     # for now, assume some local directory
     our %STORAGE_CONFIG = (
-        driver => 'Directory',
+        driver    => 'Directory',
         directory => '/home/santa/letters',
     );
 
-    sub get
-    {
+    sub get {
         state $instance = Storage::Abstract->new(%STORAGE_CONFIG);
         return $instance;
     }
@@ -96,27 +95,30 @@ into the action URL to fetch the next page:
 
     # get the storage and fetch the list of files. This assumes that new files
     # will not be added at runtime, but it can be refreshed periodically if needed
-    my $store = LetterStore->get;
+    my $store      = LetterStore->get;
     my $store_list = $store->list;
 
     get '/letters/count' => sub ($c) {
-        return $c->render(json => {count => scalar $store_list->@*});
+        return $c->render( json => { count => scalar $store_list->@* } );
     };
 
-    get '/letters/:cursor' => {cursor => 0} => sub ($c) {
+    get '/letters/:cursor' => { cursor => 0 } => sub ($c) {
+
         # cursor will be an index of next letter to fetch - must be a positive integer
         my $cursor = $c->stash('cursor');
-        return $c->render(json => {error => 'bad cursor'}, status => 422)
+        return $c->render( json => { error => 'bad cursor' }, status => 422 )
             if $cursor =~ /\D/;
 
         # fetch a list of filenames
         my $next_cursor = $cursor + RESPONSE_SIZE;
-        my @files = $store_list->@[$cursor .. min($next_cursor - 1, $store_list->$#*)];
+        my @files
+            = $store_list->@[ $cursor .. min( $next_cursor - 1, $store_list->$#* ) ];
 
         my @response_data;
         foreach my $filename (@files) {
+
             # extract child name and conduct from path
-            my ($conduct, $child_name) = $filename =~ m{ ([^/]+) / ([^/]+) $}x;
+            my ( $conduct, $child_name ) = $filename =~ m{ ([^/]+) / ([^/]+) $}x;
 
             # fetch file content
             my $fh = $store->retrieve($filename);
@@ -125,18 +127,20 @@ into the action URL to fetch the next page:
             # add data to response
             push @response_data, {
                 conduct => $conduct,
-                child => $child_name,
-                letter => $file_content,
+                child   => $child_name,
+                letter  => $file_content,
             };
         }
 
         # no cursor if we don't have any more data
         $next_cursor = undef if $next_cursor > $store_list->$#*;
 
-        $c->render(json => {
-            data => \@response_data,
-            cursor => $next_cursor,
-        });
+        $c->render(
+            json => {
+                data   => \@response_data,
+                cursor => $next_cursor,
+            }
+        );
     };
 
     app->start;
@@ -170,19 +174,20 @@ after the test:
 
     # fill the storage with sample letters
     my %wishlist = get_letters();
-    my $storage = LetterStore->get;
+    my $storage  = LetterStore->get;
 
-    foreach my ($conduct, $names) (%wishlist) {
-        foreach my ($name, $letter) ($names->%*) {
+    foreach my ( $conduct, $names ) (%wishlist) {
+        foreach my ( $name, $letter ) ( $names->%* ) {
+
             # scalar reference marks content, unlike plain string which marks a
             # local filename
-            $storage->store("/$conduct/$name", \$letter);
+            $storage->store( "/$conduct/$name", \$letter );
         }
     }
 
     # load LetterStore service
     my $script = curfile->sibling('letter_store.pl');
-    my $t = Test::Mojo->new($script);
+    my $t      = Test::Mojo->new($script);
 
     ##################
     #    TEST IT!    #
@@ -191,41 +196,40 @@ after the test:
     subtest 'should have the right number of letters' => sub {
         $t->get_ok('/letters/count')
             ->status_is(200)
-            ->json_is('/count', 6, 'count ok');
+            ->json_is( '/count', 6, 'count ok' );
     };
 
     subtest 'should get first set of letters' => sub {
-        test_letters(undef, 5, 5);
+        test_letters( undef, 5, 5 );
     };
 
     subtest 'should get second set of letters' => sub {
-        test_letters(5, 1, undef);
+        test_letters( 5, 1, undef );
     };
 
     done_testing;
 
-    sub test_letters($cursor, $expected_data_count, $expected_next_cursor)
-    {
-        $t->get_ok('/letters' . ($cursor ? "/$cursor" : ''))
+    sub test_letters( $cursor, $expected_data_count, $expected_next_cursor ) {
+        $t->get_ok( '/letters' . ( $cursor ? "/$cursor" : '' ) )
             ->status_is(200)
             ->json_has('/cursor')
             ->json_has('/data');
 
         my $response = $t->tx->res->json;
-        is scalar $response->{data}->@*, $expected_data_count, 'data count ok';
-        is $response->{cursor}, $expected_next_cursor, 'cursor ok';
+        is scalar $response->{data}->@*, $expected_data_count,  'data count ok';
+        is $response->{cursor},          $expected_next_cursor, 'cursor ok';
 
-        foreach my $letter_data ($response->{data}->@*) {
+        foreach my $letter_data ( $response->{data}->@* ) {
             my $conduct = $letter_data->{conduct};
-            my $name = $letter_data->{child};
+            my $name    = $letter_data->{child};
 
-            is $conduct, in_set(keys %wishlist), 'conduct ok';
-            is $wishlist{$conduct}{$name}, $letter_data->{letter}, 'letter content ok';
+            is $conduct, in_set( keys %wishlist ), 'conduct ok';
+            is $wishlist{$conduct}{$name}, $letter_data->{letter},
+                'letter content ok';
         }
     }
 
-    sub get_letters
-    {
+    sub get_letters {
         return (
             nice => {
 
