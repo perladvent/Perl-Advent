@@ -1,0 +1,186 @@
+Author: Charlie Gonzalez <itcharlie@gmail.com>
+Title: Perl who is Naughty or Nice?
+Topic: Data::Random::Contact Getopt::Long
+
+=encoding utf8
+=for :html
+  <img src="Elf-nice-list.png" alt="Elf Nice List">
+
+=head1 Elves are scrambling
+
+Santa's ETL framework went down and now the elves are tasked with writing a Perl script to process the "Naughty or Nice" master feed files.
+To tackle this problem Chaz (one of Santa's elves) will generate a sample feed file and use it as test data for a new Perl script.
+
+=head1 Test Data Format
+
+Chaz needs to be able to conform with the original format of the feed file (a CSV file) with the following fields:
+
+first_name
+last_name
+street_address
+city
+state
+postal_code
+Naughty_or_Nice_flag
+
+While thinking about this problem, he remembered a Perl module named L<Data::Random::Contact> that he found while searching for a module to generate random data via MetaCPAN.
+So he borrowed a laptop from the toy factory and started working on a script.
+
+=head1 Random Data Generator script
+
+The data from L<Data::Random::Contact> is actually generated from Fakenamegenerator.com.
+To make the test data as close to production, Chaz wrote the script to generate at least 200 records.
+
+
+=begin perl
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Data::Dumper;
+use Data::Random::Contact;
+
+# write out a randomly generated list of demographic data
+my $rand = Data::Random::Contact->new();
+
+for ( my $i = 0 ; $i < 200 ; $i++ ) {
+
+    #person() returns a hashref of contact data
+    my $person = $rand->person();
+
+    # only print if postal code is def ( some records can have empty postal code )
+    if ( $person->{address}{home}{postal_code} ) {
+        my $n_or_n = int( rand(2) );
+        print join(
+            ',',
+            $person->{given},
+            $person->{surname},
+            $person->{address}{home}{street_1},
+            $person->{address}{home}{city},
+            $person->{address}{home}{region},
+            $person->{address}{home}{postal_code},
+            $n_or_n
+        ) . "\n";
+
+    }
+
+}
+
+=end perl
+
+=head1 The Test Data
+
+It's a few hours before Christmas and Chaz has already written a Perl script that will generate random data needed to test his new data extractor program.
+
+Chaz executed the script like so:
+
+  #!vim bash
+  $ generate_kids_data.pl > master_list.csv
+
+and generated the sample test data (truncated for visibility):
+
+=begin csv
+
+Howard,Rogers,2617 Broad Avenue,Memphis,Tennessee,38112,0
+Irene,Hoskins,3720 Butler St.,Pittsburgh,Pennsylvania,15201,0
+Melvin,Hoskins,120 S. 1st Street,Louisville,Kentucky,40202,1
+Danny,Arnold,1692 N. Van Buren St.,Milwaukee,Wisconsin,53202,1
+T
+
+=end csv
+
+
+=head1 Use Getopt::Long to select Naughty and Nice output files
+
+Chaz is very close to the last 2 hours of Christmas Eve and now has a working Perl script that will output Naughty and/or Nice kids from the list in separate files.
+Chaz also had to consider the fact that the master file of kids can be sent in batches of a few hundred records at a time so he had to add the ability to pass some argument options to allow for defining a filename as an argument and to select whether the output file will contain Naughty or Nice kids.
+
+=begin perl
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Data::Dumper;
+use Getopt::Long;
+
+my $nice    = '';
+my $naughty = '';
+my $file;
+
+# parse options
+GetOptions(
+    "nice"    => \$nice,
+    "naughty" => \$naughty,
+    "file=s"  => \$file,
+    "help"    => \&help,
+) or die("Unable to parse information");
+
+sub help {
+    die <<'USAGE';
+Naughty_or_Nice.pl -nice -naughty
+
+Accepts the following arguments
+
+-nice :    generates a nice list "Nice_list.csv".
+-naughty : generates a naughty list "Naughty_list".
+-file :    file name as input. default filename "master_list.csv"
+
+USAGE
+
+}
+if ( ( $nice eq "" ) and ( $naughty eq "" ) ) {
+    die "$0 requires -nice or -naughty option";
+}
+
+my $in_fh;
+
+# Create a filehandle from file option or default csv file.
+if ($file) {
+    open( $in_fh, '<', $file ) or die( "Unable to open " . $file );
+}
+else {
+    open( $in_fh, '<', 'master_list.csv' )
+        or die("Unable to open master_list.csv");
+}
+
+our ( $nice_fh, $naughty_fh );
+
+# Create file handle for Nice and Naughty files if set.
+if ($nice) {
+    open( $nice_fh, '>', 'Nice_list.csv' )
+        or die("Unable to open Nice_list.csv");
+}
+if ($naughty) {
+    open( $naughty_fh, '>', 'Naughty_list.csv' )
+        or die("Unable to open Naughty_list.csv");
+}
+
+while ( my $rec = <$in_fh> ) {
+    $rec =~ s/\R//g;
+
+    # separate the fields
+    my @fields = split( /,/, $rec );
+
+    #filter out the nice kids
+    if ($nice) {
+        # Nice kids get printed
+        if ( $fields[6] == 1 ) { print $nice_fh ( $rec . "\n" ); }
+    }
+
+    #filter out the naughty kids
+    if ($naughty) {
+        # Naughty kids get printed
+        if ( $fields[6] == 0 ) { print $naughty_fh ( $rec . "\n" ); }
+    }
+
+}
+
+=end perl
+
+In a rush Chaz executed the script to read the master_list.csv sample file and generate the Nice and Naughty output files:
+
+  #!vim bash
+  $ Naughty_or_Nice.pl -nice -naughty
+
+This resulted in two files: Naughty_list.csv and Nice_list.csv
+
+Happy with the results he quickly created a pull request so the release team can install the script in production and schedule a run of the script against the kids feed files.
