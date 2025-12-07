@@ -44,10 +44,10 @@ my $rand = Data::Random::Contact->new();
 
 for ( my $i = 0 ; $i < 200 ; $i++ ) {
 
-    #returns a hashref
+    #person() returns a hashref of contact data
     my $person = $rand->person();
 
-    # only print if postal code is def
+    # only print if postal code is def ( some records can have empty postal code )
     if ( $person->{address}{home}{postal_code} ) {
         my  $n_or_n = int(rand(2));
         print join( ',',
@@ -86,9 +86,10 @@ T
 =head1 Use Getop::Long to select Naughty and Nice output files
 
 Chaz is very close to the last 2 hours of christmas eve and now has a working Perl script that will output Naughty and/or Nice kids from the list in separate files.  
-Chaz also had to consider the fact that the master file of kids can sent in batches of a few hundred records at a time so he had to add some argument options to allow for passing a file as an argument and to select whether the output file will contain Naughty or Nice kids. 
+Chaz also had to consider the fact that the master file of kids can be sent in batches of a few hundred records at a time so he had to the ability to pass some argument options to allow for defining a filename as an argument and to select whether the output file will contain Naughty or Nice kids. 
 
 =begin perl 
+
 #!/usr/bin/perl
 
 use strict;
@@ -105,10 +106,24 @@ GetOptions(
     "nice"    => \$nice,
     "naughty" => \$naughty,
     "file=f"  => \$file,
+    "help"    => &help,
 ) or die("Unable to parse information");
 
+sub help {
+    die <<'USAGE';
+Naughty_or_Nice.pl -nice -naughty
+
+Accepts the following arguments 
+
+-nice :    generates a nice list "Nice_list.csv". 
+-naughty : generates a naughty list "Naughty_list".
+-file :    file name as input. default filename "master_list.csv"  
+
+USAGE
+
+}
 if ( ( $nice eq "" ) and ( $naughty eq "" ) ) {
-    die "Need nice or naughty option";
+    die "$0 requires -nice or -naughty option";
 }
 
 my $in_fh;
@@ -138,14 +153,17 @@ if ($naughty) {
 while ( my $rec = <$in_fh> ) {
     $rec =~ s/\R//g;
 
-    # filter out the nice kids
+    # separate the fields
     my @fields = split( /,/, $rec );
-
+    
+    #filter out the nice kids
     if ($nice) {
 
         # Nice kids get printed
         if ( $fields[6] == 1 ) { print $nice_fh ( $rec . "\n" ); }
     }
+    
+    #filter out the naughty kids
     if ($naughty) {
 
         # Naughty kids get printed
@@ -153,8 +171,6 @@ while ( my $rec = <$in_fh> ) {
     }
 
 }
-
-
 =end perl
 
 
