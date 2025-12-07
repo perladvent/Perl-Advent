@@ -33,37 +33,38 @@ To make the test data as close to production, Chaz wrote the script to generate 
 
 
 =begin perl
-#!/usr/bin/perl
-use strict;
-use warnings;
-use Data::Dumper;
-use Data::Random::Contact;
 
-# write out a randomly generated list of demographic data
-my $rand = Data::Random::Contact->new();
+  #!/usr/bin/perl
+  use strict;
+  use warnings;
+  use Data::Dumper;
+  use Data::Random::Contact;
 
-for ( my $i = 0 ; $i < 200 ; $i++ ) {
+  # write out a randomly generated list of demographic data
+  my $rand = Data::Random::Contact->new();
 
-    #person() returns a hashref of contact data
-    my $person = $rand->person();
+  for ( my $i = 0 ; $i < 200 ; $i++ ) {
 
-    # only print if postal code is def ( some records can have empty postal code )
-    if ( $person->{address}{home}{postal_code} ) {
-        my $n_or_n = int( rand(2) );
-        print join(
-            ',',
-            $person->{given},
-            $person->{surname},
-            $person->{address}{home}{street_1},
-            $person->{address}{home}{city},
-            $person->{address}{home}{region},
-            $person->{address}{home}{postal_code},
-            $n_or_n
-        ) . "\n";
+      #person() returns a hashref of contact data
+      my $person = $rand->person();
 
-    }
+      # only print if postal code is def ( some records can have empty postal code )
+      if ( $person->{address}{home}{postal_code} ) {
+          my $n_or_n = int( rand(2) );
+          print join(
+              ',',
+              $person->{given},
+              $person->{surname},
+              $person->{address}{home}{street_1},
+              $person->{address}{home}{city},
+              $person->{address}{home}{region},
+              $person->{address}{home}{postal_code},
+              $n_or_n
+          ) . "\n";
 
-}
+      }
+
+  }
 
 =end perl
 
@@ -95,84 +96,85 @@ Chaz is very close to the last 2 hours of Christmas Eve and now has a working Pe
 Chaz also had to consider the fact that the master file of kids can be sent in batches of a few hundred records at a time so he had to add the ability to pass some argument options to allow for defining a filename as an argument and to select whether the output file will contain Naughty or Nice kids.
 
 =begin perl
-#!/usr/bin/perl
 
-use strict;
-use warnings;
-use Data::Dumper;
-use Getopt::Long;
+  #!/usr/bin/perl
 
-my $nice    = '';
-my $naughty = '';
-my $file;
+  use strict;
+  use warnings;
+  use Data::Dumper;
+  use Getopt::Long;
 
-# parse options
-GetOptions(
-    "nice"    => \$nice,
-    "naughty" => \$naughty,
-    "file=s"  => \$file,
-    "help"    => \&help,
-) or die("Unable to parse information");
+  my $nice    = '';
+  my $naughty = '';
+  my $file;
 
-sub help {
-    die <<'USAGE';
-Naughty_or_Nice.pl -nice -naughty
+  # parse options
+  GetOptions(
+      "nice"    => \$nice,
+      "naughty" => \$naughty,
+      "file=s"  => \$file,
+      "help"    => \&help,
+  ) or die("Unable to parse information");
 
-Accepts the following arguments
+  sub help {
+      die <<'USAGE';
+  Naughty_or_Nice.pl -nice -naughty
 
--nice :    generates a nice list "Nice_list.csv".
--naughty : generates a naughty list "Naughty_list".
--file :    file name as input. default filename "master_list.csv"
+  Accepts the following arguments
 
-USAGE
+  -nice :    generates a nice list "Nice_list.csv".
+  -naughty : generates a naughty list "Naughty_list".
+  -file :    file name as input. default filename "master_list.csv"
 
-}
-if ( ( $nice eq "" ) and ( $naughty eq "" ) ) {
-    die "$0 requires -nice or -naughty option";
-}
+  USAGE
 
-my $in_fh;
+  }
+  if ( ( $nice eq "" ) and ( $naughty eq "" ) ) {
+      die "$0 requires -nice or -naughty option";
+  }
 
-# Create a filehandle from file option or default csv file.
-if ($file) {
-    open( $in_fh, '<', $file ) or die( "Unable to open " . $file );
-}
-else {
-    open( $in_fh, '<', 'master_list.csv' )
-        or die("Unable to open master_list.csv");
-}
+  my $in_fh;
 
-our ( $nice_fh, $naughty_fh );
+  # Create a filehandle from file option or default csv file.
+  if ($file) {
+      open( $in_fh, '<', $file ) or die( "Unable to open " . $file );
+  }
+  else {
+      open( $in_fh, '<', 'master_list.csv' )
+          or die("Unable to open master_list.csv");
+  }
 
-# Create file handle for Nice and Naughty files if set.
-if ($nice) {
-    open( $nice_fh, '>', 'Nice_list.csv' )
-        or die("Unable to open Nice_list.csv");
-}
-if ($naughty) {
-    open( $naughty_fh, '>', 'Naughty_list.csv' )
-        or die("Unable to open Naughty_list.csv");
-}
+  our ( $nice_fh, $naughty_fh );
 
-while ( my $rec = <$in_fh> ) {
-    $rec =~ s/\R//g;
+  # Create file handle for Nice and Naughty files if set.
+  if ($nice) {
+      open( $nice_fh, '>', 'Nice_list.csv' )
+          or die("Unable to open Nice_list.csv");
+  }
+  if ($naughty) {
+      open( $naughty_fh, '>', 'Naughty_list.csv' )
+          or die("Unable to open Naughty_list.csv");
+  }
 
-    # separate the fields
-    my @fields = split( /,/, $rec );
+  while ( my $rec = <$in_fh> ) {
+      $rec =~ s/\R//g;
 
-    #filter out the nice kids
-    if ($nice) {
-        # Nice kids get printed
-        if ( $fields[6] == 1 ) { print $nice_fh ( $rec . "\n" ); }
-    }
+      # separate the fields
+      my @fields = split( /,/, $rec );
 
-    #filter out the naughty kids
-    if ($naughty) {
-        # Naughty kids get printed
-        if ( $fields[6] == 0 ) { print $naughty_fh ( $rec . "\n" ); }
-    }
+      #filter out the nice kids
+      if ($nice) {
+          # Nice kids get printed
+          if ( $fields[6] == 1 ) { print $nice_fh ( $rec . "\n" ); }
+      }
 
-}
+      #filter out the naughty kids
+      if ($naughty) {
+          # Naughty kids get printed
+          if ( $fields[6] == 0 ) { print $naughty_fh ( $rec . "\n" ); }
+      }
+
+  }
 
 =end perl
 
