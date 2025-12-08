@@ -1,0 +1,71 @@
+Author: kobaken <kfly@cpan.org>
+Title: Run specific tests in Perl
+Topic: Test2::Plugin::SubtestFilter
+
+=encoding utf8
+
+Have you ever had the experience of having many subtests in a single test file, making it difficult to see the test results for the parts you want to check?
+
+With L<Test2::Plugin::SubtestFilter>, you can run only specific subtests. This is similar to L<vitest's --testNamePattern|https://vitest.dev/config/testnamepattern> or L<go test's -run flag|https://pkg.go.dev/cmd/go#hdr-Testing_flags> in other languages.
+
+If you use C<Test2::Plugin::SubtestFilter>, only subtests matching the C<SUBTEST_FILTER> environment variable will be executed. For example, given the following test file, if you specify C<only_run_this> in C<SUBTEST_FILTER>, only C<only_run_this> will be executed, and C<do_not_run> will be skipped.
+
+=begin perl
+
+    use Test2::V0;
+    use Test2::Plugin::SubtestFilter;
+
+    subtest 'only_run_this' => sub {
+        pass;
+    };
+
+    subtest 'do_not_run' => sub {
+        pass;
+    };
+
+    done_testing;
+
+=end perl
+
+Run the test like this:
+
+  #!vim bash
+  % SUBTEST_FILTER=only_run_this prove -lvr t/test.t
+  # => Test `only_run_this` / Skip `do_not_run`
+
+=head2 Tips: VSCode Extension
+
+With the following VSCode extension, you can run tests simply by clicking the run icon for test execution. How convenient!
+
+L<VSCode Extension: Perl Test|https://marketplace.visualstudio.com/items?itemName=kfly8.test2-subtest-filter>
+
+=for :html
+<img src="run-specific-tests-in-perl-vscode-extension.gif" alt="VSCode extension demo" width="600"/>
+
+=head2 Tips: Prompt for Coding Agents
+
+If you give a coding agent a prompt like the following, it will use C<SUBTEST_FILTER>. By narrowing down the test results to only the areas of interest, you get the benefit of reducing context consumption.
+
+  #!vim markdown
+  ### Test Execution Rules (Required)
+
+  **When adding or modifying functions or subtests, always use
+  `SUBTEST_FILTER` to run only the relevant subtest.**
+
+  Example: When adding a `power` function
+  ```bash
+  # Good: Run only the relevant subtest
+  SUBTEST_FILTER=power prove t/Hello/Math.t
+
+  # Bad: Run all tests (slow, adds noise from unrelated tests)
+  prove t/Hello/Math.t
+  ```
+
+  Run all tests (`prove t/`) only in the following cases:
+  - When the user explicitly requests a full test run
+  - When making broad changes such as refactoring
+  - As a final check before committing
+
+That's all. Please give it a try. Happy testing!
+
+=cut
