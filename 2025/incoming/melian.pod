@@ -1,4 +1,4 @@
-Author: Sawyer X <xsawyerx@cpan.com>
+Author: Sawyer X <xsawyerx@cpan.org>
 Title: The Night Before Deployment: How Melian Saved Christmas (and How It Can Speed Up Your App Too)
 Topic: Blazingly fast caching server
 
@@ -158,7 +158,7 @@ Instead of a config file, we will use environment variables:
     export MELIAN_SQLITE_FILENAME=/tmp/gifts.db
 
     # Define a single table with two indexes:
-    export MELIAN_TABLE_TABLES="gifts#1|60|id:int;recipient:string"
+    export MELIAN_TABLE_TABLES="gifts#1|60|id#0:int;recipient#1:string"
 
 The C<MELIAN_TABLE_TABLES> means:
 
@@ -201,12 +201,12 @@ I<(Yes, the elves use Perl too - it's very popular north of 89° latitude.)>
 
     my $client = Melian->new( path => "/tmp/melian.sock" );
 
-    # Fetch by numeric key: table ID, column ID, key
-    my $gift = $client->fetch_by_int( 1, 0, 2 );
+    # Fetch by numeric key: table 'gifts', column 'id', key '2'
+    my $gift = $client->fetch_by_int_from( 'gifts', 'id', 2 );
     say "Gift for $gift->{recipient}: $gift->{gift} (€$gift->{price})";
 
-    # Fetch by string key: table ID, column ID, key
-    my $bob = $client->fetch_by_string( 1, 1, 'Bob' );
+    # Fetch by string key: table 'gifts', column 'recipient', key 'Bob'
+    my $bob = $client->fetch_by_string( 'gifts', 'recipient', 'Bob' );
     say "Found Bob's gift: $bob->{gift}";
 
 And the result:
@@ -215,6 +215,20 @@ And the result:
     Found Bob's gift: Lego spaceship
 
 These lookups usually complete in B<single-digit microseconds>.
+
+There are additional ways to use L<Melian> that make it faster and faster:
+
+=over 4
+
+=item *
+
+Storing the IDs of the tables and columns to avoid Melian having to resolve them.
+
+=item *
+
+Using the functional interface, cutting down the cost of object-oriented in Perl.
+
+=back
 
 =head2 🎄 Bonus: Ephemeral Derived Tables
 
