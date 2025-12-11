@@ -46,39 +46,39 @@ Mondrian-styled paintings, if you want. Let's get started:
   #
   #   cpan Moo Svg::Simple Imager
 
-  package Acme::Mondrian::Generator {
-     use strict;
-     use warnings;
-     use Moo;
-     use Svg::Simple;
-     use Imager;
-     use List::Util qw(shuffle);
-
-     # Stuff the user can control on creation, with defaults
-     has resolution => ( is => 'ro', default => sub { return 80 } );      # width in cells
-     has aspect     => ( is => 'ro', default => sub { return 0.75 } );    # height = width * aspect
-     has line_thickness => ( is => 'ro', default => sub { return 4 } );   # SVG black line thickness
-     has scale_px       => ( is => 'ro', default => sub { return 20 } );  # px per cell in PNG/SVG
-     has palette => (
-        is      => 'ro',
-        default => sub {
-           # I did some googling around for these, then asked ChatGPT for the
-           # RGB numbers.
-           return {
-              white  => [ 245, 242, 235 ],        # lead white approximation
-              black  => [ 30,  30,  30 ],         # bone + carbon black
-              red    => [ 138, 47,  47 ],         # hematite / iron-oxide red
-              yellow => [ 255, 210, 30 ],         # mix: cadmium yellow / ochre / chrome yellow
-              blue   => [ 200, 210, 210 ],        # pale blue-gray (white + carbon black)
-           }
+  package Acme::Mondrian::Generator;
+  use strict;
+  use warnings;
+  use Moo;
+  use Svg::Simple;
+  use Imager;
+  use List::Util qw(shuffle);
+  
+  # Stuff the user can control on creation, with defaults
+  has resolution => ( is => 'ro', default => sub { return 80 } );      # width in cells
+  has aspect     => ( is => 'ro', default => sub { return 0.75 } );    # height = width * aspect
+  has line_thickness => ( is => 'ro', default => sub { return 4 } );   # SVG black line thickness
+  has scale_px       => ( is => 'ro', default => sub { return 20 } );  # px per cell in PNG/SVG
+  has palette => (
+     is      => 'ro',
+     default => sub {
+        # I did some googling around for these, then asked ChatGPT for the
+        # RGB numbers.
+        return {
+           white  => [ 245, 242, 235 ],        # lead white approximation
+           black  => [ 30,  30,  30 ],         # bone + carbon black
+           red    => [ 138, 47,  47 ],         # hematite / iron-oxide red
+           yellow => [ 255, 210, 30 ],         # mix: cadmium yellow / ochre / chrome yellow
+           blue   => [ 200, 210, 210 ],        # pale blue-gray (white + carbon black)
         }
-     );
-
-     # Logical canvas (grid)
-     has canvas => ( is => 'rw', default => sub { return {} } );
-     has width  => ( is => 'rw' );  # We'll calculate these at runtime.
-     has height => ( is => 'rw' );
-
+     }
+  );
+  
+  # Logical canvas (grid)
+  has canvas => ( is => 'rw', default => sub { return {} } );
+  has width  => ( is => 'rw' );  # We'll calculate these at runtime.
+  has height => ( is => 'rw' );
+  
   1;
 
 =end perl
@@ -373,5 +373,255 @@ a link),
 I'll also include a script to let you play around with the parameters of the
 generator, and output JPGs and SVGs as well as PNGs.
 
+For completeness, here's the whole Acme::Mondrian::Generator package after
+a bit of tidying-up:
 
+  package Acme::Mondrian::Generator;
+  use strict;
+  use warnings;
+  use Moo;
+  use Svg::Simple;
+  use Imager;
+  
+  # Stuff the user can control on creation, with defaults
+  has resolution     => ( is => 'ro', default => sub { return 80 } );   # width in cells
+  has aspect         => ( is => 'ro', default => sub { return 0.75 } ); # height = width * aspect
+  has line_thickness => ( is => 'ro', default => sub { return 4 } );    # SVG black line thickness
+  has scale_px       => ( is => 'ro', default => sub { return 20 } );   # px per cell in PNG/SVG
+  has palette => (
+     is      => 'ro',
+     default => sub {
+        return {
+           white  => [ 245, 242, 235 ],           # lead white approximation
+           black  => [ 30,  30,  30 ],            # bone + carbon black
+           red    => [ 138, 47,  47 ],            # hematite / iron-oxide red
+           yellow => [ 255, 210, 30 ],            # mix: cadmium yellow / ochre / chrome yellow
+           blue   => [ 200, 210, 210 ],           # pale blue-gray (white + carbon black)
+        };
+     }
+  );
+  
+  # Logical canvas (grid)
+  has canvas => ( is => 'rw', default => sub { return {} } );
+  has width  => ( is => 'rw' );                   # We'll calculate these
+  has height => ( is => 'rw' );
+  
+  sub generate {
+     my $self = shift;
+  
+     my $W = $self->resolution;
+     my $H = int($self->resolution * $self->aspect);
+     $self->width($W);
+     $self->height($H);
+  
+     my %canvas;
+     $self->canvas(\%canvas);
+  
+     # Initialize white grid
+     for my $x (0..$W-1) {
+        for my $y (0..$H-1) {
+           $canvas{"$x,$y"} = 'white';
+        }
+     }
+  
+     # Random thick grid lines like Mondrian
+     my $min_x_gap = int($W/10);
+     my $max_x_gap = int($W/5);
+     my $min_y_gap = int($H/10);
+     my $max_y_gap = int($H/5);
+  
+     my $numberOfSegmentsToDelete = 0;
+  
+     # Vertical lines
+     my @vlines;
+     {
+        my $x = int( rand( $max_x_gap - $min_x_gap + 1 ) ) + $min_x_gap;
+        while ( $x < $W - $min_x_gap ) {
+           $numberOfSegmentsToDelete++;
+           push @vlines, $x;
+           for my $y ( 0 .. $H - 1 ) { $canvas{"$x,$y"} = 'black' }
+           $x += int( rand( $max_x_gap - $min_x_gap + 1 ) ) + $min_x_gap;
+        }
+     }
+  
+     # Horizontal lines
+     my @hlines;
+     {
+        my $y = int( rand( $max_y_gap - $min_y_gap + 1 ) ) + $min_y_gap;
+        while ( $y < $H - $min_y_gap ) {
+           push @hlines, $y;
+           for my $x ( 0 .. $W - 1 ) { $canvas{"$x,$y"} = 'black' }
+           $y += int( rand( $max_y_gap - $min_y_gap + 1 ) ) + $min_y_gap;
+        }
+     }
+  
+     my $numberOfRectanglesToPaint = $numberOfSegmentsToDelete - 3;
+     $numberOfSegmentsToDelete     = int($numberOfSegmentsToDelete * 1.5);
+  
+     # Delete segments
+     for ( 1 .. $numberOfSegmentsToDelete ) {
+        while (1) {                   # let's look for a black spot on the canvas.
+           my $startx = int( rand( $W - 2 ) ) + 1;
+           my $starty = int( rand( $H - 2 ) ) + 1;
+           next if $canvas{"$startx,$starty"} eq 'white';
+  
+           my $orientation;           # Are we on a vertical line, or a horizontal
+           if (  $canvas{ ( $startx - 1 ) . ",$starty" } eq 'white'
+              && $canvas{ ( $startx + 1 ) . ",$starty" } eq 'white' )
+           {
+              $orientation = 'vertical';
+           }
+           elsif ( $canvas{ "$startx," . ( $starty - 1 ) } eq 'white'
+              && $canvas{ "$startx," . ( $starty + 1 ) } eq 'white' )
+           {
+              $orientation = 'horizontal';
+           }
+           else {                     # We're at an intersection, so don't delete here.
+              next;
+           }
+  
+           my @points    = ("$startx,$starty");
+           my $canDelete = 1;
+  
+           # Now find the collection of points on the rest of that segment, and push
+           # them into @points.
+           if ( $orientation eq 'vertical' ) {
+              for my $dy ( -1, 1 ) {
+                 my $yy = $starty;
+                 while ( $yy > 0 && $yy < $H - 1 ) {
+                    $yy += $dy;
+                    my $l = $canvas{ ( $startx - 1 ) . ",$yy" };
+                    my $r = $canvas{ ( $startx + 1 ) . ",$yy" };
+                    if ( $l eq 'black' && $r eq 'black' ) {
+                       last;
+                    }
+                    elsif ( ( $l eq 'white' && $r eq 'black' )
+                       || ( $l eq 'black' && $r eq 'white' ) )
+                    {
+                       $canDelete = 0;
+                       last;
+                    }
+                    push @points, "$startx,$yy";
+                 }
+                 last unless $canDelete;
+              }
+           }
+           else {                     # horizontal
+              for my $dx ( -1, 1 ) {
+                 my $xx = $startx;
+                 while ( $xx > 0 && $xx < $W - 1 ) {
+                    $xx += $dx;
+                    my $u = $canvas{ "$xx," . ( $starty - 1 ) };
+                    my $d = $canvas{ "$xx," . ( $starty + 1 ) };
+                    if ( $u eq 'black' && $d eq 'black' ) {
+                       last;
+                    }
+                    elsif ( ( $u eq 'white' && $d eq 'black' )
+                       || ( $u eq 'black' && $d eq 'white' ) )
+                    {
+                       $canDelete = 0;
+                       last;
+                    }
+                    push @points, "$xx,$starty";
+                 }
+                 last unless $canDelete;
+              }
+           }
+  
+           next unless $canDelete;
+           $canvas{$_} = 'white' for @points;
+           last;
+        }
+     }
+  
+     # Border
+     for my $xx (0..$W-1) {
+        $canvas{"$xx,0"} = 'black';
+        $canvas{"$xx,".($H-1)} = 'black';
+     }
+     for my $yy (0..$H-1) {
+        $canvas{"0,$yy"} = 'black';
+        $canvas{($W-1).",$yy"} = 'black';
+     }
+  
+     # Flood fill rectangles
+     my @fillcolors = qw(red yellow blue white white white);    # biased toward white
+     my %seen;
+  
+     for ( 1 .. $numberOfRectanglesToPaint ) {
+        my ( $sx, $sy );
+        for ( 1 .. 200 ) {
+           $sx = int( rand($W) );
+           $sy = int( rand($H) );
+           last if $canvas{"$sx,$sy"} eq 'white';
+        }
+  
+        my $color = $fillcolors[ rand @fillcolors ];
+  
+        my @stack = ("$sx,$sy");
+        while (@stack) {
+           my $pt = pop @stack;
+           # If our $color is 'white', this way we don't loop forever.
+           next if $seen{$pt}++;
+           
+           my ( $x, $y ) = split /,/, $pt;
+           $canvas{$pt} = $color;
+           $seen{$pt}++;
+           # If any adjacent points are white, push them in for coloring.
+           for my $d ( [ -1, 0 ], [ 1, 0 ], [ 0, -1 ], [ 0, 1 ] ) {
+              my ( $nx, $ny ) = ( $x + $d->[0], $y + $d->[1] );
+              next if $nx < 0 || $ny < 0 || $nx >= $W || $ny >= $H;
+              my $k = "$nx,$ny";
+              push @stack, $k if $canvas{$k} eq 'white';
+           }
+        }
+     }
+  
+     return 1;
+  }
+  
+  sub save_png_or_jpg {
+     my ( $self, $file ) = @_;
+     my $scale  = $self->scale_px;
+     my $W      = $self->width;
+     my $H      = $self->height;
+     my %canvas = %{ $self->canvas };
+  
+     my $img = Imager->new(
+        xsize    => $W * $scale,
+        ysize    => $H * $scale,
+        channels => 3
+     );
+  
+     for my $k ( keys %canvas ) {
+        my ( $x, $y ) = split /,/, $k;
+        my $rgb   = $self->palette->{ $canvas{$k} };
+        my $color = Imager::Color->new(@$rgb);
+        $img->box(
+           xmin   => $x * $scale,
+           ymin   => $y * $scale,
+           xmax   => ( $x + 1 ) * $scale - 1,
+           ymax   => ( $y + 1 ) * $scale - 1,
+           color  => $color,
+           filled => 1
+        );
+     }
+  
+     $img->write( file => $file ) or die $img->errstr;
+  }
+  
+  1;
+
+...and my little script to create one!
+
+  #!/usr/bin/env perl
+  use strict;
+  use warnings;
+  use lib './lib';
+  use Acme::Mondrian::Generator;
+  
+  my $gen = Acme::Mondrian::Generator->new();
+  $gen->generate();
+  my $f = "mondrian_".time().".jpg";
+  $gen->save_png_or_jpg($f);
 
