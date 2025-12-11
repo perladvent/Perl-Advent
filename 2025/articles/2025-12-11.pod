@@ -4,24 +4,20 @@ Topic: Art with Perl
 
 =encoding utf8
 
-
-
 =head1 "You shouldn't do art"
 
 I was told this over and over growing up as a kid. "Your mind doesn't work that way," being
 the rationale for this. Teachers,
 if you are reading this, NEVER tell a kid that. Seriously. I believed it for nearly a half-century,
-then wrote my L<first_novel|https://www.amazon.com/dp/1736421409>, and later painted 
+then wrote my L<first novel|https://www.amazon.com/dp/1736421409>, and later painted
 my first-ever oil painting. Anyone can do art of B<some> kind.
 
 To be fair to those teachers of long ago, my mind does like orderly art. I struggle with
-understanding impressionist art, but
-realism and abstraction both move me in ways I never thought possible: Realism, because it tells a
+understanding impressionist art, but realism and abstraction both move me in ways I never thought possible: Realism, because it tells a
 story, and abstraction, because I strive to understand what is being abstracted, and can spend
 hours staring at an abstract painting and trying to grok the fullness of it.
 
-Which brings us to Piet Mondrian. Surely you've heard of this famous Dutch man, a pioneer of 20th
-century abstract art who believed that to properly abstract reality, we should use B<as little
+Which brings us to Piet Mondrian. Surely you've heard of this famous Dutch man, a pioneer of 20th-century abstract art who believed that to properly abstract reality, we should use B<as little
 reality as possible>? No? Well, maybe you've seen his work:
 
 =for :html
@@ -31,9 +27,9 @@ alt="Tableau I, 1921, by Piet Mondrian, currently at Kunstmuseum Den Haag">
 So looking at I<Tableau I> here, I think to myself, "Self, could you teach a computer to do that?" and
 I answered, "Self, I betcha we can."
 
-A bit of noodling around on the web discovered that someone had already done this 
+A bit of noodling around on the web discovered that someone had already done this
 L<in Python|https://inventwithpython.com/bigbookpython/project47.html>, and I liked their
-basic approach--use some configurable random number generators to generate a virtual canvas.  But
+basic approach—use some configurable random number generators to generate a virtual canvas.  But
 let's extend that some in the Perl instance. I'd like to have it working with close to Mondrian-correct
 colors as shown in I<Tableau I>, and be able to output JPG, PNG, and SVG instead of the terminal.
 I'll use L<Moo|https://metacpan.org/pod/Moo>, mostly because I like Moo, and it makes this
@@ -54,7 +50,7 @@ Mondrian-styled paintings, if you want. Let's get started:
   use Imager;
   use Imager::File::PNG;  # We don't actually have to include these here, but they must
   use Imager::File::JPEG; # be installed!
-  
+
   # Stuff the user can control on creation, with defaults
   has resolution => ( is => 'ro', default => sub { return 80 } );      # width in cells
   has aspect     => ( is => 'ro', default => sub { return 0.75 } );    # height = width * aspect
@@ -74,17 +70,17 @@ Mondrian-styled paintings, if you want. Let's get started:
         }
      }
   );
-  
+
   # Logical canvas (grid)
   has canvas => ( is => 'rw', default => sub { return {} } );
   has width  => ( is => 'rw' );  # We'll calculate these at runtime.
   has height => ( is => 'rw' );
-  
+
   1;
 
 =end perl
 
-Okay, let's start working on the generator; this is the fiddly bit of the whole problem. In 
+Okay, let's start working on the generator; this is the fiddly bit of the whole problem. In
 C<sub generate>, which will need no parameters other than the object itC<$self>, we can
 start by calculating and initializing the whole "canvas":
 
@@ -94,13 +90,13 @@ start by calculating and initializing the whole "canvas":
     my $self = shift;
     my $W = $self->resolution;
     my $H = int( $self->resolution * $self->aspect );
-  
+
     $self->width($W);
     $self->height($H);
-  
+
     my %canvas;
     $self->canvas( \%canvas );
-  
+
     # Initialize white grid
     for my $x ( 0 .. $W - 1 ) {
         for my $y ( 0 .. $H - 1 ) {
@@ -111,12 +107,20 @@ start by calculating and initializing the whole "canvas":
 =end perl
 
 Next, we need some lines, both vertical and horizontal.  You could do these in either order,
-I suppose, but I'll start with horizontal lines, then do verticals. I not usually a fan of lexical
-blocks like this, but it keeps L<Perl::Critic|https://metacpan.org/pod/Perl::Critic> and 
+I suppose, but I'll start with vertical lines, then do horizontals. I'm not usually a fan of lexical
+blocks like this, but it keeps L<Perl::Critic|https://metacpan.org/pod/Perl::Critic> and
 L<Test::NoWarnings|https://metacpan.org/pod/Test::NoWarnings> happier, by avoiding redefining
 C<$x> and C<$y> in a haphazard way.
 
 =begin perl
+
+    # Random thick grid lines like Mondrian
+    my $min_x_gap = int($W/10);
+    my $max_x_gap = int($W/5);
+    my $min_y_gap = int($H/10);
+    my $max_y_gap = int($H/5);
+
+    my $numberOfSegmentsToDelete = 0;
 
     # Vertical lines
     my @vlines;
@@ -129,7 +133,7 @@ C<$x> and C<$y> in a haphazard way.
             $x += int( rand( $max_x_gap - $min_x_gap + 1 ) ) + $min_x_gap;
         }
     }
-  
+
     # Horizontal lines
     my @hlines;
     {
@@ -155,14 +159,14 @@ of line at a time.
 
     my $numberOfRectanglesToPaint = $numberOfSegmentsToDelete - 3;
     $numberOfSegmentsToDelete = int( $numberOfSegmentsToDelete * 1.5 );
-  
+
     # Delete a segment
-    DELETE: for ( 1 .. $numberOfSegmentsToDelete ) {
+    for ( 1 .. $numberOfSegmentsToDelete ) {
         while (1) {    # let's look for a black spot on the canvas.
             my $startx = int( rand( $W - 2 ) ) + 1;
             my $starty = int( rand( $H - 2 ) ) + 1;
             next if $canvas{"$startx,$starty"} eq 'white';
-  
+
             my $orientation;    # Are we on a vertical line, or a horizontal
             if (   $canvas{ ( $startx - 1 ) . ",$starty" } eq 'white'
                 && $canvas{ ( $startx + 1 ) . ",$starty" } eq 'white' )
@@ -177,10 +181,10 @@ of line at a time.
             else {    # We're at an intersection, so don't delete here.
                 next;
             }
-  
+
             my @points    = ("$startx,$starty");
             my $canDelete = 1;
-  
+
             # now find the collection of points on the rest of that segment, and push
             # them into @points.
             if ( $orientation eq 'vertical' ) {
@@ -225,7 +229,7 @@ of line at a time.
                     last unless $canDelete;
                 }
             }
-  
+
             next unless $canDelete;
             $canvas{$_} = 'white' for @points;
             last;
@@ -250,7 +254,7 @@ A 1-cell black border around the image would be nice:
 
 =end perl
 
-Okay, now the next hard part, painting in a few rectangles.  In this case, we're going to 
+Okay, now the next hard part, painting in a few rectangles.  In this case, we're going to
 look for white space, then continue filling white space around it recursively until we
 hit a line.
 
@@ -259,7 +263,7 @@ hit a line.
     # Flood fill rectangles
     my @fillcolors = qw(red yellow blue white white white);    # biased toward white
     my %seen;
-  
+
     for ( 1 .. $numberOfRectanglesToPaint ) {
         my ( $sx, $sy );
         for ( 1 .. 200 ) {
@@ -267,9 +271,9 @@ hit a line.
             $sy = int( rand($H) );
             last if $canvas{"$sx,$sy"} eq 'white';
         }
-  
+
         my $color = $fillcolors[ rand @fillcolors ];
-  
+
         my @stack = ("$sx,$sy");
         while (@stack) {
             my $pt = pop @stack;
@@ -285,7 +289,7 @@ hit a line.
             }
         }
     }
-  
+
     return 1;
   }
 
@@ -330,22 +334,24 @@ either jpg or png, by just specifying the filename you want to use.
 
 =end perl
 
-After that, I scribbled up a little script to generate a Mondrian-styled painting using the 
-default behaviors, and have it output a JPG. 
+After that, I scribbled up a little script to generate a Mondrian-styled painting using the
+default behaviors, and have it output a JPG.
 
 =for :html
 <img src="mondrian_by_perl.jpg" alt="Mondrian-style painting generated by Perl">
 
 ...and that's how I started teaching art classes to Perl.
 
-In the module I'll be releasing to CPAN this holiday season (look for 
+In the module I'll be releasing to CPAN this holiday season (look for
 "Acme::Mondrian::Generator" in the next week or so, and I'll be sure to update this to
-a link), 
+a link),
 I'll also include a script to let you play around with the parameters of the
 generator, and output PNGs and SVGs as well as JPGs.
 
 For completeness, here's the whole Acme::Mondrian::Generator package after
 a bit of tidying-up:
+
+=begin perl
 
   package Acme::Mondrian::Generator;
   use strict;
@@ -353,7 +359,7 @@ a bit of tidying-up:
   use Moo;
   use Svg::Simple;
   use Imager;
-  
+
   # Stuff the user can control on creation, with defaults
   has resolution     => ( is => 'ro', default => sub { return 80 } );   # width in cells
   has aspect         => ( is => 'ro', default => sub { return 0.75 } ); # height = width * aspect
@@ -372,38 +378,38 @@ a bit of tidying-up:
         };
      }
   );
-  
+
   # Logical canvas (grid)
   has canvas => ( is => 'rw', default => sub { return {} } );
   has width  => ( is => 'rw' );                   # We'll calculate these
   has height => ( is => 'rw' );
-  
+
   sub generate {
      my $self = shift;
-  
+
      my $W = $self->resolution;
      my $H = int($self->resolution * $self->aspect);
      $self->width($W);
      $self->height($H);
-  
+
      my %canvas;
      $self->canvas(\%canvas);
-  
+
      # Initialize white grid
      for my $x (0..$W-1) {
         for my $y (0..$H-1) {
            $canvas{"$x,$y"} = 'white';
         }
      }
-  
+
      # Random thick grid lines like Mondrian
      my $min_x_gap = int($W/10);
      my $max_x_gap = int($W/5);
      my $min_y_gap = int($H/10);
      my $max_y_gap = int($H/5);
-  
+
      my $numberOfSegmentsToDelete = 0;
-  
+
      # Vertical lines
      my @vlines;
      {
@@ -415,7 +421,7 @@ a bit of tidying-up:
            $x += int( rand( $max_x_gap - $min_x_gap + 1 ) ) + $min_x_gap;
         }
      }
-  
+
      # Horizontal lines
      my @hlines;
      {
@@ -426,17 +432,17 @@ a bit of tidying-up:
            $y += int( rand( $max_y_gap - $min_y_gap + 1 ) ) + $min_y_gap;
         }
      }
-  
+
      my $numberOfRectanglesToPaint = $numberOfSegmentsToDelete - 2;
      $numberOfSegmentsToDelete     = int($numberOfSegmentsToDelete * 1.5);
-  
+
      # Delete segments
      for ( 1 .. $numberOfSegmentsToDelete ) {
         while (1) {                   # let's look for a black spot on the canvas.
            my $startx = int( rand( $W - 2 ) ) + 1;
            my $starty = int( rand( $H - 2 ) ) + 1;
            next if $canvas{"$startx,$starty"} eq 'white';
-  
+
            my $orientation;           # Are we on a vertical line, or a horizontal
            if (  $canvas{ ( $startx - 1 ) . ",$starty" } eq 'white'
               && $canvas{ ( $startx + 1 ) . ",$starty" } eq 'white' )
@@ -451,10 +457,10 @@ a bit of tidying-up:
            else {                     # We're at an intersection, so don't delete here.
               next;
            }
-  
+
            my @points    = ("$startx,$starty");
            my $canDelete = 1;
-  
+
            # Now find the collection of points on the rest of that segment, and push
            # them into @points.
            if ( $orientation eq 'vertical' ) {
@@ -499,13 +505,13 @@ a bit of tidying-up:
                  last unless $canDelete;
               }
            }
-  
+
            next unless $canDelete;
            $canvas{$_} = 'white' for @points;
            last;
         }
      }
-  
+
      # Border
      for my $xx (0..$W-1) {
         $canvas{"$xx,0"} = 'black';
@@ -515,11 +521,11 @@ a bit of tidying-up:
         $canvas{"0,$yy"} = 'black';
         $canvas{($W-1).",$yy"} = 'black';
      }
-  
+
      # Flood fill rectangles
      my @fillcolors = qw(red yellow blue white white);    # biased toward white
      my %seen;
-  
+
      for ( 1 .. $numberOfRectanglesToPaint ) {
         my ( $sx, $sy );
         for ( 1 .. 200 ) {
@@ -527,15 +533,15 @@ a bit of tidying-up:
            $sy = int( rand($H) );
            last if $canvas{"$sx,$sy"} eq 'white';
         }
-  
+
         my $color = $fillcolors[ rand @fillcolors ];
-  
+
         my @stack = ("$sx,$sy");
         while (@stack) {
            my $pt = pop @stack;
            # If our $color is 'white', this way we don't loop forever.
            next if $seen{$pt}++;
-           
+
            my ( $x, $y ) = split /,/, $pt;
            $canvas{$pt} = $color;
            $seen{$pt}++;
@@ -548,23 +554,23 @@ a bit of tidying-up:
            }
         }
      }
-  
+
      return 1;
   }
-  
+
   sub save_png_or_jpg {
      my ( $self, $file ) = @_;
      my $scale  = $self->scale_px;
      my $W      = $self->width;
      my $H      = $self->height;
      my %canvas = %{ $self->canvas };
-  
+
      my $img = Imager->new(
         xsize    => $W * $scale,
         ysize    => $H * $scale,
         channels => 3
      );
-  
+
      for my $k ( keys %canvas ) {
         my ( $x, $y ) = split /,/, $k;
         my $rgb   = $self->palette->{ $canvas{$k} };
@@ -578,25 +584,32 @@ a bit of tidying-up:
            filled => 1
         );
      }
-  
+
      $img->write( file => $file ) or die $img->errstr;
   }
-  
+
   1;
 
+=end perl
+
 ...and my little script to create one!
+
+=begin perl
 
   #!/usr/bin/env perl
   use strict;
   use warnings;
   use lib './lib';
   use Acme::Mondrian::Generator;
-  
+
   my $gen = Acme::Mondrian::Generator->new();
   $gen->generate();
   my $f = "mondrian_".time().".jpg";
   $gen->save_png_or_jpg($f);
 
-I hope this little bit of creativity inspires your own, whether in Perl, or 
-on a canvas--or even in Raku or Python! Happy painting, and the happiest of
+=end perl
+
+I hope this little bit of creativity inspires your own, whether in Perl, or
+on a canvas—or even in Raku or Python! Happy painting, and the happiest of
 holidays to you and the people you love, wherever they may be!
+
