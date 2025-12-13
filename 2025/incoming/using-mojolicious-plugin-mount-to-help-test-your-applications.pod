@@ -1,0 +1,247 @@
+Author: Blabos de Blebe <blabos@gmail.com>
+Title: Using Mojolicious::Plugin::Mount to help test your applications
+Topic: Mojolicious::Plugin::Mount
+
+=encoding utf8
+
+=head2 Introduction
+
+When testing Perl applications we have many well known options and techniques
+but in this post we won't cover any of those fancy tools. Instead we will
+present a simple trick that take advantage of the L<Mojolicious::Plugin::Mount>.
+
+=head2 Test Scenario
+
+When testing modules or applications that make requests to third party
+services, one technique is to mock the user agent to answer mocked data for
+each request.
+
+But when the module or application makes multiple requests to different
+external services that could be challenging.
+
+The idea here is to mock the external services instead.
+
+=head1 How C<Mojolicious::Plugin::Mount> can help
+
+This plugin basically allows us to glue together small Mojo applications into
+a single one that could be started by L<Test::Mojo>.
+
+Consider the two following small apps:
+
+=begin perl
+    #!/usr/bin/env perl
+    use v5.42;
+    use Mojolicious::Lite -signatures;
+
+    get '/baz' => sub ($c) { $c->render( text => 'baz' ) };
+    get '/etc' => sub ($c) { $c->render( text => 'etc' ) };
+
+    app->start;
+
+    #!/usr/bin/env perl
+    use v5.42;
+    use Mojolicious::Lite -signatures;
+
+    get '/lala' => sub ($c) { $c->render( text => 'lala' ) };
+    get '/lele' => sub ($c) { $c->render( text => 'lele' ) };
+
+    app->start;
+=end perl
+
+You can check their routes by saving each one to separate files, making them
+executable, and running these commands:
+
+=begin code
+    user@host$ ./foo.pl routes
+    /baz  GET  baz
+    /etc  GET  etc
+
+    user@host$ ./bar.pl routes
+    /lala  GET  lala
+    /lele  GET  lele
+=end code
+
+By using C<Mojolicious::Plugin::Mount> you can glue them together in this file
+named mock.pl:
+
+=begin perl
+    #!/usr/bin/env perl
+    use v5.42;
+    use Mojolicious::Lite;
+
+    plugin Mount => { '/foo' => './foo.pl' };
+    plugin Mount => { '/bar' => './bar.pl' };
+
+    app->start;
+
+    user@host$ ./mock.pl routes
+    /foo  *  foo
+    /bar  *  bar
+=end perl
+
+That indicates that all requests starting with C</foo> will be delivered to
+the app C<foo> and all requests starting with C</bar> will be delivered to
+the app C<bar>.
+
+You could prefix both with C</> meaning that the original routes will remain
+root-based.
+
+Let's start the new app:
+
+=begin code
+    user@host$ ./mock.pl daemon
+    [2025-12-07 15:57:34.24246] [1437] [trace] Your secret passphrase needs to be changed (see FAQ for more)
+    [2025-12-07 15:57:34.24515] [1437] [info] Listening at "http://*:3000"
+    Web application available at http://127.0.0.1:3000
+=end code
+
+And make some requests:
+
+=begin code
+    user@host$ curl http://localhost:3000/foo/baz
+    baz
+
+    user@host$ curl http://localhost:3000/bar/lala
+    lala
+=end code
+
+Note the app logs:
+
+=begin code
+    [2025-12-07 15:59:25.05863] [1437] [trace] [PJ0Qy_rY7rEA] GET "/foo/baz"
+    [2025-12-07 15:59:25.05920] [1437] [trace] [PJ0Qy_rY7rEA] Routing to application "Mojolicious::Lite"
+    [2025-12-07 15:59:25.06005] [1437] [trace] [PJ0Qy_rY7rEA] GET "/foo/baz"
+    [2025-12-07 15:59:25.06020] [1437] [trace] [PJ0Qy_rY7rEA] Routing to a callback
+    [2025-12-07 15:59:25.06046] [1437] [trace] [PJ0Qy_rY7rEA] 200 OK (0.000383s, 2610.966/s)
+
+    [2025-12-07 15:59:38.70389] [1437] [trace] [1gOGBF3hsoml] GET "/bar/lala"
+    [2025-12-07 15:59:38.70418] [1437] [trace] [1gOGBF3hsoml] Routing to application "Mojolicious::Lite"
+    [2025-12-07 15:59:38.70511] [1437] [trace] [1gOGBF3hsoml] GET "/bar/lala"
+    [2025-12-07 15:59:38.70529] [1437] [trace] [1gOGBF3hsoml] Routing to a callback
+    [2025-12-07 15:59:38.70548] [1437] [trace] [1gOGBF3hsoml] 200 OK (0.000363s, 2754.821/s)
+=end code
+
+That means the request C</foo/baz> was delivered to the application C<foo.pl>
+and the request C</bar/lala> was delivered to the application C<bar.pl>.
+
+You can use that to set up multiple test scenarios by "mounting" different mock
+apps, like "successful C<foo> with failed C<bar>" or "failed C<foo> with
+successful C<bar>".
+
+=head2 Testing with mocked applications
+
+There are some gotchas when testing with mocked mojo apps. Since
+C<Mojo::IOLoop> is a singleton, both main app and mocked apps will share the
+same event loop. That means all blocking calls will make tests hang forever.
+
+So in order to be able to test with mocked apps, your application should:
+
+=over 4
+
+=item * be able to overwrite the external URLs to point to mocked apps.
+
+=item * have all external calls async.
+
+=back
+
+Here is an example which uses the C<foo.pl> and C<bar.pl> mock apps described
+above:
+
+Consider the main application below which we will save as C<app.pl>:
+
+=begin perl
+    #!/usr/bin/env perl
+    use v5.42;
+    use Mojolicious::Lite -signatures;
+
+    get '/baz-lala' => sub ($c) {
+        $c->render_later;
+
+        # Getting external urls from 'config'
+        my $foo_url = Mojo::URL->new( $ENV{FOO_SERVER} ) . '/baz';
+        my $bar_url = Mojo::URL->new( $ENV{BAR_SERVER} ) . '/lala';
+
+        # Making async requests
+        my $foo_p = $c->ua->get_p($foo_url);
+        my $bar_p = $c->ua->get_p($bar_url);
+        Mojo::Promise->all( $foo_p, $bar_p )->then(
+            sub( $foo, $bar ) {
+                my $res = $foo->[0]->res->text . '-' . $bar->[0]->res->text;
+                $c->render( text => $res );
+            }
+        );
+
+        return;
+    };
+
+    app->start;
+=end perl
+
+Here we get the external urls from C<%ENV> and then we make async requests
+using promises versions of C<Mojo::UserAgent> calls.
+
+Now let's see the test:
+
+=begin perl
+    #!/usr/bin/env perl
+
+    use v5.42;
+
+    package MyMock;
+    use Mojolicious::Lite;
+
+    plugin Mount => { '/foo' => './foo.pl' };
+    plugin Mount => { '/bar' => './bar.pl' };
+
+    package MyApp;
+    use Mojolicious::Lite;
+
+    plugin Mount => { '/' => './app.pl' };
+
+    package main;
+
+    use Test::More;
+    use Test::Mojo;
+
+    my $mock = Test::Mojo->new('MyMock');
+
+    # Checking mocks just in case
+    $mock->get_ok('/foo/baz')->status_is(200)->content_is('baz');
+    $mock->get_ok('/bar/lala')->status_is(200)->content_is('lala');
+
+    # Setting test
+    $ENV{FOO_SERVER} = $mock->ua->server->url->path('foo');
+    $ENV{BAR_SERVER} = $mock->ua->server->url->path('bar');
+    my $t = Test::Mojo->new('MyApp');
+
+    # Testing
+    $t->get_ok('/baz-lala')->status_is(200)->content_is('baz-lala');
+
+    done_testing;
+=end perl
+
+Here you can see three packages: C<MyMock>, C<MyApp> and C<main>. They are put
+together for simplicity but you can have them in separate files.
+
+C<MyMock> is a package to glue together all mocks.
+
+C<MyApp> is a package just to load the main app. If you have a full Mojo app
+instead you can just load it.
+
+C<main> is the package where we will run the tests. It is not needed if the
+packages are in different files.
+
+After creating the C<Test::Mojo> we get the urls of mocked apps and set the
+enviroment so the main app can get them.
+
+Finally we make tests using C<Test::Mojo> api.
+
+=head2 Conclusion
+
+C<Mojolicious::Plugin::Mount> allow us to glue together small mojo apps that
+could be used to mock different scenarios of external services.
+
+You can mount different mocks depending on the need of each test.
+
+But in order to take advantage of them the application should keep external
+urls configurable and make external calls async.
