@@ -1,0 +1,376 @@
+Author: José Joaquín Atria <jjatria@cpan.org>
+Title: Auto-instrument your code with OpenTelemetry
+Topic: OpenTelemetry, Observability
+
+=encoding utf8
+
+=for :html
+<figure>
+<img src="hot-chocolate.jpg">
+<figcaption>
+<a href="https://www.flickr.com/photos/fatty/2226622699">"Hot chocolate"</a> by <a href="https://www.flickr.com/photos/fatty/">David Thompson</a>, <a href="https://creativecommons.org/licenses/by-nc-sa/2.0/deed.en">CC BY-NC-SA 2.0</a></figcaption>
+</figure>
+
+A whole year had gone by since the elves at Santa's workshop had started
+using L<OpenTelemetry> to collect and export telemetry from their multiple
+services, and things had been going well. But in a meeting room deep under
+the icy cover of the North Pole, trouble was brewing.
+
+"Well what do you suggest, then?", asked Duende Juniorsson, the junior elf
+in the team.
+
+"I don't have a solution, I just know where the problem is", answered Gnomo
+Knullpointer perhaps a little more exasperated than he should be. "I know
+that OpenTelemetry has been a game changer, and that we want to have more
+of it. But instrumenting code has a cost, and I'm just wondering how much
+longer we can keep paying it".
+
+The elves had been relying on instrumentation libraries to generate telemetry
+without having to make changes to their own codebase. This
+L<"zero-code instrumentation"|https://opentelemetry.io/docs/concepts/instrumentation/zero-code>
+had been the key selling point when they started using OpenTelemetry. But it
+meant that they were limited either by the libraries that were available, or
+by the resources they could dedicate to writing their own.
+
+"If we want to instrument something, and there is no instrumentation
+library for it, I<and> we don't have the resources to write our own, then the
+only other option is to instrument it manually", said Duende.
+
+"Sure, but that is only marginally less work. And anything you touch will have
+to be tested", said Tess 't Moor, the QA elf. "So we might be saving time for
+you developer elves, but only because I'll be the one testing things".
+
+There was a pause in the conversation, as each elf stopped to gather their
+thoughts. Santa, who was sitting at one end of the table looking nervous, did
+not like this. He did not like his elves getting upset and forgetting what
+Christmas was all about, but more than anything, he did not like being in a
+meeting where nobody was talking. It made him feel like maybe they were
+waiting for I<him> to say something, and under pressure the only thing he could
+ever think of saying was "Ho ho ho". He was pretty sure this was not the right
+time to say it.
+
+Ada Slashdóttir, the team's senior elf, cleared her throat and absentmindedly
+started tapping her cup of hot chocolate with a candy cane. "What if we get
+Perl to write the instrumentation code for us?".
+
+=head2 Auto-auto-instrumentation
+
+"Most OpenTelemetry instrumentation libraries look very similar", she continued.
+"They declare methods in a package that need to be instrumented, and then
+monkey-patch them to generate the necessary telemetry."
+
+"But not all telemetry is the same", replied Gnomo. "OpenTelemetry specifies
+which attributes need to be set in what kinds of spans: a span representing
+an HTTP transaction needs to specify the URL it is for, one for a database
+operation needs to specify what database it is for, etc. We cannot have
+a one-size-fits-all approach".
+
+"We can probably get 90% of the way with a generic approach", continued Ada.
+"And worry about the last 10% when we get there".
+
+"Isn't this making the problem worse?", asked Duende. "A minute ago we didn't
+have the resources to write an instrumentation library, and now we are talking
+about writing a library to write instrumentation libraries?".
+
+"Ah, but we don't need to write it ourselves", said Ada. "We can use the new
+L<OpenTelemetry::Instrumentation::namespace>".
+
+The elves loaded up the documentation and dove in.
+
+Ada brought up her terminal. "Say you have some code that calls some package
+to do something":
+
+    #!perl
+    use v5.36;
+    use UUID4::Tiny 'create_uuid_string';
+
+    say create_uuid_string;
+
+"That will print out a UUID", said Duende.
+
+"Exactly", replied Ada. "And if we add OpenTelemetry?".
+
+    #!perl
+    use v5.36;
+
+    # Dump spans to STDERR in prettified JSON format
+    BEGIN {
+        $ENV{OTEL_TRACES_EXPORTER}              = 'console';
+        $ENV{OTEL_PERL_EXPORTER_CONSOLE_FORMAT} = 'json,pretty=1';
+    }
+
+    use OpenTelemetry;
+    use OpenTelemetry::SDK;
+
+    use UUID4::Tiny 'create_uuid_string';
+
+    say create_uuid_string;
+
+"Nothing will change", said Gnomo. "We loaded the API and initialised the SDK,
+but since we are not generating any telemetry, nothing is different".
+
+"Now let's try loading the namespace instrumentation", said Ada.
+
+    #!perl
+    use v5.36;
+
+    # Dump spans to STDERR in prettified JSON format
+    BEGIN {
+        $ENV{OTEL_TRACES_EXPORTER}              = 'console';
+        $ENV{OTEL_PERL_EXPORTER_CONSOLE_FORMAT} = 'json,pretty=1';
+    }
+
+    use OpenTelemetry;
+    use OpenTelemetry::SDK;
+    use OpenTelemetry::Instrumentation namespace => [
+        'UUID4::Tiny' => 1,
+    ];
+
+    use UUID4::Tiny 'create_uuid_string';
+
+    say create_uuid_string;
+
+The output of the script had changed! The UUID was still being printed at
+the bottom of the screen, but above it were several lines with JSON encoded
+OpenTelemetry spans. Slightly edited for brevity, the output looked a little
+bit like this:
+
+    {
+       "end_timestamp" : 1765582438.54618,
+       "instrumentation_scope" : {
+          "name" : "UUID4::Tiny",
+          "version" : "0.003"
+       },
+       "name" : "UUID4::Tiny::create_uuid",
+       "parent_span_id" : "dbed67eb5146795b",
+       "span_id" : "c2f03b363333f610",
+       "start_timestamp" : 1765582438.54615,
+       "trace_id" : "386e98e4fa576fc5280e8da1f59d3031",
+       ...
+    }
+    {
+       "end_timestamp" : 1765582438.54669,
+       "instrumentation_scope" : {
+          "name" : "UUID4::Tiny",
+          "version" : "0.003"
+       },
+       "name" : "UUID4::Tiny::is_uuid_string",
+       "parent_span_id" : "e266cf2b01725042",
+       "span_id" : "6165bab8a0b6f448",
+       "start_timestamp" : 1765582438.54666,
+       "trace_id" : "386e98e4fa576fc5280e8da1f59d3031",
+       ...
+    }
+    {
+       "end_timestamp" : 1765582438.54678,
+       "instrumentation_scope" : {
+          "name" : "UUID4::Tiny",
+          "version" : "0.003"
+       },
+       "name" : "UUID4::Tiny::uuid_to_string",
+       "parent_span_id" : "dbed67eb5146795b",
+       "span_id" : "e266cf2b01725042",
+       "start_timestamp" : 1765582438.54654,
+       "trace_id" : "386e98e4fa576fc5280e8da1f59d3031",
+       ...
+    }
+    {
+       "end_timestamp" : 1765582438.54686,
+       "instrumentation_scope" : {
+          "name" : "UUID4::Tiny",
+          "version" : "0.003"
+       },
+       "name" : "UUID4::Tiny::create_uuid_string",
+       "parent_span_id" : "0000000000000000",
+       "span_id" : "dbed67eb5146795b",
+       "start_timestamp" : 1765582438.54598,
+       "trace_id" : "386e98e4fa576fc5280e8da1f59d3031",
+       ...
+    }
+    4c9debb9-6370-4d7c-94f2-a5f1799475ce
+
+"Hey, this is much more like it", said Duende, who had got pretty familiar
+with OpenTelemetry spans. "You can see that they all share a C<trace_id>,
+and can track what span created which other span by looking at the
+C<span_id> and the C<parent_span_id>".
+
+"Yeah, and look at the C<name>s", said Gnomo. "They are the fully-qualified
+subroutine name of the code that executed. So you can tell that when we called
+C<create_uuid_string> it called C<uuid_to_string>, which itself called
+C<is_uuid_string>".
+
+"And all of that without using a pre-made instrumentation library for
+L<UUID4::Tiny>, or manually instrumenting anything", said Ada.
+
+"How does this even work?", asked Duende after looking at the code a little
+more carefully. "We load the instrumentation before loading the code to be
+instrumented. How does it know what to instrument before we import it?".
+
+"Good question!", said Ada excitedly. "Let's dive deeper."
+
+=head2 Looking under the hood
+
+"When you load the C<namespace> instrumentation with a rule like the one we
+gave it, it will look among the modules that have been loaded to see if any
+match the one we want to instrument", said Ada. "In this case, since we haven't
+loaded L<UUID4::Tiny>, it won't find it".
+
+"So how does it know when to instrument it?", asked Gnomo.
+
+"It uses a L<require hook|https://perldoc.perl.org/functions/require> that will
+execute when a module of interest is loaded. At that point, it installs the
+necessary instrumentation", explained Ada.
+
+"Is that safe? Won't that make everything slower?", asked Duende.
+
+"To some extent, yes", replied Ada. "Which is why this is not really made as a
+substitute for writing instrumentation libraries. It is meant as a way to
+facilitate the instrumentation of existing codebases, or as a stopgap measure
+to use when exploring what to instrument. But it's hard to predict the impact
+in the abstract: we'll always just have to benchmark things to see what the real
+impact is, and decide whether it makes sense to pay the price".
+
+"That seems reasonable, but why does it need the hook at all?", asked Gnomo.
+"Wouldn't it be simpler to just make sure to load it after the import?".
+
+"Ah, but there we hit another interesting caveat with this instrumentation",
+replied Ada. "Let's try it: what happens if we do that?". Ada modified the code
+to look like this and re-ran it.
+
+    #!perl
+    use v5.36;
+
+    # Dump spans to STDERR in prettified JSON format
+    BEGIN {
+        $ENV{OTEL_TRACES_EXPORTER}              = 'console';
+        $ENV{OTEL_PERL_EXPORTER_CONSOLE_FORMAT} = 'json,pretty=1';
+    }
+
+    # Import the function first, then instrument
+    # This probably won't do what you want!
+    use UUID4::Tiny 'create_uuid_string';
+
+    use OpenTelemetry;
+    use OpenTelemetry::SDK;
+    use OpenTelemetry::Instrumentation namespace => [
+        'UUID4::Tiny' => 1,
+    ];
+
+    say create_uuid_string;
+
+"It still works", said Gnomo. "I can see the OpenTelemetry traces".
+
+"But there's one span missing!", said Duende. "We lost the one for
+C<create_uuid_string>".
+
+"Precisely", said Ada. "A case like this, where we load a package and import
+a function from that namespace into ours, is very common. But if we load the
+instrumentation I<after> we've imported it, when we execute the imported symbol
+from our own namespace we'll be running the uninstrumented code. To solve this
+we have to instrument the code before importing it, but then we I<have> to use
+the require hook".
+
+"This suddenly feels very Perlish", said Duende. "In that it is very powerful
+but also a little risky".
+
+"It's all about taking managed risks", replied Ada. "This instrumentation works
+best when used in a targeted way, aimed at having the smallest impact possible
+while still being useful. That's why it tries to give you plenty of options to
+control what gets instrumented and when: you can match packages with literal
+strings or with regular expressions, and while we haven't been doing it here,
+you can also do the same for individual functions within any package of interest".
+
+"Is that why the options are in an array reference?", asked Duende.
+
+"Yes", answered Ada. "The instrumentation will process the rules in order. You
+can pass them in an array reference to control that order, or in a hash
+reference if you don't care about the order. But the array reference is more
+predictable".
+
+=head2 Here a use, there a use, everywhere a yule use
+
+"I can see how this would be useful", chimed in Tess. "But I could see this
+list of 'rules' getting unwieldy, if we need to have them all in the same
+place and they include package and subroutine matchers, etc".
+
+"Yes, that can become a problem", agreed Ada. "So you don't actually have to
+have everything in the same place. You can load the instrumentation multiple
+times with different rules, and each invocation will be independent. This is
+particularly true of
+L<I<options>|https://metacpan.org/pod/OpenTelemetry::Instrumentation::namespace#Options>,
+which can be passed together with the rules to modify how that particular set
+of rules are interpreted, or to load the rules from an external source."
+
+"That's useful", said Gnomo. "But even then, if the code we are instrumenting
+is our own code, it might be awkward to have the instrumentation live far away
+from the code itself. In those cases, manual instrumentation might still be
+better".
+
+"Yeah, I agree. A small scope is always better", replied Ada. "Luckily, there's
+a related instrumentation that you can use in those cases:
+L<OpenTelemetry::Instrumentation::caller>. Let me show you how using that one
+looks like".
+
+=head2 The instrumentation is coming from inside the package
+
+"Say we have some utility package where we have some functions", said Ada.
+
+    #!perl
+    package Santa::Workshop;
+
+    use v5.36;
+
+    sub allocate_gifts { ... }
+
+    sub is_naughty { ... }
+
+    # Sensitive data. Do not reveal!
+    sub dump_naughty_list { ... }
+
+"If we want to auto-instrument this code", said Ada, "but we don't want (or
+can't) touch it, we can load the C<caller> instrumentation. We just need to make
+sure we load it after the functions have been defined".
+
+"Does it also take the same options and rules as the C<namespace> instrumentation?",
+asked Duende.
+
+"Yes", said Ada, "but since we are already 'inside' a package, so to speak, we
+skip the package-level matchers and go straight to the subroutine-level ones."
+
+    #!perl
+    package Santa::Workshop;
+
+    use v5.36;
+
+    sub allocate_gifts { ... }
+
+    sub is_naughty { ... }
+
+    # Sensitive data. Do not reveal!
+    sub dump_naughty_list { ... }
+
+    use OpenTelemetry::Instrumentation caller => [
+        dump_naughty_list => 0,    # Ignore sensitive function
+        qr/.*/            => 1,    # Instrument the rest
+    ];
+
+=head2 Wrapping up
+
+The elves were happy to have at least a path forward. They understood that these
+instrumentations were experimental, and that the best way to help was to use them
+and see where they felt awkward. And that's exactly what they aimed to do.
+
+It was another successful day at Santa's workshop, making hard things possible,
+and Santa was happy to see that his elves had once again managed to figure things
+out by themselves. He was proud of his elves. Proud to see them grow and learn and
+try new things. And proud as well to see that, even when deep in the weeds of some
+technical problem, they knew that what mattered was what they were working towards.
+The rest was just the tools for the job.
+
+Oh-oh. Santa had been lovingly staring at the elves for too long, and now they
+were staring back, as if waiting for him to say something. But this time, he knew
+exactly what to say.
+
+"Ho ho ho!", laughed Santa, and everybody smiled.
+
+=cut
