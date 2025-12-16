@@ -1,0 +1,293 @@
+Author: Paul Johnson <paul@pjcj.net>
+Title: The Elves Learn to be Lazy
+Topic: Moose
+
+=encoding utf8
+
+=for :html
+<img src="two_bulls_clash_antlers.jpg"
+  alt="Not actually moose, but two elk bulls locking antlers in the snow." />
+<p class="attribution">"<a rel="noopener noreferrer"
+  href="https://www.flickr.com/photos/51986662@N05/6258468123">Two Bulls Clash
+  Antlers</a>" by <a rel="noopener noreferrer"
+  href="https://www.flickr.com/photos/51986662@N05">USFWS Mountain Prairie</a>
+  is licenced under <a rel="noopener noreferrer"
+  href="https://creativecommons.org/licenses/by/2.0/?ref=openverse">CC BY 2.0
+  <img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg"
+  style="height: 1em; margin-right: 0.125em; display: inline;" /><img
+  src="https://mirrors.creativecommons.org/presskit/icons/by.svg" style="height:
+  1em; margin-right: 0.125em; display: inline;" /></a>.</p>
+
+=head2 The Naughty or Nice Subsystem
+
+Putting together Santa's naughty or nice list is one of the elves' most
+important tasks.  To assist them a Naughty or Nice Subsystem (NORN) has been
+developed over many years.
+
+Initially the system was very simple.  The C<norn> table had a row for every
+child and Santa would go through and set the C<is_nice> column to either true
+or false. The elves would then run the list generation routine, Santa would
+check it twice, and Christmas would proceed.
+
+After a particularly difficult year Holly the elf, wearing her PM hat, decided
+that this decision couldn't be left to Santa's whims and that each child's
+actions over the year should be categorised and stored as either C<good> or
+C<bad> in the C<norn> table. The child was considered I<nice> if they had been
+good more often than bad.
+
+Some time later Holly thought that some actions were either I<very_good> or
+I<very_bad> and should count double.
+
+As each set of modifications took place the C<is_nice> method became more
+complicated, but the tests didn't.  The elves were loath to work on such
+important code with a limited safety net.
+
+=head2 A New Algorithm
+
+Last year young Sophie Farrington from Finsbury Park, somewhat upset at finding
+only coal in her stocking, issued an FOI request.  She subsequently claimed
+that many of her actions which had been categorised as bad were, at worst,
+cheeky and were perhaps even charming.  Mrs Claus agreed, and tasked the elves
+in the R&D department to come up with a more fair algorithm.
+
+Eventually the algorithm was finalised and Holly created a new story for the
+backlog.  It replaced the old I<very_good> and I<very_bad> categories with more
+nuanced categories of I<noble>, I<virtuous>, I<errant> and I<iniquitous> to go
+with the original I<good> and I<bad> classifications.  And there was a suitably
+complicated algorithm to accompany them to determine the ultimate judgement.
+
+But none of the elves wanted to pick it up.  The code was just too brittle and,
+since the external consulting company had recommended Santa only checking the
+list once as a cost-saving measure, and later that the checking should be
+completely skipped, no one wanted to be known as the elf who messed up the
+Naughty or Nice list and ruined Christmas.
+
+But doing nothing wasn't an option either.
+
+=head2 The Reindeer's Cousins
+
+With Christmas on the line, Santa called everyone in to find a solution.  It
+was Blitzen who had the bright idea of getting the reindeer's cousins, the
+moose, involved.
+
+Donner explained the concept.  By converting the plain OO class to use L<Moose>
+it becomes easy to break up large methods.  The key is to use lazy attributes
+to calculate variables within the algorithm.  This simplifies the code around
+the algorithm and, crucially, makes it easy to test parts of the algorithm
+rather than just the end result.
+
+Prancer further explained that by using lazy attributes the return value is
+only calculated once, and then it is stored and immediately returned on
+subsequent calls.  Even better, each attribute is calculated only when first
+accessed.  If the code never calls C<< $norn->noble_count >>, that expensive
+calculation never runs at all.  This helps keep the code efficient too, which
+is important with a list of over one billion entries.
+
+=head2 Laziness
+
+The elves took on the project.  And it wasn't too difficult.  The class API
+didn't really change, it just expanded.  So existing code using
+C<< Norn->new(...)->is_nice >> worked identically with C<NornV2>, making the
+migration straightforward and low-risk.
+
+The original code contained one large method with lots of expensive
+calculations. It looked something like:
+
+=begin perl
+
+  package Norn;
+
+  use 5.42.0;
+
+  sub new {
+    my ($class, %args) = @_;
+    die "child_id is required"    unless exists $args{child_id};
+    die "child_id must be an Int" unless $args{child_id} =~ /^\d+$/;
+    bless \%args, $class
+  }
+
+  sub is_nice {
+    my ($self) = @_;
+    my $sum = 0;
+
+    # expensive calculation to get event data
+    my $event_data = { ... };
+
+    # expensive calculation of good count from $event_data
+    my $good = ...;
+    $sum += $good;
+
+    # expensive calculation of bad count from $event_data
+    my $bad = ...;
+    $sum -= $bad;
+
+    # expensive calculation of very good count from $event_data
+    my $very_good = ...;
+    $sum += $very_good * 2;
+
+    # expensive calculation of very bad count from $event_data
+    my $very_bad = ...;
+    $sum -= $very_bad * 2;
+
+    $sum >= 0
+  }
+
+  1
+
+=end perl
+
+The test code was fairly simple:
+
+=begin perl
+
+  #!/usr/bin/perl
+
+  use 5.42.0;
+  use Test2::V0;
+  use Norn;
+
+  subtest setup => sub {
+    # set up test fixtures
+  };
+
+  subtest is_nice => sub {
+    my $norn = Norn->new(child_id => 1);
+    is $norn->child_id, 1, "child_id is 1";
+    ok $norn->is_nice, "is nice";
+  };
+
+  subtest teardown => sub {
+    # tear down test fixtures
+  };
+
+  done_testing;
+
+=end perl
+
+The updated code was obviously more involved but was broken into individual
+methods, each of which was simple enough to understand and test individually.
+
+=begin perl
+
+  package NornV2;
+
+  use 5.42.0;
+  use Moose;
+
+  has child_id => is => "ro", isa => "Int", required => 1;
+
+  has event_data       => is => "ro", lazy => 1, builder => "_build_event_data";
+  has noble_count      => is => "ro", lazy => 1, builder => "_build_noble_count";
+  has good_count       => is => "ro", lazy => 1, builder => "_build_good_count";
+  has virtuous_count   => is => "ro", lazy => 1, builder => "_build_virtuous_count";
+  has errant_count     => is => "ro", lazy => 1, builder => "_build_errant_count";
+  has bad_count        => is => "ro", lazy => 1, builder => "_build_bad_count";
+  has iniquitous_count => is => "ro", lazy => 1, builder => "_build_iniquitous_count";
+
+  sub _build_event_data ($self) {
+    # expensive calculation to get event data
+  }
+
+  sub _build_noble_count ($self) {
+    my $event_data = $self->event_data;
+    # expensive calculation of noble count from $event_data
+  }
+
+  sub _build_good_count ($self) {
+    my $event_data = $self->event_data;
+    # expensive calculation of good count from $event_data
+  }
+
+  sub _build_virtuous_count ($self) {
+    my $event_data = $self->event_data;
+    # expensive calculation of virtuous count from $event_data
+  }
+
+  sub _build_errant_count ($self) {
+    my $event_data = $self->event_data;
+    # expensive calculation of errant count from $event_data
+  }
+
+  sub _build_bad_count ($self) {
+    my $event_data = $self->event_data;
+    # expensive calculation of bad count from $event_data
+  }
+
+  sub _build_iniquitous_count ($self) {
+    my $event_data = $self->event_data;
+    # expensive calculation of iniquitous count from $event_data
+  }
+
+  sub is_nice ($self) {
+    my $sum = 0;
+
+    # assign $sum from a complicated algorithm involving
+    # $self->noble_count, $self->good_count, $self->virtuous_count,
+    # $self->errant_count, $self->bad_count, $self->iniquitous_count
+
+    $sum >= 0
+  }
+
+  no Moose;
+
+  __PACKAGE__->meta->make_immutable;
+
+  1
+
+=end perl
+
+And the test code was still fairly simple but, importantly, was able to test
+individual data values stored in the lazy attributes.
+
+=begin perl
+
+  #!/usr/bin/perl
+
+  use 5.42.0;
+  use Test2::V0;
+  use NornV2;
+
+  subtest setup => sub {
+    # set up test fixtures
+  };
+
+  subtest is_nice => sub {
+    my $norn = NornV2->new(child_id => 1);
+    is $norn->child_id, 1, "child_id is 1";
+
+    my $gold_event_data = {...};  # expected event data for child_id 1
+    is $norn->event_data, $gold_event_data, "event data";
+
+    is $norn->noble_count,      15,  "noble count";
+    is $norn->good_count,       104, "good count";
+    is $norn->virtuous_count,   226, "virtuous count";
+    is $norn->errant_count,     51,  "errant count";
+    is $norn->bad_count,        20,  "bad count";
+    is $norn->iniquitous_count, 3,   "iniquitous count";
+
+    ok $norn->is_nice, "is nice";
+  };
+
+  subtest teardown => sub {
+    # tear down test fixtures
+  };
+
+  done_testing;
+
+=end perl
+
+=head2 Conclusion
+
+The elves were very happy with their new code.  With it broken down into
+manageable and individually testable methods they didn't fear making changes to
+the Naughty or Nice system.
+
+Dasher and Comet noted that not only was the code improved, but the elves were
+also able to crank it out faster and with fewer bugs.
+
+Mrs Claus was glad that the coal deliveries were reduced.
+
+And young Sophie Farrington turned out to be nice after all, so Santa rewarded
+her with a stocking full of chocolate coins and tangerines.
+
+=cut
