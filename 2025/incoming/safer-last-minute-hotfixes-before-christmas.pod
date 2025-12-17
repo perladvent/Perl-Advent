@@ -1,0 +1,151 @@
+Author: Bartosz Jarzyna <bbrtj.pro@gmail.com>
+Title: Safer last-minute hotfixes before Christmas
+Topic: App::Transpierce
+
+=encoding utf8
+
+=for :html
+<img src="this-is-fine.jpg" alt="This is fine.">
+
+Christmas is just around the corner, but a critical misconfiguration in
+I<ChristmasPresentDistributor> service has been unearthed! Angry parents start
+calling the Christmas Inc. Support Center arguing that their children haven't
+gotten their presents yet. Social media is in utter chaos and the stock price
+took a nosedive. What a disaster! An incident response team consisting of a
+single elf, Frosty, has been dispatched to deal with the situation ASAP while
+the programmer team develops, reviews and publishes the fix in the
+I<ServiceConfigurator> service codebase. There could be many hours before it is
+complete and all the services are reloaded!
+
+Frosty was trusted with temporary admin permissions to make sure he can set it
+straight. The fix turned out to actually be pretty straightforward - just
+modify a couple of config files, but... I<*gasp*> directly on a B<production
+server>! To make sure he doesn't make the situation worse, he should at the
+very least:
+
+=over
+
+=item * Back all the files up
+
+=item * Make changes in all the files, preferably simultaneously
+
+=item * Be able to restore the files from backups at any time, preferably simultaneously
+
+=back
+
+As it turned out, there's a tool called L<App::Transpierce> that was developed
+by a fellow Perl hacker who often had to deal with this kind of...
+I<incidents>. It is written in perl 5.10 and abuses the ubiquity of perl
+interpreter on Linux machines. The script can export itself into a single file,
+and then get copied into any remote environment using C<scp> or alike, to do
+the dirty (but much needed) work. Since perl is everywhere, it should work
+everywhere with only core modules installed!
+
+How does it work? First, Frosty created a C<transpierce.conf> config file for
+it, which could be as easy as a list of files he wanted to modify:
+
+	/path/to/file1.conf
+	/path/to/file2.yml
+
+This file can be placed in regular user's home directory. With the
+C<transpierce> script copied there too, he could prepare a target directory for
+his working environment:
+
+  #!vim bash
+  mkdir PROD_HACK
+  cp transpierce.conf PROD_HACK
+  ./transpierce --describe PROD_HACK
+
+The C<--describe> call looked at his configuration, checked the files he
+listed and dumped a list of actions. This was a dry run, so nothing actually
+got done yet!
+
+	Files specified in the config file
+	/path/to/file1.conf
+	  mode -> 0644
+	  uid -> 0
+	  gid -> 0
+	-------
+	/path/to/file2.yml
+	  mode -> 0644
+	  uid -> 0
+	  gid -> 0
+	-------
+
+	Actions:
+	Create a directory
+	  mkdir -> PROD_HACK/restore
+	-------
+	Create a directory
+	  mkdir -> PROD_HACK/deploy
+	-------
+	Make copies of /path/to/file1.conf
+	  copy -> PROD_HACK/restore/__path__to__file1.conf
+	  copy -> PROD_HACK/deploy/__path__to__file1.conf
+	-------
+	Make copies of /path/to/file2.yml
+	  copy -> PROD_HACK/restore/__path__to__file2.yml
+	  copy -> PROD_HACK/deploy/__path__to__file2.yml
+	-------
+	Create script in PROD_HACK/restore.sh
+	  restore -> /path/to/file1.conf
+	  restore -> /path/to/file2.yml
+	-------
+	Create script in PROD_HACK/deploy.sh
+	  deploy -> /path/to/file1.conf
+	  deploy -> /path/to/file2.yml
+	-------
+	Create script in PROD_HACK/diff.sh
+	  diff -> /path/to/file1.conf
+	  diff -> /path/to/file2.yml
+	-------
+
+Frosty had a long look at that output. The script inspected his actual production
+files to determine their original mode, uid and gid. It listed a bunch of
+actions to perform: create C<restore> and C<deploy> directories, copy
+production files into them and create three scripts: C<restore.sh>,
+C<deploy.sh> and C<diff.sh>.
+
+Frosty was satisfied with the description, so he ran the script again without
+the C<--describe> flag, which performed all the listed actions. But wait, shell
+scripts? I thought this story was about Perl?!
+
+You see, in a production environment, it is B<much> better to have a shell
+script that contains no magic and can be audited before actually running it as
+root. For example, this is what the C<deploy.sh> script looked like:
+
+  #!vim bash
+  cp "deploy/__path__to__file1.conf" "/path/to/file1.conf"
+  chmod 0644 "/path/to/file1.conf"
+  chown 0 "/path/to/file1.conf"
+  chgrp 0 "/path/to/file1.conf"
+
+  cp "deploy/__path__to__file2.yml" "/path/to/file2.yml"
+  chmod 0644 "/path/to/file2.yml"
+  chown 0 "/path/to/file2.yml"
+  chgrp 0 "/path/to/file2.yml"
+
+This is easy to understand. This does not put the fate of a production server
+into the hands of a 450-line third-party script. This is easy to extend if some
+additional tasks need doing (like reloading the configuration).
+
+C<restore.sh> script looked exactly the same, but it copied from C<restore>
+directory instead. The third script, C<diff.sh>, had a different purpose: it
+compares the files from C<restore> directory and their actual locations using
+C<diff> command. If it returns no output, it means the files are unchanged.
+
+With everything set up, the next step was to go into the C<deploy> directory
+and modify the files. Their names looked a bit goofy now, with all directory
+separators replaced with double underscores, but at least it made the structure
+flat. Frosty was already sure about the required changes, so this step was
+actually really easy. He made sure not to touch the C<restore> directory,
+because that could mess up his backup files.
+
+It was time for the grand finale. Up until this point, the risk of breaking the
+production installation was exactly zero. Since he was done, Frosty had to
+run the dreaded C<sudo ./deploy.sh> command and hope for the best. His hands
+were shaking as he typed his password. His throat felt dry, even though he'd
+been sipping on a cup of mulled wine all this time. It was however a great
+consolation to know that he could always run C<sudo ./restore.sh> and undo it
+all within seconds. So I<"YOLO">, as young people say!
+
