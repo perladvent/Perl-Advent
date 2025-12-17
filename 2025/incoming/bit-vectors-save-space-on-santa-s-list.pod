@@ -8,60 +8,60 @@ The number of children in the modern world has strained Santa's meager on-sleigh
 
 There was an ancient elf, long since retired, who had an idea, and Santa brought him out of retirement for a special assignment. This was a make-or-break effort; mess this up and Santa might have to cut out the parts of the world he couldn't fit into the meager memory he had left. "Greybeard Elf," Santa said, "you have to save Christmas." Greybeard Elf responded "Again?" There's a reason these elves retire.
 
-Greybeard Elf had fixed all the COBOL programs on December 24, 1999, so Santa was expecting big things. Greybeard Elf corrected Santa "No, you expect small things, and I'm going to use the smallest of small things".
+Greybeard Elf had fixed all the COBOL programs on December 24, 1999, so Santa was expecting big things. Greybeard Elf corrected Santa: "No, you expect small things, and I'm going to use the smallest of small things."
 
-Since every present was already bar-coded and every child had been assigned a special Santa Number, the trick was to find that if that number was Naughty or if that number was Nice. Santa doesn't have time for anything fancy. Just tell him yes or no.
+Since every present was already bar-coded and every child had been assigned a special Santa Number, the trick was to see whether that number was Naughty or Nice. Santa doesn't have time for anything fancy. Just tell him yes or no.
 
-Greybeard Elf, versed in the ways of C and Perl, did everything with bit fiddling even before the definition of the byte standardized onto 8 bits. If he represented every child in one bit, he could do it all in about 300 MB he could put on an SD card that he put on a Raspberry Pi that he would stick to the display. "Green means Nice, red means Naughty", Greybread Elf said.
+Greybeard Elf, versed in the ways of C and Perl, did everything with bit fiddling even before the definition of the byte standardized on 8 bits. If he represented every child as a single bit, he could do it all in about 300 MB on an SD card he could put in a Raspberry Pi he would stick to the sleigh. "Green means Nice, red means Naughty", Greybread Elf said.
 
-Perl, in particular, makes bit fiddling easy through `vec`, a builtin function to manipulate regular strings as if they were bit fields. It lets you set the width of the group of bits (in powers of two up to 64), then access it similarly to a list.
+Perl, in particular, makes bit fiddling easy through `vec`, a built-in function to manipulate regular strings as if they were bit fields. It lets you set the width of the group of bits (in powers of two up to 64), then access it similarly to a list.
 
 Greybeard Elf showed Santa an example of setting a single bit:
 
 =begin perl
 
-	use v5.42;
-	my $bitmap;
-	my $WIDTH = 1;
+ use v5.42;
+ my $bitmap;
+ my $WIDTH = 1;
 
-	my $pos = 13;
+ my $pos = 13;
 
-	vec( $bitmap, $pos, $WIDTH ) = 1;
-	show_bitmap($bitmap);
+ vec( $bitmap, $pos, $WIDTH ) = 1;
+ show_bitmap($bitmap);
 
-	sub show_vec ($b) {
-		my $bits = 8 * length $b;
-		my $s = join '',
-			map { vec($b, $_, $WIDTH) ? '+' : '.' }
-			0 .. ($bits - 1);
-		}
+ sub show_vec ($b) {
+  my $bits = 8 * length $b;
+  my $s = join '',
+   map { vec($b, $_, $WIDTH) ? '+' : '.' }
+   0 .. ($bits - 1);
+  }
 
 =end perl
 
-This set the 13th bit, extending the string as necessary to access a bit position. The output was a visual representation of the entire bit string were a dot is 0 and a plus is 1. The 12th bit, counting from 0, is on (true, 1, whatever):
+This set the 13th bit, extending the string as necessary to access a bit position. The output was a visual representation of the entire bit string, with a dot representing 0 and a plus sign representing 1. The 12th bit, counting from 0, is on (true, 1, whatever):
 
-	.............+..
+ .............+..
 
 Reading the bit field is just as easy. If you don't assign to `vec`, you get the answer back:
 
 =begin perl
 
-	my $nice = vec($b, $pos, $WIDTH);
+ my $nice = vec($b, $pos, $WIDTH);
 
 =end perl
 
-Short and simple. No need for lots of tricky services or programs. Santa said "Okay, whatever, I just need it to work" in the way that managers try to get out of these sorts of conversations quickly.
+Short and simple. No need for tricky services or programs. Santa said "Okay, whatever, I just need it to work!" in the way managers try to get out of these sorts of conversations quickly.
 
 Greybeard Elf showed off another trick. These are just strings, so you can change characters in that string. What's the difference between "perl" and "Perl"? It's just one bit:
 
 =begin perl
 
-	{
-		my $bitmap = "perl";
-		say show_bitmap($bitmap);
-		vec($bitmap, 5, 1) = 0; # bits are reversed within the byte
-		say $bitmap;   # "Perl"
-	}
+ {
+  my $bitmap = "perl";
+  say show_bitmap($bitmap);
+  vec($bitmap, 5, 1) = 0; # bits are reversed within the byte
+  say $bitmap;   # "Perl"
+ }
 
 =end perl
 
@@ -69,79 +69,80 @@ And, this even works on memory-mapped files. For example, you can start with a f
 
 =begin perl
 
-	use v5.36;
+ use v5.36;
 
-	use File::Map qw(map_file);
+ use File::Map qw(map_file);
 
-	chdir '/Users/brian/Desktop';
-	my $FILENAME = 'naughty-nice.db';
-	my $BITS = 56;
+ chdir '/Users/brian/Desktop';
+ my $FILENAME = 'naughty-nice.db';
+ my $BITS = 56;
 
-	{ # this is just to setup the "pre-existing" file
-	open my $fh, '>', $FILENAME;
-	print {$fh} "\000" x ($BITS/8);
-	close $fh;
-	}
+ { # this is just to set up the "pre-existing" file
+ open my $fh, '>', $FILENAME;
+ print {$fh} "\000" x ($BITS/8);
+ close $fh;
+ }
 
-	map_file my $bitmap, $FILENAME, '+<';  # file must exist
-	foreach my $i ( random_numbers($BITS, 13) ) {
-		vec( $bitmap, $i, 1 ) = 1;
-		printf "%3d: %s\n", $i, show_vec($bitmap);
-		}
+ map_file my $bitmap, $FILENAME, '+<';  # file must exist
+ foreach my $i ( random_numbers($BITS, 13) ) {
+  vec( $bitmap, $i, 1 ) = 1;
+  printf "%3d: %s\n", $i, show_vec($bitmap);
+  }
 
-	sub random_numbers ($max = $BITS, $n = 10) {
-		my @a = map { int rand $max } 1 .. $n;
-		}
+ sub random_numbers ($max = $BITS, $n = 10) {
+  my @a = map { int rand $max } 1 .. $n;
+  }
 
-	sub show_vec ($b) {
-		my $bits = 8 * length $b;
-		my $s = join '', map { vec($b, $_, 1) ? '+' : '.' } 0 .. $bits - 1;
-		}
+ sub show_vec ($b) {
+  my $bits = 8 * length $b;
+  my $s = join '', map { vec($b, $_, 1) ? '+' : '.' } 0 .. $bits - 1;
+  }
 
 =end perl
 
-The output shows the bit vector after each bit operation. Note that some bit positions (10, 14, 43) are "set" twice, which just means they remain set. You can only be Nice once no matter how nice you are:
+The output shows the bit vector after each bit operation. Note that some bit positions (10, 14, 43) are "set" twice, which just means they remain set. You can only be Nice once, no matter how nice you are:
 
-	 27: ...........................+............................
-	 54: ...........................+..........................+.
-	 43: ...........................+...............+..........+.
-	 12: ............+..............+...............+..........+.
-	 45: ............+..............+...............+.+........+.
-	 10: ..........+.+..............+...............+.+........+.
-	 43: ..........+.+..............+...............+.+........+.
-	 49: ..........+.+..............+...............+.+...+....+.
-	 35: ..........+.+..............+.......+.......+.+...+....+.
-	 14: ..........+.+.+............+.......+.......+.+...+....+.
-	 10: ..........+.+.+............+.......+.......+.+...+....+.
-	 14: ..........+.+.+............+.......+.......+.+...+....+.
-	 17: ..........+.+.+..+.........+.......+.......+.+...+....+.
+  27: ...........................+............................
+  54: ...........................+..........................+.
+  43: ...........................+...............+..........+.
+  12: ............+..............+...............+..........+.
+  45: ............+..............+...............+.+........+.
+  10: ..........+.+..............+...............+.+........+.
+  43: ..........+.+..............+...............+.+........+.
+  49: ..........+.+..............+...............+.+...+....+.
+  35: ..........+.+..............+.......+.......+.+...+....+.
+  14: ..........+.+.+............+.......+.......+.+...+....+.
+  10: ..........+.+.+............+.......+.......+.+...+....+.
+  14: ..........+.+.+............+.......+.......+.+...+....+.
+  17: ..........+.+.+..+.........+.......+.......+.+...+....+.
 
-But that's not all. Greybeard Elf wants to know the count of Nice children. You could test each bit individually, but there's a trick with `unpack` that counts the set bits. The `%` provides a checksum of the value (and the `*` is just a repetition of the field):
+But that's not all. Greybeard Elf wants to know Nice children count. You could test each bit individually, but there's a trick with `unpack` that counts the set bits. The `%` provides a checksum of the value (and the `*` is just a repetition of the field):
 
 =begin perl
 
-	say "Unique numbers seen: " . count_bits($bitmap);
+ say "Unique numbers seen: " . count_bits($bitmap);
 
-	sub count_bits ($b) { unpack("%32b*", $b) }
+ sub count_bits ($b) { unpack("%32b*", $b) }
 
 =end perl
 
 =head2
 
-I (the author) adapted this example from a particular task I had. Working in a shared container provided to me and in which I had no special privileges, I had to count unique IPv4 addresses in a series of PCAP files. There can be about 3.7 billion of those, excluding the private or reserved addresses. Accumulating these in a hash not only made billions of keys, but each key was itself 4 (packed) bytes. That's a lot of memory, and it was a bit slow.
+I (the author) adapted this example from a particular task I had. Working in a shared container provided to me in which I had no special privileges, I had to count unique IPv4 addresses found in a series of PCAP files. There can be about 3.7 billion of those, excluding the private or reserved addresses. Accumulating these in a hash not only created billions of keys, but each key was itself 4 (packed) bytes. That's a lot of memory, and it was a bit slow.
 
-I only needed to know if a set of IP addresses where part of the data and I didn't care at all about how many times. In a hash, this would just use `exists` to check the key and ignore the value (so undef would be a fine value). With `vec`, I just look at the bit position that matches the numeric value of the IPv4 address.
+I only needed to know if a set of IP addresses was part of the data, and I didn't care at all about how many times. In a hash, this would use `exists` to check the key and ignore the value (so undef would be a fine value). With `vec`, I merely look at the bit position that matches the numeric value of the IPv4 address.
 
-And, I could easily save the result and inspect it later without loading up a big data file that I would have to parse. I did try freezing with `Storable`, but I knew that wasn't going to work. But, it gave me something to do as the problem worked itself out in the back of my head. The output sizes were just too large, and I had too many files to create. With the bit string, roughly one file per every hour of the last four years, with each one being about 400 MB (about 10 GB a day, 4 TB a year).
+And, I could easily save the result and inspect it later without loading a big data file that I would have to parse. I did try freezing with `Storable`, but I knew that wasn't going to work. But it gave me something to do as the problem worked itself out in the back of my head. The output sizes were just too large, and I had too many files to create. With the bit string, roughly one file per every hour of the last four years, with each one file about 400 MB (about 10 GB a day, 4 TB a year).
 
-Part of the problem is that Perl values aren't just values, but carry along all the baggage of Perl SVs, the underlying data structure that tracks all the magic and other things a scalar value knows about itself. This is many times larger than the size of a small value such as an IPv4 address, and it's repeated for every value. Even an undefined value in an SV takes up quite a bit of space, and a short string takes up much more:
+Part of the problem is that Perl values aren't just values, but carry along all the baggage of Perl SVs, the underlying data structure that tracks all the magic and other things a scalar value knows about itself. This is many times larger than the size of a small value, such as an IPv4 address, and it's repeated for every value. Even an undefined value in an SV takes up quite a bit of space, and a short string takes up much more:
 
-	$ perl -MDevel::Size=total_size -E 'my $x; say total_size(\$x)'
-	24
-	$ perl -MDevel::Size=total_size -E 'my $x=q(1); say total_size(\$x)'
-	48
+ $ perl -MDevel::Size=total_size -E 'my $x; say total_size(\$x)'
+ 24
+ $ perl -MDevel::Size=total_size -E 'my $x=q(1); say total_size(\$x)'
+ 48
 
-So, even counting a small fraction of the IP space takes up way more space, and counting a significant portion of it smashes the stack.
-
+So, using a hash to count even a small fraction of the IP space takes up much more space, and counting a significant portion of it smashes the stack.
 
 =cut
+
+
