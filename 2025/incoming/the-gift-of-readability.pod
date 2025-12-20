@@ -1,0 +1,552 @@
+Author: Branislav Zahradník <barney@cpan.org>
+Title: The Gift of Readability
+Topic: Source code
+
+=encoding utf8
+
+=head2 Night Shift at PDN Headquarters
+
+At the Present Delivery Network headquarters, December nights were always long.
+
+The elves — engineers by trade, magicians by necessity — sat beneath glowing dashboards
+tracking sleigh routes, Aurora Borealis hit ratios, and reindeer latency.
+
+All of it powered by Perl. Old Perl. New Perl.
+Perl written by elves long retired to toy-making or cloud-making.
+Perl written by skilled masters.
+Perl written by babies.
+
+She rubbed her eyes.
+
+Three hours. Three hours she'd been trying to understand this function.
+Three hours to fix what should have been a five-minute bug.
+
+The Present Delivery Network ran flawlessly — millions of gifts delivered every year with magical precision.
+But behind the scenes, the elves maintaining the codebase were drowning in their own cleverness.
+
+This code worked perfectly for ages, yet recently it stopped feeding Rudolph.
+And it is utterly incomprehensible for her.
+
+=begin perl
+
+  for my$r(@$rslts){push@${${$r->{feed}//next}->{$r->{reindeer}//next}},getPreferredReindeerFuel($r->{name}//next,$r->{prefs})if!!$r->{active}==!!1;}
+
+=end perl
+
+=over
+
+=item * “Why,” she whispered to the empty office, “why do we do this to ourselves?”
+
+=item * "The Present Delivery Network was designed to be efficient."
+
+=item * "This code … less so."
+
+=back
+
+She thought about the astigmatic, colour-blind elf, squinting at compressed code through his magnifier.
+She thought about the foreigner elf, parsing English as their second language.
+She thought about the new elf starting after the holidays, terrified to touch anything.
+
+And so began the quiet refactoring ...
+
+=head2 The Invisible Barrier
+
+The Capability to Read is Not Given
+
+Readable code isn't just about aesthetics or dogma.
+
+It is about politeness.
+It is about inclusiveness.
+
+It is about respecting the time others have to spend dealing with our, ehm, work.
+Time spent in code review.
+Time lost while hunting bugs.
+Time newcomers need before they dare to change a line.
+
+We often forget that reading code is a learned skill layered on top of another learned skill: reading English.
+
+Whilst most programming languages and source code use English-based syntax,
+only about 400 million people speak English as their native language.
+Another about 1.5 billion speak it as a second language.
+Even among those who do, reading dense technical English is a different skill from ordering coffee or chatting about the weather.
+
+As an example, try to quickly read my favourite German word:
+
+=begin code
+
+  Rindfleischetikettierungsüberwachungsaufgabenübertragungsgesetz
+
+=end code
+
+For those who do not speak German, it means:
+
+=over
+
+=item * The law for the delegation of duties for the supervision of the labelling of beef.
+
+=back
+
+Without delimiters, the brain struggles to find word boundaries. Code is no different.
+
+Machines execute instructions flawlessly; humans do not. Code is written once,
+but read many times, often by people who were not present when the first line was typed.
+
+=head2 How Humans Actually Read
+
+When children learn to read they don't read words as whole units. They decode letters, syllables, fragments.
+Adults learning a foreign language do the same.
+
+Reading is a learned skill.
+
+The cognitive process of reading involves a delicate dance of fixations (pauses where the eye
+rests to process information) and saccades (rapid eye movements between fixation points).
+
+=over
+
+=item * Efficient readers generally have shorter fixations and longer saccades.
+
+=item * Better comprehension comes from familiarity with language, vocabulary, and topic.
+
+=back
+
+Compare:
+
+=begin perl
+
+  calculateUserAccountBalance
+  calculate_user_account_balance
+
+=end perl
+
+Snake case provides explicit visual boundaries. The eyes don’t have to guess where words end.
+For non-native readers, tired eyes, or magnified screens, those underscores are not just style:
+they are guidance.
+
+Yes, you can learn to read C<camelCase> efficiently, just like you can learn vocabulary of
+a foreign language. But learning costs time and energy. Readable code spends less of both.
+
+As an extreme example, try to quickly read my favourite German word:
+
+=begin code
+
+  Rindfleischetikettierungsüberwachungsaufgabenübertragungsgesetz
+
+=end code
+
+Do Germans have a problem with such long words? Perhaps they do.
+
+Reading is a learned skill, and reading also includes the vocabulary of words you are familiar with.
+Yes, you can learn to recognise even such monsters.
+
+However, since you should learn the business domain rules regardless, you should use that
+knowledge and your brain's capability to combine common words into known expressions.
+
+=head2 The Table Principle
+
+The human brain excels at processing tabular organization.
+
+Compare the hash definition in the PDN code:
+
+=begin perl
+
+  my %config=(host=>'localhost',port=>5432,user=>'admin',timeout=>30);
+
+=end perl
+
+Versus:
+
+=begin perl
+
+  my %config = (
+      host    => 'localhost',
+      port    => 5432,
+      user    => 'admin',
+      timeout => 30,
+  );
+
+=end perl
+
+=head2 The Version Control Revolution
+
+Modern development is collaborative. We live in the age of Git, where every change is tracked,
+reviewed, and discussed. Yet how often do we write code that makes reviewing diffs a nightmare?
+
+She pulled up a recent code review. The commit showed:
+
+=begin code
+
+-my %user = (name => 'Alice', email => 'alice@examp1e.com', role => 'admin');
++my %user = (name => 'Alice', email => 'alice@example.com', role => 'admin', department => 'Engineering');
+
+=end code
+
+Wouldn't it be easier to review this?
+
+=begin code
+
+ my %config = (
+     name       => 'Alice',
+-    email      => 'alice@examp1e.com',
++    email      => 'alice@example.com',
+     role       => 'admin',
++    department => 'Engineering',
+ );
+
+=end code
+
+One line fixed. One line added. One concept changed. Perfect clarity.
+
+=head2 Trailing Commas: The Unsung Heroes
+
+In the diff-friendly example above, notice the trailing comma after C<admin>?
+That comma means when you add C<department>, you only change one line. Without it:
+
+=begin code
+
+-    role       => 'admin'
++    role       => 'admin',
++    department => 'Engineering',
+
+=end code
+
+Two lines changed for one concept. Trailing commas keep your diffs clean and prevent noisy changes.
+The goal is not minimal characters, but minimal surprise.
+
+=head2 The Lexical Consistency Principle
+
+She opened another file:
+
+=begin perl
+
+  my $user    = get_user ($id);
+  my $order   = fetch_order ($order_id);
+  my $product = lookup_product ($sku);
+
+=end perl
+
+=over
+
+=item * "Are these different operations? Or just different words for the same thing?" she wondered.
+
+=back
+
+Humans build mental dictionaries while reading code.
+If one word means one thing here and something else there, the dictionary collapses.
+
+This is cognitive overload in action. When every developer uses their favourite verb,
+readers must constantly translate. Consistent vocabulary is kindness.
+
+Prefer verbs with contracts, e.g.:
+
+=over
+
+=item * B<find> — Always returns at least one element; or throws a "not found" exception
+
+=item * B<search> — Try to find; or return an empty result set
+
+Look into dictionaries. Google's query C<explain search> literally returns C<try to find>.
+
+=item * B<fetch> — Retrieve data from an external source (API, file, database)
+
+=item * B<create> — Create a domain entity (external interface)
+
+=item * B<build> — Create a domain entity (internal interface)
+
+=item * B<ensure> — Returns true if state matches expectations, throws exceptions otherwise
+
+=item * B<validate> — Check if data meets criteria without throwing exceptions, returning true on success
+
+=item * B<exclude> — Filter-out operation
+
+=item * B<include> — Filter-in operation
+
+=back
+
+Avoid verbs like:
+
+=over
+
+=item * B<get> — Too generic. Consult a thesaurus; this verb has dozens of meanings
+
+=item * B<filter> — Inconclusive. Better to use C<include> or C<exclude>
+
+=item * B<maybe> — Such logic is part of the method's contract; the method should decide what to do
+
+=item * B<return> — Redundant when used as a verb in method names
+
+=item * B<sanction> - autoantonym (e.g.: C<sanction_trade_with_russia>)
+
+=back
+
+It is always a good idea to summarize such verbs and their project meaning in a glossary.
+
+When everyone speaks the same language, code becomes self-documenting.
+
+For more examples, see: L<https://gist.github.com/happy-barney/1ee36e693751dbbfc046a268cde258de>
+
+=head2 The Gift of Readability Manifesto
+
+As dawn broke on Christmas morning, she compiled her learnings into a gift for her
+team - The Gift of Readability Manifesto.
+
+=head3 1. Use snake_case Everywhere
+
+Even in package names. C<UserAccountManager> becomes C<User::Account::Manager> or C<User_Account_Manager>,
+variables become C<$user_account_balance>, constants C<USER_ACCOUNT_MANAGER>.
+
+Exercise: play with terms "settable" and "set table".
+
+=head3 2. Indent with Tabs
+
+=over
+
+=item * One tab equals one indentation level. No such things as "half-level".
+
+=item * Do not specify tab width in your project.
+
+=item * Let each contributor configure their editor to their preferred width (2 spaces, 4 spaces, 8 spaces - whatever they like).
+
+Every modern editor supports this.
+
+The visualisation of indentation is not a choice of the writer or the project;
+it is choice of the reader.
+
+Every person prefers different visual length of indentation. I have worked on projects that used
+1, 2, 3, and 4 spaces for indentation.
+I even worked on one project that consisted of three different parts, each using a different
+language and a different indent width.
+
+Conversely, when you begin to treat a hard tab as the declaration of one indent level,
+life becomes easier for everyone.
+
+=back
+
+=head3 3. Never Align on Lines with Different Indentation
+
+=head3 4. Use Paired Characters as Quoted Operator Delimiters
+
+It reduces the number of backslashes you need to use:
+
+=begin perl
+
+  q (function () shouldn't return "$foo");
+  qr (a/b);
+
+  # vs
+
+  'function () shouldn\'t return "$foo"';
+  "function () shouldn't return \"\$foo\"";
+  qr/a\/b/;
+
+=end perl
+
+=head3 5. Space Around Operators and Keywords
+
+Make breathing room:
+
+=begin perl
+
+  if (! $condition) {
+      function_call ($arg =~ m (...));
+  }
+
+  # Not:
+  if(!$condition){
+      function_call($arg=~m/.../);
+  }
+
+=end perl
+
+Examples of proper and consistent spacing:
+
+=over
+
+=item * C<if ()>, C<function ()>, C<q ()>, C<s () ()>
+
+=item * C<(! condition)>
+
+=item * C<$x = $y + $z>
+
+=back
+
+=head3 6. One Line, One Concept
+
+When writing multiline expressions, each line should contain either:
+
+=over
+
+=item * Complete information (opening and closing parenthesis on the same line), or
+
+=item * A single piece of information (opening parenthesis as the last character)
+
+=back
+
+The left parenthesis is either on the same line as its counterpart or
+is the last character on a given line.
+
+=begin perl
+
+  # Good: complete expression on one line
+  my $result = calculate ($param) + other_function ($other);
+
+  # Good: leading operators on line signals that there is more in usage of such symbol.
+  my $good
+      = calculate ($param)
+      + other_function ($other)
+      ;
+
+  # Good: opening paren ends line, closing paren starts line
+  my $good = calculate (
+      $param,
+      other_function ($other),
+  );
+
+  # Bad: mixed structure
+  my $bad = calculate (
+      $param ) + other_function (
+          $other );
+
+  # Bad: opening paren mid-line
+  my $bad = calculate ($param,
+      other_function ($other));
+
+=end perl
+
+=begin perl
+
+  # Good: each element on its own line
+  my $good = (
+      'alpha',
+      'beta',
+      'gamma',
+  );
+
+  # Bad: inconsistent breaks
+  my @bad = (
+      'alpha', 'beta',
+      'gamma'
+  );
+
+=end perl
+
+=over
+
+=item What if these values belong to logical groups?
+
+Solution: Name the logical group and use the group name (or an appropriate data structure) to contain these values instead of defining them individually.
+
+Principle: Do not mix different kinds of information or concepts within a single grouping. Groupings should follow the Single Responsibility Principle.
+
+=begin perl
+
+  my @modern = (
+      'alpha',
+      'beta',
+  );
+
+  my @deprecated = (
+      'gamma',
+  );
+
+  my @good = (
+      @modern,
+      @deprecated,
+  );
+
+=end perl
+
+=item What if these values form lists that are too long?
+
+Put list into function / constant. Order them (usually alphabetically). Split them into groups.
+
+=begin perl
+
+  my @good = My::Good::Values->ALL_GOOD_VALUES;
+
+=end perl
+
+=back
+
+=head2 Epilogue
+
+The office filled again. They gathered around her monitor.
+
+=over
+
+=item * “It’s so much longer,”
+
+=back
+
+someone said.
+
+=over
+
+=item * “Yes,” she replied.
+
+=item * “But look at the diff."
+
+=item * "Look at elf reading this with a magnifier."
+
+=item * "Think about the newcomers touching this file for the first time.”
+
+=back
+
+She smiled.
+
+=over
+
+=item * “Readable code isn’t about writing less now.
+
+=item * It’s about respecting those who read it tomorrow.”
+
+=back
+
+The team was silent for a moment.
+
+=over
+
+=item * "Thank you. This... this actually makes my work easier."
+
+=back
+
+And that, she thought, was the greatest gift of all.
+
+=head1 P.S.
+
+This kind of document always sparks heated discussions so I've created a GitHub project
+with discussion enabled: L<https://github.com/happy-barney/the-gift-of-readability/discussions>.
+
+I've been many times rightfully accused of omitting information I consider too obvious.
+If you found some place where you think I did it again, please start related discussion as well.
+
+This article is summary of my experiences and things I learned. See for example books:
+
+=over
+
+=item L<Clean Code|https://learning.oreilly.com/library/view/clean-code-a/9780135398586/>
+
+=item L<The Art of Readable Code|https://learning.oreilly.com/library/view/the-art-of/9781449318482/>
+
+=back
+
+B<brian d foy> left a comment when I submitted this article:
+
+    "One of the great mistakes of Perl Best Practices is that it led people to believe
+    that there were hard rules, even though that was not the authors intent. This sort
+    of article makes a similar mistake. Readability isn't some sacred knowledge hidden
+    across books stored away in dark library basements."
+
+He is right. This article should not be treated as a set of strict hard rules.
+It should spark the creation of some kind of I<base class>, some kind of I<readability framework>,
+real projects can be based on.
+
+I believe that every rule must be explained, complete with reasoning, pros, and cons.
+This explanation should also cover complementing rules to explain why they were rejected.
+
+For example, imagine an early advocacy argument for camel case:
+
+    "To save space, as source code storage is limited to 1.44 MB."
+
+(Do people even remember 1.44 MB nowadays?)
+
+=cut
