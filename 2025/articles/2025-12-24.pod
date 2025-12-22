@@ -1,0 +1,366 @@
+Author: Joel Roth <joelz@pobox.com>
+Title: Pecan's Tale: Migrating a terminal application from Term::ReadLine to Tickit
+Topic: Audio::Nama, Tickit, Tie::Simple, Parse::RecDescent 
+
+=encoding utf8
+
+Pecan: "I've got a terminal application[0] based on a mature
+audio processing library[1]. The terminal interface uses Gnu
+ReadLine, a widely used C library accessed via the CPAN
+module Terminal::ReadLine::Gnu. It was previously covered
+in the Perl Advent calendar of 2023[2], in which began a great
+deal of head-scratching."
+
+"The problem is I want a facility to process keystrokes
+immediately, for example hotkeys to control volume or adjust
+playback position. Not only a command line with parameters,
+we have that."
+
+=head2 Step 1: Create widget hierarchy
+
+"I use a scrollbox widget to display terminal output, with a
+line reserved at the bottom for a text entry widget. Simple,
+right?"
+
+"The widget hierarchy looks like this:"
+
+    Tickit::Async::Loop
+        Tickit::Term (an object exposing the underlying TermKey library)
+        Tickit::Vbox (root widget, displays its child widgets as a column)
+            Tickit::Scrollbox (scrollable, eliminates the need for shelling out to less)
+                                TODO: set a stop for scrolling back only the last N lines of output
+                Tickit::VBox
+                   Tickit::Widget::Text::Static (one line of display text)
+                   Tickit::Widget::Text::Static
+                   ...
+            Tickit::Widget::Text::Entry (anchored to bottom screen line, for prompt and command entry)
+
+=head2 Step 2: Redirect file handles
+
+"I'm facing hours of work and tedious bugfixing to convert
+every routine printing to STDOUT or STDERR to generate a
+static text object and add it to the scroller widget.
+There has to be a better way."
+
+In perl, on CPAN, there usually is! Here, it's Tie::Simple[3].
+
+    our ($old_output_fh);
+    sub redirect_stdout {
+        open(FH, '>', '/dev/null') or die; # TODO: replace bareword filehandle with a scalar, $fh
+        FH->autoflush;
+        $old_output_fh = select FH;
+        tie *FH, 'Tie::Simple', '',
+                WRITE      => sub {  }, # stub methods are needed
+                PRINT      => sub { my $text = $_[1]; print_to_terminal($text) },
+                 PRINTF    => sub {  },
+                 READ      => sub {  },
+                 READLINE  => sub {  },
+                 GETC      => sub {  },
+                 CLOSE     => sub {  };
+    }   
+
+    sub print_to_terminal ($text) {
+        $vbox->add( Tickit::Widget::Static->new( text => $text ));
+        $scrollbox->scroll_to(1e5); # move cursor to bottom, TODO: there must be a neater way
+    }   
+
+    # called on program exit
+
+    sub restore_stdout { 
+        select $old_output_fh;
+        close FH;
+    }
+
+"I also need to redirect warnings. Here's the new code:"
+
+    BEGIN { $SIG{__WARN__} = \&filter_print_to_terminal }
+
+    sub filter_print_to_terminal {
+        print_to_terminal(@_) unless $_[0] =~ /ScrollBox/; # skip spurious warnings related to the ScrollBox object
+    }   
+
+"Our fix doesn't break the following line, which a naive
+search-and-replace for 'print' or 'say' would miss."
+
+    # produce a stacktrace on exception when any logging filters enabled
+    SIG{ __DIE__ } = sub { Carp::confess( @_ ) } if $category_tags; 
+ 
+=head2 Our intrepid elf-hero and his mentor
+
+Hunched over the terminal, in his usual coding posture with
+keyboard on lap, Pecan the elf knits his brows. Pages of
+printouts cover his desk and most of the floor around him. 
+
+Lybinthia, an elf with decades of CS and IT experience, is
+watching him struggle. She knows Pecan is not the sharpest
+knife in the drawer. He makes up for his lack of effortless
+facility in coding with persistence and a willingness to
+learn. 
+
+After decades of plodding progress and countless dead ends,
+he's learned to read (at least browse) the documentation of
+the libraries he uses as fully as possible, knowing that
+those before him have crystallized their own experience of
+blood, sweat and tears into the man pages generally supplied
+with each library distribution installed from CPAN, the
+Comprehensive Perl Archive Network.
+ 
+Elves have lots of work to do. Pecan's section of the North
+Pole Coding Collective is largely a perl shop. They've
+ignored the fads and marketing, sticking to a language with
+excellent features, backward compatibility, and a culture of
+software testing that ensures libraries substantially
+accomplish what they promise on the package wrapper. (The
+package metaphor tickles Pecan, because if elves love
+anything, it is presents with cheerful wrappings and
+ribbons.)
+
+But in this instance he's been disappointed, three months of
+hard work paddling upstream against a recalcitrant
+C-library all for nothing.
+
+Our intrepid reporter, the Ghost of Perl Programming's
+Future, listens in on the conversation.
+
+"What's your hangup?" Lybinthia (who grew up in the 60s)
+asks him. 
+
+"I'm an elf, not a cat," Pecan sniffs self-righteously, "and
+therefore never much of a mouser.  I work best at the
+terminal, sharing several consoles with a multiplexing
+application, usually screen or tmux."
+
+Lybithia senses a big picture introduction, unfortunately,
+the only way Pecan talks.
+
+"Besides satisfying my own itches," he says, stretching and
+scratching his armpit thoughtfully, "my applications are
+usable by all elves, including those whose accessibility
+needs require use of a braille display or screen reader, as
+well as old-fashioned console cowboys." 
+
+The latter group is easily recognizable at the North Pole by
+their Stetson hats, western boots and large belt buckles, a
+significant contingent of stylish elves that Pecan wants to
+serve.
+
+Lybithia: "So, tell me about your program."
+
+=head2 The program and its command line (includes shameless elf promotion) 
+
+Pecan introduces it with his usual elevator spiel.  (Who
+knew there were elevators at the North Pole?)
+
+"The program's a multitrack audio editing application
+providing functions for recording, mixing, editing and
+mastering audio via a command prompt, so modeled on the unix
+command shell. Despite it's small code footprint, it
+provides a lot of what you'd find in other DAW software such
+as Audacity or ProTools. I also think it's easier to use, as
+you never need to remember which command is under which
+menu." 
+
+"The prompt tells the user key information: the currently
+selected project, bus, track, effect plugin, etc.
+With most commands, you don't need you to specify the
+object to modify, making inputs concise."
+
+"Like my hero programmers who created unix, I'm trying to
+get the most results from the fewest keystrokes, while
+keeping it all memorable.  When memory fails, there's a help
+facility with listings by category, command and text
+search. I really am proud of it."
+ 
+=head2 Grammar
+
+Lybithia: "How do you process the commands?"
+
+"While there are more modern libraries nowadays, I use
+Parse::RecDescent[4] to generate the parser for Nama's command
+grammar. 
+
+"The parser takes a command line, identifies the command
+name (generally the first token in the command line) and
+fires off the corresponding subroutine with whatever
+parameters are provided."
+
+"And if the command has a syntax error?"
+
+"It falls through the grammar, printing the unparseable
+command with a warning and (generally) no other effects."
+
+"What about features like command history and tab
+completion?"
+
+"They come for free with ReadLine."
+
+"So all is good then isn't?" She asks. "what is the exact
+problem you're having with ReadLine?"
+
+=head2 No direction HOME
+
+"The problem is I want a facility to process keystrokes
+immediately, for example using cursor keys to control volume
+or adjust playback position, not always a command name with
+parameters terminated by newline.
+ 
+"I've been trying to do this for months, now feel like I'm
+ready to slit my wrists, both of them, with a rusty knife."
+
+"One wrist would probably be enough," notes Lybithia with a
+grimace. "Doesn't ReadLine provide all this? I mean, any
+terminal based music player available for linux has keys for
+these functions."
+
+"That's the rub. While all that works well enough from C, in
+perl we use Term::ReadLine::Gnu to access the ReadLine
+library, and this glue code doesn't support all the bells
+and whistles available through straight C."
+
+"Didn't you know that from the docs?"
+
+"No, the main reference is the docs for the C library, and
+of course, they have no idea what ReadLine-via-perl can or
+cannot do."
+
+"It took me quite a while to get as far as I have.
+Especially setting up an event loop so I can have a
+background process like playing an audio clip while
+executing and processing commands in the foreground, firing
+off subroutines when certain events occur, like reaching the
+end of a clip."
+
+"I had to cargo cult my way through it. It took forever,
+now I have to migrate to a new library. At least 
+I have a library to migrate to."
+
+Lybithia: "It's a good thing elves live a long time."
+
+"Well, my supervisor doesn't like it. He's worried about my
+graying hair and the sores I developed from scratching my
+head."
+
+"So where are we now?"
+
+=head2 That's the Tickit
+
+"As I was saying, I found a solution, now just trying to migrate
+over.  The new shiny is Tickit, a terminal handling library
+by Paul Evans.  Paul is a prolific perl core contributor,
+maybe even luminary.  It's a high level approach that builds
+on his previous effort in this area, a C library and perl
+wrapper called TermKey. It's easy to intercept any keystroke
+and fire off whatever subroutine you want."
+
+"Isn't Tickit the library Paul used as a testbed while
+developing Object::Pad?" 
+
+"Yes, the same. "Tickit integrates well with IO::Async, also
+by Paul Evans, with adapters to several other event loops."
+
+Object::Pad is great, by the way, and as late-generation
+take on perl OO, it's quite a bit easier to use and to read.
+Now finding its way, step by step, into the perl core. You
+can look at the new class syntax.[5]
+
+"if Tickit is a high level API using widgets, it should be
+easier than ReadLine was."
+
+"Yes, that's true, but there is a bit of a mismatch. For
+ReadLine all I need to do is print lines to STDOUT, however
+for outputs longer than the number of screen lines, we
+currently call out to a pager application, in this case
+'less.'"
+
+"With Tickit, I use a scrollbox widget to mimic the way text
+scrolls up a terminal.
+ 
+"The problem is that I have various subroutines that
+printing to STDOUT.  I feel daunted about having to change
+them one-by-one, having suffered through previous
+refactoring efforts, such as converting Nama's data
+structures from hashes to objects.  Without AI help (which
+I'd mistrust anyway) I'm facing hours of work and tedious
+bugfixing to convert some 70 routines printing to STDOUT or
+STDERR to generate a static text object and add it to the
+scroller widget. I've engaged in the whack-a-mole before,
+and don't like it. I always end up missing something."
+
+Here was where Lybithia gave Pecan some vital advice.
+In perl (and probably any other language worth its salt)
+you can redirect any file descriptor including STDOUT and
+STDERR. 
+
+After a couple false starts, he ended using Tie::Simple
+to trigger a subroutine on each print action. 
+
+"Also, I'm finding I need to change over event loops because
+of some compatibility issues with AnyEvent."
+
+"Well, apply yourself, Pecan, I'm sure you'll find a
+suitable hack, you always do -- usually in the shower.  We
+hear you talking to yourself there, a dialogue of two parts
+in squeaky and basso profundo voices."
+
+"Yes" said Pecan, turning a beet red that matched his cap
+perfectly, "that's what works best for me."
+
+Within a short time, he'd whipped up wrapper, mapping the
+AnyEvent AE::timer function calls to IO::Async event loop
+that better integrates with Tickit. Depending on the
+parameters, it calls either IO::Async::Timer::Countdown (
+for a one shot timer) or IO::Async::Timer::Periodic (for
+polling.)
+
+Converting the code was a simple search-and-replace. For example:
+
+    -       $project->{events}->{poll_engine} = AE::timer(1, 0.5, \&poll_progress);
+    +       $project->{events}->{poll_engine} = timer(1, 0.5, \&poll_progress);
+
+
+And the wrapper code looks like this:
+
+
+    sub timer ($delay, $interval, $coderef ) {
+           my $timer;
+           if ($interval == 0){
+                   $timer = IO::Async::Timer::Countdown->new(
+                           delay => $delay,
+                           on_expire => $coderef, 
+                   );
+           }
+           else {
+                   $timer = IO::Async::Timer::Periodic->new(
+                           interval => $interval,
+                           on_tick => $coderef,
+                   );
+           }
+           $timer->start;
+           $text->{loop}->add($timer);
+           $timer
+    }
+
+When the basic coding was done, and both had clocked out for
+the day, the two elves poured themselves a shot of brandy,
+toasting Larry Wall for a language of manipulexity and
+whipuptude, bywords he'd coined for Perl's facility at
+making easy things very easy and hard things possible.
+Which other language can boast such a combination!
+
+=for :html
+0. <a href=https://metacpan.org/dist/Audio-Nama>Nama multitrack recorder and DAW</a>
+
+=for :html
+1. <a href=https://nosignal.fi/ecasound/index.php>Ecasound, a software package designed for multitrack audio processing</a>
+
+=for :html
+2. <a href=https://perladvent.org/2023/2023-12-18.html>Trimming sound files with Audio::Nama</a>
+
+=for :html
+3. <a href="https://metacpan.org/dist/Tie-Simple">Tie::Simple</a>
+
+=for :html
+4. <a href="https://metacpan.org/dist/Parse-RecDescent">Parse::RecDescent</a>
+
+=for :html
+5. <a href="https://perldoc.perl.org/perlclass">perlclass - Perl core class syntax</a>
