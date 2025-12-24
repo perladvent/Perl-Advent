@@ -7,7 +7,7 @@ Topic: Audio::Nama, Tickit, Tie::Simple, Parse::RecDescent
 Pecan: "I've got a terminal application[0] based on a mature
 audio processing library[1]. The terminal interface uses Gnu
 ReadLine, a widely used C library accessed via the CPAN
-module Term::ReadLine::Gnu. It was previously covered
+module Term::ReadLine::Gnu. Nama was previously covered
 in the Perl Advent calendar of 2023[2], which began a great
 deal of head-scratching."
 
@@ -16,6 +16,15 @@ immediately, for example hotkeys to control volume or adjust
 playback position. Not only a command line with parameters,
 we have that."
 
+"But I have an answer, a second-generation terminal library
+that represents each cluster of keyboard scan codes as an
+object. The are a lot of questions you might want to ask
+this object, and Tickit provides methods for anything you
+might want to know. Being an OO design, you can use
+subclassing to alter any of the default behaviors. Another
+example besides volume control would be overriding the cursor keys to simulate a pager that
+stops scrolling at the top line of the supplied text."
+
 =head2 Step 1: Create widget hierarchy
 
 "I use a scrollbox widget to display terminal output, with a
@@ -23,6 +32,8 @@ line reserved at the bottom for a text entry widget. Simple,
 right?"
 
 "The widget hierarchy looks like this:"
+
+=begin perl
 
     Tickit::Async::Loop
         Tickit::Term (an object exposing the underlying TermKey library)
@@ -34,6 +45,8 @@ right?"
                    Tickit::Widget::Text::Static
                    ...
             Tickit::Widget::Text::Entry (anchored to bottom screen line, for prompt and command entry)
+
+=end perl
 
 =head2 Step 2: Redirect file handles
 
@@ -48,17 +61,27 @@ In perl, on CPAN, there usually is! Here, it's Tie::Simple[3].
 
     our ($old_output_fh);
     sub redirect_stdout {
-        open(FH, '>', '/dev/null') or die; # TODO: replace bareword filehandle with a scalar, $fh
+        open(FH, '>', '/dev/null') or die;
+
+		# TODO: Replace the bareword filehandle FH with a scalar, $fh.
+		# That's recommended practice, right?
+
+		# On second thought, no. A bareword filehandle is necessary
+		# because Tie:Simple alters the associated typeglob
+		# object *FH. That object would not be available in a
+		# reference $fh, which points directly to the associated memory
+		# location.
+
         FH->autoflush;
         $old_output_fh = select FH;
         tie *FH, 'Tie::Simple', '',
                 WRITE      => sub {  }, # stub methods are needed
                 PRINT      => sub { my $text = $_[1]; print_to_terminal($text) },
-                 PRINTF    => sub {  },
-                 READ      => sub {  },
-                 READLINE  => sub {  },
-                 GETC      => sub {  },
-                 CLOSE     => sub {  };
+                PRINTF     => sub {  },
+                READ       => sub {  },
+                READLINE   => sub {  },
+                GETC       => sub {  },
+                CLOSE      => sub {  };
     }
 
     sub print_to_terminal ($text) {
@@ -164,9 +187,9 @@ Pecan introduces it with his usual elevator spiel.  (Who
 knew there were elevators at the North Pole?)
 
 "The program's a multitrack audio editing application
-providing functions for recording, mixing, editing and
-mastering audio via a command prompt, so modeled on the unix
-command shell. Despite its small code footprint, it
+providing functions for recording, editing, mixing and
+mastering sound files via a command prompt, In other words,
+it's modeled on the unix command shell. Despite its small code footprint, it
 provides a lot of what you'd find in other DAW software such
 as Audacity or ProTools. I also think it's easier to use, as
 you never need to remember which command is under which
@@ -243,8 +266,9 @@ off subroutines when certain events occur, like reaching the
 end of a clip."
 
 "I had to cargo cult my way through it. It took forever,
-now I have to migrate to a new library. At least 
-I have a library to migrate to."
+now I have to migrate to a new library. At least
+I have a library to migrate to." Pecan pauses to touch his
+scalp.
 
 Lybinthia: "It's a good thing elves live a long time."
 
@@ -326,9 +350,12 @@ polling.)
 
 Converting the code was a simple search-and-replace. For example:
 
+=begin perl
+
     -       $project->{events}->{poll_engine} = AE::timer(1, 0.5, \&poll_progress);
     +       $project->{events}->{poll_engine} = timer(1, 0.5, \&poll_progress);
 
+=end perl
 
 And the wrapper code looks like this:
 
