@@ -48,6 +48,7 @@ foreach my $path ( @ARGV ) {
 	subtest $path => sub {
 		subtest "header for $path" => sub { check_header( $header ) };
 		subtest "pod for $path"	   => sub { check_pod( $pod ) };
+		subtest "pod strict for $path" => sub { check_pod_strict( $pod ) };
 		};
 	}
 
@@ -87,6 +88,33 @@ sub check_pod ( $pod ) {
 			my $errors = $lines->{$line};
 			diag( "line $line: $_" ) for @$errors;
 		}
+	}
+
+	return $ok;
+	}
+
+# Strict POD validation using Pod::Checker
+sub check_pod_strict ( $pod ) {
+	state $rc1 = require Pod::Checker;
+	state $rc2 = require IO::String;
+
+	my $name = "Pod::Checker strict validation passes";
+
+	# Pod::Checker needs to work with filehandles
+	# Use IO::String for in-memory filehandle
+	my $pod_fh = IO::String->new($pod);
+	my $errors = '';
+	my $err_fh = IO::String->new($errors);
+
+	# podchecker returns -1 for no pod, 0 for valid, >0 for errors
+	my $result = Pod::Checker::podchecker($pod_fh, $err_fh);
+
+	my $ok = ($result == 0 || $result == -1);  # -1 means no pod found, which is ok for partial docs
+
+	ok( $ok, $name );
+
+	if ( !$ok && $errors ) {
+		diag( "Pod::Checker errors:\n$errors" );
 	}
 
 	return $ok;
