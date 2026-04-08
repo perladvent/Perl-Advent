@@ -1,17 +1,12 @@
 ---
 name: Screenshot Article Preview
 
-# Security note: This workflow uses pull_request_target to allow write access
-# for PRs from forked repositories. This is safe because:
-# 1. It only runs when the 'preview' label is applied (requires maintainer action)
-# 2. It explicitly checks out the PR code, not the base branch
-# 3. It only builds POD articles and takes screenshots - no code execution from PRs
-# 4. All Docker builds are sandboxed
-
 on:
   pull_request_target:
-    types: [labeled, synchronize]
-  workflow_dispatch:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - '*/incoming/*.pod'
+      - '*/articles/*.pod'
 
 permissions:
   contents: read
@@ -19,7 +14,7 @@ permissions:
 
 jobs:
   screenshot:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'preview')
+    if: github.event.pull_request.draft == false
     name: Generate article screenshots
     runs-on: ubuntu-latest
     steps:
@@ -61,10 +56,10 @@ jobs:
       - name: 🛑 Exit if no articles changed
         if: steps.detect.outputs.has_articles != 'true'
         run: |
-          echo "No article files changed, skipping workflow"
-          exit 1
+          echo "No article files changed, skipping screenshot generation."
 
       - name: 📚 Build site
+        if: steps.detect.outputs.has_articles == 'true'
         env:
           YEAR: ${{ steps.detect.outputs.year }}
         run: |
@@ -76,6 +71,7 @@ jobs:
           fi
 
       - name: 📤 Copy build output for screenshot matching
+        if: steps.detect.outputs.has_articles == 'true'
         run: |
           # Copy out directory and mapping file to host so screenshot script can read them
           docker compose run --rm perl-advent cp -r /app/out /app/out-host
@@ -85,19 +81,23 @@ jobs:
           mv incoming-mappings-host.json incoming-mappings.json 2>/dev/null || true
 
       - name: 🌐 Start web server (serves from Docker volume)
+        if: steps.detect.outputs.has_articles == 'true'
         run: docker compose up -d --no-deps perl-advent-server
 
       - name: 🖼️ Setup Node.js for Playwright
+        if: steps.detect.outputs.has_articles == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: '24'
 
       - name: 🎭 Install Playwright
+        if: steps.detect.outputs.has_articles == 'true'
         run: |
           npm install playwright
           npx playwright install chromium --with-deps
 
       - name: 📸 Take screenshots
+        if: steps.detect.outputs.has_articles == 'true'
         id: screenshots
         env:
           CHANGED_FILES: ${{ steps.detect.outputs.changed_files }}
@@ -136,6 +136,7 @@ jobs:
         run: docker compose down
 
       - name: 📤 Upload screenshots as artifacts
+        if: steps.detect.outputs.has_articles == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: article-screenshots
@@ -143,7 +144,7 @@ jobs:
           retention-days: 30
 
       - name: 💬 Post PR comment with screenshots
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target' && steps.detect.outputs.has_articles == 'true'
         uses: actions/github-script@v8
         with:
           script: |
