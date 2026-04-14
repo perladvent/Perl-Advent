@@ -14,6 +14,19 @@
 pwd
 set -eu -o pipefail
 
+ADVCAL_BIN="${ADVCAL_BIN:-advcal}"
+
+if ! command -v "$ADVCAL_BIN" >/dev/null 2>&1; then
+    echo "Error: '$ADVCAL_BIN' command not found in PATH."
+    echo "Install WWW::AdventCalendar CLI or set ADVCAL_BIN to the advcal executable."
+    exit 1
+fi
+
+advcal_https_args=()
+if "$ADVCAL_BIN" --help 2>&1 | grep -q -- '--https'; then
+    advcal_https_args+=(--https)
+fi
+
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
@@ -69,9 +82,9 @@ for year in 1999 $(seq 2011 2026); do
     fi
 
     if [[ ${today:-} ]]; then
-        advcal -c advent.ini -o "../$target" --https --today "$today"
+        "$ADVCAL_BIN" -c advent.ini -o "../$target" "${advcal_https_args[@]}" --today "$today"
     else
-        advcal -c advent.ini -o "../$target" --https
+        "$ADVCAL_BIN" -c advent.ini -o "../$target" "${advcal_https_args[@]}"
     fi
 
     if [[ -e "$year.css" ]]; then
