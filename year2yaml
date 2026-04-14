@@ -40,19 +40,33 @@ for my $day (1 .. 25) {
 	next unless -e $file;
 	open my $ifh, '<', $file or die "Cannot open $file for reading: $!";
 	while (my $line = <$ifh>) {
-		if ($line =~ /^Topic: (\S+)/) {
-			my $topic = $1;
-			$topic =~ s/,//g; # remove commas
-			print "Found topic $topic\n";
-			push @modlist, $topic;
+		if ($line =~ /^Topic: (.+?)\s*$/) {
+			my @topics = split /\s*,\s*/, $1;
+			for my $topic (@topics) {
+				$topic =~ s/^\s+|\s+$//g;
+				# If topic contains spaces but all space-separated parts look like
+				# module names (contain ::), split them into individual entries
+				if ($topic =~ / /) {
+					my @parts = split /\s+/, $topic;
+					if (!grep { !/::/ } @parts) {
+						print "Found module $_\n" for @parts;
+						push @modlist, map { { module => $_ } } @parts;
+						next;
+					}
+				}
+				my $key = ($topic =~ /::/) ? 'module' : 'topic';
+				print "Found $key $topic\n";
+				push @modlist, { $key => $topic };
+			}
 		}
 		last unless $line =~ /\S/;
 	}
 	close $ifh;
 	next unless @modlist;
 	$ytext .= sprintf "  %2.2i:\n", $day;
-	for my $m (@modlist) {
-		$ytext .= qq#  - { "module" : "$m" }\n#;
+	for my $entry (@modlist) {
+		my ($key, $val) = %$entry;
+		$ytext .= qq#  - { "$key" : "$val" }\n#;
 	}
 }
 
