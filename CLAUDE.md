@@ -81,14 +81,26 @@ perl script/render-incoming.pl
 http_this --autoindex out/2025
 ```
 
-### Annual Maintenance (run in January)
-```bash
-# Add previous year to archives database
-./year2yaml 2024
+### Annual Maintenance (run in January/February)
 
-# Prepare for new year
+See `ANNUAL-UPDATES.md` for the full step-by-step guide. In brief:
+
+```bash
+# 1. Add previous year to archives database
+./year2yaml 2025
+
+# 2. Create new year scaffold and update year references site-wide
 ./script/prepare-new-year.sh
+
+# 3. Create empty directories tracked by git
+NEW_YEAR=$(date +%Y)
+mkdir -p "$NEW_YEAR/articles" "$NEW_YEAR/incoming" "$NEW_YEAR/share/static"
+touch "$NEW_YEAR/articles/.gitkeep" "$NEW_YEAR/incoming/.gitkeep" "$NEW_YEAR/share/static/.gitkeep"
 ```
+
+`year2yaml` classifies topics as `module` (links to MetaCPAN) when the topic
+contains `::`, and as `topic` otherwise. Review `archives.yaml` afterwards for
+single-word CPAN modules that lack `::` (e.g. `LWP`, `Moose`).
 
 ## Article Format (POD)
 

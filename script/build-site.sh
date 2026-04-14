@@ -3,13 +3,13 @@
 # Usage ./script/build-site.sh
 #
 # To build just a single year
-# ./script/build-site.sh --single-year 2025
+# ./script/build-site.sh --single-year 2026
 #
 # To build the entire month for the current year
-# ./script/build-site.sh --single-year 2025 --today 2025-12-31
+# ./script/build-site.sh --single-year 2026 --today 2026-12-31
 #
 # Watch the filesystem:
-# find 2025/articles | entr ./script/build-site.sh --single-year 2025 --today 2025-12-25
+# find 2026/articles | entr ./script/build-site.sh --single-year 2026 --today 2026-12-25
 
 pwd
 set -eu -o pipefail
@@ -52,7 +52,7 @@ for year in $(seq 2000 2010); do
     cp -R "$year" out/
 done
 
-for year in 1999 $(seq 2011 2025); do
+for year in 1999 $(seq 2011 2026); do
     if [[ ${single_year:-} && $single_year -ne $year ]]; then
         continue
     fi
@@ -80,7 +80,7 @@ for year in 1999 $(seq 2011 2025); do
     cd ..
 done
 
-for year in $(seq 2000 2025); do
+for year in $(seq 2000 2026); do
     if test -d "out/$year"; then
         cp favicon.ico "out/$year/"
     fi
