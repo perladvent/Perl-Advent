@@ -14,10 +14,6 @@
 pwd
 set -eu -o pipefail
 
-# Prefer repository-local Perl overrides when present.
-repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-export PERL5LIB="$repo_root/lib${PERL5LIB:+:$PERL5LIB}"
-
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
