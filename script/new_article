@@ -1,10 +1,14 @@
 #!/usr/bin/env perl
 
+package Perl::Advent::new_article;
+
 use v5.10;
 use strict;
+use warnings;
 
 use File::Spec::Functions;
 use File::Path qw(make_path);
+use Getopt::Long qw(GetOptions);
 
 =head1 NAME
 
@@ -18,28 +22,63 @@ script/new_article - start a new Advent calendar article
     Author (Your Name) > brian d foy <bdfoy@cpan.org>
     Saved the starter article in 2022/incoming/another-article.pod
 
-Then edit your article and check it:
+    Then edit your article and check it:
 
     % perl t/article_pod.t 2022/incoming/another-article.pod
 
+    If you're preparing an article outside the active calendar year:
+
+    % perl script/new_article --year 2025
+
+    Non-interactive mode:
+
+    % perl script/new_article --year 2025 --title "OpenAPI::Linter" \
+      --topic OpenAPI::Linter --author "Your Name <mail\@example.com>"
+
 =cut
 
-my( $title, $topic, $author ) = get_metadata();
-my $starter_text = cook_template( $title, $topic, $author );
+sub run {
+    my ( $year, $title, $topic, $author ) = parse_options();
+    $year = $year // (localtime)[5] + 1900;
+    die "Year must be a 4-digit value\n" unless $year =~ /\A\d{4}\z/;
 
-my $year = (localtime)[5] + 1900;
+    ( $title, $topic, $author ) = get_metadata( $title, $topic, $author );
+    my $starter_text = cook_template( $title, $topic, $author );
 
-my( $dir ) = catfile( $year, 'incoming' );
-make_path $dir;
+    my $dir = catfile( $year, 'incoming' );
+    make_path $dir;
 
-( my $slug = lc($title) ) =~ s/\W+/-/g;
-my $path = catfile( $dir, "$slug.pod" );
-save_file( $starter_text, $path );
-say "Saved the starter article in $path";
+    my $slug = slugify_title($title);
+    my $path = catfile( $dir, "$slug.pod" );
+    save_file( $starter_text, $path );
+    say "Saved the starter article in $path";
+
+    return $path;
+}
+
+sub parse_options {
+    my ( $year, $title, $topic, $author );
+
+    GetOptions(
+        'year=i'   => \$year,
+        'title=s'  => \$title,
+        'topic=s'  => \$topic,
+        'author=s' => \$author,
+    ) or die "Usage: $0 [--year YYYY] [--title TITLE] [--topic TOPIC] [--author AUTHOR]\n";
+
+    return ( $year, $title, $topic, $author );
+}
+
+sub slugify_title {
+    my ($title) = @_;
+    ( my $slug = lc($title) ) =~ s/\W+/-/g;
+    $slug =~ s/\A-+|-+\z//g;
+    return $slug;
+}
 
 sub cook_template {
     my( $title, $topic, $author ) = @_;
-    my $template = do { local $/; <DATA> };
+    my $template = do { local $/; <main::DATA> };
 
     $template =~ s/%%TITLE%%/$title/g;
     $template =~ s/%%TOPIC%%/$topic/g;
@@ -49,10 +88,12 @@ sub cook_template {
     }
 
 sub get_metadata {
-    my $title  = prompt( 'Article title' ) // 'Some title';
-    my $topic  = prompt( 'Article topic (Module::Covered::In::Article)' ) // 'Some topic';
-    my $author = prompt( 'Author (Your Name <your_email@example.com>)' ) // '';
-    ( $title, $topic, $author );
+    my ( $title, $topic, $author ) = @_;
+
+    $title  //= prompt( 'Article title' ) // 'Some title';
+    $topic  //= prompt( 'Article topic (Module::Covered::In::Article)' ) // 'Some topic';
+    $author //= prompt( 'Author (Your Name <your_email@example.com>)' ) // '';
+    return ( $title, $topic, $author );
     }
 
 sub prompt {
@@ -70,6 +111,10 @@ sub save_file {
     print {$fh} $text;
     close $fh;
     }
+
+run() unless caller;
+
+1;
 
 __END__
 Author: %%AUTHOR%%
