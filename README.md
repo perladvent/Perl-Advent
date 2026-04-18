@@ -14,9 +14,8 @@ for a few things and will create a new file for you under *YEAR*/incoming/.
 perl script/new_article
 ```
 
-`new_article` writes to the current calendar year when that year exists in the
-repo, otherwise it falls back to the latest configured year. You can always
-override with `--year`:
+`new_article` writes to the current calendar year by default. You can override
+that with `--year`:
 
 ```bash
 perl script/new_article --year 2025

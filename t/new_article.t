@@ -3,22 +3,11 @@ use strict;
 use warnings;
 
 use Cwd qw(getcwd);
-use File::Spec::Functions qw(catfile catdir);
+use File::Spec::Functions qw(catfile);
 use File::Temp qw(tempdir);
 use Test::More;
 
-use lib 'lib';
-use Perl::Advent::NewArticle qw(default_year slugify_title);
-
-sub write_advent_ini {
-    my ( $root, $year ) = @_;
-    my $year_dir = catdir( $root, $year );
-    mkdir $year_dir or die "Could not create <$year_dir>: $!" unless -d $year_dir;
-    my $advent_ini = catfile( $year_dir, 'advent.ini' );
-    open my $fh, '>:encoding(UTF-8)', $advent_ini or die "Could not open <$advent_ini>: $!";
-    print {$fh} "year = $year\n";
-    close $fh;
-}
+require './script/new_article';
 
 sub slurp_file {
     my ($path) = @_;
@@ -29,22 +18,23 @@ sub slurp_file {
     return $content;
 }
 
+is(
+    Perl::Advent::new_article::slugify_title('OpenAPI::Linter'),
+    'openapi-linter',
+    'slugify handles module names',
+);
+
+is(
+    Perl::Advent::new_article::slugify_title('  Hello, Perl Advent!  '),
+    'hello-perl-advent',
+    'slugify trims punctuation and edges',
+);
+
 my $tmp = tempdir( CLEANUP => 1 );
-write_advent_ini( $tmp, 2024 );
-write_advent_ini( $tmp, 2025 );
-
-is( default_year( $tmp, 2025 ), 2025, 'default year prefers current calendar year when available' );
-is( default_year( $tmp, 2026 ), 2025, 'default year falls back to latest configured year' );
-
-my $empty_tmp = tempdir( CLEANUP => 1 );
-is( default_year( $empty_tmp, 2026 ), 2026, 'default year falls back to current year when no calendars exist' );
-
-is( slugify_title('OpenAPI::Linter'), 'openapi-linter', 'slugify handles module names' );
-is( slugify_title('  Hello, Perl Advent!  '), 'hello-perl-advent', 'slugify trims punctuation and edges' );
-
 my $repo_root = getcwd();
 my $script    = catfile( $repo_root, 'script', 'new_article' );
 my $orig_cwd  = getcwd();
+my $current_year = (localtime)[5] + 1900;
 
 {
     chdir $tmp or die "Could not chdir to <$tmp>: $!";
@@ -54,10 +44,10 @@ my $orig_cwd  = getcwd();
         '--topic',  'OpenAPI::Linter',
         '--author', 'Test Author <test@example.com>',
     );
-    is( system(@cmd), 0, 'new_article creates file in default detected year' );
+    is( system(@cmd), 0, 'new_article creates file in current year by default' );
 
-    my $path = catfile( $tmp, '2025', 'incoming', 'openapi-linter.pod' );
-    ok( -f $path, 'article created in 2025/incoming using detected default year' );
+    my $path = catfile( $tmp, $current_year, 'incoming', 'openapi-linter.pod' );
+    ok( -f $path, 'article created in current year incoming directory' );
 
     my $content = slurp_file($path);
     like( $content, qr/^Author: Test Author <test\@example\.com>$/m, 'author header written' );

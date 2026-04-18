@@ -1,16 +1,14 @@
 #!/usr/bin/env perl
 
+package Perl::Advent::new_article;
+
 use v5.10;
 use strict;
 use warnings;
 
-use FindBin;
 use File::Spec::Functions;
 use File::Path qw(make_path);
 use Getopt::Long qw(GetOptions);
-
-use lib catfile( $FindBin::Bin, '..', 'lib' );
-use Perl::Advent::NewArticle qw(default_year slugify_title);
 
 =head1 NAME
 
@@ -39,20 +37,24 @@ script/new_article - start a new Advent calendar article
 
 =cut
 
-my ( $year, $title, $topic, $author ) = parse_options();
-$year = $year // default_year( '.', (localtime)[5] + 1900 );
-die "Year must be a 4-digit value\n" unless $year =~ /\A\d{4}\z/;
+sub run {
+    my ( $year, $title, $topic, $author ) = parse_options();
+    $year = $year // (localtime)[5] + 1900;
+    die "Year must be a 4-digit value\n" unless $year =~ /\A\d{4}\z/;
 
-( $title, $topic, $author ) = get_metadata( $title, $topic, $author );
-my $starter_text = cook_template( $title, $topic, $author );
+    ( $title, $topic, $author ) = get_metadata( $title, $topic, $author );
+    my $starter_text = cook_template( $title, $topic, $author );
 
-my( $dir ) = catfile( $year, 'incoming' );
-make_path $dir;
+    my $dir = catfile( $year, 'incoming' );
+    make_path $dir;
 
-my $slug = slugify_title($title);
-my $path = catfile( $dir, "$slug.pod" );
-save_file( $starter_text, $path );
-say "Saved the starter article in $path";
+    my $slug = slugify_title($title);
+    my $path = catfile( $dir, "$slug.pod" );
+    save_file( $starter_text, $path );
+    say "Saved the starter article in $path";
+
+    return $path;
+}
 
 sub parse_options {
     my ( $year, $title, $topic, $author );
@@ -67,9 +69,16 @@ sub parse_options {
     return ( $year, $title, $topic, $author );
 }
 
+sub slugify_title {
+    my ($title) = @_;
+    ( my $slug = lc($title) ) =~ s/\W+/-/g;
+    $slug =~ s/\A-+|-+\z//g;
+    return $slug;
+}
+
 sub cook_template {
     my( $title, $topic, $author ) = @_;
-    my $template = do { local $/; <DATA> };
+    my $template = do { local $/; <main::DATA> };
 
     $template =~ s/%%TITLE%%/$title/g;
     $template =~ s/%%TOPIC%%/$topic/g;
@@ -102,6 +111,10 @@ sub save_file {
     print {$fh} $text;
     close $fh;
     }
+
+run() unless caller;
+
+1;
 
 __END__
 Author: %%AUTHOR%%
