@@ -7,42 +7,56 @@ use File::Spec::Functions qw(catfile);
 use File::Temp qw(tempdir);
 use Test::More;
 
-require './script/new_article';
+my $repo_root = getcwd();
+my $script    = catfile( $repo_root, 'script', 'new_article' );
+
+subtest 'sanity' => sub {
+    ok( -e $script, "<$script> exists" );
+    require_ok $script or BAIL_OUT("Could not load <$script>");
+};
 
 sub slurp_file {
     my ($path) = @_;
-    open my $fh, '<:encoding(UTF-8)', $path or die "Could not open <$path>: $!";
+    open my $fh, '<:encoding(UTF-8)', $path
+        or BAIL_OUT("Could not open <$path>: $!");
     local $/;
     my $content = <$fh>;
     close $fh;
     return $content;
 }
 
-is(
-    Perl::Advent::new_article::slugify_title('OpenAPI::Linter'),
-    'openapi-linter',
-    'slugify handles module names',
-);
+subtest 'slugify_title' => sub {
+    my @cases = (
+        [ 'OpenAPI::Linter',       'openapi-linter',   'handles module names' ],
+        [ '  Hello, Perl Advent!  ', 'hello-perl-advent', 'trims punctuation and edges' ],
+    );
 
-is(
-    Perl::Advent::new_article::slugify_title('  Hello, Perl Advent!  '),
-    'hello-perl-advent',
-    'slugify trims punctuation and edges',
-);
+    foreach my $case (@cases) {
+        my ( $input, $expected, $label ) = @{$case};
+        is(
+            Perl::Advent::new_article::slugify_title($input),
+            $expected,
+            $label,
+        );
+    }
+};
 
-my $tmp = tempdir( CLEANUP => 1 );
-my $repo_root = getcwd();
-my $script    = catfile( $repo_root, 'script', 'new_article' );
-my $orig_cwd  = getcwd();
+my $tmp          = tempdir( CLEANUP => 1 );
 my $current_year = (localtime)[5] + 1900;
 
-{
-    chdir $tmp or die "Could not chdir to <$tmp>: $!";
+subtest 'script execution' => sub {
+    my $title  = 'OpenAPI::Linter';
+    my $topic  = 'OpenAPI::Linter';
+    my $author = 'Test Author <test@example.com>';
+    my $orig_cwd = getcwd();
+
+    chdir $tmp or BAIL_OUT("Could not chdir to <$tmp>: $!");
+
     my @cmd = (
         $^X, $script,
-        '--title',  'OpenAPI::Linter',
-        '--topic',  'OpenAPI::Linter',
-        '--author', 'Test Author <test@example.com>',
+        '--title',  $title,
+        '--topic',  $topic,
+        '--author', $author,
     );
     is( system(@cmd), 0, 'new_article creates file in current year by default' );
 
@@ -50,24 +64,23 @@ my $current_year = (localtime)[5] + 1900;
     ok( -f $path, 'article created in current year incoming directory' );
 
     my $content = slurp_file($path);
-    like( $content, qr/^Author: Test Author <test\@example\.com>$/m, 'author header written' );
-    like( $content, qr/^Title: OpenAPI::Linter$/m, 'title header written' );
-    like( $content, qr/^Topic: OpenAPI::Linter$/m, 'topic header written' );
-}
+    like( $content, qr/^Author: \Q$author\E$/m, 'author header written' );
+    like( $content, qr/^Title: \Q$title\E$/m, 'title header written' );
+    like( $content, qr/^Topic: \Q$topic\E$/m, 'topic header written' );
 
-{
-    chdir $tmp or die "Could not chdir to <$tmp>: $!";
-    my @cmd = (
+    my $override_year  = 2024;
+    my $override_title = 'Year Override';
+    @cmd = (
         $^X, $script,
-        '--year',   '2024',
-        '--title',  'Year Override',
+        '--year',   $override_year,
+        '--title',  $override_title,
         '--topic',  'Some::Topic',
-        '--author', 'Test Author <test@example.com>',
+        '--author', $author,
     );
     is( system(@cmd), 0, 'new_article supports explicit year override' );
-    ok( -f catfile( $tmp, '2024', 'incoming', 'year-override.pod' ), 'article created in override year' );
-}
+    ok( -f catfile( $tmp, $override_year, 'incoming', 'year-override.pod' ), 'article created in override year' );
 
-chdir $orig_cwd or die "Could not restore cwd <$orig_cwd>: $!";
+    chdir $orig_cwd or BAIL_OUT("Could not restore cwd <$orig_cwd>: $!");
+};
 
 done_testing();

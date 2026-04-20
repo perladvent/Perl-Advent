@@ -38,14 +38,14 @@ script/new_article - start a new Advent calendar article
 =cut
 
 sub run {
-    my ( $year, $title, $topic, $author ) = parse_options();
-    $year = $year // (localtime)[5] + 1900;
-    die "Year must be a 4-digit value\n" unless $year =~ /\A\d{4}\z/;
+    my $opts = parse_options();
 
-    ( $title, $topic, $author ) = get_metadata( $title, $topic, $author );
+    my ( $title, $topic, $author ) = get_metadata(
+        @{$opts}{qw( title topic author )}
+    );
     my $starter_text = cook_template( $title, $topic, $author );
 
-    my $dir = catfile( $year, 'incoming' );
+    my $dir = catfile( $opts->{year}, 'incoming' );
     make_path $dir;
 
     my $slug = slugify_title($title);
@@ -57,16 +57,24 @@ sub run {
 }
 
 sub parse_options {
-    my ( $year, $title, $topic, $author );
+    my $current_year = (localtime)[5] + 1900;
+    my %opts = (
+        year => $current_year,
+    );
 
     GetOptions(
-        'year=i'   => \$year,
-        'title=s'  => \$title,
-        'topic=s'  => \$topic,
-        'author=s' => \$author,
+        'year=i'   => \$opts{year},
+        'title=s'  => \$opts{title},
+        'topic=s'  => \$opts{topic},
+        'author=s' => \$opts{author},
     ) or die "Usage: $0 [--year YYYY] [--title TITLE] [--topic TOPIC] [--author AUTHOR]\n";
 
-    return ( $year, $title, $topic, $author );
+    die "Year must be between 1990 and " . ( $current_year + 1 ) . "\n"
+        unless $opts{year} =~ /\A[0-9]{4}\z/
+            && $opts{year} >= 1990
+            && $opts{year} <= $current_year + 1;
+
+    return \%opts;
 }
 
 sub slugify_title {
