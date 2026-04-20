@@ -17,8 +17,10 @@ subtest 'sanity' => sub {
 
 sub slurp_file {
     my ($path) = @_;
-    open my $fh, '<:encoding(UTF-8)', $path
-        or BAIL_OUT("Could not open <$path>: $!");
+    open my $fh, '<:encoding(UTF-8)', $path or do {
+        fail("Could not open <$path>: $!");
+        return;
+    };
     local $/;
     my $content = <$fh>;
     close $fh;
