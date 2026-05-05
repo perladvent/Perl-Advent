@@ -17,10 +17,7 @@ subtest 'sanity' => sub {
 
 sub slurp_file {
     my ($path) = @_;
-    open my $fh, '<:encoding(UTF-8)', $path or do {
-        fail("Could not open <$path>: $!");
-        return;
-    };
+    open my $fh, '<:encoding(UTF-8)', $path or return;
     local $/;
     my $content = <$fh>;
     close $fh;
@@ -66,6 +63,7 @@ subtest 'script execution' => sub {
     ok( -f $path, 'article created in current year incoming directory' );
 
     my $content = slurp_file($path);
+    ok( defined $content, "slurped <$path>" ) or return;
     like( $content, qr/^Author: \Q$author\E$/m, 'author header written' );
     like( $content, qr/^Title: \Q$title\E$/m, 'title header written' );
     like( $content, qr/^Topic: \Q$topic\E$/m, 'topic header written' );
