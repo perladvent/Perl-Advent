@@ -14,6 +14,13 @@ for a few things and will create a new file for you under *YEAR*/incoming/.
 perl script/new_article
 ```
 
+`new_article` writes to the current calendar year by default. You can override
+that with `--year`:
+
+```bash
+perl script/new_article --year 2025
+```
+
 Edit your article, and test it as you work:
 
 ```bash
