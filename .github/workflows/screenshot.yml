@@ -36,18 +36,26 @@ jobs:
         id: detect
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          YEAR=$(date +%Y)
-          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
 
-          # Get list of changed POD files in YEAR/incoming or YEAR/articles
+          # Get list of changed POD files in YYYY/incoming or YYYY/articles
           # For pull_request_target, we compare against the base ref
-          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} | grep -E "${YEAR}/(incoming|articles)/.*\.pod$" || true)
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} | grep -E '^[0-9]{4}/(incoming|articles)/.*\.pod$' || true)
 
           if [ -z "$CHANGED_FILES" ]; then
             echo "No article files changed"
             echo "has_articles=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          YEARS=$(echo "$CHANGED_FILES" | cut -d/ -f1 | sort -u)
+          YEAR_COUNT=$(echo "$YEARS" | wc -l | tr -d ' ')
+          if [ "$YEAR_COUNT" -ne 1 ]; then
+            echo "Expected changed article files from exactly one year, got:"
+            echo "$YEARS"
+            exit 1
+          fi
+          YEAR=$(echo "$YEARS" | head -n1)
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
 
           echo "Changed article files:"
           echo "$CHANGED_FILES"
@@ -70,7 +78,7 @@ jobs:
         run: |
           # For incoming articles, first copy them to articles/ with sequential dates
           if echo "${{ steps.detect.outputs.changed_files }}" | grep -q "incoming"; then
-            docker compose run --rm perl-advent bash -c "perl script/render-incoming.pl && bash script/build-site.sh --single-year $YEAR --today ${YEAR}-12-25"
+            docker compose run --rm perl-advent perl script/render-incoming.pl --year "$YEAR"
           else
             docker compose run --rm perl-advent bash script/build-site.sh --single-year "$YEAR" --today "${YEAR}-12-25"
           fi

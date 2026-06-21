@@ -3,11 +3,15 @@
 use v5.26;
 
 use DateTime   ();
+use Getopt::Long qw( GetOptions );
 use Path::Tiny qw( path );
 use JSON::PP   qw( encode_json );
 
+my $opt_year;
+GetOptions( 'year=i' => \$opt_year );
+
 my $now  = DateTime->now;
-my $year = $now->year;
+my $year = $opt_year // $now->year;
 
 path("$year/articles")->mkpath;
 path("$year/share/static")->mkpath;
@@ -43,10 +47,16 @@ for my $file ( path( $year, 'incoming' )->children(qr/.*/) ) {
     $file->copy($dest);
 }
 
-my $cmd = "./script/build-site.sh --single-year $year --today $year-12-25";
-say "🚀 running $cmd";
-my $result = `$cmd`;
-say $result;
+my $skip_build = $ENV{PERL_ADVENT_RENDER_INCOMING_SKIP_BUILD};
+if ($skip_build) {
+    say "⏭️  skipping build because PERL_ADVENT_RENDER_INCOMING_SKIP_BUILD is set";
+}
+else {
+    my $cmd = "./script/build-site.sh --single-year $year --today $year-12-25";
+    say "🚀 running $cmd";
+    my $result = `$cmd`;
+    say $result;
+}
 
 # Write the mapping file for screenshot workflow
 if (@mappings) {
