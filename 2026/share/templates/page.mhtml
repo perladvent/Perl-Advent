@@ -15,12 +15,15 @@
     # Open Graph / Twitter card. The share image is the first <img> in the
     # article body, falling back to the site-wide default card. $article is
     # undef on the index, where we use the default card + calendar title.
+    # The scraped src is HTML-escaped (e.g. ?a=1&amp;b=2); decode it so the |h
+    # on output escapes it exactly once rather than emitting &amp;amp;.
+    use HTML::Entities ();
     my $base = $calendar->uri // ('https://perladvent.org/' . $calendar->year . '/');
     my $og_img = 'og-default.png';
     if ($article) {
         my $body = eval { $article->body_html } // '';
         if ($body =~ /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i) {
-            $og_img = $1;
+            $og_img = HTML::Entities::decode_entities($1);
         }
     }
     my $abs_img  = $og_img =~ m{\Ahttps?://} ? $og_img : $base . $og_img;

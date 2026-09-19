@@ -18,10 +18,15 @@ $next => undef
     # Promote the article's first <img> to a full-width feature banner (the same
     # image used for og:image) and remove it from the body so the lead art isn't
     # shown twice. Articles without an image simply get no banner.
+    #
+    # The src is scraped from already-rendered HTML, so it is HTML-escaped
+    # (e.g. ?a=1&amp;b=2). Decode it back to a plain URL here so the |h on
+    # output escapes it exactly once instead of producing &amp;amp;.
+    use HTML::Entities ();
     my $feature;
     my $body = eval { $article->body_html } // '';
     if ($body =~ /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/i) {
-        $feature = $1;
+        $feature = HTML::Entities::decode_entities($1);
         $body =~ s/<img\b[^>]*>//;   # drop only the first <img> tag
     }
 </%perl>
