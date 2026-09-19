@@ -1,0 +1,437 @@
+/* ============================================================================
+   Perl Advent Calendar — 2026 theme
+   Drop-in stylesheet for WWW::AdventCalendar (share/templates/style.css).
+   Targets the generator's real markup: #contentwrapper / #header / #tagline /
+   #yearline / #content, table.calendar (td.day.advent/.today/.future/.missing),
+   .pod, .code-listing (+ PPI & Vim syn* classes), #pager, #author.
+
+   Self-hosted fonts: drop the three .woff2 files into ./fonts/ (see FONTS note
+   at the bottom). Auto dark mode via prefers-color-scheme; manual override via
+   <html data-theme="light|dark"> (see optional advent.js).
+   ============================================================================ */
+
+/* ---- Fonts (self-hosted) -------------------------------------------------- */
+@font-face{font-family:"Source Sans 3";font-style:normal;font-weight:300 900;font-display:swap;src:url("fonts/SourceSans3.woff2") format("woff2")}
+@font-face{font-family:"Source Sans 3";font-style:italic;font-weight:300 900;font-display:swap;src:url("fonts/SourceSans3-Italic.woff2") format("woff2")}
+@font-face{font-family:"Source Code Pro";font-style:normal;font-weight:400 600;font-display:swap;src:url("fonts/SourceCodePro.woff2") format("woff2")}
+@font-face{font-family:"Bebas Neue";font-style:normal;font-weight:400;font-display:swap;src:url("fonts/BebasNeue-Regular.woff2") format("woff2")}
+
+/* ---- Palette -------------------------------------------------------------- */
+:root{
+  --sans:"Source Sans 3",system-ui,-apple-system,Segoe UI,sans-serif;
+  --mono:"Source Code Pro",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --display:"Bebas Neue",var(--sans);
+
+  --red:#c0362c; --green:#1a6b3c; --gold:#f2b441; --amber:#e0962a;
+
+  --paper:#fbf7ef;          /* page background            */
+  --surface:#ffffff;        /* cards / cells / content    */
+  --ink:#2b3546;            /* body text                  */
+  --heading:#16304d;        /* headings, navy             */
+  --muted:#5b6a7d;          /* meta text                  */
+  --link:#1a5fb4;
+  --link-hover:#16304d;
+  --border:#e8dfce;
+
+  --night-1:#0b1826;        /* header night sky top       */
+  --night-2:#132a44;        /* header night sky bottom    */
+  --night-ink:#ffffff;
+  --night-sub:#9fc0dd;
+
+  --code-bg:#0f2236;
+  --code-ink:#e8eef6;
+  --code-gutter-bg:#0a1a2b;
+  --code-gutter-ink:#5f7b99;
+  --code-gutter-border:#20364d;
+
+  --chip-bg:#eaf3ec;
+  --chip-ink:#1a6b3c;
+  --callout-bg:#fff8ea;
+
+  /* day-cell states */
+  --day-locked-bg:#f2ece0;  /* future: gift not yet openable */
+  --day-locked-ink:#b6ab92;
+  --day-plain-bg:#f4efe4;   /* in-month, non-advent          */
+  --day-plain-ink:#c4bba7;
+  --day-coal-bg:#1a1410;    /* missing advent day (coal)     */
+  --day-coal-ink:#c0362c;
+
+  --candy:repeating-linear-gradient(90deg,var(--green) 0 22px,var(--red) 22px 44px,var(--gold) 44px 66px);
+  --shadow:0 8px 22px -12px rgba(11,24,38,.45);
+  --ease:cubic-bezier(.2,0,.2,1);
+}
+
+/* Auto dark (unless user forced light) */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0b1826; --surface:#122a44; --ink:#d7e3f0; --heading:#f2b441;
+    --muted:#8aa9c8; --link:#7fb2e6; --link-hover:#ffd98a; --border:#24405f;
+    --code-bg:#081320; --code-gutter-bg:#050d16; --code-gutter-border:#17293c;
+    --chip-bg:rgba(242,180,65,.14); --chip-ink:#f2b441; --callout-bg:#13233a;
+    --day-locked-bg:#16304d; --day-locked-ink:#5f7b99;
+    --day-plain-bg:#122a44; --day-plain-ink:#3f5f82;
+  }
+}
+/* Manual dark override */
+:root[data-theme="dark"]{
+  --paper:#0b1826; --surface:#122a44; --ink:#d7e3f0; --heading:#f2b441;
+  --muted:#8aa9c8; --link:#7fb2e6; --link-hover:#ffd98a; --border:#24405f;
+  --code-bg:#081320; --code-gutter-bg:#050d16; --code-gutter-border:#17293c;
+  --chip-bg:rgba(242,180,65,.14); --chip-ink:#f2b441; --callout-bg:#13233a;
+  --day-locked-bg:#16304d; --day-locked-ink:#5f7b99;
+  --day-plain-bg:#122a44; --day-plain-ink:#3f5f82;
+}
+
+/* ---- Page shell ----------------------------------------------------------- */
+*{box-sizing:border-box}
+body{
+  margin:0; color:var(--ink); background:var(--paper);
+  font-family:var(--sans); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+#contentwrapper{
+  width:100%; max-width:980px; min-width:0;
+  margin:0 auto; padding:0 18px 64px;
+  background:transparent; border:0;
+}
+
+/* Header — night sky banner (full-bleed, spans the whole page) */
+#header{
+  position:relative; width:100vw; margin-left:calc(50% - 50vw);
+  padding:34px max(26px,calc(50vw - 490px)) 26px;
+  background:
+    radial-gradient(1.5px 1.5px at 12% 34%,rgba(255,255,255,.85),transparent),
+    radial-gradient(1.5px 1.5px at 30% 66%,rgba(255,255,255,.55),transparent),
+    radial-gradient(2px 2px at 70% 24%,rgba(255,255,255,.8),transparent),
+    radial-gradient(1.5px 1.5px at 86% 58%,rgba(255,255,255,.5),transparent),
+    radial-gradient(1.5px 1.5px at 50% 16%,rgba(255,255,255,.7),transparent),
+    linear-gradient(180deg,var(--night-1),var(--night-2));
+}
+#header::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--candy)}
+#header h1{margin:0;text-align:center;font-weight:900;font-size:2.1em;letter-spacing:-.01em}
+#header h1 a{color:var(--night-ink);text-decoration:none}
+#header h1 a:hover{color:var(--gold);background:none}
+
+/* Tagline strip (year + tagline + feed) */
+#tagline{
+  width:100vw; margin:0 0 22px calc(50% - 50vw);
+  padding:11px max(22px,calc(50vw - 490px)); font-size:.9em; border:0; border-radius:0;
+  background:var(--night-1); color:var(--night-sub);
+  font-family:var(--mono); letter-spacing:.06em;
+}
+#tagline .feed{float:right;color:var(--gold);font-weight:700;font-family:var(--sans)}
+#tagline .feed:hover{color:#fff;background:none}
+
+/* Content card */
+#content{
+  margin:0; padding:8px 0 0; border:0; border-radius:0; background:transparent; font-size:1em;
+}
+
+/* Year nav */
+#yearline{
+  margin:26px 0 0; padding:14px 18px; font-size:.9em; text-align:center;
+  background:transparent; border:0; border-top:1px solid var(--border);
+  color:var(--muted); font-family:var(--mono); letter-spacing:.04em;
+}
+#yearline a{color:var(--link);text-decoration:none;font-weight:700}
+
+/* ---- Links ---------------------------------------------------------------- */
+a{color:var(--link);text-decoration:none}
+a:hover{color:var(--link-hover)}
+
+/* ============================================================================
+   INDEX — the calendar, styled as advent doors
+   ============================================================================ */
+table.calendar{
+  width:100%; margin:6px auto 8px; border-collapse:separate; border-spacing:10px;
+  table-layout:fixed;
+}
+.calendar th{
+  padding:6px 0 10px; border:0; background:transparent;
+  font:600 12px/1 var(--mono); letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); text-align:center;
+}
+.calendar td{
+  width:auto; height:88px; padding:0; text-align:center; vertical-align:middle;
+}
+
+/* base day cell (numbers with no link: plain in-month days) */
+.calendar td.day{
+  border-radius:14px; background:var(--day-plain-bg); color:var(--day-plain-ink);
+  font-family:var(--display); font-size:2.4em; line-height:88px;
+}
+/* empty (non-month) cells collapse */
+.calendar td:not(.day){background:transparent}
+
+/* Advent door — a published day with an article.
+   Ribbons are part of the door background; the number rides a cream
+   "ribbon-ball" sticker (::before at z-index -1: above the wrap, below the number). */
+.calendar td.day.advent{position:relative;background:transparent;font-size:1em;line-height:normal}
+.calendar td.day.advent a.article{
+  position:relative; isolation:isolate; overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  width:100%; height:100%; margin:0; padding:0; border-radius:14px;
+  color:#16304d; font-family:var(--display); font-size:2.4em; line-height:1; text-shadow:none;
+  background:
+    linear-gradient(var(--gold),var(--gold)) 50% 0/9px 100% no-repeat,
+    linear-gradient(var(--gold),var(--gold)) 0 50%/100% 9px no-repeat,
+    linear-gradient(150deg,var(--red),#7a1f14);
+  box-shadow:0 6px 14px -6px rgba(11,24,38,.5),inset 0 1px 0 rgba(255,255,255,.18);
+  transition:transform .16s var(--ease),box-shadow .16s var(--ease);
+}
+.calendar td.day.advent a.article::before{
+  content:""; position:absolute; z-index:-1; top:50%; left:50%; transform:translate(-50%,-50%);
+  width:54px; height:54px; border-radius:50%; background:#fffdf7;
+  box-shadow:0 2px 6px rgba(11,24,38,.4),0 0 0 3px var(--gold);
+}
+.calendar td.day.advent a.article:hover{
+  transform:translateY(-2px);
+  box-shadow:0 12px 22px -8px rgba(11,24,38,.55),inset 0 1px 0 rgba(255,255,255,.25);
+  color:#16304d;
+}
+/* Gift-wrap colour rotates by DATE (mod 4) → a diagonal pattern that shifts each
+   week, never grouping by weekday. Default (dates 1,5,9,13,…) is red. */
+.calendar td.day.advent:is(#dec-02,#dec-06,#dec-10,#dec-14,#dec-18,#dec-22,#dec-26,#dec-30) a.article{
+  background:
+    linear-gradient(var(--gold),var(--gold)) 50% 0/9px 100% no-repeat,
+    linear-gradient(var(--gold),var(--gold)) 0 50%/100% 9px no-repeat,
+    linear-gradient(150deg,#155e37,#0e3f25);
+}
+.calendar td.day.advent:is(#dec-03,#dec-07,#dec-11,#dec-15,#dec-19,#dec-23,#dec-27,#dec-31) a.article{
+  background:
+    linear-gradient(var(--red),var(--red)) 50% 0/9px 100% no-repeat,
+    linear-gradient(var(--red),var(--red)) 0 50%/100% 9px no-repeat,
+    linear-gradient(150deg,#1e3a5f,#122a44);
+}
+.calendar td.day.advent:is(#dec-04,#dec-08,#dec-12,#dec-16,#dec-20,#dec-24,#dec-28) a.article{
+  background:
+    linear-gradient(#fffdf7,#fffdf7) 50% 0/9px 100% no-repeat,
+    linear-gradient(#fffdf7,#fffdf7) 0 50%/100% 9px no-repeat,
+    linear-gradient(150deg,#c98a1e,#8f5f12);
+}
+
+/* Today — glowing gold door, same sticker */
+.calendar td.day.advent.today a.article{
+  background:
+    linear-gradient(#fffdf7,#fffdf7) 50% 0/9px 100% no-repeat,
+    linear-gradient(#fffdf7,#fffdf7) 0 50%/100% 9px no-repeat,
+    radial-gradient(circle at 50% 38%,#fbe3a6,#e0962a);
+  color:#16304d; box-shadow:0 0 0 3px var(--gold),0 10px 24px -8px rgba(224,150,42,.7);
+}
+.calendar td.day.advent.today a.article:hover{color:#16304d}
+
+/* Future — locked, not yet openable (server-side: no link) */
+.calendar td.day.advent.future{
+  background:var(--day-locked-bg); color:var(--day-locked-ink);
+  border-radius:14px; box-shadow:inset 0 0 0 2px color-mix(in oklab,var(--day-locked-ink) 30%,transparent);
+  position:relative; font-family:var(--display); font-size:2.4em; line-height:88px;
+}
+.calendar td.day.advent.future::after{
+  content:"\1F512"; position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+  font-size:.34em; line-height:1; opacity:.55;
+}
+
+/* Missing — the door was opened, but no article that day (empty, not a void) */
+.calendar td.day.advent.missing,
+.calendar td.day.missing#dec-26{
+  background:var(--day-plain-bg); color:var(--muted); border-radius:14px;
+  box-shadow:inset 0 2px 9px rgba(11,24,38,.22);
+  outline:2px dashed color-mix(in oklab,var(--muted) 50%,transparent); outline-offset:-6px;
+  font-family:var(--display); font-size:2.4em; line-height:88px;
+}
+
+/* Dec 25 — Christmas gold */
+.calendar td.day#dec-25{
+  background:radial-gradient(circle at 50% 40%,#ffe9a8,var(--gold));
+  color:#5a3a06; font-weight:bold; box-shadow:0 0 0 2px #e0962a inset;
+}
+
+/* ============================================================================
+   ARTICLE — long-form reading
+   ============================================================================ */
+h1.title{
+  margin:6px 0 4px; text-align:left; font-weight:900; font-size:2em;
+  line-height:1.12; letter-spacing:-.02em; color:var(--heading);
+}
+.subtitle{
+  text-align:left; border:0; margin:0 0 22px; padding:0;
+  font-family:var(--mono); font-size:.85em; letter-spacing:.04em;
+  color:var(--green); font-weight:600;
+}
+:root[data-theme="dark"] .subtitle,
+.pod{color:var(--ink)}
+
+.pod{max-width:66ch;font-size:1.06em;line-height:1.72}
+.pod h1,.pod h2,.pod h3{text-align:left;color:var(--heading);line-height:1.25;letter-spacing:-.01em}
+.pod h1{font-size:1.5em;margin:1.6em 0 .5em}
+.pod h2{font-size:1.28em;margin:1.5em 0 .5em}
+.pod h3{font-size:1.1em;margin:1.3em 0 .4em}
+.pod p{margin:0 0 1.1em}
+.pod ul li{margin:.3em 0}
+.pod ul li p{display:inline}
+/* Inline C<...> code chips only — never the syntax-highlighted listings, which
+   carry class="code-listing" and are styled as full blocks below. */
+.pod code:not(.code-listing){
+  font-family:var(--mono); font-size:.88em; padding:2px 6px; border-radius:5px;
+  background:var(--chip-bg); color:var(--chip-ink);
+}
+.pod a{text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1.5px}
+.pod a:hover{background:none}
+
+blockquote{
+  border-left:4px solid var(--green); margin:1.2em 0 1.2em 0; padding:.2em 0 .2em 1.1em;
+  color:var(--muted); background:var(--callout-bg); border-radius:0 8px 8px 0;
+}
+
+/* Section rules / author credit */
+h2#See-Also{padding-top:.6em;border-top:1px solid var(--border);margin-top:1.6em}
+#author{
+  border-top:1px solid var(--border); padding-top:1em; margin-top:1.4em;
+  text-align:center; color:var(--muted); font-size:.95em;
+}
+
+/* Prev / next pager */
+#pager{
+  border-top:1px solid var(--border); list-style:none; margin:1.6em 0 0; padding:1.2em 0 0;
+  position:relative; width:100%; min-height:64px;
+}
+#pager li{color:var(--muted)}
+#pager .previous{position:absolute;left:0;width:46%;text-align:left}
+#pager .next{position:absolute;right:0;width:46%;text-align:right}
+#pager a{
+  display:inline-block; padding:10px 16px; border:1px solid var(--border); border-radius:12px;
+  background:var(--surface); color:var(--heading); font-weight:700; box-shadow:var(--shadow);
+}
+#pager a:hover{border-color:var(--green);color:var(--green);background:var(--surface)}
+#pager .previous a::before{content:"\2190  "}
+#pager .next a::after{content:"  \2192"}
+
+/* ---- Images in posts ------------------------------------------------------ */
+.pod img{
+  max-width:100%; height:auto; display:block; margin:1.5em auto;
+  border-radius:12px; box-shadow:var(--shadow);
+}
+.pod figure{margin:1.6em 0}
+.pod figure img{margin:0 auto}
+.pod figcaption{
+  margin-top:.6em; text-align:center; color:var(--muted);
+  font-family:var(--mono); font-size:.8em; letter-spacing:.02em;
+}
+/* Feature image at the top of an article (see og:image note below) */
+.feature-image{
+  width:100vw; margin:0 0 4px calc(50% - 50vw); max-height:420px; overflow:hidden;
+}
+.feature-image img{width:100%; height:100%; object-fit:cover; display:block; border-radius:0}
+
+/* ---- Code listings -------------------------------------------------------- */
+pre,.code-listing{
+  line-height:1.6; background:var(--code-bg); color:var(--code-ink);
+  font-family:var(--mono); font-size:.9em; border-radius:12px;
+  box-shadow:var(--shadow);
+}
+pre{padding:18px 20px;overflow-x:auto;width:100%}
+/* A <code class="code-listing"> nested in <pre> must not draw its own surface —
+   the <pre> supplies the panel. (A standalone table.code-listing still does.) */
+pre code{background:transparent;box-shadow:none;border-radius:0;padding:0}
+.code-listing{white-space:pre;border-collapse:separate;border-spacing:0;width:100%;overflow:hidden}
+.code-listing td{padding:0;margin:0}
+.code-listing .line-numbers{
+  background:var(--code-gutter-bg); color:var(--code-gutter-ink);
+  border-right:1px solid var(--code-gutter-border); width:3.2em; text-align:right;
+  padding:14px 10px 14px 0; user-select:none;
+}
+.code-listing .code{padding:14px 18px}
+
+/* Syntax — PPI (PPIHTML) */
+.code-listing .keyword  {color:#7fd39b}
+.code-listing .symbol   {color:#9ec5ff}
+.code-listing .operator {color:#c9b8ff}
+.code-listing .structure{color:#7fd39b}
+.code-listing .word     {color:#e8eef6}
+.code-listing .comment  {color:#7d92ab;font-style:italic}
+.code-listing .pod      {color:#7d92ab;font-style:italic}
+.code-listing .match    {color:#f2b441}
+.code-listing .readline {color:#f2a29c}
+.code-listing .single,
+.code-listing .double   {color:#f2a29c}
+.code-listing .number   {color:#f2b441}
+
+/* Syntax — Vim (VimHTML) */
+.code-listing .synComment   {color:#7d92ab;font-style:italic}
+.code-listing .synConstant  {color:#f2a29c}
+.code-listing .synIdentifier{color:#9ec5ff}
+.code-listing .synStatement {color:#7fd39b}
+.code-listing .synPreProc   {color:#c9b8ff}
+.code-listing .synType      {color:#7fd39b}
+.code-listing .synSpecial   {color:#c9b8ff}
+.code-listing .synUnderlined{color:#7fd39b;text-decoration:underline}
+.code-listing .synIgnore    {color:#5f7b99}
+.code-listing .synError     {color:#f2a29c}
+.code-listing .synTodo      {color:#f2b441;font-style:italic}
+
+a img{border:0}
+
+/* ---- Optional JS enhancements (see advent.js) ----------------------------- */
+/* "Visited" tick on doors you've already opened */
+.calendar td.day.advent.visited a.article{box-shadow:0 6px 14px -6px rgba(11,24,38,.5),inset 0 1px 0 rgba(255,255,255,.18),inset 0 0 0 2px var(--gold)}
+.calendar td.day.advent.visited a.article > .tick{
+  position:absolute; top:6px; right:7px; z-index:2; width:16px; height:16px; border-radius:50%;
+  background:var(--gold); color:#5a3a06; font:700 11px/16px var(--sans); text-align:center;
+}
+/* Theme toggle button (injected by advent.js) */
+#pac-theme-toggle{
+  position:fixed; top:14px; right:14px; z-index:100; cursor:pointer;
+  display:inline-flex; align-items:center; gap:7px; padding:8px 13px;
+  border:1px solid var(--border); border-radius:999px; background:var(--surface); color:var(--heading);
+  font:600 13px/1 var(--sans); box-shadow:var(--shadow);
+}
+#pac-theme-toggle:hover{border-color:var(--green);color:var(--green)}
+
+/* ---- Responsive: the calendar becomes a single readable column ------------ */
+@media (max-width:620px){
+  #contentwrapper{padding:0 12px 48px}
+  #header{margin:0 -12px 0;padding:26px 18px 20px}
+  #header h1{font-size:1.55em}
+  #tagline{margin:0 -12px 18px}
+  /* collapse the 7-col grid: hide weekday header, stack cells as a list */
+  table.calendar,.calendar tbody,.calendar tr,.calendar td{display:block;width:100%}
+  .calendar thead,.calendar tr:first-child{display:none}
+  table.calendar{border-spacing:0}
+  .calendar tr{margin:0}
+  .calendar td:not(.day){display:none}
+  .calendar td.day{
+    aspect-ratio:auto; height:auto; min-height:58px; margin:0 0 8px;
+    flex-direction:row; justify-content:flex-start; gap:14px; padding:10px 14px;
+    font-size:1em; border-radius:12px;
+  }
+  .calendar td.day.advent{padding:0}
+  .calendar td.day.advent a.article{
+    justify-content:flex-start; gap:14px; padding:12px 16px; border-radius:12px; font-size:1.6em;
+    background-image:linear-gradient(150deg,var(--red),#7a1f14);
+  }
+  /* The number is left-aligned now (not centred), so the round "ribbon-ball"
+     sticker moves to a left-anchored cream pill behind it — same mechanism,
+     keeping the dark number legible on every wrap colour. */
+  .calendar td.day.advent a.article::before{
+    display:block; content:""; position:absolute; z-index:-1;
+    top:50%; left:10px; transform:translateY(-50%);
+    width:46px; height:calc(100% - 16px); border-radius:9px;
+    background:#fffdf7; box-shadow:0 1px 4px rgba(11,24,38,.35),0 0 0 2px var(--gold);
+  }
+  .calendar td.day.advent a.article::after{display:none}
+  #pager .previous,#pager .next{position:static;width:100%;display:block;margin-bottom:8px}
+  #pager .next{text-align:left}
+}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ============================================================================
+   FONTS — self-hosting note
+   Place these files in ./fonts/ (download from Google Fonts, "Download family"):
+     SourceSans3.woff2         (variable, wght 300–900, normal)
+     SourceSans3-Italic.woff2  (variable, italic)
+     SourceCodePro.woff2       (variable, wght 400–600)
+     BebasNeue-Regular.woff2
+   Or replace the @font-face block at the top with:
+     @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,600;0,700;0,900;1,400&family=Source+Code+Pro:wght@400;500;600&family=Bebas+Neue&display=swap');
+   ============================================================================ */
