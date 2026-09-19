@@ -11,6 +11,7 @@
    ============================================================================ */
 
 /* ---- Fonts (self-hosted) -------------------------------------------------- */
+/* ---- Fonts (self-hosted) -------------------------------------------------- */
 @font-face{font-family:"Source Sans 3";font-style:normal;font-weight:300 900;font-display:swap;src:url("fonts/SourceSans3.woff2") format("woff2")}
 @font-face{font-family:"Source Sans 3";font-style:italic;font-weight:300 900;font-display:swap;src:url("fonts/SourceSans3-Italic.woff2") format("woff2")}
 @font-face{font-family:"Source Code Pro";font-style:normal;font-weight:400 600;font-display:swap;src:url("fonts/SourceCodePro.woff2") format("woff2")}
@@ -90,7 +91,7 @@ body{
   -webkit-font-smoothing:antialiased; overflow-x:hidden;
 }
 #contentwrapper{
-  width:100%; max-width:980px; min-width:0;
+  width:100%; max-width:1080px; min-width:0;
   margin:0 auto; padding:0 18px 64px;
   background:transparent; border:0;
 }
@@ -98,7 +99,7 @@ body{
 /* Header — night sky banner (full-bleed, spans the whole page) */
 #header{
   position:relative; width:100vw; margin-left:calc(50% - 50vw);
-  padding:34px max(26px,calc(50vw - 490px)) 26px;
+  padding:34px max(26px,calc(50vw - 540px)) 26px;
   background:
     radial-gradient(1.5px 1.5px at 12% 34%,rgba(255,255,255,.85),transparent),
     radial-gradient(1.5px 1.5px at 30% 66%,rgba(255,255,255,.55),transparent),
@@ -115,7 +116,7 @@ body{
 /* Tagline strip (year + tagline + feed) */
 #tagline{
   width:100vw; margin:0 0 22px calc(50% - 50vw);
-  padding:11px max(22px,calc(50vw - 490px)); font-size:.9em; border:0; border-radius:0;
+  padding:11px max(22px,calc(50vw - 540px)); font-size:.9em; border:0; border-radius:0;
   background:var(--night-1); color:var(--night-sub);
   font-family:var(--mono); letter-spacing:.06em;
 }
@@ -266,7 +267,12 @@ h1.title{
 :root[data-theme="dark"] .subtitle,
 .pod{color:var(--ink)}
 
-.pod{max-width:66ch;font-size:1.06em;line-height:1.72}
+/* Let the article body fill the widened column so code listings and images use
+   the space; keep only the running text at a comfortable measure (a touch wider
+   than before, still readable) rather than capping the whole block narrow. */
+.pod{max-width:none;font-size:1.06em;line-height:1.72}
+.pod > p,.pod > ul,.pod > ol,.pod > dl,.pod > blockquote,
+.pod > h1,.pod > h2,.pod > h3,.pod > h4{max-width:none}
 .pod h1,.pod h2,.pod h3{text-align:left;color:var(--heading);line-height:1.25;letter-spacing:-.01em}
 .pod h1{font-size:1.5em;margin:1.6em 0 .5em}
 .pod h2{font-size:1.28em;margin:1.5em 0 .5em}
@@ -275,7 +281,9 @@ h1.title{
 .pod ul li{margin:.3em 0}
 .pod ul li p{display:inline}
 /* Inline C<...> code chips only — never the syntax-highlighted listings, which
-   carry class="code-listing" and are styled as full blocks below. */
+   carry class="code-listing" and are styled as full blocks below. (A <table
+   class="code-listing"> holds bare <code> cells that this would otherwise chip;
+   the reset beside the code-panel rules below neutralises those.) */
 .pod code:not(.code-listing){
   font-family:var(--mono); font-size:.88em; padding:2px 6px; border-radius:5px;
   background:var(--chip-bg); color:var(--chip-ink);
@@ -294,6 +302,13 @@ h2#See-Also{padding-top:.6em;border-top:1px solid var(--border);margin-top:1.6em
   border-top:1px solid var(--border); padding-top:1em; margin-top:1.4em;
   text-align:center; color:var(--muted); font-size:.95em;
 }
+/* Gravatar comes back as an 80px square; round it to suit the new design.
+   It is already square, so border-radius alone makes a clean circle — the
+   explicit equal box + object-fit guard against a non-square source. */
+#author img{
+  width:56px; height:56px; border-radius:50%; object-fit:cover;
+  margin-right:.6em; box-shadow:var(--shadow); border:2px solid var(--surface);
+}
 
 /* Prev / next pager */
 #pager{
@@ -301,6 +316,10 @@ h2#See-Also{padding-top:.6em;border-top:1px solid var(--border);margin-top:1.6em
   position:relative; width:100%; min-height:64px;
 }
 #pager li{color:var(--muted)}
+/* On the first/last article the generator still emits the dead direction as
+   bare text (<li class="previous">Previous</li> with no <a>), which skips the
+   button styling below and links nowhere — hide the linkless one entirely. */
+#pager li:not(:has(a)){display:none}
 #pager .previous{position:absolute;left:0;width:46%;text-align:left}
 #pager .next{position:absolute;right:0;width:46%;text-align:right}
 #pager a{
@@ -322,11 +341,19 @@ h2#See-Also{padding-top:.6em;border-top:1px solid var(--border);margin-top:1.6em
   margin-top:.6em; text-align:center; color:var(--muted);
   font-family:var(--mono); font-size:.8em; letter-spacing:.02em;
 }
-/* Feature image at the top of an article (see og:image note below) */
-.feature-image{
-  width:100vw; margin:0 0 4px calc(50% - 50vw); max-height:420px; overflow:hidden;
+/* Feature image at the top of an article (first body image, promoted here).
+   Author images vary wildly in aspect ratio, so DON'T cover-crop them into a
+   fixed band — that lopped the top and bottom off tall images and blew up wide
+   ones into a top-left slice. Show the WHOLE image instead: contained within
+   the content column, centred, with only a height cap so a tall portrait
+   doesn't dominate the fold. Mobile fills the width at natural height. */
+.feature-image{margin:0 auto 8px; text-align:center}
+.feature-image img{
+  display:block; margin:0 auto;
+  max-width:100%; max-height:clamp(300px,50vh,480px);
+  width:auto; height:auto; object-fit:contain;
+  border-radius:14px; box-shadow:var(--shadow);
 }
-.feature-image img{width:100%; height:100%; object-fit:cover; display:block; border-radius:0}
 
 /* ---- Code listings -------------------------------------------------------- */
 pre,.code-listing{
@@ -349,6 +376,27 @@ pre code,.code-listing code,
   padding:14px 10px 14px 0; user-select:none;
 }
 .code-listing .code{padding:14px 18px}
+/* SynHi wraps each cell as <td><br><code>…</code><br>&nbsp;</td>; those two
+   td-level <br>s (NOT the inter-line <br>s inside <code>) print as a blank
+   line above and below every listing. Drop them — the cell padding already
+   gives the breathing room. */
+.code-listing td > br{display:none}
+
+/* Copy button — advent.js wraps each listing in .code-block (the positioning
+   context) and injects the button. Degrades to a plain listing without JS. */
+.code-block{position:relative}
+.code-block .code-listing{margin:0}
+.code-copy{
+  position:absolute; top:8px; right:8px; z-index:2;
+  font:600 12px/1 var(--sans); color:var(--code-ink);
+  background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.24);
+  border-radius:7px; padding:5px 10px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:5px;
+  opacity:.55; transition:opacity .15s, background .15s, border-color .15s;
+}
+.code-block:hover .code-copy,.code-copy:hover,.code-copy:focus-visible{opacity:1}
+.code-copy:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.42)}
+.code-copy.copied{background:var(--green);border-color:var(--green);color:#08251a;opacity:1}
 
 /* Syntax — PPI (PPIHTML) */
 .code-listing .keyword  {color:#7fd39b}
@@ -395,42 +443,51 @@ a img{border:0}
 }
 #pac-theme-toggle:hover{border-color:var(--green);color:var(--green)}
 
+/* Back-to-calendar pill on article pages (injected by advent.js). The header
+   title also links home, but that isn't obvious; this mirrors the theme toggle
+   top-left and stays put while reading a long article. */
+#pac-back{
+  position:fixed; top:14px; left:14px; z-index:100; text-decoration:none;
+  display:inline-flex; align-items:center; gap:6px; padding:8px 13px;
+  border:1px solid var(--border); border-radius:999px; background:var(--surface); color:var(--heading);
+  font:600 13px/1 var(--sans); box-shadow:var(--shadow);
+}
+#pac-back:hover{border-color:var(--green);color:var(--green);background:var(--surface)}
+
 /* ---- Responsive: the calendar becomes a single readable column ------------ */
 @media (max-width:620px){
   #contentwrapper{padding:0 12px 48px}
   /* Extra top padding drops the centred title below the fixed theme toggle
      (top:14px, ~30px tall) so they no longer collide at narrow widths. */
   #header{margin:0 -12px 0;padding:58px 18px 20px}
+  /* Show the whole hero on phones instead of a cropped band — at 100vw the
+     natural height is already modest, so no cover-crop is needed. */
+  .feature-image img{width:100%; height:auto; max-height:none}
   #header h1{font-size:1.55em}
   #tagline{margin:0 -12px 18px}
-  /* collapse the 7-col grid: hide weekday header, stack cells as a list */
-  table.calendar,.calendar tbody,.calendar tr,.calendar td{display:block;width:100%}
-  .calendar thead,.calendar tr:first-child{display:none}
-  table.calendar{border-spacing:0}
-  .calendar tr{margin:0}
+  /* Keep the doors as a grid of gift boxes — 4 across, not full-width rows.
+     tbody/tr become display:contents so the day cells are direct grid items;
+     the weekday <th> header and empty non-day cells are hidden. The desktop
+     door styling (gold ribbon cross + centred cream sticker + date-mod wrap
+     colours) still applies, so every box keeps its ribbons. */
+  table.calendar{
+    display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px;
+    border-spacing:0; margin:6px 0 10px;
+  }
+  .calendar tbody,.calendar tr{display:contents}
+  .calendar th{display:none}
   .calendar td:not(.day){display:none}
   .calendar td.day{
-    aspect-ratio:auto; height:auto; min-height:58px; margin:0 0 8px;
-    flex-direction:row; justify-content:flex-start; gap:14px; padding:10px 14px;
-    font-size:1em; border-radius:12px;
+    aspect-ratio:1; height:auto; margin:0; padding:0;
+    line-height:1; font-size:1.7em; border-radius:12px;
+    display:flex; align-items:center; justify-content:center;
   }
-  .calendar td.day.advent{padding:0}
-  .calendar td.day.advent a.article{
-    justify-content:flex-start; gap:14px; padding:12px 16px; border-radius:12px; font-size:1.6em;
-    background-image:linear-gradient(150deg,var(--red),#7a1f14);
-  }
-  /* The number is left-aligned now (not centred), so the round "ribbon-ball"
-     sticker moves to a left-anchored cream pill behind it — same mechanism,
-     keeping the dark number legible on every wrap colour. */
-  .calendar td.day.advent a.article::before{
-    display:block; content:""; position:absolute; z-index:-1;
-    top:50%; left:10px; transform:translateY(-50%);
-    width:46px; height:calc(100% - 16px); border-radius:9px;
-    background:#fffdf7; box-shadow:0 1px 4px rgba(11,24,38,.35),0 0 0 2px var(--gold);
-  }
-  .calendar td.day.advent a.article::after{display:none}
-  #pager .previous,#pager .next{position:static;width:100%;display:block;margin-bottom:8px}
-  #pager .next{text-align:left}
+  .calendar td.day.advent{font-size:1em}
+  .calendar td.day.advent a.article{font-size:1.7em; border-radius:12px}
+  /* Pager: keep Previous / Next side by side (not stacked). */
+  #pager{display:flex; justify-content:space-between; align-items:center; gap:10px; min-height:0}
+  #pager .previous,#pager .next{position:static; width:auto; margin:0}
+  #pager .next{margin-left:auto; text-align:right}
 }
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}

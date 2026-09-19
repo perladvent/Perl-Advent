@@ -92,10 +92,110 @@
     if (v.indexOf(d) === -1) { v.push(d); writeVisited(v); }
   }
 
+  /* ---- Copy buttons on code listings ------------------------------------ */
+  // The listing's real newlines are <br> inside <code>; textContent drops them,
+  // so clone, turn each <br> into "\n", then read the text.
+  function codeText(table) {
+    var code = table.querySelector("td.code code") || table.querySelector("code");
+    if (!code) return "";
+    var clone = code.cloneNode(true);
+    Array.prototype.forEach.call(clone.querySelectorAll("br"), function (br) {
+      br.parentNode.replaceChild(document.createTextNode("\n"), br);
+    });
+    return clone.textContent.replace(/\s+$/, "");
+  }
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        ok ? resolve() : reject();
+      } catch (e) { reject(e); }
+    });
+  }
+  // The generator brackets each cell's <code> with a leading <br> and a
+  // trailing <br>&nbsp;, which render as a blank line above and below. The CSS
+  // hides those <br>s, but the stray trailing &nbsp; then collapses onto the
+  // last line — in the right-aligned number column it shoves the final number
+  // left. Strip the direct-child <br>s and whitespace-only text nodes for good;
+  // the real line breaks live INSIDE <code> and are untouched.
+  function trimCells(table) {
+    Array.prototype.forEach.call(table.querySelectorAll("td"), function (td) {
+      Array.prototype.slice.call(td.childNodes).forEach(function (n) {
+        if (n.nodeType === 1 && n.tagName === "BR") td.removeChild(n);
+        else if (n.nodeType === 3 && !n.nodeValue.replace(/[\s ]/g, "")) {
+          td.removeChild(n);
+        }
+      });
+    });
+  }
+  function addCopyButtons() {
+    var tables = document.querySelectorAll("table.code-listing");
+    Array.prototype.forEach.call(tables, function (table) {
+      if (table.parentNode && table.parentNode.classList.contains("code-block")) return;
+      trimCells(table);
+      var wrap = document.createElement("div");
+      wrap.className = "code-block";
+      table.parentNode.insertBefore(wrap, table);
+      wrap.appendChild(table);
+
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "code-copy";
+      btn.setAttribute("aria-label", "Copy code to clipboard");
+      btn.textContent = "Copy";
+      var reset;
+      btn.addEventListener("click", function () {
+        copyText(codeText(table)).then(function () {
+          btn.textContent = "Copied ✓";
+          btn.classList.add("copied");
+          clearTimeout(reset);
+          reset = setTimeout(function () {
+            btn.textContent = "Copy";
+            btn.classList.remove("copied");
+          }, 1600);
+        }, function () {
+          btn.textContent = "Press Ctrl+C";
+          clearTimeout(reset);
+          reset = setTimeout(function () { btn.textContent = "Copy"; }, 1600);
+        });
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  /* ---- Back-to-calendar link (article pages only) ----------------------- */
+  function buildBackLink() {
+    var home = document.querySelector("#header h1 a");
+    var a = document.createElement("a");
+    a.id = "pac-back";
+    a.href = home ? home.getAttribute("href") : "index.html";
+    a.textContent = "← Calendar";
+    a.setAttribute("aria-label", "Back to the calendar");
+    document.body.appendChild(a);
+  }
+
+  // On the first/last article the generator emits the dead direction as bare
+  // text (<li class="previous">Previous</li> with no <a>) that links nowhere.
+  // A CSS :not(:has(a)) rule is the intent, but its cascade is unreliable next
+  // to the positioned .previous/.next rules, so remove the linkless item here.
+  function pruneDeadPager() {
+    var items = document.querySelectorAll("#pager li");
+    Array.prototype.forEach.call(items, function (li) {
+      if (!li.querySelector("a")) li.parentNode.removeChild(li);
+    });
+  }
+
   function init() {
     buildToggle();
     if (document.querySelector(".calendar")) { markCalendar(); centerDayNumbers(); }
-    else markCurrentArticle();
+    else { markCurrentArticle(); addCopyButtons(); buildBackLink(); pruneDeadPager(); }
   }
 
   /* ---- Optical centering -------------------------------------------------- */
