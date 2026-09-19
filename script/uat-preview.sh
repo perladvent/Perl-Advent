@@ -58,11 +58,13 @@ fi
 # Render 2026 with the inc/ fork on PERL5LIB. advent.ini's article_dir wins over
 # the --article-dir flag, so render from a temp ini that points article_dir at
 # the fixtures (share_dir stays "share", so the year-local templates load).
+# Start from a clean output dir so pages from a previous run (e.g. a different
+# --today, or fixtures since removed) don't linger and mislead the tester.
+rm -rf "$OUT"
 mkdir -p "$OUT"
 FORK_LIB="$PWD/inc/WWW-AdventCalendar/lib"
 UAT_INI="$YEAR/.advent.uat.ini"
 sed 's|^article_dir.*|article_dir = uat-fixtures|' "$YEAR/advent.ini" > "$UAT_INI"
-COPIED+=()  # ensure array is defined even if no images copied
 cleanup_ini() { rm -f "$UAT_INI"; }
 trap 'cleanup; cleanup_ini' EXIT
 (

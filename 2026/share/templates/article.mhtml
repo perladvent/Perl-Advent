@@ -23,15 +23,21 @@ $next => undef
     # (e.g. ?a=1&amp;b=2). Decode it back to a plain URL here so the |h on
     # output escapes it exactly once instead of producing &amp;amp;.
     use HTML::Entities ();
-    my $feature;
+    my ($feature, $feature_alt);
     my $body = eval { $article->body_html } // '';
-    if ($body =~ /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/i) {
-        $feature = HTML::Entities::decode_entities($1);
-        $body =~ s/<img\b[^>]*>//;   # drop only the first <img> tag
+    # Match the first <img> that has a src, capturing the whole tag, and remove
+    # that exact tag in the same step. (Removing "the first <img>" separately
+    # could strip a different, src-less tag than the one promoted.) Carry the
+    # author's alt text onto the banner so it isn't shipped as alt="".
+    if ($body =~ s{(<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>)}{}i) {
+        my $tag = $1;
+        $feature = HTML::Entities::decode_entities($2);
+        $feature_alt = $tag =~ /\balt\s*=\s*["']([^"']*)["']/i
+            ? HTML::Entities::decode_entities($1) : '';
     }
 </%perl>
 % if ($feature) {
-<div class="feature-image"><img src="<% $feature |h %>" alt="" /></div>
+<div class="feature-image"><img src="<% $feature |h %>" alt="<% $feature_alt |h %>" /></div>
 % }
 
 <h1 class='title'><% $article->title |h %></h1>
@@ -41,6 +47,7 @@ $next => undef
 
 <& /credit.mhtml, article => $article , https => $https &>
 
+<nav aria-label="Article navigation">
 <ul id="pager">
 % if ($prev) {
     <li class="previous"><a title="<% $prev->title |h %>" href="<% $prev->date->ymd %>.html">Previous</a></li>
@@ -54,5 +61,6 @@ $next => undef
     <li class="next">Next</li>
 % }
 </ul>
+</nav>
 <div style="clear: both"></div>
 </%method>

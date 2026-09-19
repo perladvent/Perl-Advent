@@ -1,5 +1,5 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Language" content="en" />
@@ -29,8 +29,13 @@
     my $abs_img  = $og_img =~ m{\Ahttps?://} ? $og_img : $base . $og_img;
     my $og_title = $article ? $article->title : $calendar->title;
     my $og_desc  = $article ? ($article->topic // '') : ($calendar->tagline // '');
-    my $og_url   = $base . ($article ? ($article->date->ymd . '.html') : 'index.html');
+    # og:url doubles as the canonical URL. Externally the calendar is the bare
+    # directory (advent.ini's uri), not index.html, so Facebook/crawlers don't
+    # see the index and .../index.html as two separate URLs.
+    my $og_url   = $article ? ($base . $article->date->ymd . '.html') : $base;
 </%perl>
+    <link rel="canonical"            href="<% $og_url  |h %>" />
+    <meta name="description"         content="<% $og_desc |h %>" />
     <meta property="og:type"         content="<% $article ? 'article' : 'website' %>" />
     <meta property="og:site_name"    content="<% $calendar->title |h %>" />
     <meta property="og:title"        content="<% $og_title |h %>" />
@@ -47,17 +52,17 @@
 </head>
 <body>
     <div id="contentwrapper">
-        <div id="header">
+        <header id="header">
             <h1><a href="index.html"><% $calendar->title |h %></a></h1>
-        </div>
+        </header>
 
         <p id="tagline"><% $calendar->year %> <% $calendar->tagline // '' |h %>
          <a class='feed' href="atom.xml">Feed</a>
         </p>
 
-        <div id="content">
+        <main id="content">
           <& SELF:content, %ARGS &>
-        </div>
+        </main>
 
 % if ($year_links) {
         <& SELF:year_line, %ARGS &>
