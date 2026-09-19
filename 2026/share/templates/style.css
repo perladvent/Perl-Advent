@@ -10,12 +10,17 @@
    <html data-theme="light|dark"> (see optional advent.js).
    ============================================================================ */
 
-/* ---- Fonts ---------------------------------------------------------------- */
-/* Using Google Fonts (@import) for 2026. To self-host instead, drop the four
-   .woff2 files into 2026/share/static/ (flat — the generator does not copy
-   static subdirectories) and replace this @import with the @font-face block
-   documented at the bottom of this file, pointing src at the flat filenames. */
-@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,300;0,400;0,600;0,700;0,900;1,400&family=Source+Code+Pro:wght@400;500;600&family=Bebas+Neue&display=swap');
+/* ---- Fonts (self-hosted) -------------------------------------------------- */
+/* The four .woff2 files live FLAT in 2026/share/static/ (the generator copies
+   only top-level files out of share/static/, so no subdir). Source Sans 3 and
+   Source Code Pro are variable-weight (one file spans the whole range); Bebas
+   Neue is single-weight. Latin subset — English text plus common accented
+   author names. To refresh, re-pull from the Fontsource CDN (see FONTS note at
+   the bottom of this file). */
+@font-face{font-family:"Source Sans 3";font-style:normal;font-weight:300 900;font-display:swap;src:url("SourceSans3.woff2") format("woff2")}
+@font-face{font-family:"Source Sans 3";font-style:italic;font-weight:300 900;font-display:swap;src:url("SourceSans3-Italic.woff2") format("woff2")}
+@font-face{font-family:"Source Code Pro";font-style:normal;font-weight:400 600;font-display:swap;src:url("SourceCodePro.woff2") format("woff2")}
+@font-face{font-family:"Bebas Neue";font-style:normal;font-weight:400;font-display:swap;src:url("BebasNeue-Regular.woff2") format("woff2")}
 
 /* ---- Palette -------------------------------------------------------------- */
 :root{
@@ -241,8 +246,13 @@ table.calendar{
   font-family:var(--display); font-size:2.4em; line-height:88px;
 }
 
-/* Dec 25 — Christmas gold */
-.calendar td.day#dec-25{
+/* Dec 25 — Christmas gold. Only when the 25th is a real door: the calendar's
+   end date is arbitrary (could be the 24th, 25th, or 31st), so require the
+   .advent class the generator only adds to days within the window. Without it,
+   the 25th would light up gold even on a 24-day calendar, looking like a door
+   that isn't there (days 26+ correctly stay plain). The id keeps this ahead of
+   the .advent.future / .advent published fills, so the door glows either way. */
+.calendar td.day.advent#dec-25{
   background:radial-gradient(circle at 50% 40%,#ffe9a8,var(--gold));
   color:#5a3a06; font-weight:bold; box-shadow:0 0 0 2px #e0962a inset;
 }
@@ -271,7 +281,9 @@ h1.title{
 .pod ul li{margin:.3em 0}
 .pod ul li p{display:inline}
 /* Inline C<...> code chips only — never the syntax-highlighted listings, which
-   carry class="code-listing" and are styled as full blocks below. */
+   carry class="code-listing" and are styled as full blocks below. (A <table
+   class="code-listing"> holds bare <code> cells that this would otherwise chip;
+   the reset beside the code-panel rules below neutralises those.) */
 .pod code:not(.code-listing){
   font-family:var(--mono); font-size:.88em; padding:2px 6px; border-radius:5px;
   background:var(--chip-bg); color:var(--chip-ink);
@@ -331,9 +343,12 @@ pre,.code-listing{
   box-shadow:var(--shadow);
 }
 pre{padding:18px 20px;overflow-x:auto;width:100%}
-/* A <code class="code-listing"> nested in <pre> must not draw its own surface —
-   the <pre> supplies the panel. (A standalone table.code-listing still does.) */
-pre code{background:transparent;box-shadow:none;border-radius:0;padding:0}
+/* A nested <code> must not draw its own surface — the <pre> or the
+   table.code-listing supplies the panel. Without this, the inline-chip rule
+   above paints a light chip behind the code cells of a table listing, washing
+   out tokens coloured for the dark panel. */
+pre code,.code-listing code,
+.pod pre code,.pod .code-listing code{background:transparent;box-shadow:none;border-radius:0;padding:0;color:inherit}
 .code-listing{white-space:pre;border-collapse:separate;border-spacing:0;width:100%;overflow:hidden}
 .code-listing td{padding:0;margin:0}
 .code-listing .line-numbers{
@@ -391,7 +406,9 @@ a img{border:0}
 /* ---- Responsive: the calendar becomes a single readable column ------------ */
 @media (max-width:620px){
   #contentwrapper{padding:0 12px 48px}
-  #header{margin:0 -12px 0;padding:26px 18px 20px}
+  /* Extra top padding drops the centred title below the fixed theme toggle
+     (top:14px, ~30px tall) so they no longer collide at narrow widths. */
+  #header{margin:0 -12px 0;padding:58px 18px 20px}
   #header h1{font-size:1.55em}
   #tagline{margin:0 -12px 18px}
   /* collapse the 7-col grid: hide weekday header, stack cells as a list */
@@ -427,16 +444,16 @@ a img{border:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
 /* ============================================================================
-   FONTS — self-hosting note
-   To self-host (drop the runtime dependency on Google Fonts), place these files
-   directly in 2026/share/static/ — FLAT, not in a subdir, because the generator
-   copies only top-level files out of share/static/ — then replace the @import at
-   the top of this file with:
-     @font-face{font-family:"Source Sans 3";font-style:normal;font-weight:300 900;font-display:swap;src:url("SourceSans3.woff2") format("woff2")}
-     @font-face{font-family:"Source Sans 3";font-style:italic;font-weight:300 900;font-display:swap;src:url("SourceSans3-Italic.woff2") format("woff2")}
-     @font-face{font-family:"Source Code Pro";font-style:normal;font-weight:400 600;font-display:swap;src:url("SourceCodePro.woff2") format("woff2")}
-     @font-face{font-family:"Bebas Neue";font-style:normal;font-weight:400;font-display:swap;src:url("BebasNeue-Regular.woff2") format("woff2")}
-   Fonts (download from Google Fonts "Download family", or Fontsource):
+   FONTS — self-hosted (no runtime dependency on Google Fonts)
+   The four .woff2 files live FLAT in 2026/share/static/ (the generator copies
+   only top-level files out of share/static/, so no subdir) and are wired up by
+   the @font-face block at the top of this file:
      SourceSans3.woff2 (variable 300–900), SourceSans3-Italic.woff2,
      SourceCodePro.woff2 (variable 400–600), BebasNeue-Regular.woff2
+   To refresh, re-pull the latin subset from the Fontsource CDN:
+     source-sans-3:vf   latin-wght-normal.woff2  -> SourceSans3.woff2
+     source-sans-3:vf   latin-wght-italic.woff2  -> SourceSans3-Italic.woff2
+     source-code-pro:vf latin-wght-normal.woff2  -> SourceCodePro.woff2
+     bebas-neue         latin-400-normal.woff2   -> BebasNeue-Regular.woff2
+   base URL: https://cdn.jsdelivr.net/fontsource/fonts/<id>@latest/<file>
    ============================================================================ */
