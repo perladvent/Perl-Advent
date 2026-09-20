@@ -1,0 +1,66 @@
+<%flags>inherit => '/page.mhtml'</%flags>
+
+<%method subtitle>
+<%args>
+$article
+</%args>
+<% $article->title |h %>
+</%method>
+
+<%method content>
+<%args>
+$article
+$https
+$prev => undef
+$next => undef
+</%args>
+<%perl>
+    # Promote the article's first <img> to a full-width feature banner (the same
+    # image used for og:image) and remove it from the body so the lead art isn't
+    # shown twice. Articles without an image simply get no banner.
+    #
+    # The src is scraped from already-rendered HTML, so it is HTML-escaped
+    # (e.g. ?a=1&amp;b=2). Decode it back to a plain URL here so the |h on
+    # output escapes it exactly once instead of producing &amp;amp;.
+    use HTML::Entities ();
+    my ($feature, $feature_alt);
+    my $body = eval { $article->body_html } // '';
+    # Match the first <img> that has a src, capturing the whole tag, and remove
+    # that exact tag in the same step. (Removing "the first <img>" separately
+    # could strip a different, src-less tag than the one promoted.) Carry the
+    # author's alt text onto the banner so it isn't shipped as alt="".
+    if ($body =~ s{(<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>)}{}i) {
+        my $tag = $1;
+        $feature = HTML::Entities::decode_entities($2);
+        $feature_alt = $tag =~ /\balt\s*=\s*["']([^"']*)["']/i
+            ? HTML::Entities::decode_entities($1) : '';
+    }
+</%perl>
+% if ($feature) {
+<div class="feature-image"><img src="<% $feature |h %>" alt="<% $feature_alt |h %>" /></div>
+% }
+
+<h1 class='title'><% $article->title |h %></h1>
+<div class='subtitle'><% $article->topic |h %> - <% $article->date->ymd %></div>
+
+<% $body %>
+
+<& /credit.mhtml, article => $article , https => $https &>
+
+<nav aria-label="Article navigation">
+<ul id="pager">
+% if ($prev) {
+    <li class="previous"><a title="<% $prev->title |h %>" href="<% $prev->date->ymd %>.html">Previous</a></li>
+% } else {
+    <li class="previous">Previous</li>
+% }
+
+% if ($next) {
+    <li class="next"><a title="<% $next->title |h %>" href="<% $next->date->ymd %>.html">Next</a></li>
+% } else {
+    <li class="next">Next</li>
+% }
+</ul>
+</nav>
+<div style="clear: both"></div>
+</%method>

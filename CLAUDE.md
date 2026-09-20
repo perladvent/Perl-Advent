@@ -31,6 +31,14 @@ HTML pages generated → Static files copied → out/ directory → GitHub Pages
 
 ## Common Development Commands
 
+### Initializing Submodules
+```bash
+# Initialize and update git submodules (in inc/)
+make init
+# Runs: git submodule update --init --recursive
+# Useful for linked worktrees, which don't populate submodules automatically
+```
+
 ### Creating a New Article
 ```bash
 perl script/new_article

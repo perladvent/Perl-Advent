@@ -1,0 +1,126 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="generator" content="<% ref $calendar |h %> v<% $calendar->VERSION |h%>" />
+    <link rel="alternate" title="<% $calendar->title |h %> XML feed" href="atom.xml" type="application/atom+xml" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+% for ($calendar->css_hrefs) {
+    <link rel="stylesheet" href="<% $_ |h %>" type="text/css" />
+% }
+<%perl>
+    # Open Graph / Twitter card. The share image is the first <img> in the
+    # article body, falling back to the site-wide default card. $article is
+    # undef on the index, where we use the default card + calendar title.
+    # The scraped src is HTML-escaped (e.g. ?a=1&amp;b=2); decode it so the |h
+    # on output escapes it exactly once rather than emitting &amp;amp;.
+    use HTML::Entities ();
+    my $base = $calendar->uri // ('https://perladvent.org/' . $calendar->year . '/');
+    my $og_img = 'og-default.png';
+    if ($article) {
+        my $body = eval { $article->body_html } // '';
+        if ($body =~ /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i) {
+            $og_img = HTML::Entities::decode_entities($1);
+        }
+    }
+    my $abs_img  = $og_img =~ m{\Ahttps?://} ? $og_img : $base . $og_img;
+    my $og_title = $article ? $article->title : $calendar->title;
+    my $og_desc  = $article ? ($article->topic // '') : ($calendar->tagline // '');
+    # og:url doubles as the canonical URL. Externally the calendar is the bare
+    # directory (advent.ini's uri), not index.html, so Facebook/crawlers don't
+    # see the index and .../index.html as two separate URLs.
+    my $og_url   = $article ? ($base . $article->date->ymd . '.html') : $base;
+</%perl>
+    <link rel="canonical"            href="<% $og_url  |h %>" />
+    <meta name="description"         content="<% $og_desc |h %>" />
+    <meta property="og:type"         content="<% $article ? 'article' : 'website' %>" />
+    <meta property="og:site_name"    content="<% $calendar->title |h %>" />
+    <meta property="og:title"        content="<% $og_title |h %>" />
+    <meta property="og:description"  content="<% $og_desc  |h %>" />
+    <meta property="og:url"          content="<% $og_url   |h %>" />
+    <meta property="og:image"        content="<% $abs_img  |h %>" />
+    <meta property="og:image:width"  content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card"        content="summary_large_image" />
+    <meta name="twitter:title"       content="<% $og_title |h %>" />
+    <meta name="twitter:description" content="<% $og_desc  |h %>" />
+    <meta name="twitter:image"       content="<% $abs_img  |h %>" />
+    <title><& SELF:title, %ARGS &></title>
+</head>
+<body>
+    <div id="contentwrapper">
+        <header id="header">
+            <h1><a href="index.html"><% $calendar->title |h %></a></h1>
+        </header>
+
+        <p id="tagline"><% $calendar->year %> <% $calendar->tagline // '' |h %>
+         <a class='feed' href="atom.xml">Feed</a>
+        </p>
+
+        <main id="content">
+          <& SELF:content, %ARGS &>
+        </main>
+
+% if ($year_links) {
+        <& SELF:year_line, %ARGS &>
+% }
+    </div>
+
+    <script src="advent.js" defer="defer"></script>
+</body>
+</html>
+
+<%method title>
+% my $subtitle = $m->scomp('SELF:subtitle', %ARGS);
+% $subtitle = " - $subtitle" if ($subtitle||'') =~ /\S/;
+<% $calendar->title |h %><% $subtitle %>
+</%method>
+
+<%method subtitle></%method>
+
+
+<%method year_line>
+<%perl>
+   my $last_year_link;
+   my $next_year_link;
+   my $year = $calendar->year;
+   my $last_year  = $year - 1;
+   my $next_year  = $year + 1;
+   my $year_line = "";
+   my ($last_year_dir,  $next_year_dir);
+   if ($calendar->output_dir =~ /$year$/ ) {
+     ($last_year_dir  = $calendar->output_dir) =~ s/${year}$/$last_year/;
+     ($next_year_dir  = $calendar->output_dir) =~ s/${year}$/$next_year/;
+
+     if (-d $last_year_dir) {
+       $last_year_link = qq{<a href="../$last_year/index.html" title="$last_year">&laquo; $last_year</a>};
+     }
+
+     if (-d $next_year_dir) {
+       $next_year_link = qq{<a href="../$next_year/index.html" title="$next_year">$next_year &raquo;</a>};
+     }
+   }
+
+   if ( $last_year_link) {
+     $year_line .= "<span>$last_year_link</span>";
+     if ( $next_year_link) {
+       $year_line .= " :: ";
+     }
+   }
+
+   if ( $next_year_link) {
+     $year_line .= "<span>$next_year_link</span>";
+   }
+</%perl>
+%  if ( $year_line )  {
+        <p id="yearline"><% $year_line %></p>
+%  }
+</%method>
+
+<%args>
+$article    => undef
+$year_links => undef
+</%args>
