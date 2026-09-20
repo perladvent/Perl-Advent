@@ -135,15 +135,30 @@
       });
     });
   }
+  // Listings render two ways depending on the highlighter: the Vim/SynHi path
+  // emits <table class="code-listing"> (bare <code> cells), while the PPI path
+  // emits <pre><code class="code-listing">. Collect the block to wrap for both —
+  // for the pre form the class sits on the <code>, so take its parent <pre>.
+  function codeListings() {
+    var blocks = [];
+    Array.prototype.forEach.call(
+      document.querySelectorAll("table.code-listing"),
+      function (t) { blocks.push(t); }
+    );
+    Array.prototype.forEach.call(
+      document.querySelectorAll("pre > code.code-listing"),
+      function (c) { blocks.push(c.parentNode); }
+    );
+    return blocks;
+  }
   function addCopyButtons() {
-    var tables = document.querySelectorAll("table.code-listing");
-    Array.prototype.forEach.call(tables, function (table) {
-      if (table.parentNode && table.parentNode.classList.contains("code-block")) return;
-      trimCells(table);
+    codeListings().forEach(function (block) {
+      if (block.parentNode && block.parentNode.classList.contains("code-block")) return;
+      trimCells(block);
       var wrap = document.createElement("div");
       wrap.className = "code-block";
-      table.parentNode.insertBefore(wrap, table);
-      wrap.appendChild(table);
+      block.parentNode.insertBefore(wrap, block);
+      wrap.appendChild(block);
 
       var btn = document.createElement("button");
       btn.type = "button";
@@ -152,7 +167,7 @@
       btn.textContent = "Copy";
       var reset;
       btn.addEventListener("click", function () {
-        copyText(codeText(table)).then(function () {
+        copyText(codeText(block)).then(function () {
           btn.textContent = "Copied ✓";
           btn.classList.add("copied");
           clearTimeout(reset);
