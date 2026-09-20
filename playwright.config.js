@@ -11,7 +11,11 @@ module.exports = defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [["github"], ["list"]] : "list",
+  // The HTML report bundles failure screenshots, videos and traces into
+  // playwright-report/, which the CI workflow uploads on failure.
+  reporter: process.env.CI
+    ? [["github"], ["list"], ["html", { open: "never" }]]
+    : "list",
   use: {
     baseURL: `http://127.0.0.1:${PORT}/2026/`,
     trace: "on-first-retry",
