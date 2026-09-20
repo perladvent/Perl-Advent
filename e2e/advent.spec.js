@@ -220,6 +220,21 @@ test.describe("dead pager pruning", () => {
   });
 });
 
+/* ---- Back-to-calendar link ----------------------------------------------- */
+test.describe("back-to-calendar link", () => {
+  test("article pages get a link back to the calendar", async ({ page }) => {
+    await page.goto("2026-12-03.html");
+    const back = page.getByRole("link", { name: "Back to the calendar" });
+    await expect(back).toBeVisible();
+    await expect(back).toHaveAttribute("href", "index.html");
+  });
+
+  test("the calendar page does not get a back link", async ({ page }) => {
+    await page.goto("index.html");
+    await expect(page.getByRole("link", { name: "Back to the calendar" })).toHaveCount(0);
+  });
+});
+
 /* ---- Optical centering --------------------------------------------------- */
 test.describe("optical centering", () => {
   test("day numbers get a translateX transform after fonts load", async ({ page }) => {
