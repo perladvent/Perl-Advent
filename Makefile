@@ -1,4 +1,4 @@
-.PHONY: init uat uat-serve
+.PHONY: init uat uat-serve e2e e2e-build
 
 # Initialize and update git submodules.
 # Handy for linked worktrees, which don't get submodules populated automatically.
@@ -21,3 +21,20 @@ uat:
 
 uat-serve:
 	cd out && python3 -m http.server $(PORT)
+
+# --- 2026 e2e (Playwright) --------------------------------------------------
+# Run the advent.js browser tests. They need the fixture site (out/2026) built
+# at 2026-12-25 so every door is open; Playwright starts its own server to serve
+# it, so no separate `uat-serve` is required. Override the port with E2E_PORT.
+#   make e2e-build              # build out/2026 the suite runs against
+#   make e2e                    # run the tests (build first with e2e-build)
+#   make e2e E2E_PORT=8080      # run on a different port
+E2E_PORT ?= 8126
+
+e2e-build:
+	./script/uat-preview.sh 2026-12-25
+
+e2e:
+	npm ci
+	npx playwright install chromium
+	PORT=$(E2E_PORT) npx playwright test
