@@ -11,10 +11,7 @@ our @EXPORT_OK = qw(
     normalize_key
     load_aliases
     canonical_author
-    decode_legacy_entities
-    parse_legacy_byline
-    parse_advent_author_tag
-    legacy_article_path
+    yaml_escape_dq
 );
 
 =head1 NAME
@@ -126,82 +123,15 @@ sub canonical_author ( $raw, $aliases = {} ) {
     return $name;
 }
 
-=head1 LEGACY (2000-2010) HELPERS
-
-The pre-2011 calendars have no modern POD article with an C<Author:> header.
-For 2006-2010 the author appears as a byline in the generated legacy HTML
-(C<< <h3>by NAME</h3> >>), sometimes only in an adjacent legacy POD as
-C<=for advent_author NAME>. These helpers extract that DATA; nothing here is
-executed. Names are HTML-entity-decoded, trimmed, and whitespace-collapsed.
-Co-authored bylines (C<A & B>) are kept as a single string, matching how the
-modern code treats multi-author headers.
-
-=cut
-
-# Decode the handful of HTML entities that appear in legacy bylines, including
-# the double-encoded &amp;amp;. Uses HTML::Entities when available (decoding
-# twice to collapse double-encoding), else a small inline table.
-sub decode_legacy_entities ($s) {
-    return $s unless defined $s;
-
-    if ( eval { require HTML::Entities; 1 } ) {
-        $s = HTML::Entities::decode_entities($s);
-        $s = HTML::Entities::decode_entities($s);
-        return $s;
-    }
-
-    $s =~ s/&amp;amp;/&/g;    # double-encoded ampersand first
-    $s =~ s/&#39;/'/g;
-    $s =~ s/&quot;/"/g;
-    $s =~ s/&lt;/</g;
-    $s =~ s/&gt;/>/g;
-    $s =~ s/&amp;/&/g;
-    return $s;
-}
-
-# Extract a byline from legacy article HTML: the (case-insensitive) pattern
-# <h3 ...>by NAME</h3>. Tag case varies. Returns the decoded, trimmed,
-# whitespace-collapsed name, or undef.
-sub parse_legacy_byline ($html) {
-    return undef unless defined $html;
-    return undef unless $html =~ m{<h3[^>]*>\s*by\s+(.+?)\s*</h3>}is;
-
-    my $name = decode_legacy_entities($1);
-    $name =~ s/^\s+|\s+$//g;
-    $name =~ s/\s+/ /g;
-    return length $name ? $name : undef;
-}
-
-# Extract an author from a legacy POD's `=for advent_author NAME` line.
-# Returns the decoded, trimmed, whitespace-collapsed name, or undef.
-sub parse_advent_author_tag ($pod) {
-    return undef unless defined $pod;
-    return undef unless $pod =~ /^=for\s+advent_author\s+(.+)$/m;
-
-    my $name = decode_legacy_entities($1);
-    $name =~ s/^\s+|\s+$//g;
-    $name =~ s/\s+/ /g;
-    return length $name ? $name : undef;
-}
-
-# The English ordinal suffix for a day number (1 -> st, 2 -> nd, 3 -> rd,
-# 4..20 -> th, 21 -> st, ...).
-sub _ordinal_suffix ($n) {
-    return 'th' if ( $n % 100 ) >= 11 && ( $n % 100 ) <= 13;
-    my %suffix = ( 1 => 'st', 2 => 'nd', 3 => 'rd' );
-    return $suffix{ $n % 10 } // 'th';
-}
-
-# The expected relative path (from the repo root) to a legacy day's article
-# HTML. 2001-2004 use an ordinal directory (e.g. 2003/10th/index.html);
-# every other legacy year uses the integer directory (e.g. 2008/7/index.html).
-# $day may be zero-padded ("07") or an integer.
-sub legacy_article_path ( $year, $day ) {
-    my $n = $day + 0;
-    if ( $year >= 2001 && $year <= 2004 ) {
-        return sprintf '%d/%d%s/index.html', $year, $n, _ordinal_suffix($n);
-    }
-    return sprintf '%d/%d/index.html', $year, $n;
+# Escape a string for safe emission as a YAML double-quoted scalar. Backslash
+# MUST be escaped before the double-quote, and control/newline characters are
+# neutralized so a value can never break the emitted archives.yaml line.
+sub yaml_escape_dq ($str) {
+    $str //= '';
+    $str =~ s/\\/\\\\/g;         # backslash FIRST
+    $str =~ s/"/\\"/g;           # then double-quote
+    $str =~ s/[\x00-\x1f]/ /g;   # neutralize control/newline chars
+    return $str;
 }
 
 1;

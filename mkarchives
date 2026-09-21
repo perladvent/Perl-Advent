@@ -18,7 +18,7 @@ my $out = $ARGV[0];
 die "usage: mkarchives OUTDIR\n" unless length $out and -d $out;
 
 my $MAIN_TEMPLATE = <<'END';
-<html><head><title>Perl Advent Calendar Archives</title></head>
+<html lang="en"><head><meta charset="utf-8"><title>Perl Advent Calendar Archives</title></head>
 <body>
 <h1>Perl Advent Calendar Archives</h1>
 
@@ -48,7 +48,7 @@ my ($archives) = LoadFile('archives.yaml');
 }
 
 my $AZ_TEMPLATE = <<'END';
-<html><head><title>Perl Advent Calendar Archives</title></head>
+<html lang="en"><head><meta charset="utf-8"><title>Perl Advent Calendar Archives</title></head>
 <body>
 <h1>Perl Advent Calendar Archives</h1>
 
@@ -63,7 +63,7 @@ my $AZ_TEMPLATE = <<'END';
 END
 
 my $DATE_TEMPLATE = <<'END';
-<html><head><title>Perl Advent Calendar Archives</title></head>
+<html lang="en"><head><meta charset="utf-8"><title>Perl Advent Calendar Archives</title></head>
 <body>
 <h1>Perl Advent Calendar Archives</h1>
 
@@ -78,7 +78,7 @@ my $DATE_TEMPLATE = <<'END';
 END
 
 my $AUTHOR_TEMPLATE = <<'END';
-<html><head><meta charset="utf-8"><title>Perl Advent Calendar Archives</title></head>
+<html lang="en"><head><meta charset="utf-8"><title>Perl Advent Calendar Archives</title></head>
 <body>
 <h1>Perl Advent Calendar Archives</h1>
 
@@ -145,12 +145,11 @@ END
 
   for my $name (sort { fc $a cmp fc $b } keys %by_name) {
     for my $item ($by_name{$name}->@*) {
-      # XXX: need to entity encode -- rjbs, 2014-03-11
-      $az_lis .= "<li><a href='$item->{article_link}'>$item->{date}</a>"
+      $az_lis .= "<li><a href='" . enc_attr($item->{article_link}) . "'>$item->{date}</a>"
               .  " &mdash; "
               .  ($item->{href}
-                 ? "<a href='$item->{href}'>$item->{title}</a>"
-                 : $item->{title})
+                 ? "<a href='" . enc_attr($item->{href}) . "'>" . enc($item->{title}) . "</a>"
+                 : enc($item->{title}))
               . "\n";
     }
   }
@@ -158,12 +157,11 @@ END
   for my $date (sort keys %by_date) {
     # XXX crude duplication of code above -- rjbs, 2014-03-11
     for my $item ($by_date{$date}->@*) {
-      # XXX: need to entity encode -- rjbs, 2014-03-11
-      $date_lis .= "<li><a href='$item->{article_link}'>$item->{date}</a>"
+      $date_lis .= "<li><a href='" . enc_attr($item->{article_link}) . "'>$item->{date}</a>"
                 .  " &mdash; "
                 .  ($item->{href}
-                   ? "<a href='$item->{href}'>$item->{title}</a>"
-                   : $item->{title})
+                   ? "<a href='" . enc_attr($item->{href}) . "'>" . enc($item->{title}) . "</a>"
+                   : enc($item->{title}))
                 . "\n";
     }
   }
@@ -185,10 +183,10 @@ END
     my @items = sort { $a->{date} cmp $b->{date} }
                 $by_author{$key}{items}->@*;
     for my $item (@items) {
-      $author_lis .= "<li><a href='$item->{article_link}'>$item->{date}</a>"
+      $author_lis .= "<li><a href='" . enc_attr($item->{article_link}) . "'>$item->{date}</a>"
                   .  " &mdash; "
                   .  ($item->{href}
-                     ? "<a href='$item->{href}'>" . enc($item->{title}) . "</a>"
+                     ? "<a href='" . enc_attr($item->{href}) . "'>" . enc($item->{title}) . "</a>"
                      : enc($item->{title}))
                   . "\n";
     }
@@ -203,10 +201,10 @@ END
                 .  "<a href='https://github.com/perladvent/Perl-Advent/issues/688'>issue #688</a>.</p>\n"
                 .  "<ul>\n";
     for my $item (sort { $a->{date} cmp $b->{date} } @unattributed) {
-      $author_lis .= "<li><a href='$item->{article_link}'>$item->{date}</a>"
+      $author_lis .= "<li><a href='" . enc_attr($item->{article_link}) . "'>$item->{date}</a>"
                   .  " &mdash; "
                   .  ($item->{href}
-                     ? "<a href='$item->{href}'>" . enc($item->{title}) . "</a>"
+                     ? "<a href='" . enc_attr($item->{href}) . "'>" . enc($item->{title}) . "</a>"
                      : enc($item->{title}))
                   . "\n";
     }
@@ -225,5 +223,19 @@ sub enc {
   $s =~ s/&/&amp;/g;
   $s =~ s/</&lt;/g;
   $s =~ s/>/&gt;/g;
+  return $s;
+}
+
+# Encode a value for interpolation inside an HTML attribute (href='...').
+# Escapes the text-node characters plus both quote characters so a value such
+# as Acme::Don't cannot break out of the single-quoted attribute.
+sub enc_attr {
+  my ($s) = @_;
+  return '' unless defined $s;
+  $s =~ s/&/&amp;/g;
+  $s =~ s/</&lt;/g;
+  $s =~ s/>/&gt;/g;
+  $s =~ s/"/&quot;/g;
+  $s =~ s/'/&#39;/g;
   return $s;
 }

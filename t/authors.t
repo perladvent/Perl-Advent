@@ -7,6 +7,9 @@ use experimental qw(signatures);
 
 use Test::More;
 use File::Temp qw(tempfile);
+use File::Spec;
+use FindBin;
+use YAML::XS ();
 
 use PerlAdvent::Authors qw(
     parse_author_from_header
@@ -14,10 +17,7 @@ use PerlAdvent::Authors qw(
     normalize_key
     load_aliases
     canonical_author
-    decode_legacy_entities
-    parse_legacy_byline
-    parse_advent_author_tag
-    legacy_article_path
+    yaml_escape_dq
 );
 
 subtest 'parse_author_from_header' => sub {
@@ -94,61 +94,90 @@ subtest 'load_aliases on a missing file returns empty hashref' => sub {
         'canonical_author works with an empty alias map' );
 };
 
-subtest 'parse_legacy_byline extracts <h3>by NAME</h3>' => sub {
-    is( parse_legacy_byline('<h3 align="center">by Jerrad Pierce</h3>'),
-        'Jerrad Pierce', 'lower-case tag' );
-    is( parse_legacy_byline('<H3 ALIGN="CENTER">by Bill Ricker</H3>'),
-        'Bill Ricker', 'upper-case tag (case-insensitive)' );
-    is( parse_legacy_byline('<H3 align=center>by Jerrad Pierce</H3>'),
-        'Jerrad Pierce', 'unquoted attribute value' );
-
-    is( parse_legacy_byline('<h3 align="center">by David Westbrook &amp; Jerrad Pierce</h3>'),
-        'David Westbrook & Jerrad Pierce',
-        'co-authors decoded and kept as a single string' );
-
-    is( parse_legacy_byline('<p>no byline here</p>'), undef,
-        'no <h3>by ...</h3> returns undef' );
-    is( parse_legacy_byline(undef), undef, 'undef input returns undef' );
+subtest 'Ricker variants canonicalize via the shipped alias file' => sub {
+    my $aliases = load_aliases("$FindBin::Bin/../authors-aliases.yaml");
+    for my $variant (
+        "Bill Ricker",
+        "Bill 'N1VUX' Ricker",
+        "William 'n1vux' Ricker",
+    ) {
+        is( canonical_author( $variant, $aliases ), 'William Ricker',
+            "'$variant' -> William Ricker" );
+    }
 };
 
-subtest 'decode_legacy_entities' => sub {
-    is( decode_legacy_entities('A &amp; B'), 'A & B', 'single &amp;' );
-    is( decode_legacy_entities('A &amp;amp; B'), 'A & B',
-        'double-encoded &amp;amp;' );
-    is( decode_legacy_entities("O&#39;Brien"), "O'Brien", 'numeric apostrophe' );
-    is( decode_legacy_entities(undef), undef, 'undef passes through' );
+subtest 'yaml_escape_dq round-trips through a YAML double-quoted scalar' => sub {
+    for my $orig (
+        'Arthur Axel "fREW" Schmidt',
+        'C:\Users\Name',
+        'Ends with backslash\\',
+        'both " and \\ together',
+        'plain name',
+    ) {
+        my $escaped = yaml_escape_dq($orig);
+        my ($round) = YAML::XS::Load(qq{"$escaped"});
+        is( $round, $orig, "round-trips: $orig" );
+    }
+
+    is( yaml_escape_dq(undef), '', 'undef becomes empty string' );
+
+    my $ctrl = "line1\nline2\ttab";
+    my ($round) = YAML::XS::Load( q{"} . yaml_escape_dq($ctrl) . q{"} );
+    unlike( $round, qr/[\x00-\x1f]/, 'control chars neutralized' );
 };
 
-subtest 'parse_advent_author_tag' => sub {
-    my $pod = "=head1 NAME\n\n=for advent_author Yanick Champoux\n\n=cut\n";
-    is( parse_advent_author_tag($pod), 'Yanick Champoux',
-        'extracts =for advent_author' );
-    is( parse_advent_author_tag("=for advent_author Bill Ricker   \n"),
-        'Bill Ricker', 'trailing whitespace trimmed' );
-    is( parse_advent_author_tag("no author tag here\n"), undef,
-        'absent tag returns undef' );
+subtest 'year2yaml writes a parseable block to an outfile' => sub {
+    my $repo = "$FindBin::Bin/..";
+    my ( $fh, $outfile ) =
+        tempfile( 'year2yaml-XXXXXX', DIR => ($ENV{TMPDIR} // '/tmp'), UNLINK => 1 );
+    close $fh;
+
+    my @cmd = ( $^X, 'year2yaml', '2011', $outfile );
+    my $rc = do {
+        # Run with the repo root as cwd so FindBin/relative paths resolve.
+        my $pid = fork // die "fork failed: $!";
+        if ( $pid == 0 ) {
+            chdir $repo or die "chdir: $!";
+            open STDOUT, '>', File::Spec->devnull;
+            exec @cmd;
+            exit 127;
+        }
+        waitpid $pid, 0;
+        $?;
+    };
+
+    is( $rc, 0, 'year2yaml exited cleanly' ) or diag "rc=$rc";
+
+    my $data = eval { YAML::XS::LoadFile($outfile) };
+    ok( !$@, 'outfile parses as YAML' ) or diag $@;
+    ok( ref $data eq 'HASH' && $data->{2011}, 'has a 2011 block' );
+
+    my $with_author = 0;
+    for my $day ( values %{ $data->{2011} // {} } ) {
+        for my $entry ( @{ $day // [] } ) {
+            $with_author++ if defined $entry->{author} && length $entry->{author};
+        }
+    }
+    ok( $with_author > 0, "entries carry author values ($with_author found)" );
 };
 
-subtest 'legacy_article_path routing' => sub {
-    is( legacy_article_path( 2003, '10' ), '2003/10th/index.html',
-        '2001-2004 use ordinal directory (10th)' );
-    is( legacy_article_path( 2002, '01' ), '2002/1st/index.html',
-        'ordinal 1st' );
-    is( legacy_article_path( 2001, '02' ), '2001/2nd/index.html',
-        'ordinal 2nd' );
-    is( legacy_article_path( 2004, '23' ), '2004/23rd/index.html',
-        'ordinal 23rd' );
-    is( legacy_article_path( 2004, '21' ), '2004/21st/index.html',
-        'ordinal 21st' );
-    is( legacy_article_path( 2004, '11' ), '2004/11th/index.html',
-        'ordinal 11th (teens are th)' );
+subtest 'mkarchives enc_attr encodes attribute-unsafe characters' => sub {
+    my $src = do {
+        open my $mfh, '<:encoding(UTF-8)', "$FindBin::Bin/../mkarchives"
+            or die "cannot read mkarchives: $!";
+        local $/;
+        <$mfh>;
+    };
+    my ($body) = $src =~ /sub \s+ enc_attr \s* \{ (.*?) ^\}/msx
+        or die "could not extract enc_attr from mkarchives";
+    my $enc_attr = eval "sub { my (\$s) = \@_; $body }"    ## no critic
+        or die "eval enc_attr failed: $@";
 
-    is( legacy_article_path( 2008, '07' ), '2008/7/index.html',
-        'other legacy years use the integer directory' );
-    is( legacy_article_path( 2000, '25' ), '2000/25/index.html',
-        '2000 uses the integer directory' );
-    is( legacy_article_path( 2010, '5' ), '2010/5/index.html',
-        'integer day input works too' );
+    is( $enc_attr->(q{Acme::Don't}), 'Acme::Don&#39;t', "single quote -> &#39;" );
+    is( $enc_attr->(q{say "hi"}),    'say &quot;hi&quot;', 'double quote -> &quot;' );
+    is( $enc_attr->('a & b < c > d'), 'a &amp; b &lt; c &gt; d',
+        '& < > still escaped' );
+    is( $enc_attr->(undef), '', 'undef -> empty string' );
 };
 
 done_testing();
