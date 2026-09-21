@@ -37,7 +37,7 @@ my ($archives) = LoadFile('archives.yaml');
 
 {
   my $lis = join qq{\n},
-            map {; "<li><a href='$_'>$_</a></li>" }
+            map {; "<li><a href='" . enc_attr($_) . "'>" . enc($_) . "</a></li>" }
             sort keys %$archives;
 
   my $main = $MAIN_TEMPLATE =~ s/%LIST%/$lis/r;
@@ -116,7 +116,13 @@ END
           $item->{href}  = "https://metacpan.org/module/$entry->{module}";
         } elsif ($entry->{topic}) {
           $item->{title} = $entry->{topic};
-          $item->{href}  = $entry->{href} if $entry->{href};
+          # Curated topic hrefs come from archives.yaml (data). enc_attr stops
+          # attribute breakout, but only an http(s)/root-relative scheme is
+          # allowed through so a value like "javascript:..." can never become a
+          # live link. The module href above is a fixed metacpan prefix, so safe.
+          if ( defined $entry->{href} and $entry->{href} =~ m{\A(?:https?:|/)}i ) {
+            $item->{href} = $entry->{href};
+          }
         } else {
           # ???
           next ENTRY;
@@ -128,6 +134,10 @@ END
         # Group by author. Entries with a missing/empty/whitespace-only
         # author are collected into an "Author unknown" worklist rather than
         # silently omitted, so their true authors can be tracked down later.
+        # Grouping assumes archives.yaml author values are already canonical
+        # (year2yaml applies canonical_author + authors-aliases.yaml on write),
+        # so a normalize_key match here is enough to merge variants. A value
+        # reaching archives.yaml by some other path would form its own group.
         my $author = $entry->{author};
         if ( defined $author and $author =~ /\S/ ) {
           my $key = normalize_key($author);

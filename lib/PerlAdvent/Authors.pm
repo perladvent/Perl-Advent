@@ -38,8 +38,13 @@ part of a header value.
 sub parse_author_from_header ($header_text) {
     return undef unless defined $header_text;
 
+    # Only "Key: value" lines contribute a pair. Skipping colon-less lines
+    # keeps a stray line (this is free-form, untrusted header data) from
+    # producing an odd-length list that would shift every subsequent pairing
+    # and silently drop the author.
     my %lines =
         map { my @a = split /:/, $_, 2; $a[0] = lc( $a[0] // q{} ); @a }
+        grep { /:/ }
         split /\R/, $header_text;
 
     my $raw = $lines{author};

@@ -33,6 +33,11 @@ subtest 'parse_author_from_header' => sub {
         'missing author header returns undef' );
 
     is( parse_author_from_header(undef), undef, 'undef input returns undef' );
+
+    # A colon-less line in the (untrusted, free-form) header block must not
+    # shift the key/value pairing and drop the author.
+    is( parse_author_from_header("strayline\nAuthor: Jane Doe"), 'Jane Doe',
+        'colon-less header line does not corrupt author extraction' );
 };
 
 subtest 'display_name variants' => sub {
@@ -178,6 +183,65 @@ subtest 'mkarchives enc_attr encodes attribute-unsafe characters' => sub {
     is( $enc_attr->('a & b < c > d'), 'a &amp; b &lt; c &gt; d',
         '& < > still escaped' );
     is( $enc_attr->(undef), '', 'undef -> empty string' );
+};
+
+subtest 'mkarchives enc encodes text-node characters' => sub {
+    my $src = do {
+        open my $mfh, '<:encoding(UTF-8)', "$FindBin::Bin/../mkarchives"
+            or die "cannot read mkarchives: $!";
+        local $/;
+        <$mfh>;
+    };
+    my ($body) = $src =~ /sub \s+ enc \s* \{ (.*?) ^\}/msx
+        or die "could not extract enc from mkarchives";
+    my $enc = eval "sub { my (\$s) = \@_; $body }"    ## no critic
+        or die "eval enc failed: $@";
+
+    is( $enc->('a & b < c > d'), 'a &amp; b &lt; c &gt; d', '& < > escaped' );
+    is( $enc->(q{Acme::Don't}), q{Acme::Don't}, 'quotes left as-is in text node' );
+    is( $enc->(undef), '', 'undef -> empty string' );
+};
+
+subtest 'year2yaml handles a year with non-ASCII author names' => sub {
+    # Regression: the pre-append YAML validation must encode to UTF-8 bytes,
+    # or an accented author (2018 has several) trips "invalid trailing UTF-8
+    # octet" and wrongly blocks the append.
+    my $repo = "$FindBin::Bin/..";
+    plan skip_all => 'no 2018/articles on disk'
+        unless -d "$repo/2018/articles";
+
+    my ( $fh, $outfile ) =
+        tempfile( 'year2yaml-utf8-XXXXXX', DIR => ($ENV{TMPDIR} // '/tmp'), UNLINK => 1 );
+    close $fh;
+
+    my $rc = do {
+        my $pid = fork // die "fork failed: $!";
+        if ( $pid == 0 ) {
+            chdir $repo or die "chdir: $!";
+            open STDOUT, '>', File::Spec->devnull;
+            open STDERR, '>', File::Spec->devnull;
+            exec( $^X, 'year2yaml', '2018', $outfile );
+            exit 127;
+        }
+        waitpid $pid, 0;
+        $?;
+    };
+
+    is( $rc, 0, 'year2yaml 2018 exited cleanly (did not die on the UTF-8 gate)' )
+        or diag "rc=$rc";
+
+    my $data = eval { YAML::XS::LoadFile($outfile) };
+    ok( !$@ && ref $data eq 'HASH' && $data->{2018}, 'outfile parses with a 2018 block' )
+        or diag $@;
+
+    my $has_accented = 0;
+    for my $day ( values %{ $data->{2018} // {} } ) {
+        for my $entry ( @{ $day // [] } ) {
+            $has_accented = 1
+                if defined $entry->{author} && $entry->{author} =~ /[^\x00-\x7F]/;
+        }
+    }
+    ok( $has_accented, 'an accented author round-trips into the output' );
 };
 
 done_testing();

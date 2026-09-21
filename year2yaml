@@ -27,6 +27,7 @@ use FindBin;
 use lib "$FindBin::Bin/lib";
 use PerlAdvent::Authors qw( parse_author_from_header canonical_author load_aliases yaml_escape_dq );
 use YAML::XS ();
+use Encode qw( encode_utf8 );
 
 my $aliases = load_aliases("$FindBin::Bin/authors-aliases.yaml");
 
@@ -92,12 +93,13 @@ for my $day (1 .. 25) {
 	}
 }
 
-# Safety net: validate the appended block parses as YAML before it can reach
-# the committed archives.yaml. Wrap the "  DD:" / "  - { ... }" lines in a
-# minimal parseable top-level key so YAML::XS::Load sees a complete document.
+# Safety net: validate the generated block parses as YAML before it can reach
+# the committed archives.yaml. $ytext is already a complete document (a single
+# top-level "$year:" mapping). YAML::XS::Load operates on UTF-8 *bytes*, so the
+# (wide-character) text MUST be encoded first — otherwise an accented author
+# name trips "invalid trailing UTF-8 octet" and wrongly blocks the append.
 {
-	my $wrapper = "_validate:\n$ytext";
-	my $ok = eval { YAML::XS::Load($wrapper); 1 };
+	my $ok = eval { YAML::XS::Load( encode_utf8($ytext) ); 1 };
 	die "Refusing to append: generated YAML for $year does not parse: $@"
 		unless $ok;
 }
