@@ -21,6 +21,13 @@
 use strict;
 use warnings;
 use 5.010;
+use open qw(:std :encoding(UTF-8));
+
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use PerlAdvent::Authors qw( parse_author_from_header canonical_author load_aliases );
+
+my $aliases = load_aliases("$FindBin::Bin/authors-aliases.yaml");
 
 my ($year, $archfile) = @ARGV;
 die "You must provide the year as the first argument.\n"
@@ -37,9 +44,11 @@ for my $day (1 .. 25) {
 	my $file = sprintf "$ydir/%4.4i-12-%2.2i.pod", $year, $day;
 	print "Processing file $file\n";
 	my @modlist;
+	my $header = q{};
 	next unless -e $file;
 	open my $ifh, '<', $file or die "Cannot open $file for reading: $!";
 	while (my $line = <$ifh>) {
+		$header .= $line if $line =~ /\S/;
 		if ($line =~ /^Topic: (.+?)\s*$/) {
 			my @topics = split /\s*,\s*/, $1;
 			for my $topic (@topics) {
@@ -63,10 +72,21 @@ for my $day (1 .. 25) {
 	}
 	close $ifh;
 	next unless @modlist;
+
+	my $raw_author = parse_author_from_header($header);
+	my $author = defined $raw_author
+		? canonical_author($raw_author, $aliases)
+		: undef;
+
 	$ytext .= sprintf "  %2.2i:\n", $day;
 	for my $entry (@modlist) {
 		my ($key, $val) = %$entry;
-		$ytext .= qq#  - { "$key" : "$val" }\n#;
+		if (defined $author and length $author) {
+			my $safe = $author =~ s/"/\\"/gr;
+			$ytext .= qq#  - { "$key" : "$val", author: "$safe" }\n#;
+		} else {
+			$ytext .= qq#  - { "$key" : "$val" }\n#;
+		}
 	}
 }
 

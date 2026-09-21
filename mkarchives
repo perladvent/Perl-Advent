@@ -5,7 +5,14 @@ use warnings;
 use feature qw(postderef postderef_qq);
 no warnings 'experimental::postderef';
 
+use utf8;
+use open qw(:std :encoding(UTF-8));
+
 use YAML::XS qw( LoadFile );
+
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use PerlAdvent::Authors qw( normalize_key );
 
 my $out = $ARGV[0];
 die "usage: mkarchives OUTDIR\n" unless length $out and -d $out;
@@ -22,6 +29,7 @@ my $MAIN_TEMPLATE = <<'END';
 
 <h3><a href="archives-AZ.html">Alphabetical Module Listing</a></h3>
 <h3><a href="archives-Yd.html">Chronological Module Listing</a></h3>
+<h3><a href="archives-author.html">Listing by Author</a></h3>
 </body></html>
 END
 
@@ -50,6 +58,7 @@ my $AZ_TEMPLATE = <<'END';
 
 <h3><a href="archives.html">Listing of All Years</a></h3>
 <h3><a href="archives-Yd.html">Chronological Topic Listing</a></h3>
+<h3><a href="archives-author.html">Listing by Author</a></h3>
 </body></html>
 END
 
@@ -64,12 +73,28 @@ my $DATE_TEMPLATE = <<'END';
 
 <h3><a href="archives.html">Listing of All Years</a></h3>
 <h3><a href="archives-AZ.html">Alphabetical Topic Listing</a></h3>
+<h3><a href="archives-author.html">Listing by Author</a></h3>
+</body></html>
+END
+
+my $AUTHOR_TEMPLATE = <<'END';
+<html><head><meta charset="utf-8"><title>Perl Advent Calendar Archives</title></head>
+<body>
+<h1>Perl Advent Calendar Archives</h1>
+
+<h2>Articles by Author</h2>
+%LIST%
+
+<h3><a href="archives.html">Listing of All Years</a></h3>
+<h3><a href="archives-AZ.html">Alphabetical Topic Listing</a></h3>
+<h3><a href="archives-Yd.html">Chronological Topic Listing</a></h3>
 </body></html>
 END
 
 {
   my %by_name;
   my %by_date;
+  my %by_author;
 
   for my $year (sort keys $archives->%*) {
     for my $day (sort keys $archives->{ $year }->%*) {
@@ -98,6 +123,15 @@ END
 
         push $by_name{ $item->{title} }->@*, $item;
         push $by_date{ $item->{date} }->@*, $item;
+
+        # Group by author. Entries with no author are omitted from the
+        # by-author page (expected for 2000-2010 and most of 2021).
+        my $author = $entry->{author};
+        if ( defined $author and length $author ) {
+          my $key = normalize_key($author);
+          $by_author{$key}{display} //= $author;
+          push $by_author{$key}{items}->@*, $item;
+        }
       }
     }
   }
@@ -138,4 +172,35 @@ END
   open my $date_out, '>', "$out/archives-Yd.html" or die "error opening: $!";
   print $date_out $date;
   close $date_out or die "error closing archive-Yd.html: $!";
+
+  my $author_lis = q{};
+  for my $key (sort { fc $a cmp fc $b } keys %by_author) {
+    my $display = $by_author{$key}{display};
+    $author_lis .= "<h3>" . enc($display) . "</h3>\n<ul>\n";
+    my @items = sort { $a->{date} cmp $b->{date} }
+                $by_author{$key}{items}->@*;
+    for my $item (@items) {
+      $author_lis .= "<li><a href='$item->{article_link}'>$item->{date}</a>"
+                  .  " &mdash; "
+                  .  ($item->{href}
+                     ? "<a href='$item->{href}'>" . enc($item->{title}) . "</a>"
+                     : enc($item->{title}))
+                  . "\n";
+    }
+    $author_lis .= "</ul>\n";
+  }
+
+  my $author = $AUTHOR_TEMPLATE =~ s/%LIST%/$author_lis/r;
+  open my $author_out, '>', "$out/archives-author.html" or die "error opening: $!";
+  print $author_out $author;
+  close $author_out or die "error closing archives-author.html: $!";
+}
+
+sub enc {
+  my ($s) = @_;
+  return '' unless defined $s;
+  $s =~ s/&/&amp;/g;
+  $s =~ s/</&lt;/g;
+  $s =~ s/>/&gt;/g;
+  return $s;
 }
