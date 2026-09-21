@@ -20,8 +20,27 @@ POD article (C<YYYY/articles/YYYY-12-DD.pod>) exists, read its C<Author:>
 header, canonicalize it (see L<PerlAdvent::Authors>), and add an C<author>
 field to every entry emitted for that day.
 
-Years/days with no POD on disk (2000-2010, most of 2021, 2026) are left
-unchanged -- their entries simply get no author.
+For years/days with no modern POD on disk, a LEGACY source is consulted:
+
+=over
+
+=item * B<2000-2004> are attributed to B<Mark Fowler> by editorial decision.
+The founder wrote these years (see C<2000/about.html>, first-person); there is
+no per-article byline, so this is a documented MANUAL attribution, not an
+extracted one.
+
+=item * B<2005> is left author-less: the spod5 slideshows carry no reliable
+per-article byline, so these entries stay unattributed.
+
+=item * B<2006-2010> have their real byline extracted from the legacy HTML
+(C<< <h3>by NAME</h3> >>), falling back to C<=for advent_author> in an adjacent
+legacy POD. Refresh-stub C<index.html> files (Padded/Ordinal/Catsup redirects)
+and missing days yield no author.
+
+=back
+
+Any remaining years/days with no source (most of 2021, 2026, missing legacy
+days) are left unchanged -- their entries simply get no author.
 
 The rewrite is a line-oriented textual merge: it inserts C<, author: "...">
 into each existing one-line entry so that all pre-existing fields and the
@@ -33,7 +52,14 @@ Author headers are author-supplied DATA and are only parsed, never executed.
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use PerlAdvent::Authors qw( parse_author_from_header canonical_author load_aliases );
+use PerlAdvent::Authors qw(
+    parse_author_from_header
+    canonical_author
+    load_aliases
+    legacy_article_path
+    parse_legacy_byline
+    parse_advent_author_tag
+);
 use YAML::XS qw( LoadFile );
 
 my $root     = "$FindBin::Bin/..";
@@ -55,7 +81,7 @@ sub author_for ( $year, $day ) {
     return $author_for{$year}{$day} if exists $author_for{$year}{$day};
 
     my $file = sprintf '%s/%04d/articles/%04d-12-%02d.pod', $root, $year, $year, $day;
-    my $author;
+    my $raw;
     if ( -e $file ) {
         open my $fh, '<:encoding(UTF-8)', $file or die "Cannot open $file: $!";
         my $header = q{};
@@ -64,12 +90,60 @@ sub author_for ( $year, $day ) {
             $header .= $line;
         }
         close $fh;
-
-        my $raw = parse_author_from_header($header);
-        $author = defined $raw ? canonical_author( $raw, $aliases ) : undef;
+        $raw = parse_author_from_header($header);
+    }
+    else {
+        $raw = legacy_raw_author( $year, $day );
     }
 
+    my $author = defined $raw ? canonical_author( $raw, $aliases ) : undef;
     return $author_for{$year}{$day} = $author;
+}
+
+# Read a file as raw bytes; returns undef if it cannot be opened. Legacy
+# bylines are ASCII, so no decode layer is needed (and none is imposed, to
+# avoid warnings on non-UTF-8 legacy bytes elsewhere in the file).
+sub slurp ($path) {
+    open my $fh, '<:raw', $path or return undef;
+    local $/;
+    return scalar <$fh>;
+}
+
+# Resolve the raw (pre-canonical) author for a legacy (pre-2011) day, or undef.
+# See this script's DESCRIPTION for the per-era routing. All text handled here
+# is author-supplied DATA and is only parsed, never executed.
+sub legacy_raw_author ( $year, $day ) {
+
+    # 2000-2004: documented editorial attribution to the founder (no byline).
+    return 'Mark Fowler' if $year >= 2000 && $year <= 2004;
+
+    # 2005: spod5 slideshows have no reliable byline; leave unattributed.
+    return undef if $year == 2005;
+
+    # 2006-2010: extract the real byline; anything else stays unattributed.
+    return undef unless $year >= 2006 && $year <= 2010;
+
+    my $file = "$root/" . legacy_article_path( $year, $day );
+    return undef unless -e $file;
+
+    my $html = slurp($file);
+    return undef unless defined $html;
+
+    # Skip refresh-stub index.html files (Padded/Ordinal/Catsup redirects).
+    return undef if $html =~ m{<title>[^<]*\bredirect\b[^<]*</title>}i;
+
+    my $raw = parse_legacy_byline($html);
+    return $raw if defined $raw;
+
+    # Fallback: an adjacent legacy POD's `=for advent_author NAME`.
+    my $n = $day + 0;
+    for my $pod ( sort glob "$root/$year/$n/*.pod" ) {
+        my $pod_text = slurp($pod) // next;
+        my $tag = parse_advent_author_tag($pod_text);
+        return $tag if defined $tag;
+    }
+
+    return undef;
 }
 
 my ( $cur_year, $cur_day );

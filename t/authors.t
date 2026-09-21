@@ -14,6 +14,10 @@ use PerlAdvent::Authors qw(
     normalize_key
     load_aliases
     canonical_author
+    decode_legacy_entities
+    parse_legacy_byline
+    parse_advent_author_tag
+    legacy_article_path
 );
 
 subtest 'parse_author_from_header' => sub {
@@ -88,6 +92,63 @@ subtest 'load_aliases on a missing file returns empty hashref' => sub {
     is_deeply( $aliases, {}, 'absent file yields {}' );
     is( canonical_author( 'Jane Doe <jane@example.com>', $aliases ), 'Jane Doe',
         'canonical_author works with an empty alias map' );
+};
+
+subtest 'parse_legacy_byline extracts <h3>by NAME</h3>' => sub {
+    is( parse_legacy_byline('<h3 align="center">by Jerrad Pierce</h3>'),
+        'Jerrad Pierce', 'lower-case tag' );
+    is( parse_legacy_byline('<H3 ALIGN="CENTER">by Bill Ricker</H3>'),
+        'Bill Ricker', 'upper-case tag (case-insensitive)' );
+    is( parse_legacy_byline('<H3 align=center>by Jerrad Pierce</H3>'),
+        'Jerrad Pierce', 'unquoted attribute value' );
+
+    is( parse_legacy_byline('<h3 align="center">by David Westbrook &amp; Jerrad Pierce</h3>'),
+        'David Westbrook & Jerrad Pierce',
+        'co-authors decoded and kept as a single string' );
+
+    is( parse_legacy_byline('<p>no byline here</p>'), undef,
+        'no <h3>by ...</h3> returns undef' );
+    is( parse_legacy_byline(undef), undef, 'undef input returns undef' );
+};
+
+subtest 'decode_legacy_entities' => sub {
+    is( decode_legacy_entities('A &amp; B'), 'A & B', 'single &amp;' );
+    is( decode_legacy_entities('A &amp;amp; B'), 'A & B',
+        'double-encoded &amp;amp;' );
+    is( decode_legacy_entities("O&#39;Brien"), "O'Brien", 'numeric apostrophe' );
+    is( decode_legacy_entities(undef), undef, 'undef passes through' );
+};
+
+subtest 'parse_advent_author_tag' => sub {
+    my $pod = "=head1 NAME\n\n=for advent_author Yanick Champoux\n\n=cut\n";
+    is( parse_advent_author_tag($pod), 'Yanick Champoux',
+        'extracts =for advent_author' );
+    is( parse_advent_author_tag("=for advent_author Bill Ricker   \n"),
+        'Bill Ricker', 'trailing whitespace trimmed' );
+    is( parse_advent_author_tag("no author tag here\n"), undef,
+        'absent tag returns undef' );
+};
+
+subtest 'legacy_article_path routing' => sub {
+    is( legacy_article_path( 2003, '10' ), '2003/10th/index.html',
+        '2001-2004 use ordinal directory (10th)' );
+    is( legacy_article_path( 2002, '01' ), '2002/1st/index.html',
+        'ordinal 1st' );
+    is( legacy_article_path( 2001, '02' ), '2001/2nd/index.html',
+        'ordinal 2nd' );
+    is( legacy_article_path( 2004, '23' ), '2004/23rd/index.html',
+        'ordinal 23rd' );
+    is( legacy_article_path( 2004, '21' ), '2004/21st/index.html',
+        'ordinal 21st' );
+    is( legacy_article_path( 2004, '11' ), '2004/11th/index.html',
+        'ordinal 11th (teens are th)' );
+
+    is( legacy_article_path( 2008, '07' ), '2008/7/index.html',
+        'other legacy years use the integer directory' );
+    is( legacy_article_path( 2000, '25' ), '2000/25/index.html',
+        '2000 uses the integer directory' );
+    is( legacy_article_path( 2010, '5' ), '2010/5/index.html',
+        'integer day input works too' );
 };
 
 done_testing();

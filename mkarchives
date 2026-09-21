@@ -95,6 +95,7 @@ END
   my %by_name;
   my %by_date;
   my %by_author;
+  my @unattributed;
 
   for my $year (sort keys $archives->%*) {
     for my $day (sort keys $archives->{ $year }->%*) {
@@ -124,13 +125,17 @@ END
         push $by_name{ $item->{title} }->@*, $item;
         push $by_date{ $item->{date} }->@*, $item;
 
-        # Group by author. Entries with no author are omitted from the
-        # by-author page (expected for 2000-2010 and most of 2021).
+        # Group by author. Entries with a missing/empty/whitespace-only
+        # author are collected into an "Author unknown" worklist rather than
+        # silently omitted, so their true authors can be tracked down later.
         my $author = $entry->{author};
-        if ( defined $author and length $author ) {
+        if ( defined $author and $author =~ /\S/ ) {
           my $key = normalize_key($author);
           $by_author{$key}{display} //= $author;
           push $by_author{$key}{items}->@*, $item;
+        }
+        else {
+          push @unattributed, $item;
         }
       }
     }
@@ -180,6 +185,24 @@ END
     my @items = sort { $a->{date} cmp $b->{date} }
                 $by_author{$key}{items}->@*;
     for my $item (@items) {
+      $author_lis .= "<li><a href='$item->{article_link}'>$item->{date}</a>"
+                  .  " &mdash; "
+                  .  ($item->{href}
+                     ? "<a href='$item->{href}'>" . enc($item->{title}) . "</a>"
+                     : enc($item->{title}))
+                  . "\n";
+    }
+    $author_lis .= "</ul>\n";
+  }
+
+  # A visible worklist of still-unattributed articles (2005, scattered
+  # missing legacy days, most of 2021). See issue #688.
+  if (@unattributed) {
+    $author_lis .= "<h2>Author unknown</h2>\n";
+    $author_lis .= "<p>Help us attribute these &mdash; see "
+                .  "<a href='https://github.com/perladvent/Perl-Advent/issues/688'>issue #688</a>.</p>\n"
+                .  "<ul>\n";
+    for my $item (sort { $a->{date} cmp $b->{date} } @unattributed) {
       $author_lis .= "<li><a href='$item->{article_link}'>$item->{date}</a>"
                   .  " &mdash; "
                   .  ($item->{href}
