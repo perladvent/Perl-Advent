@@ -154,26 +154,11 @@ END
   my ($az_lis, $date_lis) = (q{}) x 2;
 
   for my $name (sort { fc $a cmp fc $b } keys %by_name) {
-    for my $item ($by_name{$name}->@*) {
-      $az_lis .= "<li><a href='" . enc_attr($item->{article_link}) . "'>$item->{date}</a>"
-              .  " &mdash; "
-              .  ($item->{href}
-                 ? "<a href='" . enc_attr($item->{href}) . "'>" . enc($item->{title}) . "</a>"
-                 : enc($item->{title}))
-              . "\n";
-    }
+    $az_lis .= li_for($_) for $by_name{$name}->@*;
   }
 
   for my $date (sort keys %by_date) {
-    # XXX crude duplication of code above -- rjbs, 2014-03-11
-    for my $item ($by_date{$date}->@*) {
-      $date_lis .= "<li><a href='" . enc_attr($item->{article_link}) . "'>$item->{date}</a>"
-                .  " &mdash; "
-                .  ($item->{href}
-                   ? "<a href='" . enc_attr($item->{href}) . "'>" . enc($item->{title}) . "</a>"
-                   : enc($item->{title}))
-                . "\n";
-    }
+    $date_lis .= li_for($_) for $by_date{$date}->@*;
   }
 
   my $az = $AZ_TEMPLATE =~ s/%LIST%/$az_lis/r;
@@ -186,38 +171,58 @@ END
   print $date_out $date;
   close $date_out or die "error closing archive-Yd.html: $!";
 
-  my $author_lis = q{};
-  for my $key (sort { fc $a cmp fc $b } keys %by_author) {
-    my $display = $by_author{$key}{display};
-    $author_lis .= "<h3>" . enc($display) . "</h3>\n<ul>\n";
-    my @items = sort { $a->{date} cmp $b->{date} }
-                $by_author{$key}{items}->@*;
-    for my $item (@items) {
-      $author_lis .= "<li><a href='" . enc_attr($item->{article_link}) . "'>$item->{date}</a>"
-                  .  " &mdash; "
-                  .  ($item->{href}
-                     ? "<a href='" . enc_attr($item->{href}) . "'>" . enc($item->{title}) . "</a>"
-                     : enc($item->{title}))
-                  . "\n";
+  # Sort authors by display name, and give each a URL-safe anchor id so the
+  # jump-list index below can link straight to a section (~120 groups is far
+  # too many to scan by eye).
+  my @author_keys =
+    sort { fc $by_author{$a}{display} cmp fc $by_author{$b}{display} }
+    keys %by_author;
+
+  my %slug_for;
+  {
+    my %seen;
+    for my $key (@author_keys) {
+      my $slug = lc $by_author{$key}{display};
+      $slug =~ s/[^a-z0-9]+/-/g;   # fold everything else to hyphens
+      $slug =~ s/\A-+|-+\z//g;
+      $slug = 'author' unless length $slug;
+      # Disambiguate any two display names that slug to the same string.
+      my ($base, $n) = ($slug, 1);
+      $slug = "$base-" . ++$n while $seen{$slug}++;
+      $slug_for{$key} = $slug;
     }
+  }
+
+  # Index: an alphabetical jump-list of every author (with article counts),
+  # plus the "Author unknown" bucket when there is one.
+  my $author_lis = "<p>Jump to an author:</p>\n<ul>\n";
+  for my $key (@author_keys) {
+    $author_lis .= "<li><a href='#" . enc_attr($slug_for{$key}) . "'>"
+                .  enc($by_author{$key}{display}) . "</a> ("
+                .  scalar($by_author{$key}{items}->@*) . ")</li>\n";
+  }
+  $author_lis .= "<li><a href='#author-unknown'>Author unknown</a> ("
+              .  scalar(@unattributed) . ")</li>\n"
+    if @unattributed;
+  $author_lis .= "</ul>\n\n";
+
+  # One anchored section per author.
+  for my $key (@author_keys) {
+    $author_lis .= "<h3 id='" . enc_attr($slug_for{$key}) . "'>"
+                .  enc($by_author{$key}{display}) . "</h3>\n<ul>\n";
+    $author_lis .= li_for($_)
+      for sort { $a->{date} cmp $b->{date} } $by_author{$key}{items}->@*;
     $author_lis .= "</ul>\n";
   }
 
   # A visible worklist of still-unattributed articles (2005, scattered
   # missing legacy days, most of 2021). See issue #688.
   if (@unattributed) {
-    $author_lis .= "<h2>Author unknown</h2>\n";
+    $author_lis .= "<h2 id='author-unknown'>Author unknown</h2>\n";
     $author_lis .= "<p>Help us attribute these &mdash; see "
                 .  "<a href='https://github.com/perladvent/Perl-Advent/issues/688'>issue #688</a>.</p>\n"
                 .  "<ul>\n";
-    for my $item (sort { $a->{date} cmp $b->{date} } @unattributed) {
-      $author_lis .= "<li><a href='" . enc_attr($item->{article_link}) . "'>$item->{date}</a>"
-                  .  " &mdash; "
-                  .  ($item->{href}
-                     ? "<a href='" . enc_attr($item->{href}) . "'>" . enc($item->{title}) . "</a>"
-                     : enc($item->{title}))
-                  . "\n";
-    }
+    $author_lis .= li_for($_) for sort { $a->{date} cmp $b->{date} } @unattributed;
     $author_lis .= "</ul>\n";
   }
 
@@ -234,6 +239,19 @@ sub enc {
   $s =~ s/</&lt;/g;
   $s =~ s/>/&gt;/g;
   return $s;
+}
+
+# Render one article as a list item: the date (linked to the article) and the
+# title (linked to its module/topic href when one is present). Shared by the
+# alphabetical, chronological, by-author, and "Author unknown" listings.
+sub li_for {
+  my ($item) = @_;
+  return "<li><a href='" . enc_attr($item->{article_link}) . "'>$item->{date}</a>"
+       . " &mdash; "
+       . ($item->{href}
+          ? "<a href='" . enc_attr($item->{href}) . "'>" . enc($item->{title}) . "</a>"
+          : enc($item->{title}))
+       . "\n";
 }
 
 # Encode a value for interpolation inside an HTML attribute (href='...').
