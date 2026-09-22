@@ -123,8 +123,11 @@ END
           # explicit http(s) scheme is allowed through, so a value like
           # "javascript:..." or "data:..." can never become a live link. URI
           # lower-cases the scheme and returns undef for a relative reference.
+          # First reject any control/whitespace char: a browser strips
+          # TAB/CR/LF from an href before parsing it, so "java<TAB>script:"
+          # would slip past a scheme check as a bogus relative reference.
           # The module href above is a fixed metacpan prefix, so it is safe.
-          if ( defined $entry->{href} ) {
+          if ( defined $entry->{href} and $entry->{href} !~ /[\x00-\x20]/ ) {
             my $scheme = URI->new( $entry->{href} )->scheme;
             $item->{href} = $entry->{href}
               if !defined $scheme or $scheme =~ /\Ahttps?\z/;
