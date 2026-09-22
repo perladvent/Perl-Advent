@@ -2,6 +2,7 @@ use strict;
 use warnings;
 
 requires 'Text::Markdown';
+requires 'URI';
 requires 'WWW::AdventCalendar';
 requires 'YAML::XS';
 

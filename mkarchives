@@ -9,6 +9,7 @@ use utf8;
 use open qw(:std :encoding(UTF-8));
 
 use YAML::XS qw( LoadFile );
+use URI ();
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
@@ -117,11 +118,15 @@ END
         } elsif ($entry->{topic}) {
           $item->{title} = $entry->{topic};
           # Curated topic hrefs come from archives.yaml (data). enc_attr stops
-          # attribute breakout, but only an http(s)/root-relative scheme is
-          # allowed through so a value like "javascript:..." can never become a
-          # live link. The module href above is a fixed metacpan prefix, so safe.
-          if ( defined $entry->{href} and $entry->{href} =~ m{\A(?:https?:|/)}i ) {
-            $item->{href} = $entry->{href};
+          # attribute breakout; on top of that, only a relative link or an
+          # explicit http(s) scheme is allowed through, so a value like
+          # "javascript:..." or "data:..." can never become a live link. URI
+          # lower-cases the scheme and returns undef for a relative reference.
+          # The module href above is a fixed metacpan prefix, so it is safe.
+          if ( defined $entry->{href} ) {
+            my $scheme = URI->new( $entry->{href} )->scheme;
+            $item->{href} = $entry->{href}
+              if !defined $scheme or $scheme =~ /\Ahttps?\z/;
           }
         } else {
           # ???
