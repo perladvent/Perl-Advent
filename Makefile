@@ -1,4 +1,4 @@
-.PHONY: help init uat uat-serve uat-serve-tailnet site e2e e2e-build
+.PHONY: help init uat uat-serve uat-serve-tailnet archives site e2e e2e-build
 
 # Running `make` with no target prints this help. Each target's one-line
 # summary is the `## ...` text on its rule line below, so the list stays in
@@ -49,6 +49,18 @@ uat-serve-tailnet: ## Serve out/ bound to this host's Tailscale IP (tailnet only
 	test -n "$$ip" || { echo "No Tailscale IPv4 address found — is 'tailscale up' running?" >&2; exit 1; }; \
 	echo "Serving out/ on http://$$ip:$(PORT)/ (reachable on your tailnet)"; \
 	cd out && python3 -m http.server $(PORT) --bind "$$ip"
+
+# --- Archives-only rebuild (fast UAT loop) ----------------------------------
+# Regenerate just the four archives pages (archives.html / archives-AZ.html /
+# archives-Yd.html / archives-author.html) from archives.yaml, without the full
+# per-year advcal build. mkarchives runs on plain host Perl, so this is quick —
+# ideal while iterating on archives.yaml or mkarchives during UAT. Writes into
+# an existing out/ (created if missing); the year pages under out/ are left
+# untouched. Reload the page in the browser afterwards.
+archives: ## Rebuild only the archives pages into out/ (fast UAT loop)
+	@mkdir -p out
+	perl mkarchives out
+	@echo "Regenerated out/archives*.html — reload http://127.0.0.1:$(PORT)/archives-author.html"
 
 # --- Full site build (all years) — UAT the archives pages -------------------
 # Builds the ENTIRE site into out/ via script/build-site.sh, which runs
