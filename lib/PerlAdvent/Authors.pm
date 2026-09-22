@@ -6,11 +6,11 @@ use utf8;
 
 use Exporter 'import';
 our @EXPORT_OK = qw(
-    parse_author_from_header
-    display_name
-    normalize_key
-    load_aliases
     canonical_author
+    display_name
+    load_aliases
+    normalize_key
+    parse_author_from_header
     yaml_escape_dq
 );
 
