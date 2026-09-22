@@ -8,6 +8,7 @@ no warnings 'experimental::postderef';
 use utf8;
 use open qw(:std :encoding(UTF-8));
 
+use HTML::Escape qw( escape_html );
 use YAML::XS qw( LoadFile );
 use URI ();
 
@@ -38,7 +39,7 @@ my ($archives) = LoadFile('archives.yaml');
 
 {
   my $lis = join qq{\n},
-            map {; "<li><a href='" . enc_attr($_) . "'>" . enc($_) . "</a></li>" }
+            map {; "<li><a href='" . escape_html($_) . "'>" . escape_html($_) . "</a></li>" }
             sort keys %$archives;
 
   my $main = $MAIN_TEMPLATE =~ s/%LIST%/$lis/r;
@@ -117,8 +118,8 @@ END
           $item->{href}  = "https://metacpan.org/module/$entry->{module}";
         } elsif ($entry->{topic}) {
           $item->{title} = $entry->{topic};
-          # Curated topic hrefs come from archives.yaml (data). enc_attr stops
-          # attribute breakout; on top of that, only a relative link or an
+          # Curated topic hrefs come from archives.yaml (data). escape_html
+          # stops attribute breakout; on top of that, only a relative link or an
           # explicit http(s) scheme is allowed through, so a value like
           # "javascript:..." or "data:..." can never become a live link. URI
           # lower-cases the scheme and returns undef for a relative reference.
@@ -192,8 +193,9 @@ END
       $slug =~ s/\A-+|-+\z//g;
       $slug = 'author' unless length $slug;
       # Disambiguate any two display names that slug to the same string.
-      my ($base, $n) = ($slug, 1);
-      $slug = "$base-" . ++$n while $seen{$slug}++;
+      my $base = $slug;
+      my $n    = 1;
+      while ( $seen{$slug}++ ) { $slug = "$base-" . ++$n }
       $slug_for{$key} = $slug;
     }
   }
@@ -202,8 +204,8 @@ END
   # plus the "Author unknown" bucket when there is one.
   my $author_lis = "<p>Jump to an author:</p>\n<ul>\n";
   for my $key (@author_keys) {
-    $author_lis .= "<li><a href='#" . enc_attr($slug_for{$key}) . "'>"
-                .  enc($by_author{$key}{display}) . "</a> ("
+    $author_lis .= "<li><a href='#" . escape_html($slug_for{$key}) . "'>"
+                .  escape_html($by_author{$key}{display}) . "</a> ("
                 .  scalar($by_author{$key}{items}->@*) . ")</li>\n";
   }
   $author_lis .= "<li><a href='#author-unknown'>Author unknown</a> ("
@@ -213,8 +215,8 @@ END
 
   # One anchored section per author.
   for my $key (@author_keys) {
-    $author_lis .= "<h3 id='" . enc_attr($slug_for{$key}) . "'>"
-                .  enc($by_author{$key}{display}) . "</h3>\n<ul>\n";
+    $author_lis .= "<h3 id='" . escape_html($slug_for{$key}) . "'>"
+                .  escape_html($by_author{$key}{display}) . "</h3>\n<ul>\n";
     $author_lis .= li_for($_)
       for sort { $a->{date} cmp $b->{date} } $by_author{$key}{items}->@*;
     $author_lis .= "</ul>\n";
@@ -237,38 +239,15 @@ END
   close $author_out or die "error closing archives-author.html: $!";
 }
 
-sub enc {
-  my ($s) = @_;
-  return '' unless defined $s;
-  $s =~ s/&/&amp;/g;
-  $s =~ s/</&lt;/g;
-  $s =~ s/>/&gt;/g;
-  return $s;
-}
-
 # Render one article as a list item: the date (linked to the article) and the
 # title (linked to its module/topic href when one is present). Shared by the
 # alphabetical, chronological, by-author, and "Author unknown" listings.
 sub li_for {
   my ($item) = @_;
-  return "<li><a href='" . enc_attr($item->{article_link}) . "'>$item->{date}</a>"
+  return "<li><a href='" . escape_html($item->{article_link}) . "'>$item->{date}</a>"
        . " &mdash; "
        . ($item->{href}
-          ? "<a href='" . enc_attr($item->{href}) . "'>" . enc($item->{title}) . "</a>"
-          : enc($item->{title}))
+          ? "<a href='" . escape_html($item->{href}) . "'>" . escape_html($item->{title}) . "</a>"
+          : escape_html($item->{title}))
        . "\n";
-}
-
-# Encode a value for interpolation inside an HTML attribute (href='...').
-# Escapes the text-node characters plus both quote characters so a value such
-# as Acme::Don't cannot break out of the single-quoted attribute.
-sub enc_attr {
-  my ($s) = @_;
-  return '' unless defined $s;
-  $s =~ s/&/&amp;/g;
-  $s =~ s/</&lt;/g;
-  $s =~ s/>/&gt;/g;
-  $s =~ s/"/&quot;/g;
-  $s =~ s/'/&#39;/g;
-  return $s;
 }

@@ -20,6 +20,22 @@ use PerlAdvent::Authors qw(
     yaml_escape_dq
 );
 
+# Run a repo script with the repo root as cwd (so FindBin/relative paths
+# resolve), silence its stdout/stderr, and return the raw wait status ($?).
+sub run_in_repo {
+    my ( $repo, @cmd ) = @_;
+    my $pid = fork // die "fork failed: $!";
+    if ( $pid == 0 ) {
+        chdir $repo or die "chdir: $!";
+        open STDOUT, '>', File::Spec->devnull;
+        open STDERR, '>', File::Spec->devnull;
+        exec @cmd;
+        exit 127;
+    }
+    waitpid $pid, 0;
+    return $?;
+}
+
 subtest 'parse_author_from_header' => sub {
     my $header = "Title: Something\nTopic: Foo::Bar\nAuthor: Jane Doe <jane\@example.com>";
     is( parse_author_from_header($header), 'Jane Doe <jane@example.com>',
@@ -137,19 +153,7 @@ subtest 'year2yaml writes a parseable block to an outfile' => sub {
         tempfile( 'year2yaml-XXXXXX', DIR => ($ENV{TMPDIR} // '/tmp'), UNLINK => 1 );
     close $fh;
 
-    my @cmd = ( $^X, 'year2yaml', '2011', $outfile );
-    my $rc = do {
-        # Run with the repo root as cwd so FindBin/relative paths resolve.
-        my $pid = fork // die "fork failed: $!";
-        if ( $pid == 0 ) {
-            chdir $repo or die "chdir: $!";
-            open STDOUT, '>', File::Spec->devnull;
-            exec @cmd;
-            exit 127;
-        }
-        waitpid $pid, 0;
-        $?;
-    };
+    my $rc = run_in_repo( $repo, $^X, 'year2yaml', '2011', $outfile );
 
     is( $rc, 0, 'year2yaml exited cleanly' ) or diag "rc=$rc";
 
@@ -166,42 +170,6 @@ subtest 'year2yaml writes a parseable block to an outfile' => sub {
     ok( $with_author > 0, "entries carry author values ($with_author found)" );
 };
 
-subtest 'mkarchives enc_attr encodes attribute-unsafe characters' => sub {
-    my $src = do {
-        open my $mfh, '<:encoding(UTF-8)', "$FindBin::Bin/../mkarchives"
-            or die "cannot read mkarchives: $!";
-        local $/;
-        <$mfh>;
-    };
-    my ($body) = $src =~ /sub \s+ enc_attr \s* \{ (.*?) ^\}/msx
-        or die "could not extract enc_attr from mkarchives";
-    my $enc_attr = eval "sub { my (\$s) = \@_; $body }"    ## no critic
-        or die "eval enc_attr failed: $@";
-
-    is( $enc_attr->(q{Acme::Don't}), 'Acme::Don&#39;t', "single quote -> &#39;" );
-    is( $enc_attr->(q{say "hi"}),    'say &quot;hi&quot;', 'double quote -> &quot;' );
-    is( $enc_attr->('a & b < c > d'), 'a &amp; b &lt; c &gt; d',
-        '& < > still escaped' );
-    is( $enc_attr->(undef), '', 'undef -> empty string' );
-};
-
-subtest 'mkarchives enc encodes text-node characters' => sub {
-    my $src = do {
-        open my $mfh, '<:encoding(UTF-8)', "$FindBin::Bin/../mkarchives"
-            or die "cannot read mkarchives: $!";
-        local $/;
-        <$mfh>;
-    };
-    my ($body) = $src =~ /sub \s+ enc \s* \{ (.*?) ^\}/msx
-        or die "could not extract enc from mkarchives";
-    my $enc = eval "sub { my (\$s) = \@_; $body }"    ## no critic
-        or die "eval enc failed: $@";
-
-    is( $enc->('a & b < c > d'), 'a &amp; b &lt; c &gt; d', '& < > escaped' );
-    is( $enc->(q{Acme::Don't}), q{Acme::Don't}, 'quotes left as-is in text node' );
-    is( $enc->(undef), '', 'undef -> empty string' );
-};
-
 subtest 'year2yaml handles a year with non-ASCII author names' => sub {
     # Regression: the pre-append YAML validation must encode to UTF-8 bytes,
     # or an accented author (2018 has several) trips "invalid trailing UTF-8
@@ -214,18 +182,7 @@ subtest 'year2yaml handles a year with non-ASCII author names' => sub {
         tempfile( 'year2yaml-utf8-XXXXXX', DIR => ($ENV{TMPDIR} // '/tmp'), UNLINK => 1 );
     close $fh;
 
-    my $rc = do {
-        my $pid = fork // die "fork failed: $!";
-        if ( $pid == 0 ) {
-            chdir $repo or die "chdir: $!";
-            open STDOUT, '>', File::Spec->devnull;
-            open STDERR, '>', File::Spec->devnull;
-            exec( $^X, 'year2yaml', '2018', $outfile );
-            exit 127;
-        }
-        waitpid $pid, 0;
-        $?;
-    };
+    my $rc = run_in_repo( $repo, $^X, 'year2yaml', '2018', $outfile );
 
     is( $rc, 0, 'year2yaml 2018 exited cleanly (did not die on the UTF-8 gate)' )
         or diag "rc=$rc";
