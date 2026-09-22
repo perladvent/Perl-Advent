@@ -1,4 +1,4 @@
-.PHONY: help init uat uat-serve uat-serve-tailnet archives site e2e e2e-build preview preview-build preview-tailnet
+.PHONY: help init new-article uat uat-serve uat-serve-tailnet archives site e2e e2e-build preview preview-build preview-tailnet
 
 # Running `make` with no target prints this help. Each target's one-line
 # summary is the `## ...` text on its rule line below, so the list stays in
@@ -23,6 +23,18 @@ help: ## Show this help
 # Handy for linked worktrees, which don't get submodules populated automatically.
 init: ## Fetch/update git submodules (run once in a fresh worktree)
 	git submodule update --init --recursive
+
+# --- Authoring --------------------------------------------------------------
+# Scaffold a new article stub under YEAR/incoming/. Prompts for anything you
+# don't pass; all fields are overridable:
+#   make new-article                                 # fully interactive
+#   make new-article YEAR=2026 TITLE='Foo::Bar' TOPIC='Foo::Bar'
+new-article: ## Create a new article stub in incoming/ (override YEAR=/TITLE=/TOPIC=/AUTHOR=)
+	perl script/new_article \
+	  $(if $(YEAR),--year '$(YEAR)') \
+	  $(if $(TITLE),--title '$(TITLE)') \
+	  $(if $(TOPIC),--topic '$(TOPIC)') \
+	  $(if $(AUTHOR),--author '$(AUTHOR)')
 
 # --- 2026 UAT preview -------------------------------------------------------
 # Two steps: build the fixture site, then serve it. Override DAY/PORT/BIND:

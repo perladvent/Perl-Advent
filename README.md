@@ -7,19 +7,22 @@ articles that run from December 1 to 25 each year.
 
 Raise an issue suggesting your topic.
 
-Fork the repo and start a new article. The script will prompt you
-for a few things and will create a new file for you under *YEAR*/incoming/.
+Fork the repo and start a new article. This prompts you for a few things
+and creates a new file for you under *YEAR*/incoming/.
 
 ```bash
-perl script/new_article
+make new-article
 ```
 
-`new_article` writes to the current calendar year by default. You can override
-that with `--year`:
+It writes to the current calendar year by default. Override that (or any
+other field) with a make variable:
 
 ```bash
-perl script/new_article --year 2025
+make new-article YEAR=2025
 ```
+
+(The underlying script is `perl script/new_article`; run it directly if you
+prefer, e.g. `perl script/new_article --year 2025`.)
 
 Edit your article, and test it as you work:
 
@@ -27,11 +30,32 @@ Edit your article, and test it as you work:
 perl t/article_pod.t 2023/incoming/your-article.pod
 ```
 
+To see your article rendered with the real calendar styling, preview just
+that one file and open the URL it prints:
+
+```bash
+make preview ARTICLE=2026/incoming/your-article.pod
+```
+
+(Run `make init` once first to fetch the build submodules. To share the
+preview with others on your tailnet, use `make preview-tailnet` instead.
+`make help` lists every build target.)
+
 When you are satisfied, create a pull request. You can keep working
 on the article and pushing updates to your fork; the pull request
 will automatically see the updates.
 
 ## The website
+
+Most build and preview tasks are wrapped in the `Makefile` — run `make help`
+to list every target and its overridable variables. The common ones:
+
+- `make site` — build the whole site into `out/` (all years)
+- `make uat` then `make uat-serve` — build and serve the 2026 calendar for review
+- `make preview ARTICLE=YEAR/incoming/foo.pod` — render and serve a single article
+
+Run `make init` once in a fresh checkout to fetch the build submodules. The
+steps below are the underlying manual commands, kept for reference.
 
 **Using Docker?** See [DOCKER.md](DOCKER.md) for containerized build and preview instructions.
 
