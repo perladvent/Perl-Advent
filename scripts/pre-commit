@@ -49,6 +49,17 @@ if [ "$branch" = "$default_branch" ]; then
     exit 1
 fi
 
+# Skip (don't block) if precious isn't installed. The hook is opt-in via
+# `make hooks`; someone may install it without the lint toolchain on PATH.
+# Warn clearly rather than failing every commit with a misleading "lint found
+# issues" error when the real problem is that precious can't be found.
+if ! command -v precious >/dev/null 2>&1; then
+    echo "warning: precious not found on PATH; skipping lint." >&2
+    echo "Install precious (https://github.com/houseabsolute/precious) to enable it," >&2
+    echo "or remove the hook with: rm \"\$(git rev-parse --git-path hooks)/pre-commit\"" >&2
+    exit 0
+fi
+
 # Run precious lint on staged files
 if ! precious lint -q --staged; then
     echo "pre-commit hook failed: precious lint found issues with staged files" >&2
