@@ -29,7 +29,7 @@ init: ## Fetch/update git submodules (run once in a fresh worktree)
 # don't pass; all fields are overridable:
 #   make new-article                                 # fully interactive
 #   make new-article YEAR=2026 TITLE='Foo::Bar' TOPIC='Foo::Bar'
-new-article: ## Create a new article stub in incoming/ (override YEAR=/TITLE=/TOPIC=/AUTHOR=)
+new-article: init ## Create a new article stub in incoming/ (override YEAR=/TITLE=/TOPIC=/AUTHOR=)
 	perl script/new_article \
 	  $(if $(YEAR),--year '$(YEAR)') \
 	  $(if $(TITLE),--title '$(TITLE)') \
