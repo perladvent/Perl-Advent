@@ -51,7 +51,7 @@ Most build and preview tasks are wrapped in the `Makefile` — run `make help`
 to list every target and its overridable variables. The common ones:
 
 - `make site` — build the whole site into `out/` (all years)
-- `make preview ARTICLE=YEAR/incoming/foo.pod` — render and serve a single article
+- `make preview ARTICLE=2026/incoming/foo.pod` — render and serve a single article
 
 Run `make init` once in a fresh checkout to fetch the build submodules. The
 steps below are the underlying manual commands, kept for reference.
