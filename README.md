@@ -18,11 +18,11 @@ It writes to the current calendar year by default. Override that (or any
 other field) with a make variable:
 
 ```bash
-make new-article YEAR=2025
+make new-article YEAR=2026
 ```
 
 (The underlying script is `perl script/new_article`; run it directly if you
-prefer, e.g. `perl script/new_article --year 2025`.)
+prefer, e.g. `perl script/new_article --year 2026`.)
 
 Edit your article, and test it as you work:
 
@@ -51,8 +51,6 @@ Most build and preview tasks are wrapped in the `Makefile` — run `make help`
 to list every target and its overridable variables. The common ones:
 
 - `make site` — build the whole site into `out/` (all years)
-- `make uat` then `make uat-serve` — build and serve the 2026 re-skin using
-  fixture articles (for design/layout review; does not render the real 2026 articles)
 - `make preview ARTICLE=YEAR/incoming/foo.pod` — render and serve a single article
 
 Run `make init` once in a fresh checkout to fetch the build submodules. The
