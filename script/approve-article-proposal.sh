@@ -14,7 +14,7 @@ year=${2:-$(date +%Y)}
 
 gh issue edit "$issue" --add-label "$year,Proposal Accepted"
 
-gh issue comment "$issue" --body "$(cat <<'EOF'
+body=$(cat <<'EOF'
 🎉 Your proposal has been accepted — welcome aboard!
 
 Here's how to get your article written:
@@ -39,4 +39,7 @@ Here's how to get your article written:
 See the "Authors" section of the README and EDITING.md for more. Questions?
 Just ask right here.
 EOF
-)"
+)
+
+# Fill the placeholder year with the actual calendar year.
+gh issue comment "$issue" --body "${body//YEAR/$year}"
