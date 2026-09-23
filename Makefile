@@ -1,4 +1,4 @@
-.PHONY: help init new-article uat uat-serve uat-serve-tailnet archives site e2e e2e-build preview preview-build preview-tailnet
+.PHONY: help init hooks new-article uat uat-serve uat-serve-tailnet archives site e2e e2e-build preview preview-build preview-tailnet
 
 # Running `make` with no target prints this help. Each target's one-line
 # summary is the `## ...` text on its rule line below, so the list stays in
@@ -23,6 +23,12 @@ help: ## Show this help
 # Handy for linked worktrees, which don't get submodules populated automatically.
 init: ## Fetch/update git submodules (run once in a fresh worktree)
 	git submodule update --init --recursive
+
+# Opt-in: install the precious lint pre-commit hook. Not needed to write or
+# submit an article — only useful if you run `precious` locally and want it to
+# check staged files before each commit. Requires `precious` on your PATH.
+hooks: ## Install the precious lint pre-commit hook (optional; needs precious)
+	./scripts/pre-commit --init
 
 # --- Authoring --------------------------------------------------------------
 # Scaffold a new article stub under YEAR/incoming/. Prompts for anything you

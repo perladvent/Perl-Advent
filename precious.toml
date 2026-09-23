@@ -1,0 +1,53 @@
+# Scoped to the current year (see the typos block below for the full rationale):
+# the historical archive (2000-2025) is frozen published content and predates
+# this tooling, so perltidy only asserts on 2026/ and future years. When 2026
+# is archived next January, bump this glob to the new current year.
+[commands.perltidy]
+type    = "both"
+include = ["2026/**/*.{pl,pm,t,psgi}"]
+cmd     = ["perltidy", "--profile=$PRECIOUS_ROOT/.perltidyrc"]
+lint-flags = ["--assert-tidy", "--no-standard-output", "--outfile=/dev/null"]
+tidy-flags = ["--backup-and-modify-in-place", "--backup-file-extension=/"]
+ok-exit-codes = [0]
+lint-failure-exit-codes = [2]
+
+[commands.perlimports]
+type    = "both"
+include = ["2026/**/*.{pl,pm,t,psgi}"]
+cmd     = ["perlimports", "--sort"]
+lint-flags = ["--lint"]
+tidy-flags = ["--inplace-edit"]
+ok-exit-codes = [0]
+lint-failure-exit-codes = [1]
+
+[commands.perlvars]
+type    = "lint"
+include = ["2026/**/*.pm"]
+cmd     = ["perlvars"]
+ok-exit-codes = [0]
+lint-failure-exit-codes = [1]
+
+[commands.omegasort-gitignore]
+type    = "both"
+include = [".gitignore"]
+cmd     = ["omegasort", "--sort", "path", "--unique"]
+lint-flags = ["--check"]
+ok-exit-codes = [0]
+lint-failure-exit-codes = [1]
+
+# Scoped to the current year only: the historical archive (2000-2025) is
+# frozen published content with its own legacy spellings, so typos checks
+# 2026/ and future years, not the back catalogue. typos walks the `2026`
+# directory itself (invoke=once + path-args=none) so it keeps its own binary
+# detection and gitignore handling — passing per-file paths would make it read
+# binaries (images, fonts, audio) as text and emit garbage findings. The
+# include glob gates the command so it only runs when a 2026 file is in scope.
+[commands.typos]
+type      = "both"
+include   = ["2026/**/*"]
+invoke    = "once"
+path-args = "none"
+cmd       = ["typos", "2026"]
+tidy-flags = ["--write-changes"]
+ok-exit-codes = [0]
+lint-failure-exit-codes = [2]
