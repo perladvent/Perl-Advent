@@ -14,6 +14,13 @@
 pwd
 set -eu -o pipefail
 
+# Prefer repo-local patches during site builds.
+export PERL5LIB="$(pwd)/lib${PERL5LIB:+:$PERL5LIB}"
+patch_module="-MPerl::Advent::RSSModePatch"
+if [[ " ${PERL5OPT:-} " != *" ${patch_module} "* ]]; then
+    export PERL5OPT="${patch_module}${PERL5OPT:+ ${PERL5OPT}}"
+fi
+
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
