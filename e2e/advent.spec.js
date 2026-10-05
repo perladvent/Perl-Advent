@@ -238,9 +238,11 @@ test.describe("line-number gutter", () => {
         document.querySelectorAll("pre.numbered"),
         (p) => p.scrollWidth > p.clientWidth
       );
+      if (!pre) return null;
       pre.scrollLeft = 100;
       return [pre.getBoundingClientRect().left, pre.querySelector(".code-gutter").getBoundingClientRect().left];
     });
+    expect(pos, "no horizontally overflowing pre.numbered on 2026-12-03.html at 400px").not.toBeNull();
     expect(Math.abs(pos[1] - pos[0])).toBeLessThan(2);
   });
 

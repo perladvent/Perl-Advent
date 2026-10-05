@@ -7,8 +7,9 @@
 # click through a populated calendar — feature banners, code panels, lists,
 # links, dark mode, visited-door ticks, the lot.
 #
-# It uses the inc/ fork of WWW::AdventCalendar (so the year-local templates and
-# self-hosted fonts take effect) and points --article-dir at the fixtures, so
+# It uses the inc/ forks of WWW::AdventCalendar (so the year-local templates and
+# self-hosted fonts take effect), Pod::Elemental::Transformer::SynHi and PPI::HTML
+# (so code listings render in the production <pre><code> shape, as in Docker/CI) and points --article-dir at the fixtures, so
 # 2026/articles/ is never touched. Fixture images are copied into share/static
 # just for the render and removed afterwards, leaving the tree clean.
 #
@@ -62,7 +63,10 @@ fi
 # --today, or fixtures since removed) don't linger and mislead the tester.
 rm -rf "$OUT"
 mkdir -p "$OUT"
-FORK_LIB="$PWD/inc/WWW-AdventCalendar/lib"
+# Also put the inc/ SynHi and PPI::HTML forks first, as Docker/CI installs
+# them: the CPAN SynHi emits <table class="code-listing"> rather than the
+# production <pre><code class="code-listing">, so a host render would diverge.
+FORK_LIB="$PWD/inc/WWW-AdventCalendar/lib:$PWD/inc/Pod-Elemental-Transformer-SynHi/lib:$PWD/inc/PPI-HTML/lib"
 UAT_INI="$YEAR/.advent.uat.ini"
 sed 's|^article_dir.*|article_dir = uat-fixtures|' "$YEAR/advent.ini" > "$UAT_INI"
 cleanup_ini() { rm -f "$UAT_INI"; }
