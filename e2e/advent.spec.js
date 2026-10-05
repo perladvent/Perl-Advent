@@ -195,30 +195,37 @@ test.describe("copy button", () => {
 // Production listings are <pre><code class="code-listing"> with <br>-separated
 // lines and no numbers; advent.js injects a decorative gutter beside the code.
 test.describe("line-number gutter", () => {
+  // Every fixture page with listings, so single-line (0 <br>) blocks on 02/04
+  // exercise the 1-line boundary alongside multi-line ones.
   test("each pre listing gets one aria-hidden gutter numbered 1..N", async ({ page }) => {
-    await page.goto("2026-12-03.html");
-    const listings = await page.evaluate(() =>
-      Array.prototype.map.call(document.querySelectorAll("pre > code.code-listing"), (code) => {
-        const pre = code.parentNode;
-        const gutters = pre.querySelectorAll(".code-gutter");
-        return {
-          brs: code.querySelectorAll("br").length,
-          count: gutters.length,
-          text: gutters[0] && gutters[0].textContent,
-          hidden: gutters[0] && gutters[0].getAttribute("aria-hidden"),
-          select: gutters[0] && getComputedStyle(gutters[0]).userSelect,
-          // Same line box for both columns, so equal heights mean aligned rows.
-          sameHeight: gutters[0] && Math.abs(gutters[0].offsetHeight - code.offsetHeight) < 2,
-        };
-      })
-    );
-    expect(listings.length).toBeGreaterThan(0);
-    for (const l of listings) {
-      const expected = Array.from({ length: l.brs + 1 }, (_, i) => String(i + 1)).join("\n");
-      expect(l).toEqual({
-        brs: l.brs, count: 1, text: expected, hidden: "true", select: "none", sameHeight: true,
-      });
+    let singleLine = 0;
+    for (const day of ["02", "03", "04", "05"]) {
+      await page.goto(`2026-12-${day}.html`);
+      const listings = await page.evaluate(() =>
+        Array.prototype.map.call(document.querySelectorAll("pre > code.code-listing"), (code) => {
+          const pre = code.parentNode;
+          const gutters = pre.querySelectorAll(".code-gutter");
+          return {
+            brs: code.querySelectorAll("br").length,
+            count: gutters.length,
+            text: gutters[0] && gutters[0].textContent,
+            hidden: gutters[0] && gutters[0].getAttribute("aria-hidden"),
+            select: gutters[0] && getComputedStyle(gutters[0]).userSelect,
+            // Same line box for both columns, so equal heights mean aligned rows.
+            sameHeight: gutters[0] && Math.abs(gutters[0].offsetHeight - code.offsetHeight) < 2,
+          };
+        })
+      );
+      expect(listings.length, `no listings on 2026-12-${day}.html`).toBeGreaterThan(0);
+      for (const l of listings) {
+        const expected = Array.from({ length: l.brs + 1 }, (_, i) => String(i + 1)).join("\n");
+        expect(l, `2026-12-${day}.html`).toEqual({
+          brs: l.brs, count: 1, text: expected, hidden: "true", select: "none", sameHeight: true,
+        });
+        if (l.brs === 0 && l.text === "1") singleLine++;
+      }
     }
+    expect(singleLine, "no single-line listing in fixtures").toBeGreaterThan(0);
   });
 
   test("inner code does not compound the panel font-size", async ({ page }) => {
