@@ -37,9 +37,10 @@ that one file and open the URL it prints:
 make preview ARTICLE=2026/incoming/your-article.pod
 ```
 
-(Run `make init` once first to fetch the build submodules. To share the
-preview with others on your tailnet, use `make preview-tailnet` instead.
-`make help` lists every build target.)
+(Serving the preview needs `http_this`: install it once with
+`cpm install -g App::HTTPThis`. To share the preview with others on your
+tailnet, use `make preview-tailnet` instead. `make help` lists every build
+target.)
 
 When you are satisfied, create a pull request. You can keep working
 on the article and pushing updates to your fork; the pull request
