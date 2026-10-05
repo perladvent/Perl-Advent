@@ -1,6 +1,6 @@
 Author: Gene Boggs <gene.boggs@gmail.com>
 Title: Little Drummer Toy
-Topic: Making Grooves with Music::SimpleDrumMachine
+Topic: The R&D Elves create a toy with Music::SimpleDrumMachine
 
 =encoding utf8
 
@@ -44,68 +44,57 @@ Here is an example brain:
 
 =begin perl
 
-    #!/usr/bin/env perl
-    use v5.36;
+#!/usr/bin/env perl
 
-    use Music::SimpleDrumMachine ();
+# Play and clock a MIDI device, like a drum machine or sequencer.
+# Examples:
+#   perl little-drummer.pl 'gs wavetable' 90 # on windows
+#   perl little-drummer.pl synth 90          # with fluidsynth
+#   perl little-drummer.pl usb 100 -1        # multi-timbral device
 
-    # The robot wakes up the moment it is constructed, and the
-    # constructor does not return until somebody presses Ctrl-C.
-    Music::SimpleDrumMachine->new(
-        port_name => 'synth', # any unique part of the MIDI port's name
-        bpm       => 108,
-        save      => 'little-drummer-toy.mid',
-        add_drums => [ { drum => 'jingle_bell', num => 83 } ],
-        parts     => {
-            march       => \&march,
-            strut       => \&strut,
-            low_battery => \&low_battery,
-        },
-        next_part => 'march',
-        fills     => { tumble => \&tumble },
-        next_fill => 'tumble',
+use v5.36;
+
+use Music::SimpleDrumMachine ();
+
+my $port = shift || 'usb'; # unique part of the open MIDI port name
+my $bpm  = shift || 90;    # beats-per-minute
+my $chan = shift // 9;     # MIDI channel 0-15
+
+my $dm = Music::SimpleDrumMachine->new(
+    port_name => $port,
+    bpm       => $bpm,
+    chan      => $chan,
+    bars      => 1, # alternate parts each measure
+    parts     => {
+        A => \&part_A,
+        B => \&part_B,
+    },
+    next_part => 'A', # start-off with this part
+    verbose   => 1,
+);
+
+sub part_A {
+    say 'Part A';
+    my %patterns = (
+        closed => [qw(1 0 0 0 1 0 0 0 1 0 0 0 1 0 0 0)],
+        kick   => [qw(1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0)],
+        snare  => [qw(1 0 0 0 1 0 0 0 1 0 0 0 1 1 1 0)],
     );
+    my $next = 'B';
+    return $next, \%patterns; # required return arguments
+}
 
-    sub march () {
-        my %patterns = (
-            kick       => [qw(1 0 0 0 1 0 0 0 1 0 0 0 1 0 0 0)],
-            snare      => [qw(0 0 0 0 1 0 0 0 0 0 0 0 1 0 1 0)],
-            wood_block => [qw(1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0)],
-        );
-        my $next = { march => 6, strut => 3, low_battery => 1 };
-        return $next, \%patterns;
-    }
-
-    sub strut () {
-        my %patterns = (
-            kick        => [qw(1 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0)],
-            snare       => [qw(0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 1)],
-            shaker      => [qw(1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1)],
-            cowbell     => [qw(0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0)],
-            jingle_bell => [qw(1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1)],
-        );
-        my $next = { march => 2, strut => 3 };
-        return $next, \%patterns;
-    }
-
-    sub low_battery () {
-        my %patterns = (
-            kick    => [qw(1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)],
-            whistle => [qw(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1)],
-        );
-        my $next = { march => 1 };
-        return $next, \%patterns;
-    }
-
-    sub tumble () {
-        my %patterns = (
-            snare   => [qw(1 0 1 0 1 0 1 0 0 0 0 0 0 0 0 0)],
-            hi_tom  => [qw(0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0)],
-            mid_tom => [qw(0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0)],
-            low_tom => [qw(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1)],
-        );
-        return 'tumble', \%patterns;
-    }
+sub part_B {
+    say 'Part B';
+    my %patterns = (
+        closed => [qw(1 0 0 0 1 0 0 0 1 0 0 0 1 0 0 0)],
+        kick   => [qw(1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0)], # change 1: 1 0 1 0 0 0 0 0 1 0 0 0 0 0 0 0
+        snare  => [qw(1 0 0 0 1 0 0 0 1 0 0 0 1 1 1 1)],
+        # crash => [qw(1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)], # change 2
+    );
+    my $next = 'A';
+    return $next, \%patterns;
+}
 
 =end perl
 
