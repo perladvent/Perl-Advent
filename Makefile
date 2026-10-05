@@ -139,9 +139,7 @@ e2e: ## Run the Playwright e2e tests (override E2E_PORT=)
 # Then open http://127.0.0.1:$(PREVIEW_PORT)/2026/2026-12-01.html .
 PREVIEW_PORT ?= 8026
 
-preview: ## Render one .pod as door 1 and serve it (ARTICLE= required; PREVIEW_HOST= for tailnet)
-	@test -n "$(ARTICLE)" || { echo "usage: make preview ARTICLE=2026/incoming/foo.pod" >&2; exit 1; }
-	PREVIEW_PORT=$(PREVIEW_PORT) ./script/preview-article.sh $(ARTICLE)
+preview: site preview-build ## Render one .pod as door 1 and serve it (ARTICLE= required; PREVIEW_HOST= for tailnet)
 	http_this out --port $(PREVIEW_PORT) $(if $(PREVIEW_HOST),--host $(PREVIEW_HOST),) --autoindex
 
 preview-build: ## Render one .pod as door 1 without serving (ARTICLE= required)
