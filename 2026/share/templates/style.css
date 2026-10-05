@@ -286,9 +286,10 @@ h1.title{
 .pod ul li{margin:.3em 0}
 .pod ul li p{display:inline}
 /* Inline C<...> code chips only — never the syntax-highlighted listings, which
-   carry class="code-listing" and are styled as full blocks below. (A <table
-   class="code-listing"> holds bare <code> cells that this would otherwise chip;
-   the reset beside the code-panel rules below neutralises those.) */
+   carry class="code-listing" and are styled as full blocks below. (Production
+   emits <pre><code class="code-listing">; the host-build fallback <table
+   class="code-listing"> holds bare <code> cells that this would otherwise
+   chip — the reset beside the code-panel rules below neutralises those.) */
 .pod code:not(.code-listing){
   font-family:var(--mono); font-size:.88em; padding:2px 6px; border-radius:5px;
   background:var(--chip-bg); color:var(--chip-ink);
@@ -361,19 +362,24 @@ h2#See-Also{padding-top:.6em;border-top:1px solid var(--border);margin-top:1.6em
 }
 
 /* ---- Code listings -------------------------------------------------------- */
-pre,.code-listing{
+/* Production listings are <pre><code class="code-listing">: the <pre> is the
+   panel and the inner <code> is plain text. A host build (upstream SynHi) emits
+   <table class="code-listing"> instead; the table.* rules are that fallback.
+   Scope the panel rules to the element, or the inner <code> re-applies them
+   (compounded .9em font-size, width, overflow, margin). */
+pre,table.code-listing{
   line-height:1.6; background:var(--code-bg); color:var(--code-ink);
   font-family:var(--mono); font-size:.9em; border-radius:12px;
   box-shadow:var(--shadow);
 }
 pre{padding:18px 20px;overflow-x:auto;width:100%;margin:0 0 1.8em}
-/* A nested <code> must not draw its own surface — the <pre> or the
-   table.code-listing supplies the panel. Without this, the inline-chip rule
-   above paints a light chip behind the code cells of a table listing, washing
-   out tokens coloured for the dark panel. */
+/* A nested <code> must not draw its own surface — the <pre> (or, in a host
+   build, the table.code-listing) supplies the panel. Without this, the
+   inline-chip rule above paints a light chip behind the code cells of a table
+   listing, washing out tokens coloured for the dark panel. */
 pre code,.code-listing code,
 .pod pre code,.pod .code-listing code{background:transparent;box-shadow:none;border-radius:0;padding:0;color:inherit}
-.code-listing{white-space:pre;border-collapse:separate;border-spacing:0;width:100%;overflow:hidden;margin:0 0 1.8em}
+table.code-listing{white-space:pre;border-collapse:separate;border-spacing:0;width:100%;overflow:hidden;margin:0 0 1.8em}
 .code-listing td{padding:0;margin:0}
 .code-listing .line-numbers{
   background:var(--code-gutter-bg); color:var(--code-gutter-ink);
@@ -386,15 +392,24 @@ pre code,.code-listing code,
    line above and below every listing. Drop them — the cell padding already
    gives the breathing room. */
 .code-listing td > br{display:none}
+/* Line-number gutter for the pre shape, injected by advent.js (the table
+   fallback has its own). Same font and line-height as the code so the numbers
+   line up; sticky so it stays put while long lines scroll horizontally. */
+pre.numbered{display:flex;padding:0}
+.pod pre.numbered > code{flex:1 0 auto;padding:14px 18px}
+pre > .code-gutter{
+  position:sticky; left:0; z-index:1; flex:none;
+  background:var(--code-gutter-bg); color:var(--code-gutter-ink);
+  border-right:1px solid var(--code-gutter-border); min-width:3.2em; text-align:right;
+  padding:14px 10px 14px 12px; user-select:none;
+}
 
 /* Copy button — advent.js wraps each listing in .code-block (the positioning
    context) and injects the button. Degrades to a plain listing without JS. */
 .code-block{position:relative;margin:0 0 1.8em}
 /* Zero the wrapped block's own bottom margin so it doesn't stack with the
-   .code-block margin above. The table shape carries .code-listing on the
-   wrapped element; the pre shape carries it on the inner <code>, so also reset
-   the wrapped <pre> directly. */
-.code-block .code-listing,.code-block > pre{margin:0}
+   .code-block margin above. */
+.code-block > table.code-listing,.code-block > pre{margin:0}
 .code-copy{
   position:absolute; top:8px; right:8px; z-index:2;
   font:600 12px/1 var(--sans); color:var(--code-ink);

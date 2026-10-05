@@ -151,10 +151,29 @@
     );
     return blocks;
   }
+  // The production build's <pre><code class="code-listing"> has no line
+  // numbers (the table shape carries its own gutter). Restore one: each <br>
+  // inside <code> — some sit inside a span — starts a new line, and the build
+  // emits no trailing <br>, so lines = <br>s + 1. The gutter is a sibling of
+  // <code> (so codeText never sees it), aria-hidden and unselectable.
+  function addGutter(pre) {
+    if (pre.tagName !== "PRE" || pre.querySelector(".code-gutter")) return;
+    var code = pre.querySelector("code");
+    var n = code.querySelectorAll("br").length + 1;
+    var nums = [];
+    for (var i = 1; i <= n; i++) nums.push(i);
+    var gutter = document.createElement("span");
+    gutter.className = "code-gutter";
+    gutter.setAttribute("aria-hidden", "true");
+    gutter.textContent = nums.join("\n");
+    pre.insertBefore(gutter, code);
+    pre.classList.add("numbered");
+  }
   function addCopyButtons() {
     codeListings().forEach(function (block) {
       if (block.parentNode && block.parentNode.classList.contains("code-block")) return;
       trimCells(block);
+      addGutter(block);
       var wrap = document.createElement("div");
       wrap.className = "code-block";
       block.parentNode.insertBefore(wrap, block);
