@@ -8,10 +8,11 @@
 # links, dark mode, visited-door ticks, the lot.
 #
 # It uses the inc/ forks of WWW::AdventCalendar (so the year-local templates and
-# self-hosted fonts take effect), Pod::Elemental::Transformer::SynHi and PPI::HTML
-# (so code listings render in the production <pre><code> shape, as in Docker/CI) and points --article-dir at the fixtures, so
-# 2026/articles/ is never touched. Fixture images are copied into share/static
-# just for the render and removed afterwards, leaving the tree clean.
+# self-hosted fonts take effect), Pod::Elemental::Transformer::SynHi and
+# PPI::HTML (so code listings render in the production <pre><code> shape, as in
+# Docker/CI) and points --article-dir at the fixtures, so 2026/articles/ is
+# never touched. Fixture images are copied into share/static just for the render
+# and removed afterwards, leaving the tree clean.
 #
 # Usage:
 #   ./script/uat-preview.sh                 # simulate 2026-12-05
