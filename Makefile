@@ -1,4 +1,4 @@
-.PHONY: help init hooks new-article uat uat-serve uat-serve-tailnet archives site e2e e2e-build preview preview-build preview-tailnet
+.PHONY: help init hooks new-article uat uat-serve uat-serve-tailnet archives site e2e e2e-build preview preview-build preview-tailnet approve-proposals
 
 # Running `make` with no target prints this help. Each target's one-line
 # summary is the `## ...` text on its rule line below, so the list stays in
@@ -156,3 +156,9 @@ preview-tailnet: ## Render one .pod as door 1 and serve it on this host's Tailsc
 	PREVIEW_PORT=$(PREVIEW_PORT) ./script/preview-article.sh $(ARTICLE); \
 	echo "Serving on http://$$ip:$(PREVIEW_PORT)/2026/2026-12-01.html (reachable on your tailnet)"; \
 	http_this out --port $(PREVIEW_PORT) --host "$$ip" --autoindex
+
+# --- Maintainer: proposals --------------------------------------------------
+# fzf over open "Article" issues for YEAR (default 2026) not yet labelled
+# "Proposal Accepted"; approves the ones you pick.
+approve-proposals: ## Pick pending proposals with fzf and approve them (maintainers; needs gh + fzf)
+	$(if $(YEAR),YEAR='$(YEAR)') ./script/approve-proposals.sh
