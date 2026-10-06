@@ -86,8 +86,11 @@ for year in $(seq 2000 2026); do
     fi
 done
 
+# Root pages, including 404.html (GitHub Pages serves it for unknown paths).
 cp ./*.html out/
 cp RSS.xml out/
+# Custom domain for GitHub Pages, so it survives a Pages settings reset.
+cp CNAME out/
 cp -R images out/
 cp favicon.ico out/
 

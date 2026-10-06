@@ -73,6 +73,9 @@ trap 'cleanup; cleanup_ini' EXIT
         advcal -c .advent.uat.ini -o "../$OUT" --today "$TODAY"
 )
 [[ -e favicon.ico ]] && cp favicon.ico "$OUT/" || true
+# The root 404 page, so the e2e suite can exercise its scripts. Unlike the
+# favicon it is required, so a missing file should fail the build.
+cp 404.html out/
 
 echo
 echo "Built $OUT/ (simulated today = $TODAY)."

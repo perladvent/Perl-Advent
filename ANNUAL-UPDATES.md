@@ -42,6 +42,11 @@ This script:
   `.github/pull_request_template.md`, `script/build-site.sh`, and
   `script/stats.sh`
 
+The script leaves `404.html` alone: it links `/2026/style.css` on purpose,
+because past years stay deployed. If a new year ships a new theme you want
+the 404 page to use, change that link and the matching check in
+`t/site_root.t` by hand.
+
 After the script runs, create the empty directories that the build system
 expects and add `.gitkeep` files so they are tracked by git:
 
