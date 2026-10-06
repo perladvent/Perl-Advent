@@ -1,0 +1,321 @@
+Author: cpan@opperschaap.net
+Title: Release the Kraken
+Topic: Blog::Release
+
+=encoding utf8
+
+=for :html
+<img src="release-kraken.webp" alt="An octopus operating a vintage printing press, automating the publishing process" style="float: right; margin: 0 0 1em 1em; width: 300px;"/>
+
+=head2 TL;DR
+
+Netlify's build-on-push burned through my tokens fast. So I built
+L<Blog::Release> — a Perl module that handles scheduling, deployment,
+validation, and search engine pings on my terms.
+The idea is simple: A configuration declares the state and I write, queue it
+up, and the machine handles the rest. Holiday support is baked in because even
+if the backlog is stacked, we aren't animals. Content validation keeps me from
+publishing embarrassing SEO disasters. And when something goes out, search
+engines get poked automatically. Except Google, who can get... because it's
+Christmas I'll refrain from the stronger language.
+
+I don't want to think about when to publish. I want to think about what to
+write.
+
+=head2 Introduction
+
+About a year ago when I wrote about
+L<building an HTML mixtape|https://wesley.schwengle.net/article/mixtaping-in-2025--a-personal-build-log-ed5d/>
+I rediscovered blogging. And because I wanted to get rid of dev.to (and Medium
+before that) I moved to my own blog with Hugo. Why should big tech feed off
+my content? They don't give me reader insights, they just give you a platform
+where you can type text and add images. You can do that without sponsoring
+their bottom line. And btw, even now I don't have reader insight, so say "Hi"
+if you read this. I digress :)
+
+So I took a hugo template and republished my blog. But I had a problem. When
+you set up Netlify they do something clever, they build on push events. That
+triggers a ton of rebuilds everytime you change a little item in your blog and
+you push the change. I was unaware of the token aspects of Netlify, so...
+within hours I hit 80% of used tokens. For what? Committing early and often
+(and pushing it).
+
+=head2 Blog::Release
+
+So I decided to build a release pipeline for this blog. And before I did that,
+I had some thoughts on how to approach blogging. I wanted to write content and
+publish it on a given day to my liking and to have some kind of schedule. I
+didn't want to manually release blog content. Not on the regular at least.
+
+I built an initial version of what now is L<Blog::Release>. It uses
+L<WebService::Netlify> under the hood to talk to Netlify and do the
+deployments and everything is coordinated from a Makefile:
+
+    #!vim shell
+    $ make
+    Available targets:
+      make configure       - Install Go and Hugo on Debian (may need: sudo make configure)
+      make dev             - Run Hugo development server natively
+      make build           - Build site natively
+      make clean           - Clean build artifacts
+      make realclean       - Clean build artifacts including resources
+      make publish         - Publish the hugo site to Netlify
+      make deploy          - Deploy (no publication changes) the hugo site to Netlify
+
+    Available docker targets:
+      make docker-build    - Build Docker image
+      make docker-dev      - Run Hugo dev server in Docker
+      make docker-dev-live - Run Hugo dev server in Docker
+      make docker-clean    - Remove Docker image
+      make docker-install  - Install dependencies inside Docker (used by Dockerfile)
+
+I wrote a little wrapper and.. the site deploys:
+
+    #!vim shell
+    $ crontab -l
+    0 5 * * * $HOME/wesley.schwengle.net/bin/deploy.sh
+
+=head2 Scheduling your articles
+
+This is the actual cool bit of C<Blog::Release>. This is where most of the
+logic is hidden. I have a yaml file that essentially says publish these
+articles in this cadence. The order matters: FIFO. Well, you can change
+the FI, thus the FO too.
+
+  #!vim yaml
+  publish:
+    - name: your-article.md
+      type: article
+      # optional fields
+      date: YYYYMMDD
+      finished: false
+      announce: |
+      Announcements go here
+    - name: ...
+
+This tells us a couple of things. One, what the article is, where to find it,
+and when it should be scheduled. The scheduling is dynamic. You can either opt
+for a manual date or you opt for a automatically scheduled date. The cadence
+is defined in days from a given moment. Why? Well, I didn't want to schedule a
+once a month kinda thing. I just looked at a calendar and said: every week on
+Tuesday I want to schedule my articles. Or every three weeks. Or every day. It
+may limit you in every Tuesday or Wednesday, but.. I ain't blogging that much
+to support these corporate style release trains. Plus solely based on days I
+can do cool tricks without having to do too much math with dates.
+
+  #!vim yaml
+  release:
+    # Push updates in a release bundle (false) or on separate days (true)
+    fixAlways: false
+
+    # Every 14 days on a tuesday from 2026 onwards
+    startDate: 20260113
+    interval: 14
+
+    includeDate:
+      - 20261208
+    blockDate:
+      - 20261229
+
+    # Yell at us for keeping more than 4 published articles in the queue:
+    # clean up your queue
+    maxPublished: 4
+    # Yell at us for keeping less than 4 published articles in the queue:
+    # write more or just plug them in
+    minPublished: 4
+
+    # Support holiday support, we aren't animals, we gentle people
+    holidays:
+      - AW
+      - NL
+      - BQ
+      - CW
+
+You'll notice some things that I haven't explained yet. C<fixAlways> and
+C<holidays> I'll do first.
+
+When a blog gets published C<Blog::Release> tags the release with
+C<YYYYMMDDXX> tags. I stole that from old skool DNS serials. Easy on the eyes
+and clear in meaning: 00, 01, 02, you know exactly which tags were released
+and Netlify also gets them.
+Now, when you have published an article in the past and you have edited them
+C<Blog::Release> sees this and schedules it for (re)publication. You can set
+C<fixAlways> to C<true> it will tweak some metadata so when hugo comes along it
+sees the C<lastmod> is modified and your content got refreshed. When you set it
+to C<false> it will only schedule them for publication when you have a manual
+or automatic deploy happening. So it gets bundled to your normal release
+cadence. The latter is what I prefer. I can make changes and know nothing will
+change under my nose except when a publication is actually happening.
+
+Holiday support is baked in because even if we have a backlog, we want to
+appear mindful to our readers. They are not going to read your blog on Boxing
+day or when they celebrate the flag or whatever your local holiday schedule
+day says it is. You can even use your own personal holiday unit, so it doesn't
+publish on your birthday. L<Date::Holidays> says hello. For myself I support
+Aruba, Bonaire, Curaçao, and the Netherlands because those are my roots and
+I live in the area.
+
+The C<includeDate> and C<blockDate> configuration allows you to punch holes in
+your queue or to block them. They still adhere to holiday rules. I added them
+because in my case Dec 15th is a holiday and Dec 29th is a non-holiday release
+slot. Yet, I don't want to publish between Christmas and New Years. So I block
+the 29th and I open up a hole on the 8th, which is normally not a release
+date. If you really want to publish on a holiday, you'd have to schedule it
+manually. Holidays are treated as "You want THIS content to go out today", not
+via the queue.
+
+The C<minPublished> and C<maxPublished> are for validation purposes. The
+scheduler doesn't remove entries once things got deployed because I like
+comments in my configuration files and most parsers strip them out when
+editing, so I baked in a git pre-push hook to ensure I get warnings once these
+thresholds are violated. C<maxPublished> is for when you have more than X
+published items sitting in the publish queue. And C<minPublished> is for when
+you have less than X articles scheduled for publication.
+
+=head3 Validation
+
+There is also content validation built in, I had it mainly to support SEO
+things, but truth be told, my own SEO sucks. But it's there and I use it.
+There are some hardcoded rules: You must have 2-10 tags, 10-20 keywords, and a
+description. The slug gets generated on publication, so that isn't checked.
+
+    #!vim shell
+    $ blog-release validate
+
+    Queue status:
+      ✓ 0 already published (max: 4)
+      ✓ 19 unpublished scheduled (min: 4)
+
+    $ blog-release validate --strict
+
+    [snip]
+
+    » content/article/blog-release.md
+      Warnings:
+      ⚠ Description length 0 outside range 100-180 chars
+      ⚠ Need at least 2 tags, found 0
+      ⚠ Need at least 10 keywords, found 0
+
+    [snip]
+
+=head3 Tags and keywords
+
+In order to automate a bit of tags and keywords for "Related content" usage,
+which in turns drives SEO because of internal linking, I dove into NLP things.
+And more specifically, how to extract keywords from text and how to score that.
+That lead me to L<Lingua::TFIDF>, but that proved somewhat troublesome with
+dependencies not found on MacOS. So.. I forked it, and created
+L<Lingua::TermWeight>. It deals with tag and keyword generation. This added a
+Lingua plugin/command: C<blog-release lingua>.
+
+You can configure how tags and keywords are used:
+
+  #!vim yaml
+  lingua:
+    plugins:
+      - Blog::Release::Shortcode::Details
+      - Blog::Release::Shortcode::Links
+      - Blog::Release::Shortcode::Color
+    stopwords:
+      - didn
+      - please
+      - get
+      - ...
+
+You can write your own plugins to strip so-called shortcodes or other items in
+your articles and you can add stopwords to ensure tags and keywords don't
+contain words you don't want to have. And in addition, if you have keywords and
+tags manually set. Lingua will fill the remaining with the units found from
+your blogpost.
+
+=head2 Publication
+
+There are several publication modes:
+
+    #!vim shell
+    auto       normal scheduled publish
+    manual     manually scheduled posts
+    republish  fixes/updates to existing posts
+    draft      not part of the release system yet
+    published  already released
+
+When you run C<blog-release schedule --show> it will show you output like this:
+
+    #!vim shell
+    20260324:
+      auto  noguiboot.md
+      ├ Question: My Debian doesn't boot with a GUI
+      ├ Troubleshoot Debian not booting to GUI by checking display manager statu...
+      └ content/answerrit/noguiboot.md
+
+      republish  20240505-git-fetch-tags (bundle)
+      ├ Limiting tags when using git fetch
+      ├ Use negative refspecs and tagOpt to filter out CI-generated tags when fe...
+      └ content/article/20240505-git-fetch-tags/index.md
+
+      republish  20250823-mixtape (bundle)
+      ├ Mixtaping in 2025 – A Personal Build Log
+      ├ Building an offline HTML mixtape with web components, custom video/audio...
+      └ content/article/20250823-mixtape/index.md
+
+      republish  20250924-workspace-on-demand.md
+      ├ Workspace on Demand in i3wm
+      ├ Build dynamic context-aware workspace groups in i3wm using Perl, AnyEven...
+      └ content/article/20250924-workspace-on-demand.md
+
+    20260407:
+      auto  docker-cpan-aua.md
+      ├ Docker to the rescue
+      ├ run perl cpan modules in docker containers with minicpan and cpm to avoi...
+      └ content/article/docker-cpan-aua.md
+
+    20260421:
+      auto  update-alternatives.md
+      ├ Question: How do I register deepin-terminal as an alternative on Debian?
+      ├ Register custom terminal emulators in Debian's alternatives system using...
+      └ content/answerrit/update-alternatives.md
+
+And draft, like the blog post behind this article at the time of writing, are
+shown like this:
+
+    #!vim shell
+    20261020:
+      draft  blog-release.md
+      ├ Release the kraken
+      ├ ...
+      └ content/article/blog-release.md
+
+=head2 Search engine support
+
+Via Bing.com I discovered L<IndexNow|https://www.indexnow.org/>. It
+essentially helps you poke search engines to tell them you've updated your
+site. Google for incomprehensible reasons doesn't support it. Google also
+refuses to index this blog, so they can wait.
+
+The configuration is pretty straight forward, define a key, define the search
+engines you want to target and poke them on release. There is some nice things
+going on, as C<Blog::Release> parses your sitemaps and can tell when URL's
+were added, updated or removed. It will poke IndexNow on any of these
+situations.
+
+  #!vim yaml
+  site:
+    hostname: your.blog.com
+    name: netlify-username
+    id: netlify-site-id
+    indexnow: index-now-id
+    searchengines:
+      - api.indexnow.org
+      - www.bing.com
+      - indexnow.amazonbot.amazon
+      - yandex.com
+      - indexnow.yep.com
+      - searchadvisor.naver.com
+      - search.seznam.cz
+
+=head2 Release the Kraken!
+
+This article, and any other blogpost of mine, are published without human
+involvement. Well, I write the posts, but the actual publication step I don't
+do. Automated via cron: C<blog-release publish>. I just write and edit some
+yaml file.
