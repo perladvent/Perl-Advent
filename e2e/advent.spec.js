@@ -248,6 +248,8 @@ test.describe("line-number gutter", () => {
     });
     expect(pos, "no horizontally overflowing pre.numbered on 2026-12-03.html at 400px").not.toBeNull();
     expect(Math.abs(pos[1] - pos[0])).toBeLessThan(2);
+    // Only the <pre> scrolls; the page itself must not.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 
   test("copy copies only the code, not the line numbers", async ({ page }) => {

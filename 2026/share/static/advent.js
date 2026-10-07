@@ -157,6 +157,7 @@
   function addGutter(pre) {
     if (pre.tagName !== "PRE" || pre.querySelector(".code-gutter")) return;
     var code = pre.querySelector("code");
+    if (!code) return;
     var n = code.querySelectorAll("br").length + 1;
     var nums = [];
     for (var i = 1; i <= n; i++) nums.push(i);
