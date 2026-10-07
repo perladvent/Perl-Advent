@@ -3,12 +3,12 @@
 # Single-article preview for the 2026 re-skin.
 #
 # Renders ONE .pod into out/2026/ as door 1 (2026-12-01.html), using the inc/
-# forks of WWW::AdventCalendar (so the year-local templates and self-hosted fonts
-# take effect), Pod::Elemental::Transformer::SynHi and PPI::HTML (so code
-# listings match production's <pre><code> shape). The article is staged into a
-# throwaway 2026/.preview/ dir and 2026/articles/ is never touched. Images
-# referenced by the article are copied into share/static just for the render and
-# removed afterwards, leaving the tree clean.
+# forks of WWW::AdventCalendar (so the year-local templates and self-hosted
+# fonts take effect), Pod::Elemental::Transformer::SynHi and PPI::HTML (so code
+# listings match production). The article is staged into a throwaway
+# 2026/.preview/ dir and 2026/articles/ is never touched. Images referenced by
+# the article are copied into share/static just for the render and removed
+# afterwards, leaving the tree clean.
 #
 # Usage:
 #   ./script/preview-article.sh 2026/incoming/foo.pod
@@ -91,9 +91,6 @@ done < <(grep -oE 'src="[^"]+"' "$ARTICLE" | sed -E 's/^src="//; s/"$//' | xargs
 # temp ini that points article_dir at .preview (share_dir stays "share", so the
 # year-local templates load). --today opens door 25 so door 1 is reachable.
 sed 's|^article_dir.*|article_dir = .preview|' "$YEAR/advent.ini" > "$PREVIEW_INI"
-# Also put the inc/ SynHi and PPI::HTML forks first, as Docker/CI installs
-# them: the CPAN SynHi emits <table class="code-listing"> rather than the
-# production <pre><code class="code-listing">, so a host render would diverge.
 FORK_LIB="$PWD/inc/WWW-AdventCalendar/lib:$PWD/inc/Pod-Elemental-Transformer-SynHi/lib:$PWD/inc/PPI-HTML/lib"
 (
     cd "$YEAR"

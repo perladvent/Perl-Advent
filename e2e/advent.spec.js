@@ -192,11 +192,8 @@ test.describe("copy button", () => {
 });
 
 /* ---- Line-number gutter (#687) -------------------------------------------- */
-// Production listings are <pre><code class="code-listing"> with <br>-separated
-// lines and no numbers; advent.js injects a decorative gutter beside the code.
 test.describe("line-number gutter", () => {
-  // Every fixture page with listings, so single-line (0 <br>) blocks on 02/04
-  // exercise the 1-line boundary alongside multi-line ones.
+  // All listing pages, so 02/04's single-line blocks cover the 1-line case.
   test("each pre listing gets one aria-hidden gutter numbered 1..N", async ({ page }) => {
     let singleLine = 0;
     for (const day of ["02", "03", "04", "05"]) {
