@@ -191,6 +191,85 @@ test.describe("copy button", () => {
   });
 });
 
+/* ---- Line-number gutter (#687) -------------------------------------------- */
+test.describe("line-number gutter", () => {
+  // All listing pages, so 02/04's single-line blocks cover the 1-line case.
+  test("each pre listing gets one aria-hidden gutter numbered 1..N", async ({ page }) => {
+    let singleLine = 0;
+    for (const day of ["02", "03", "04", "05"]) {
+      await page.goto(`2026-12-${day}.html`);
+      const listings = await page.evaluate(() =>
+        Array.prototype.map.call(document.querySelectorAll("pre > code.code-listing"), (code) => {
+          const pre = code.parentNode;
+          const gutters = pre.querySelectorAll(".code-gutter");
+          return {
+            brs: code.querySelectorAll("br").length,
+            count: gutters.length,
+            text: gutters[0] && gutters[0].textContent,
+            hidden: gutters[0] && gutters[0].getAttribute("aria-hidden"),
+            select: gutters[0] && getComputedStyle(gutters[0]).userSelect,
+            // Same line box for both columns, so equal heights mean aligned rows.
+            sameHeight: gutters[0] && Math.abs(gutters[0].offsetHeight - code.offsetHeight) < 2,
+          };
+        })
+      );
+      expect(listings.length, `no listings on 2026-12-${day}.html`).toBeGreaterThan(0);
+      for (const l of listings) {
+        const expected = Array.from({ length: l.brs + 1 }, (_, i) => String(i + 1)).join("\n");
+        expect(l, `2026-12-${day}.html`).toEqual({
+          brs: l.brs, count: 1, text: expected, hidden: "true", select: "none", sameHeight: true,
+        });
+        if (l.brs === 0 && l.text === "1") singleLine++;
+      }
+    }
+    expect(singleLine, "no single-line listing in fixtures").toBeGreaterThan(0);
+  });
+
+  test("inner code does not compound the panel font-size", async ({ page }) => {
+    await page.goto("2026-12-03.html");
+    const sizes = await page.evaluate(() => {
+      const code = document.querySelector("pre > code.code-listing");
+      return [getComputedStyle(code.parentNode).fontSize, getComputedStyle(code).fontSize];
+    });
+    expect(sizes[1]).toBe(sizes[0]);
+  });
+
+  test("gutter stays pinned while a long line scrolls", async ({ page }) => {
+    await page.setViewportSize({ width: 400, height: 800 });
+    await page.goto("2026-12-03.html");
+    const pos = await page.evaluate(() => {
+      const pre = Array.prototype.find.call(
+        document.querySelectorAll("pre.numbered"),
+        (p) => p.scrollWidth > p.clientWidth
+      );
+      if (!pre) return null;
+      pre.scrollLeft = 100;
+      return [pre.getBoundingClientRect().left, pre.querySelector(".code-gutter").getBoundingClientRect().left];
+    });
+    expect(pos, "no horizontally overflowing pre.numbered on 2026-12-03.html at 400px").not.toBeNull();
+    expect(Math.abs(pos[1] - pos[0])).toBeLessThan(2);
+    // Only the <pre> scrolls; the page itself must not.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+
+  test("copy copies only the code, not the line numbers", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__copied = null;
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: (t) => { window.__copied = t; return Promise.resolve(); } },
+      });
+    });
+    await page.goto("2026-12-03.html");
+    await page.getByRole("button", { name: "Copy code to clipboard" }).first().click();
+    const copied = await page.evaluate(() => window.__copied);
+    const lines = await page.locator("pre .code-gutter").first().textContent();
+    expect(copied.split("\n").length).toBe(lines.split("\n").length);
+    expect(copied.startsWith("1")).toBe(false);
+    expect(copied).toContain("package");
+  });
+});
+
 /* ---- Dead pager pruning -------------------------------------------------- */
 // The dead direction ships as bare, linkless text ("Previous"/"Next"); pruning
 // removes the whole item, so a pruned direction leaves neither a link nor its

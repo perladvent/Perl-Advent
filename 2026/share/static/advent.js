@@ -151,10 +151,28 @@
     );
     return blocks;
   }
+  // Production <pre><code> listings have no line numbers, so add a gutter.
+  // Lines are joined by <br> with none trailing, so lines = <br>s + 1. It sits
+  // beside <code>, not in it, so codeText (and copy) never sees it.
+  function addGutter(pre) {
+    if (pre.tagName !== "PRE" || pre.querySelector(".code-gutter")) return;
+    var code = pre.querySelector("code");
+    if (!code) return;
+    var n = code.querySelectorAll("br").length + 1;
+    var nums = [];
+    for (var i = 1; i <= n; i++) nums.push(i);
+    var gutter = document.createElement("span");
+    gutter.className = "code-gutter";
+    gutter.setAttribute("aria-hidden", "true");
+    gutter.textContent = nums.join("\n");
+    pre.insertBefore(gutter, code);
+    pre.classList.add("numbered");
+  }
   function addCopyButtons() {
     codeListings().forEach(function (block) {
       if (block.parentNode && block.parentNode.classList.contains("code-block")) return;
       trimCells(block);
+      addGutter(block);
       var wrap = document.createElement("div");
       wrap.className = "code-block";
       block.parentNode.insertBefore(wrap, block);

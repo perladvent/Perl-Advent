@@ -47,7 +47,8 @@
   --code-bg:#0f2236;
   --code-ink:#e8eef6;
   --code-gutter-bg:#0a1a2b;
-  --code-gutter-ink:#5f7b99;
+  /* WCAG AA on both gutter bgs (4.52:1 light, 5.02:1 dark). */
+  --code-gutter-ink:#6884a1;
   --code-gutter-border:#20364d;
 
   --chip-bg:#eaf3ec;
@@ -361,7 +362,10 @@ h2#See-Also{padding-top:.6em;border-top:1px solid var(--border);margin-top:1.6em
 }
 
 /* ---- Code listings -------------------------------------------------------- */
-pre,.code-listing{
+/* Production emits <pre><code class="code-listing">; table.code-listing is the
+   upstream-SynHi fallback. Don't style bare .code-listing, or the inner <code>
+   re-applies the panel (compounding the .9em font-size). */
+pre,table.code-listing{
   line-height:1.6; background:var(--code-bg); color:var(--code-ink);
   font-family:var(--mono); font-size:.9em; border-radius:12px;
   box-shadow:var(--shadow);
@@ -373,28 +377,37 @@ pre{padding:18px 20px;overflow-x:auto;width:100%;margin:0 0 1.8em}
    out tokens coloured for the dark panel. */
 pre code,.code-listing code,
 .pod pre code,.pod .code-listing code{background:transparent;box-shadow:none;border-radius:0;padding:0;color:inherit}
-.code-listing{white-space:pre;border-collapse:separate;border-spacing:0;width:100%;overflow:hidden;margin:0 0 1.8em}
-.code-listing td{padding:0;margin:0}
-.code-listing .line-numbers{
+table.code-listing{white-space:pre;border-collapse:separate;border-spacing:0;width:100%;overflow:hidden;margin:0 0 1.8em}
+table.code-listing td{padding:0;margin:0}
+table.code-listing .line-numbers{
   background:var(--code-gutter-bg); color:var(--code-gutter-ink);
   border-right:1px solid var(--code-gutter-border); width:3.2em; text-align:right;
   padding:14px 10px 14px 0; user-select:none;
 }
-.code-listing .code{padding:14px 18px}
+table.code-listing .code{padding:14px 18px}
 /* SynHi wraps each cell as <td><br><code>…</code><br>&nbsp;</td>; those two
    td-level <br>s (NOT the inter-line <br>s inside <code>) print as a blank
    line above and below every listing. Drop them — the cell padding already
    gives the breathing room. */
-.code-listing td > br{display:none}
+table.code-listing td > br{display:none}
+/* Gutter added by advent.js; sticky so it stays put on horizontal scroll.
+   min-width (not width) lets 3-digit numbers widen it, and the left pad keeps
+   them off the rounded edge. The .pod scope outranks the code padding reset. */
+pre.numbered{display:flex;padding:0}
+.pod pre.numbered > code{flex:1 0 auto;padding:14px 18px}
+.pod pre.numbered > .code-gutter{
+  position:sticky; left:0; z-index:1; flex:none; white-space:pre;
+  background:var(--code-gutter-bg); color:var(--code-gutter-ink);
+  border-right:1px solid var(--code-gutter-border); min-width:3.2em; text-align:right;
+  padding:14px 10px 14px 12px; user-select:none;
+}
 
 /* Copy button — advent.js wraps each listing in .code-block (the positioning
    context) and injects the button. Degrades to a plain listing without JS. */
 .code-block{position:relative;margin:0 0 1.8em}
 /* Zero the wrapped block's own bottom margin so it doesn't stack with the
-   .code-block margin above. The table shape carries .code-listing on the
-   wrapped element; the pre shape carries it on the inner <code>, so also reset
-   the wrapped <pre> directly. */
-.code-block .code-listing,.code-block > pre{margin:0}
+   .code-block margin above. */
+.code-block > table.code-listing,.code-block > pre{margin:0}
 .code-copy{
   position:absolute; top:8px; right:8px; z-index:2;
   font:600 12px/1 var(--sans); color:var(--code-ink);
