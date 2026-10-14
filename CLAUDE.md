@@ -106,10 +106,12 @@ See `ANNUAL-UPDATES.md` for the full step-by-step guide. In brief:
 # 2. Create new year scaffold and update year references site-wide
 ./script/prepare-new-year.sh
 
-# 3. Create empty directories tracked by git
+# 3. Create empty directories tracked by git. Not articles/: advcal reads
+#    every file there, so a .gitkeep breaks December builds, and
+#    assign-date.pl creates it with the first article.
 NEW_YEAR=$(date +%Y)
-mkdir -p "$NEW_YEAR/articles" "$NEW_YEAR/incoming" "$NEW_YEAR/share/static"
-touch "$NEW_YEAR/articles/.gitkeep" "$NEW_YEAR/incoming/.gitkeep" "$NEW_YEAR/share/static/.gitkeep"
+mkdir -p "$NEW_YEAR/incoming" "$NEW_YEAR/share/static"
+touch "$NEW_YEAR/incoming/.gitkeep" "$NEW_YEAR/share/static/.gitkeep"
 ```
 
 `year2yaml` classifies topics as `module` (links to MetaCPAN) when the topic

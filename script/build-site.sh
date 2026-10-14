@@ -60,6 +60,11 @@ for year in 1999 $(seq 2011 2026); do
     mkdir -p "$target"
     cd "$year"
 
+    # advcal reads articles/ from December 1 on, but git cannot track it empty
+    # (and a placeholder file there would be read as an article), so a year
+    # gets it only with its first published article.
+    mkdir -p articles
+
     asset_dir="share/static"
     mkdir -p "$asset_dir"
     mkdir -p "../$target/$asset_dir"

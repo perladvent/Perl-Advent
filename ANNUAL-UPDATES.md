@@ -50,13 +50,15 @@ ships a new theme you want those pages to use, change that link and the
 matching checks in `t/site_root.t` by hand.
 
 After the script runs, create the empty directories that the build system
-expects and add `.gitkeep` files so they are tracked by git:
+expects and add `.gitkeep` files so they are tracked by git. Leave
+`articles/` out: advcal reads every file there, so a `.gitkeep` breaks
+the build from December 1, and `script/assign-date.pl` creates the
+directory when it publishes the first article.
 
 ```bash
 NEW_YEAR=$(date +%Y)
-mkdir -p "$NEW_YEAR/articles" "$NEW_YEAR/incoming" "$NEW_YEAR/share/static"
-touch "$NEW_YEAR/articles/.gitkeep" \
-      "$NEW_YEAR/incoming/.gitkeep" \
+mkdir -p "$NEW_YEAR/incoming" "$NEW_YEAR/share/static"
+touch "$NEW_YEAR/incoming/.gitkeep" \
       "$NEW_YEAR/share/static/.gitkeep"
 ```
 

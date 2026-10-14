@@ -132,4 +132,17 @@ XML
     isnt system( "$script 26 $out >/dev/null 2>&1" ), 0, 'refuses a malformed year';
 };
 
+# advcal parses every file in a calendar's article_dir as an article, so
+# anything else there (a .gitkeep, an editor swap file) breaks the build from
+# December 1.
+subtest 'article dirs hold only articles' => sub {
+    for my $dir ( grep { $_->basename =~ /\A\d{4}\z/ } $root->children ) {
+        my $articles = $dir->child('articles');
+        next unless $articles->is_dir;
+        my @stray = grep { $_->basename !~ /\A\d{4}-\d\d-\d\d\.pod\z/ } $articles->children;
+        is_deeply [ map { $_->relative($root)->stringify } @stray ], [],
+            "$articles holds only YYYY-MM-DD.pod files";
+    }
+};
+
 done_testing;
