@@ -65,21 +65,27 @@ find 2025/incoming | fzf | xargs -I {} perl script/assign-date.pl --article {} -
 
 ### Building the Site
 
+**The Makefile is the entry point.** Run `make help` to list every target.
+Don't call `script/build-site.sh` (or `advcal`) directly: the targets put the
+`inc/` forks on `PATH`/`PERL5LIB`, and the stock CPAN `advcal` a bare script
+call would pick up lacks the fork's options (e.g. `--https`) and fails.
+
 ```bash
 # Build entire site
-./script/build-site.sh
+make site
 
 # Build single year (faster for testing)
-./script/build-site.sh --single-year 2025
+make site SINGLE_YEAR=2026
 
 # Simulate specific date (useful for testing calendar behavior)
-./script/build-site.sh --today 2025-12-15
+make site SINGLE_YEAR=2026 TODAY=2026-12-15
 
-# Build and serve locally
-./script/build-site.sh --single-year 2025
-cpm install -g App::HTTPThis
-http_this --autoindex out/
-# Visit http://127.0.0.1:7007/2025/
+# Build the 2026 UAT fixture calendar into out/2026 (default DAY=2026-12-06)
+make uat DAY=2026-11-01
+
+# Serve out/ locally
+make uat-serve
+# Visit http://127.0.0.1:8026/2026/
 ```
 
 ### Preview Incoming Articles
@@ -190,11 +196,14 @@ Example:
 ## Build System Details
 
 ### Main Build Script
-`script/build-site.sh` performs these steps:
+`script/build-site.sh` (run via `make site`) performs these steps:
 1. Generate archive pages from `archives.yaml` using `mkarchives`
 2. For each year 2011-2025:
    - Copy static assets to `out/YEAR/`
    - Run `advcal -c advent.ini -o ../out/YEAR` to generate HTML
+   - Before December 1 of YEAR, `script/coming-soon-feed.sh` replaces advcal's
+     `atom.xml` with the static `coming-soon.atom.xml`, so pre-season pushes
+     don't change the feed
 3. Copy root assets (images, CSS, HTML)
 4. Convert Markdown docs to HTML
 

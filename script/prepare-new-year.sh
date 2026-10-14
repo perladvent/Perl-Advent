@@ -31,5 +31,9 @@ perl -pi -e "s/$PREVIOUS_YEAR/$NEW_YEAR/g" \
     script/stats.sh \
     "$NEW_YEAR/advent.ini"
 
+# The welcome page links the upcoming calendar's feed. Change only that URL:
+# its /YEAR/style.css link stays put on purpose (see ANNUAL-UPDATES.md).
+perl -pi -e "s{/$PREVIOUS_YEAR/atom\.xml}{/$NEW_YEAR/atom.xml}g" index.html
+
 echo "Successfully prepared for year $NEW_YEAR!"
 echo "Don't forget to check the updated files and commit the changes."

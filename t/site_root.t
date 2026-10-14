@@ -58,4 +58,54 @@ subtest '404.html' => sub {
     }
 };
 
+subtest 'index.html' => sub {
+    my $html = slurp('index.html');
+
+    like $html, qr{<html lang="en">},      'has lang';
+    like $html, qr{<meta charset="UTF-8">}, 'has charset';
+    like $html, qr{<meta name="viewport"}, 'has viewport';
+    like $html, qr{<title>[^<]+</title>},  'has title';
+    unlike $html, qr{name="robots"},       'is indexable';
+
+    my %url = map { $_ => 1 } $html =~ m{(?:href|src)="([^"]+)"}g;
+    ok $url{$_}, "links to $_"
+        for qw( /archives.html /archives-AZ.html /FAQ-submit.html /FAQ.html /contact.html );
+
+    like $html, qr{<link rel="stylesheet" href="/2026/style\.css">},
+        'uses the 2026 theme stylesheet';
+
+    like $html, qr{<link rel="alternate" type="application/atom\+xml"[^>]* href="/\d{4}/atom\.xml"},
+        'advertises the upcoming calendar feed';
+    like slurp( 'script', 'prepare-new-year.sh' ), qr{atom\\\.xml.*index\.html}m,
+        'prepare-new-year.sh moves the feed link';
+};
+
+subtest 'coming-soon feed' => sub {
+    like slurp( 'script', 'build-site.sh' ),
+        qr{^\s*\.\./script/coming-soon-feed\.sh "\$year" "\$target"}m,
+        'build-site.sh swaps in the static feed';
+    like slurp( 'script', 'uat-preview.sh' ),
+        qr{^script/coming-soon-feed\.sh "\$YEAR" "\$OUT" "\$TODAY"$}m,
+        'uat-preview.sh swaps in the static feed';
+
+    my $script = $root->child( 'script', 'coming-soon-feed.sh' );
+    my $out    = Path::Tiny->tempdir;
+    my $feed   = $out->child('atom.xml');
+
+    system( $script, 2026, "$out", '2026-11-30' ) == 0 or die "script failed";
+    ok $feed->exists, 'writes the feed before December 1';
+    my $xml = $feed->slurp_utf8;
+    unlike $xml, qr{@}, 'fills every placeholder';
+    like $xml, qr{<id>https://perladvent\.org/2026/</id>}, 'keeps advcal\'s feed id';
+    like $xml, qr{<link href="https://perladvent\.org/2026/atom\.xml" rel="self"/>},
+        'keeps advcal\'s self link';
+    like $xml, qr{<title>Year 27 of The Perl Advent Calendar opens on December 1st</title>},
+        'counts the year from 2000';
+    unlike $xml, qr{\b\d+ days?\b}, 'has no countdown that would change between builds';
+
+    $feed->remove;
+    system( $script, 2026, "$out", '2026-12-01' ) == 0 or die "script failed";
+    ok !$feed->exists, 'leaves advcal\'s feed alone from December 1';
+};
+
 done_testing;
