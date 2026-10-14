@@ -90,9 +90,9 @@ make uat-serve
 
 ### Preview Incoming Articles
 ```bash
-# Renders all incoming articles with sequential December dates
-perl script/render-incoming.pl
-http_this --autoindex out/2025
+# Render one article as door 1 with the current theme, then serve it
+make preview ARTICLE=2026/incoming/your-article.pod
+# Visit http://127.0.0.1:8026/2026/2026-12-01.html
 ```
 
 ### Annual Maintenance (run in January/February)
@@ -198,12 +198,12 @@ Example:
 ### Main Build Script
 `script/build-site.sh` (run via `make site`) performs these steps:
 1. Generate archive pages from `archives.yaml` using `mkarchives`
-2. For each year 2011-2025:
+2. For 1999 and each year from 2011 (the `seq` range in the script; 2000-2010
+   are copied verbatim):
    - Copy static assets to `out/YEAR/`
    - Run `advcal -c advent.ini -o ../out/YEAR` to generate HTML
-   - Before December 1 of YEAR, `script/coming-soon-feed.sh` replaces advcal's
-     `atom.xml` with the static `coming-soon.atom.xml`, so pre-season pushes
-     don't change the feed
+   - When advcal wrote its pre-season feed, `script/coming-soon-feed.sh` swaps
+     in the static `coming-soon.atom.xml` (see the script's header)
 3. Copy root assets (images, CSS, HTML)
 4. Convert Markdown docs to HTML
 
@@ -223,7 +223,7 @@ Example:
 1. Check filename matches `YYYY-MM-DD.pod` format
 2. Verify it's in `articles/` not `incoming/`
 3. Check advent.ini `end_date` includes that date
-4. Test with `--today` flag to simulate publication date
+4. Simulate the publication date with `make site SINGLE_YEAR=YYYY TODAY=YYYY-12-DD`
 
 ### Image Not Loading
 1. Verify image is in `YEAR/share/static/`

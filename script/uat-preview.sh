@@ -75,7 +75,7 @@ trap 'cleanup; cleanup_ini' EXIT
         advcal -c .advent.uat.ini -o "../$OUT" --today "$TODAY"
 )
 # Same as build-site.sh: before December 1 the static feed stands in.
-script/coming-soon-feed.sh "$YEAR" "$OUT" "$TODAY"
+script/coming-soon-feed.sh "$YEAR" "$OUT"
 [[ -e favicon.ico ]] && cp favicon.ico "$OUT/" || true
 # The root 404 and welcome pages, so the e2e suite can exercise their scripts.
 # Unlike the favicon they are required, so a missing file should fail the build.

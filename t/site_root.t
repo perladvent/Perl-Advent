@@ -76,36 +76,60 @@ subtest 'index.html' => sub {
 
     like $html, qr{<link rel="alternate" type="application/atom\+xml"[^>]* href="/\d{4}/atom\.xml"},
         'advertises the upcoming calendar feed';
+    like $html, qr{<link rel="canonical" href="https://perladvent\.org/">},
+        'declares the bare root as canonical';
+    like $html, qr{<meta name="description" content="[^"]+">}, 'has a description';
+    like $html, qr{<meta property="og:image" content="https://perladvent\.org/2026/og-default\.png">},
+        'shares with the 2026 card image';
+    ok -e $root->child(qw( 2026 share static og-default.png )), 'that image is in the build';
     like slurp( 'script', 'prepare-new-year.sh' ), qr{atom\\\.xml.*index\.html}m,
         'prepare-new-year.sh moves the feed link';
 };
 
 subtest 'coming-soon feed' => sub {
     like slurp( 'script', 'build-site.sh' ),
-        qr{^\s*\.\./script/coming-soon-feed\.sh "\$year" "\$target"}m,
+        qr{^\s*\.\./script/coming-soon-feed\.sh "\$year" "\$target"$}m,
         'build-site.sh swaps in the static feed';
     like slurp( 'script', 'uat-preview.sh' ),
-        qr{^script/coming-soon-feed\.sh "\$YEAR" "\$OUT" "\$TODAY"$}m,
+        qr{^script/coming-soon-feed\.sh "\$YEAR" "\$OUT"$}m,
         'uat-preview.sh swaps in the static feed';
 
+    my %ini = slurp( '2026', 'advent.ini' ) =~ /^(\w+)\s*=\s*(.*?)\s*$/mg;
     my $script = $root->child( 'script', 'coming-soon-feed.sh' );
     my $out    = Path::Tiny->tempdir;
     my $feed   = $out->child('atom.xml');
 
-    system( $script, 2026, "$out", '2026-11-30' ) == 0 or die "script failed";
-    ok $feed->exists, 'writes the feed before December 1';
+    # What advcal writes before its start_date, trimmed to the parts that matter.
+    my $patience = <<"XML";
+<feed xmlns="http://www.w3.org/2005/Atom"><id>$ini{uri}</id>
+<entry><title>$ini{title} is Coming</title>
+<summary>The first door opens in 47 days...</summary></entry></feed>
+XML
+    $feed->spew_utf8($patience);
+    is system( $script, 2026, "$out" ), 0, 'runs on a pre-season build';
     my $xml = $feed->slurp_utf8;
     unlike $xml, qr{@}, 'fills every placeholder';
-    like $xml, qr{<id>https://perladvent\.org/2026/</id>}, 'keeps advcal\'s feed id';
-    like $xml, qr{<link href="https://perladvent\.org/2026/atom\.xml" rel="self"/>},
+    like $xml, qr{<id>\Q$ini{uri}\E</id>}, 'keeps advcal\'s feed id';
+    like $xml, qr{<link href="\Q$ini{uri}\Eatom\.xml" rel="self"/>},
         'keeps advcal\'s self link';
+    like $xml, qr{<title>\Q$ini{title}\E</title>}, 'keeps advcal\'s feed title';
+    like $xml, qr{<author><name>\Q$ini{editor}\E</name></author>},
+        'keeps advcal\'s feed author';
     like $xml, qr{<title>Year 27 of The Perl Advent Calendar opens on December 1st</title>},
         'counts the year from 2000';
     unlike $xml, qr{\b\d+ days?\b}, 'has no countdown that would change between builds';
+    ok !$out->child('atom.xml.tmp')->exists, 'leaves no temp file behind';
 
-    $feed->remove;
-    system( $script, 2026, "$out", '2026-12-01' ) == 0 or die "script failed";
-    ok !$feed->exists, 'leaves advcal\'s feed alone from December 1';
+    my $open = <<"XML";
+<feed xmlns="http://www.w3.org/2005/Atom"><id>$ini{uri}</id>
+<entry><title>Day one</title><summary>An article</summary></entry></feed>
+XML
+    $feed->spew_utf8($open);
+    is system( $script, 2026, "$out" ), 0, 'runs on an open calendar';
+    is $feed->slurp_utf8, $open, 'leaves advcal\'s feed alone once the calendar opens';
+
+    isnt system( "$script 2026 >/dev/null 2>&1" ), 0, 'refuses a missing output dir';
+    isnt system( "$script 26 $out >/dev/null 2>&1" ), 0, 'refuses a malformed year';
 };
 
 done_testing;

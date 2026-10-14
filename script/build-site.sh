@@ -74,7 +74,7 @@ for year in 1999 $(seq 2011 2026); do
         advcal -c advent.ini -o "../$target" --https
     fi
     # Until December 1, a static feed replaces advcal's ever-changing one.
-    ../script/coming-soon-feed.sh "$year" "$target" ${today:+"$today"}
+    ../script/coming-soon-feed.sh "$year" "$target"
 
     if [[ -e "$year.css" ]]; then
         cp "$year.css" "../$static_build/$year"
