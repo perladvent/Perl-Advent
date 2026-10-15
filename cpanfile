@@ -8,6 +8,7 @@ requires 'WWW::AdventCalendar';
 requires 'YAML::XS';
 
 on 'test' => sub {
+    requires 'Mojolicious';
     requires 'Path::Tiny';
 };
 
