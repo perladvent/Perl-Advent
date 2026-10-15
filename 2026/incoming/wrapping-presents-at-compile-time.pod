@@ -1,0 +1,424 @@
+Author: LNATION <email@lnation.org>
+Title: Wrapping Presents at Compile Time
+Topic: Object::Proto
+
+=encoding utf8
+
+=for :html
+<img src="wrapping-presents-tree.png">
+
+=end
+
+=head1 Wrapping Presents at Compile Time
+
+Nobody wraps presents on Christmas morning. The moment the children are asleep, 
+the paper is out, the tags are written, and by the end of the night every parcel 
+is sitting in its place under the tree. The morning is for sharing the experience,
+the work is done the night before.
+
+Perl has a night before as well. Every program in perl is compiled first and then run.
+The compilation phase is when the parser reads the code, builds an internal tree of
+ops, and optimizes it. The mornings run phase is when the interpreter walks that tree
+and executes the program.
+
+L<Object::Proto> is a prototype object system that does its wrapping on Christmas Eve
+within the compilation phase. It stores each object as an array with every property 
+assigned a numbered B<slot>, and it compiles the accessors into the calling code while 
+that code is still being parsed. This post is an introduction to the module and a look
+under the paper at what has already happened by the time your first line runs.
+
+=head1 A present
+
+=begin perl
+
+    package Present;
+
+    use Object::Proto;
+
+    BEGIN {
+        object 'Present',
+            'label:Str:required',
+            'weight:Int:default(1)',
+            'paper:Str',
+            'ribbon:Str';
+    }
+
+    my $gift = new Present label => 'socks', paper => 'red';
+
+    print $gift->label; # socks
+    print $gift->weight; # 1, the default
+    $gift->weight(2);
+
+    print $gift->isa('Present'); # 1
+
+=end perl
+
+C<object> takes a class name and a list of properties. Each property is a
+small specification: a name, then optionally a type and some modifiers,
+separated by colons. The constructor takes named pairs, or plain positional
+values in the order the properties were declared:
+
+=begin perl
+
+    my $gift = new Present 'socks', 2, 'red';
+
+=end perl
+
+The result is a real blessed reference. C<isa> and C<can> work, and any
+C<sub> you write in C<package Present> is a method like any other. Nothing
+about the object is exotic from the outside. The inside is where it differs.
+
+=head1 What is in the box
+
+Inspect a classic Perl object and you will most likely find a hash. Every 
+C<< $self->{label} >> hashes the string C<label>, finds the bucket and follows
+the pointer, and it does that again on the next call, because the hash has no 
+idea you will ask for the same key a million times.
+
+Inspect an Object::Proto object and you will find an array:
+
+=begin perl
+
+    use Scalar::Util 'reftype';
+
+    print reftype $gift;    # ARRAY
+    print scalar @$gift;    # 5
+
+=end perl
+
+Four properties, five elements. The properties were numbered in the order
+they were declared, starting at one:
+
+=begin perl
+
+    # slot 0    the prototype (more on this below)
+    # slot 1    label
+    # slot 2    weight
+    # slot 3    paper
+    # slot 4    ribbon
+
+=end perl
+
+That numbering is the heart of the module, and it is fixed the moment
+C<object> returns. You can read it back:
+
+=begin perl
+
+    my @names = Object::Proto::properties('Present');
+    # label, weight, paper, ribbon
+
+    my $info = Object::Proto::slot_info('Present', 'weight');
+    # { name => 'weight', index => 2, type => 'Int',
+    #   has_default => 1, default => 1, is_required => 0, ... }
+
+=end perl
+
+Once C<weight> is slot 2, nobody ever needs to look up the word C<weight>
+again. Reading it is an array index. The name was only ever the label on the
+shelf, and the elves now know the shelf by number.
+
+=head1 Christmas Eve
+
+Here is everything that happens during that one C<object> call, before the
+program has run a statement outside the C<BEGIN> block.
+
+=over 4
+
+=item 1. The specifications are read once.
+
+C<'weight:Int:default(1)'> is parsed into a record: the type, the default
+value, and a set of flags for required, readonly, lazy, weak and the rest.
+The string is never parsed again. A built-in type such as C<Int> becomes a
+small integer, so a later type check is a C<switch>, not a sub call.
+
+The specification is a string on purpose. The familiar shape, a hash of
+options such as C<< weight => { isa => 'Int', default => 1 } >>, has to be
+built before it can be read: Perl allocates the hash, hashes every key into
+it and creates a scalar for every value, and then the class builder hashes
+each key a second time to fetch the answers back out. A string is one
+constant that the compiler has already made. Reading it is a single pass
+over a few bytes, splitting on the colons, with nothing allocated except the
+record it fills in. The tag is written in one line and read in one glance.
+
+=item 2. Each property is given its slot.
+
+A fresh name takes the next free number. With C<< extends => 'Parent' >> the
+parent's slots are copied in first, so an inherited property keeps one index
+in the child, and a child that redeclares a property reuses that index.
+
+=item 3. The class totals are worked out.
+
+Does any slot have a type? A default? A required flag? A weak reference? The
+class remembers each answer as a single flag, so a class with no types pays
+nothing for the type system when it constructs an object.
+
+=item 4. The accessors are installed.
+
+One per property, each carrying its slot number. So are C<new>,
+C<prototype> and C<set_prototype>, plus any clearer, predicate, reader or
+writer the specification asked for.
+
+=item 5. The hooks are looked up.
+
+If the class has a C<BUILD> it is cached to be called after construction. If
+it has a C<DEMOLISH>, a C<DESTROY> is installed to call it. A class with
+neither gets neither.
+
+=back
+
+None of this is unusual on its own. What matters is I<when> it happens,
+because step 4 leaves something behind for the compiler to find.
+
+=head1 Why the BEGIN block
+
+C<object> is an ordinary function. It runs when Perl reaches it. Written as a
+bare statement in a script, that is run time, after the whole file has been
+compiled: the class still works, but the compiler has already finished with
+every line that uses it.
+
+Inside C<BEGIN> it runs the moment the closing brace is parsed, so the class
+exists while the rest of the file is still being read. That is the whole
+trick, and you get it for free in the usual case. A class that lives in its
+own F<Present.pm> is defined when somebody says C<use Present>, and C<use> is
+a C<BEGIN> block. For the caller, the presents are already wrapped.
+
+=head1 The elves rewrite the list
+
+Now the part that earns the title. Ask for function-style accessors as well:
+
+=begin perl
+
+    BEGIN {
+        object 'Present', qw(label weight paper ribbon);
+        Object::Proto::import_accessors('Present');
+    }
+
+    my $gift = new Present 'socks', 2;
+
+    my $l = label $gift;     # getter
+    weight $gift, 3;         # setter
+
+=end perl
+
+C<import_accessors> installs a function for each property into the current
+package, and attaches a B<call checker> to every one. A call checker is a
+hook the Perl compiler runs when it has just parsed a call to a particular
+sub, while that call is still a little tree of ops that can be changed.
+
+Here is what a method call to an accessor compiles to, straight from
+C<perl -MO=Concise> and trimmed:
+
+=begin perl
+
+    # entersub
+    #    pushmark
+    #    padsv[$gift]
+    #    method_named["label"]
+
+=end perl
+
+Four ops. At run time Perl pushes a mark, pushes the object, resolves the
+method through the class, and enters a sub. And here is C<label $gift> after
+the checker has been at it:
+
+=begin perl
+
+    # object_func_get
+    #    padsv[$gift]
+
+=end perl
+
+The sub call is gone. Not made faster: gone. The checker lifted the operand
+out, threw the C<entersub> away and put a single custom op in its place, with
+the slot number stored inside the op. There is no mark, no argument list, no
+sub entry and no name. At run time that op looks at the array on top of the
+stack and reads element 1.
+
+The setter is the same idea with two operands:
+
+=begin perl
+
+    # object_func_set
+    #    padsv[$gift]
+    #    const[IV 3]
+
+=end perl
+
+The rewrite only happens when the operands are simple: a lexical variable or
+a constant. Anything more involved, such as C<label shift> or
+C<label $gifts[0]>, is left as a normal call to the same accessor. You get
+the same answer either way, so there is nothing to remember; the fast path is
+taken wherever it is safe to take, and a C<my> variable is where an object
+usually lives in a hot loop anyway.
+
+On this machine (perl 5.42), one set followed by one get:
+
+=begin perl
+
+    #                    Rate
+    # hash method   4938717/s
+    # proto method  9569991/s
+    # proto func   23741012/s
+
+=end perl
+
+The middle row deserves a word. A method call cannot be rewritten at compile
+time, because Perl does not know what C<$gift> will hold until the line runs,
+so C<< $gift->label >> remains a real method call. What it lands in is a
+compiled accessor that already knows its slot, and that alone is about twice
+the speed of a hand-written hash accessor. The function form is where the
+wrapping really shows: nearly five times.
+
+=head1 The house wrapping paper
+
+So this is not just a fast object system. The prototype chain is what makes it a
+unique one.
+
+Every family has a house style when it comes to wrapping presents, some more organised
+and regimental than others. This family has red paper and a gold ribbon but they wouldn't
+write "red paper, gold ribbon" on each tag. 
+
+=begin perl
+
+    BEGIN { object 'Present', qw(label paper ribbon) }
+
+    my $house = new Present 'house style', 'red', 'gold';
+
+    my $gift = new Present 'scarf';
+    $gift->set_prototype($house);
+
+    print $gift->label;     # scarf   (its own)
+    print $gift->paper;     # red     (from the prototype)
+    print $gift->ribbon;    # gold    (from the prototype)
+
+=end perl
+
+C<$gift> has no paper of its own. When its slot comes back empty, the
+accessor follows slot 0 to the prototype and reads the same slot number
+there, and carries on up the chain until it finds a value or runs out of
+prototypes. That is what slot 0 was reserved for.
+
+The object that answers first wins, so an exception is just an assignment:
+
+=begin perl
+
+    $gift->paper('green');
+
+    print $gift->paper;     # green
+    print $house->paper;    # red, untouched
+
+=end perl
+
+And the link is live. It is a reference to the prototype, not a copy of it:
+
+=begin perl
+
+    $house->ribbon('silver');
+    print $gift->ribbon;    # silver
+
+=end perl
+
+This is delegation between I<objects>, which is a different thing from
+inheritance between classes. A class says what properties a present has. A
+prototype says what this particular present falls back on, and you can change
+your mind about that while the program runs. Chains can be as deep as you
+like:
+
+=begin perl
+
+    my $chain = Object::Proto::prototype_chain($gift);    # [$gift, $house]
+    my $depth = Object::Proto::prototype_depth($gift);    # 1
+
+    Object::Proto::has_own_property($gift, 'label');      # true
+    Object::Proto::has_own_property($gift, 'ribbon');     # false
+
+=end perl
+
+A chain that loops back on itself is detected and answered with a warning and
+C<undef>, so a careless C<set_prototype> cannot hang the program.
+
+=head1 Writing on the tag
+
+The specification strings are worth a second look, because they are where the
+compile-time work is decided.
+
+=begin perl
+
+    object 'Present',
+        'label:Str:required',
+        'weight:Int:default(1)',
+        'tags:ArrayRef:default([])',
+        'from:Str:readonly',
+        'giver:Object:weak',
+        'contents:Any:lazy:builder(_build_contents)',
+        'opened:Bool:clearer:predicate';
+
+=end perl
+
+The built-in types are C<Any>, C<Defined>, C<Str>, C<Int>, C<Num>, C<Bool>,
+C<ArrayRef>, C<HashRef>, C<CodeRef> and C<Object>. A constraint is checked in
+the constructor and in the accessor:
+
+=begin perl
+
+    new Present weight => 2;
+    # Required slot 'label' not provided in new()
+
+    $gift->weight('heavy');
+    # Type constraint failed for 'weight': expected Int
+
+    $gift->from('nobody');
+    # Cannot modify readonly slot 'from'
+
+=end perl
+
+C<default([])> and C<default({})> hand each object a fresh container, so two
+presents never share one list of tags. C<lazy> with a C<builder> leaves the
+slot empty until somebody first reads it. C<weak> weakens the reference as it
+is stored, which is what you want for a link back to an owner.
+
+You can register types of your own:
+
+=begin perl
+
+    Object::Proto::register_type('Grams', sub { $_[0] =~ /^\d+$/ && $_[0] > 0 });
+
+    object 'Parcel', 'weight:Grams';
+
+=end perl
+
+And a class can extend another, in which case the parent's slots are copied
+into the child and C<@ISA> is set for you:
+
+=begin perl
+
+    object 'Toy', extends => 'Present', 'batteries:Bool:default(0)';
+
+=end perl
+
+There is more in the box than an introduction should unwrap: roles, method
+modifiers, singletons, private attributes, C<clone>, C<lock> and C<freeze>.
+The documentation covers all of it.
+
+=head1 A bow on top
+
+If the colon-separated strings are not to your taste, L<Object::Proto::Sugar>
+puts a familiar face on the same machinery:
+
+=begin perl
+
+    package Present;
+    use Object::Proto::Sugar -types, -constants;
+
+    has label  => (
+        is => 'rw',
+        required => 1,
+        isa => Str
+    );
+    has weight => (is_rw, isa => Int, default => 1);
+
+=end perl
+
+Its C<has> runs at compile time without you writing a C<BEGIN> block.
+
+I<Merry Christmas, and may all your slots be filled.>
