@@ -1,7 +1,7 @@
 # Perl Advent Calendar
 
 The [Perl Advent Calendar](https://perladvent.org) is a series of
-articles that run from December 1 to 25 each year.
+articles that begins on December 1 each year.
 
 ## Authors
 
