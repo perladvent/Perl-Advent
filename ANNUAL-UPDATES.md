@@ -41,20 +41,24 @@ This script:
 * Updates year references in `in-season.html`, `README.md`,
   `.github/pull_request_template.md`, `script/build-site.sh`, and
   `script/stats.sh`
+* Points the welcome page's (`index.html`) feed link at the new year's
+  `atom.xml`, which advcal publishes before December 1
 
-The script leaves `404.html` alone: it links `/2026/style.css` on purpose,
-because past years stay deployed. If a new year ships a new theme you want
-the 404 page to use, change that link and the matching check in
-`t/site_root.t` by hand.
+The script otherwise leaves `404.html` and `index.html` alone: they link
+`/2026/style.css` on purpose, because past years stay deployed. If a new year
+ships a new theme you want those pages to use, change that link and the
+matching checks in `t/site_root.t` by hand.
 
 After the script runs, create the empty directories that the build system
-expects and add `.gitkeep` files so they are tracked by git:
+expects and add `.gitkeep` files so they are tracked by git. Leave
+`articles/` out: advcal reads every file there, so a `.gitkeep` breaks
+the build from December 1, and `script/assign-date.pl` creates the
+directory when it publishes the first article.
 
 ```bash
 NEW_YEAR=$(date +%Y)
-mkdir -p "$NEW_YEAR/articles" "$NEW_YEAR/incoming" "$NEW_YEAR/share/static"
-touch "$NEW_YEAR/articles/.gitkeep" \
-      "$NEW_YEAR/incoming/.gitkeep" \
+mkdir -p "$NEW_YEAR/incoming" "$NEW_YEAR/share/static"
+touch "$NEW_YEAR/incoming/.gitkeep" \
       "$NEW_YEAR/share/static/.gitkeep"
 ```
 

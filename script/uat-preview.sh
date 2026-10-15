@@ -74,13 +74,16 @@ trap 'cleanup; cleanup_ini' EXIT
     PERL5LIB="$FORK_LIB${PERL5LIB:+:$PERL5LIB}" \
         advcal -c .advent.uat.ini -o "../$OUT" --today "$TODAY"
 )
+# Same as build-site.sh: before December 1 the static feed stands in.
+script/coming-soon-feed.sh "$YEAR" "$OUT"
 [[ -e favicon.ico ]] && cp favicon.ico "$OUT/" || true
-# The root 404 page, so the e2e suite can exercise its scripts. Unlike the
-# favicon it is required, so a missing file should fail the build.
-cp 404.html out/
+# The root 404 and welcome pages, so the e2e suite can exercise their scripts.
+# Unlike the favicon they are required, so a missing file should fail the build.
+cp 404.html index.html out/
 
 echo
 echo "Built $OUT/ (simulated today = $TODAY)."
 echo "Serve it with:"
 echo "    cd out && python3 -m http.server 8026"
 echo "then open http://localhost:8026/$YEAR/"
+echo "(the welcome page is http://localhost:8026/ outside December and January)"

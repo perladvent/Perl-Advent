@@ -10,6 +10,10 @@ for year in $(seq 2000 2010); do
 done
 
 for year in $(seq 2011 2026); do
-    found=$(find "$year/articles" | grep -c pod$)
+    # articles/ appears with a year's first published article.
+    found=0
+    if [[ -d "$year/articles" ]]; then
+        found=$(find "$year/articles" -name '*.pod' | wc -l)
+    fi
     echo "$year $(printf "%0.s🎄" $(seq 1 "$found"))"
 done

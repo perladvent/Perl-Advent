@@ -65,28 +65,34 @@ find 2025/incoming | fzf | xargs -I {} perl script/assign-date.pl --article {} -
 
 ### Building the Site
 
+**The Makefile is the entry point.** Run `make help` to list every target.
+Don't call `script/build-site.sh` (or `advcal`) directly: the targets put the
+`inc/` forks on `PATH`/`PERL5LIB`, and the stock CPAN `advcal` a bare script
+call would pick up lacks the fork's options (e.g. `--https`) and fails.
+
 ```bash
 # Build entire site
-./script/build-site.sh
+make site
 
 # Build single year (faster for testing)
-./script/build-site.sh --single-year 2025
+make site SINGLE_YEAR=2026
 
 # Simulate specific date (useful for testing calendar behavior)
-./script/build-site.sh --today 2025-12-15
+make site SINGLE_YEAR=2026 TODAY=2026-12-15
 
-# Build and serve locally
-./script/build-site.sh --single-year 2025
-cpm install -g App::HTTPThis
-http_this --autoindex out/
-# Visit http://127.0.0.1:7007/2025/
+# Build the 2026 UAT fixture calendar into out/2026 (default DAY=2026-12-06)
+make uat DAY=2026-11-01
+
+# Serve out/ locally
+make uat-serve
+# Visit http://127.0.0.1:8026/2026/
 ```
 
 ### Preview Incoming Articles
 ```bash
-# Renders all incoming articles with sequential December dates
-perl script/render-incoming.pl
-http_this --autoindex out/2025
+# Render one article as door 1 with the current theme, then serve it
+make preview ARTICLE=2026/incoming/your-article.pod
+# Visit http://127.0.0.1:8026/2026/2026-12-01.html
 ```
 
 ### Annual Maintenance (run in January/February)
@@ -100,10 +106,12 @@ See `ANNUAL-UPDATES.md` for the full step-by-step guide. In brief:
 # 2. Create new year scaffold and update year references site-wide
 ./script/prepare-new-year.sh
 
-# 3. Create empty directories tracked by git
+# 3. Create empty directories tracked by git. Not articles/: advcal reads
+#    every file there, so a .gitkeep breaks December builds, and
+#    assign-date.pl creates it with the first article.
 NEW_YEAR=$(date +%Y)
-mkdir -p "$NEW_YEAR/articles" "$NEW_YEAR/incoming" "$NEW_YEAR/share/static"
-touch "$NEW_YEAR/articles/.gitkeep" "$NEW_YEAR/incoming/.gitkeep" "$NEW_YEAR/share/static/.gitkeep"
+mkdir -p "$NEW_YEAR/incoming" "$NEW_YEAR/share/static"
+touch "$NEW_YEAR/incoming/.gitkeep" "$NEW_YEAR/share/static/.gitkeep"
 ```
 
 `year2yaml` classifies topics as `module` (links to MetaCPAN) when the topic
@@ -190,11 +198,14 @@ Example:
 ## Build System Details
 
 ### Main Build Script
-`script/build-site.sh` performs these steps:
+`script/build-site.sh` (run via `make site`) performs these steps:
 1. Generate archive pages from `archives.yaml` using `mkarchives`
-2. For each year 2011-2025:
+2. For 1999 and each year from 2011 (the `seq` range in the script; 2000-2010
+   are copied verbatim):
    - Copy static assets to `out/YEAR/`
    - Run `advcal -c advent.ini -o ../out/YEAR` to generate HTML
+   - When advcal wrote its pre-season feed, `script/coming-soon-feed.sh` swaps
+     in the static `coming-soon.atom.xml` (see the script's header)
 3. Copy root assets (images, CSS, HTML)
 4. Convert Markdown docs to HTML
 
@@ -214,7 +225,7 @@ Example:
 1. Check filename matches `YYYY-MM-DD.pod` format
 2. Verify it's in `articles/` not `incoming/`
 3. Check advent.ini `end_date` includes that date
-4. Test with `--today` flag to simulate publication date
+4. Simulate the publication date with `make site SINGLE_YEAR=YYYY TODAY=YYYY-12-DD`
 
 ### Image Not Loading
 1. Verify image is in `YEAR/share/static/`
