@@ -29,6 +29,36 @@ services:
     depends_on:
       - perl-advent
 
+  # Single-article preview: `make preview-docker ARTICLE=...`. Saving the
+  # article syncs it in and re-renders it (Compose Watch, Compose >= 2.32).
+  preview:
+    profiles: [preview]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: perl-advent:latest
+    ports:
+      - '${PREVIEW_PORT:-8026}:${PREVIEW_PORT:-8026}'
+    volumes:
+      - ./out:/app/out  # Bind mount so the preview lands on the host
+    environment:
+      ARTICLE: ${ARTICLE:-}
+      PREVIEW_PORT: ${PREVIEW_PORT:-8026}
+    command: >
+      bash -c '
+        bash script/build-site.sh &&
+        bash script/preview-article.sh "$$ARTICLE" &&
+        exec http_this out --host 0.0.0.0 --port "$$PREVIEW_PORT" --autoindex
+      '
+    init: true
+    develop:
+      watch:
+        # Compose validates every service, and rejects a blank path even unused.
+        - action: sync+exec
+          path: ${ARTICLE:-ARTICLE-not-set}
+          target: /app/${ARTICLE:-}
+          exec:
+            command: bash script/preview-article.sh ${ARTICLE:-}
 
 volumes:
   build-output:  # Named volume persists between runs
