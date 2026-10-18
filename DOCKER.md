@@ -109,6 +109,8 @@ http://127.0.0.1:8026/2026/2026-12-01.html. It uses Compose Watch (Docker
 Compose 2.32 or later): each time you save the article it is re-rendered, so
 just refresh the browser. Press `Ctrl+C` to stop.
 
+Only saves to the `.pod` re-render; restart `make preview-docker` after changing images.
+
 ### Access Built Files Locally
 
 The built files are stored in a Docker volume, not directly on your filesystem. To access them:
