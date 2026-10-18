@@ -1,4 +1,4 @@
-.PHONY: help init hooks new-article uat uat-serve uat-serve-tailnet archives site e2e e2e-build preview preview-build preview-tailnet approve-proposals
+.PHONY: help init hooks new-article uat uat-serve uat-serve-tailnet archives site e2e e2e-build preview preview-build preview-docker preview-tailnet approve-proposals
 
 # Running `make` with no target prints this help. Each target's one-line
 # summary is the `## ...` text on its rule line below, so the list stays in
@@ -133,6 +133,14 @@ preview: site preview-build ## Render one .pod as door 1 and serve it (ARTICLE= 
 preview-build: ## Render one .pod as door 1 without serving (ARTICLE= required)
 	@test -n "$(ARTICLE)" || { echo "usage: make preview-build ARTICLE=2026/incoming/foo.pod" >&2; exit 1; }
 	PREVIEW_PORT=$(PREVIEW_PORT) ./script/preview-article.sh $(ARTICLE)
+
+# Same as `make preview`, but in Docker (no local Perl needed), and saving the
+# article re-renders it (Compose Watch, Compose >= 2.32). Ctrl-C to stop.
+preview-docker: ## Like `make preview`, but in Docker; re-renders on save (ARTICLE= required)
+	@test -n "$(ARTICLE)" || { echo "usage: make preview-docker ARTICLE=2026/incoming/foo.pod" >&2; exit 1; }
+	@mkdir -p out
+	@echo "Serving on http://127.0.0.1:$(PREVIEW_PORT)/2026/2026-12-01.html"
+	ARTICLE=$(ARTICLE) PREVIEW_PORT=$(PREVIEW_PORT) docker compose --profile preview up --build --watch preview
 
 # Same as `make preview`, but auto-binds to this host's Tailscale IP so the
 # preview is reachable across your tailnet without looking the IP up yourself.
