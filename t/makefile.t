@@ -20,7 +20,7 @@ my $out = do { local $/; <$make> };
 close $make;
 
 # preview-build (via preview) and preview-tailnet each build, then serve, once.
-is_deeply [ $out =~ m{PORT=(\S+) \./script/preview-article\.sh}g ], [ 9123, 9123 ],
+is_deeply [ $out =~ m{\bPORT=(\S+) \./script/preview-article\.sh}g ], [ 9123, 9123 ],
     'PORT reaches preview-article.sh from both targets';
 is_deeply [ $out =~ /--port (\S+)/g ], [ 9123, 9123 ], 'both servers honour PORT=';
 
