@@ -66,9 +66,9 @@ find 2025/incoming | fzf | xargs -I {} perl script/assign-date.pl --article {} -
 ### Building the Site
 
 **The Makefile is the entry point.** Run `make help` to list every target.
-Don't call `script/build-site.sh` (or `advcal`) directly: the targets put the
-`inc/` forks on `PATH`/`PERL5LIB`, and the stock CPAN `advcal` a bare script
-call would pick up lacks the fork's options (e.g. `--https`) and fails.
+The build scripts source `script/use-forks.sh`, which puts the `inc/` forks on
+`PATH`/`PERL5LIB`; don't call `advcal` directly, as the stock CPAN one lacks
+the fork's options (e.g. `--https`).
 
 ```bash
 # Build entire site
