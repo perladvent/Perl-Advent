@@ -19,9 +19,9 @@ open my $make, '-|', 'make', '-n', '-C', "$root", 'preview', 'preview-tailnet',
 my $out = do { local $/; <$make> };
 close $make;
 
-like $out, qr{PORT=9123 \./script/preview-article\.sh}, 'PORT reaches preview-article.sh';
-my @ports = $out =~ /--port (\S+)/g;
-ok @ports, 'recipes serve on a --port';
-is_deeply [ grep { $_ ne '9123' } @ports ], [], 'every --port honours PORT=';
+# preview-build (via preview) and preview-tailnet each build, then serve, once.
+is_deeply [ $out =~ m{PORT=(\S+) \./script/preview-article\.sh}g ], [ 9123, 9123 ],
+    'PORT reaches preview-article.sh from both targets';
+is_deeply [ $out =~ /--port (\S+)/g ], [ 9123, 9123 ], 'both servers honour PORT=';
 
 done_testing;
