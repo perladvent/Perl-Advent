@@ -46,13 +46,7 @@ services:
       PREVIEW_PORT: ${PREVIEW_PORT:-8026}
       # Root-owned output would break a later host `make site`, so hand it back.
       HOST_UID_GID: ${HOST_UID_GID:-}
-    command: >
-      bash -c '
-        bash script/build-site.sh && bash script/preview-article.sh "$$ARTICLE"; rc=$$?;
-        [ -z "$$HOST_UID_GID" ] || chown -R -- "$$HOST_UID_GID" out;
-        [ $$rc -eq 0 ] || exit $$rc;
-        exec http_this out --host 0.0.0.0 --port "$$PREVIEW_PORT" --autoindex
-      '
+    command: bash script/docker-preview.sh --serve
     init: true
     develop:
       watch:
@@ -61,10 +55,7 @@ services:
           path: ${ARTICLE:-ARTICLE-not-set}
           target: /app/${ARTICLE:-}
           exec:
-            command: >
-              bash -c 'bash script/preview-article.sh "$$ARTICLE"; rc=$$?;
-              [ -z "$$HOST_UID_GID" ] || chown -R -- "$$HOST_UID_GID" out;
-              exit $$rc'
+            command: bash script/docker-preview.sh
 
 volumes:
   build-output:  # Named volume persists between runs

@@ -34,10 +34,10 @@ subtest 'unpopulated submodule fails noisily' => sub {
     unlike $err, qr{survived}, 'stops the sourcing script';
 
     local $ENV{PERL5LIB} = 'sentinel';
-    open my $fh, '-|', 'bash', '-c', 'source "$1" 2>/dev/null || true; printf %s "$PERL5LIB"',
+    open my $fh, '-|', 'bash', '-c', 'source "$1" 2>/dev/null || true; printf "%s\n%s" "$PERL5LIB" "$PATH"',
         '_', $fake->child( 'script', 'use-forks.sh' )
         or die "bash: $!";
-    is do { local $/; <$fh> }, 'sentinel', 'leaves PERL5LIB unchanged';
+    is do { local $/; <$fh> }, "sentinel\n$ENV{PATH}", 'leaves PERL5LIB and PATH unchanged';
 };
 
 subtest 'real repo resolves advcal to the inc/ fork' => sub {
