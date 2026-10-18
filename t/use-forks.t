@@ -32,6 +32,12 @@ subtest 'unpopulated submodule fails noisily' => sub {
     isnt $?, 0, 'exits non-zero';
     like $err, qr{inc/PPI-HTML.*make init}, 'names the missing fork and the fix';
     unlike $err, qr{survived}, 'stops the sourcing script';
+
+    local $ENV{PERL5LIB} = 'sentinel';
+    open my $fh, '-|', 'bash', '-c', 'source "$1" 2>/dev/null || true; printf %s "$PERL5LIB"',
+        '_', $fake->child( 'script', 'use-forks.sh' )
+        or die "bash: $!";
+    is do { local $/; <$fh> }, 'sentinel', 'leaves PERL5LIB unchanged';
 };
 
 subtest 'real repo resolves advcal to the inc/ fork' => sub {

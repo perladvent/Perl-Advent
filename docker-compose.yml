@@ -48,9 +48,9 @@ services:
       HOST_UID_GID: ${HOST_UID_GID:-}
     command: >
       bash -c '
-        bash script/build-site.sh &&
-        bash script/preview-article.sh "$$ARTICLE" &&
-        { [ -z "$$HOST_UID_GID" ] || chown -R -- "$$HOST_UID_GID" out; } &&
+        bash script/build-site.sh && bash script/preview-article.sh "$$ARTICLE"; rc=$$?;
+        [ -z "$$HOST_UID_GID" ] || chown -R -- "$$HOST_UID_GID" out;
+        [ $$rc -eq 0 ] || exit $$rc;
         exec http_this out --host 0.0.0.0 --port "$$PREVIEW_PORT" --autoindex
       '
     init: true
@@ -62,8 +62,9 @@ services:
           target: /app/${ARTICLE:-}
           exec:
             command: >
-              bash -c 'bash script/preview-article.sh "$$ARTICLE" &&
-              { [ -z "$$HOST_UID_GID" ] || chown -R -- "$$HOST_UID_GID" out; }'
+              bash -c 'bash script/preview-article.sh "$$ARTICLE"; rc=$$?;
+              [ -z "$$HOST_UID_GID" ] || chown -R -- "$$HOST_UID_GID" out;
+              exit $$rc'
 
 volumes:
   build-output:  # Named volume persists between runs
