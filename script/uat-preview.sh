@@ -24,6 +24,7 @@
 
 set -eu -o pipefail
 cd "$(dirname "$0")/.."
+source script/use-forks.sh
 
 YEAR=2026
 TODAY="${1:-$YEAR-12-05}"
@@ -57,22 +58,20 @@ if [[ -d "$FIXTURES/static" ]]; then
     done
 fi
 
-# Render 2026 with the inc/ fork on PERL5LIB. advent.ini's article_dir wins over
+# Render 2026. advent.ini's article_dir wins over
 # the --article-dir flag, so render from a temp ini that points article_dir at
 # the fixtures (share_dir stays "share", so the year-local templates load).
 # Start from a clean output dir so pages from a previous run (e.g. a different
 # --today, or fixtures since removed) don't linger and mislead the tester.
 rm -rf "$OUT"
 mkdir -p "$OUT"
-FORK_LIB="$PWD/inc/WWW-AdventCalendar/lib:$PWD/inc/Pod-Elemental-Transformer-SynHi/lib:$PWD/inc/PPI-HTML/lib"
 UAT_INI="$YEAR/.advent.uat.ini"
 sed 's|^article_dir.*|article_dir = uat-fixtures|' "$YEAR/advent.ini" > "$UAT_INI"
 cleanup_ini() { rm -f "$UAT_INI"; }
 trap 'cleanup; cleanup_ini' EXIT
 (
     cd "$YEAR"
-    PERL5LIB="$FORK_LIB${PERL5LIB:+:$PERL5LIB}" \
-        advcal -c .advent.uat.ini -o "../$OUT" --today "$TODAY"
+    advcal -c .advent.uat.ini -o "../$OUT" --today "$TODAY"
 )
 # Same as build-site.sh: before December 1 the static feed stands in.
 script/coming-soon-feed.sh "$YEAR" "$OUT"

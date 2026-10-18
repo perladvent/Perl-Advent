@@ -85,31 +85,19 @@ archives: ## Rebuild only the archives pages into out/ (fast UAT loop)
 # --- Full site build (all years) — UAT the archives pages -------------------
 # Builds the ENTIRE site into out/ via script/build-site.sh, which runs
 # mkarchives (regenerating archives.html / archives-AZ.html / archives-Yd.html /
-# archives-author.html) and then advcal for every year. The host's stock
-# `advcal` lacks the fork's --https flag, so this target puts the inc/ fork
-# (bin + lib) in front of the build — the same fork `make uat` uses. Requires
-# submodules (run `make init` first in a fresh worktree).
+# archives-author.html) and then advcal for every year, with the inc/ forks
+# (which the deployed site needs). Requires submodules (run `make init` first
+# in a fresh worktree).
 #   make site                     # build every year into out/
 #   make site TODAY=2025-12-25     # simulate a date (opens that year's doors)
 #   make site SINGLE_YEAR=2025     # limit the per-year render to one year
 # Then serve with `make uat-serve` (or `make uat-serve-tailnet`) and open
 #   http://127.0.0.1:$(PORT)/archives-author.html
-FORK := inc/WWW-AdventCalendar
-
 site: ## Build the whole site into out/ (override SINGLE_YEAR= / TODAY=)
-	@test -f $(FORK)/bin/advcal || { echo "Missing $(FORK) — run 'make init' to fetch submodules." >&2; exit 1; }
-	@bin=$$(mktemp -d); \
-	printf '#!/bin/sh\nexec perl "%s/$(FORK)/bin/advcal" "$$@"\n' "$(CURDIR)" > "$$bin/advcal"; \
-	chmod +x "$$bin/advcal"; \
-	PERL5LIB="$(CURDIR)/$(FORK)/lib$${PERL5LIB:+:$$PERL5LIB}" PATH="$$bin:$$PATH" \
-	  ./script/build-site.sh \
-	    $(if $(SINGLE_YEAR),--single-year $(SINGLE_YEAR)) \
-	    $(if $(TODAY),--today $(TODAY)); \
-	rc=$$?; rm -rf "$$bin"; \
-	if [ $$rc -eq 0 ]; then \
-	  echo "Built out/. Serve with 'make uat-serve' then open http://127.0.0.1:$(PORT)/archives-author.html"; \
-	fi; \
-	exit $$rc
+	./script/build-site.sh \
+	  $(if $(SINGLE_YEAR),--single-year $(SINGLE_YEAR)) \
+	  $(if $(TODAY),--today $(TODAY))
+	@echo "Built out/. Serve with 'make uat-serve' then open http://127.0.0.1:$(PORT)/archives-author.html"
 
 # --- 2026 e2e (Playwright) --------------------------------------------------
 # Run the advent.js browser tests. They need the fixture site (out/2026) built

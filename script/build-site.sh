@@ -13,6 +13,7 @@
 
 pwd
 set -eu -o pipefail
+source script/use-forks.sh
 
 while [[ $# -gt 0 ]]; do
     key="$1"

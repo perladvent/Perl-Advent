@@ -54,11 +54,11 @@ to list every target and its overridable variables. The common ones:
 - `make site` — build the whole site into `out/` (all years)
 - `make preview ARTICLE=2026/incoming/foo.pod` — render and serve a single article
 
-Run `make init` once in a fresh checkout to fetch the build submodules. Use
-the `make` targets rather than calling `script/build-site.sh` or `advcal`
-yourself: they run the forked `advcal` from `inc/`, which the site needs. The
-steps below are older manual commands, kept for reference; they use the stock
-CPAN `advcal`, so their output won't match the deployed site.
+Run `make init` once in a fresh checkout to fetch the build submodules. The
+build scripts run the forked `advcal` from `inc/`, which the site needs, so
+don't call `advcal` yourself. The steps below are older manual commands, kept
+for reference; they use the stock CPAN `advcal`, so their output won't match
+the deployed site.
 
 **Using Docker?** See [DOCKER.md](DOCKER.md) for containerized build and preview instructions.
 
