@@ -10,13 +10,12 @@ help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## /{printf "  make %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@printf '\nOverridable variables (make <target> VAR=value):\n'
 	@printf '  %-24s %s\n' 'DAY=$(DAY)' 'day the 2026 UAT preview simulates'
-	@printf '  %-24s %s\n' 'PORT=$(PORT)' 'port for uat-serve / uat-serve-tailnet'
+	@printf '  %-24s %s\n' 'PORT=$(PORT)' 'port for uat-serve / preview (and their -tailnet variants)'
 	@printf '  %-24s %s\n' 'BIND=$(BIND)' 'address uat-serve binds to (0.0.0.0 = all interfaces)'
 	@printf '  %-24s %s\n' 'SINGLE_YEAR=YYYY' 'limit `make site` to one year'
 	@printf '  %-24s %s\n' 'TODAY=YYYY-MM-DD' 'simulate a date for `make site`'
 	@printf '  %-24s %s\n' 'E2E_PORT=$(E2E_PORT)' 'port for the Playwright e2e run'
 	@printf '  %-24s %s\n' 'ARTICLE=path.pod' 'article for `make preview` (required)'
-	@printf '  %-24s %s\n' 'PREVIEW_PORT=$(PREVIEW_PORT)' 'port for `make preview`'
 	@printf '  %-24s %s\n' 'PREVIEW_HOST=IP' 'bind `make preview` beyond loopback (e.g. tailnet IP)'
 
 # Initialize and update git submodules.
@@ -131,20 +130,18 @@ e2e: ## Run the Playwright e2e tests (override E2E_PORT=)
 
 # --- Single-article preview -------------------------------------------------
 # Render ONE .pod as door 1 (2026-12-01.html) with the 2026 re-skin, then serve
-# it. ARTICLE is required. Override the port with PREVIEW_PORT; set PREVIEW_HOST
+# it. ARTICLE is required. Override the port with PORT; set PREVIEW_HOST
 # (e.g. a tailnet IP) to expose it beyond loopback.
-#   make preview ARTICLE=2026/incoming/foo.pod        # build then serve on :8026
-#   make preview ARTICLE=... PREVIEW_PORT=9000         # serve on a different port
-#   make preview-build ARTICLE=...                     # build only (server already up)
-# Then open http://127.0.0.1:$(PREVIEW_PORT)/2026/2026-12-01.html .
-PREVIEW_PORT ?= 8026
-
+#   make preview ARTICLE=2026/incoming/foo.pod   # build then serve on :8026
+#   make preview ARTICLE=... PORT=9000           # serve on a different port
+#   make preview-build ARTICLE=...               # build only (server already up)
+# Then open http://127.0.0.1:$(PORT)/2026/2026-12-01.html .
 preview: site preview-build ## Render one .pod as door 1 and serve it (ARTICLE= required; PREVIEW_HOST= for tailnet)
-	http_this out --port $(PREVIEW_PORT) $(if $(PREVIEW_HOST),--host $(PREVIEW_HOST),) --autoindex
+	http_this out --port $(PORT) $(if $(PREVIEW_HOST),--host $(PREVIEW_HOST),) --autoindex
 
 preview-build: ## Render one .pod as door 1 without serving (ARTICLE= required)
 	@test -n "$(ARTICLE)" || { echo "usage: make preview-build ARTICLE=2026/incoming/foo.pod" >&2; exit 1; }
-	PREVIEW_PORT=$(PREVIEW_PORT) ./script/preview-article.sh $(ARTICLE)
+	PORT=$(PORT) ./script/preview-article.sh $(ARTICLE)
 
 # Same as `make preview`, but auto-binds to this host's Tailscale IP so the
 # preview is reachable across your tailnet without looking the IP up yourself.
@@ -153,9 +150,9 @@ preview-tailnet: ## Render one .pod as door 1 and serve it on this host's Tailsc
 	@test -n "$(ARTICLE)" || { echo "usage: make preview-tailnet ARTICLE=2026/incoming/foo.pod" >&2; exit 1; }
 	@ip=$$(tailscale ip -4 2>/dev/null | head -n1); \
 	test -n "$$ip" || { echo "No Tailscale IPv4 address found — is 'tailscale up' running?" >&2; exit 1; }; \
-	PREVIEW_PORT=$(PREVIEW_PORT) ./script/preview-article.sh $(ARTICLE); \
-	echo "Serving on http://$$ip:$(PREVIEW_PORT)/2026/2026-12-01.html (reachable on your tailnet)"; \
-	http_this out --port $(PREVIEW_PORT) --host "$$ip" --autoindex
+	PORT=$(PORT) ./script/preview-article.sh $(ARTICLE); \
+	echo "Serving on http://$$ip:$(PORT)/2026/2026-12-01.html (reachable on your tailnet)"; \
+	http_this out --port $(PORT) --host "$$ip" --autoindex
 
 # --- Maintainer: proposals --------------------------------------------------
 # fzf over open "Article" issues for YEAR (default 2026) not yet labelled

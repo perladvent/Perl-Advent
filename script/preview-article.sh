@@ -99,7 +99,7 @@ FORK_LIB="$PWD/inc/WWW-AdventCalendar/lib:$PWD/inc/Pod-Elemental-Transformer-Syn
 )
 [[ -e "$YEAR/favicon.ico" ]] && cp "$YEAR/favicon.ico" "$OUT/" || true
 
-PORT="${PREVIEW_PORT:-8026}"
+PORT="${PORT:-8026}"
 echo
 echo "Built $OUT/ from $ARTICLE."
 echo "Open:  http://127.0.0.1:$PORT/$YEAR/$YEAR-12-01.html"
