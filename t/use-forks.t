@@ -13,7 +13,7 @@ my $snippet = $root->child( 'script', 'use-forks.sh' );
 # Runs $cmd in bash after sourcing $snippet; returns combined output, sets $?.
 sub with_forks {
     my ( $snippet, $cmd ) = @_;
-    open my $fh, '-|', 'bash', '-c', 'exec 2>&1; source "$1"; eval "$2"', '_', $snippet, $cmd
+    open my $fh, '-|', 'bash', '-c', 'exec 2>&1; set -e; source "$1"; eval "$2"', '_', $snippet, $cmd
         or die "bash: $!";
     my $out = do { local $/; <$fh> };
     close $fh;
@@ -40,9 +40,17 @@ subtest 'real repo resolves advcal to the inc/ fork' => sub {
         'advcal on PATH is the wrapper';
     like with_forks( $snippet, 'advcal --help' ), qr{--https},
         'advcal is the fork (stock CPAN advcal has no --https)';
-    is with_forks( $snippet, q{perl -MWWW::AdventCalendar -e 'print $INC{"WWW/AdventCalendar.pm"}'} ),
-        $root->child(qw( inc WWW-AdventCalendar lib WWW AdventCalendar.pm ))->stringify,
-        'WWW::AdventCalendar loads from inc/';
+    for (
+        [ 'WWW::AdventCalendar',               'WWW-AdventCalendar' ],
+        [ 'Pod::Elemental::Transformer::SynHi', 'Pod-Elemental-Transformer-SynHi' ],
+        [ 'PPI::HTML',                         'PPI-HTML' ],
+    ) {
+        my ( $module, $fork ) = @$_;
+        ( my $file = "$module.pm" ) =~ s{::}{/}g;
+        is with_forks( $snippet, qq{perl -M$module -e 'print \$INC{"$file"}'} ),
+            $root->child( 'inc', $fork, 'lib', $file )->stringify,
+            "$module loads from inc/";
+    }
 };
 
 done_testing;

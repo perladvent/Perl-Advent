@@ -5,7 +5,7 @@ _repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 for _fork in WWW-AdventCalendar Pod-Elemental-Transformer-SynHi PPI-HTML; do
     if [[ ! -d "$_repo/inc/$_fork/lib" ]]; then
         echo "Missing inc/$_fork — run 'make init' to fetch submodules." >&2
-        exit 1
+        return 1
     fi
     PERL5LIB="$_repo/inc/$_fork/lib${PERL5LIB:+:$PERL5LIB}"
 done
