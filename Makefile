@@ -137,7 +137,7 @@ preview-docker: ## Like `make preview`, but in Docker; re-renders on save (ARTIC
 	@test -n "$(ARTICLE)" || { echo "usage: make preview-docker ARTICLE=2026/incoming/foo.pod" >&2; exit 1; }
 	@mkdir -p out
 	@echo "Serving on http://127.0.0.1:$(PREVIEW_PORT)/2026/2026-12-01.html"
-	ARTICLE=$(ARTICLE) PREVIEW_PORT=$(PREVIEW_PORT) docker compose --profile preview up --build --watch preview
+	ARTICLE=$(ARTICLE) PREVIEW_PORT=$(PREVIEW_PORT) HOST_UID_GID=$$(id -u):$$(id -g) docker compose --profile preview up --build --watch preview
 
 # Same as `make preview`, but auto-binds to this host's Tailscale IP so the
 # preview is reachable across your tailnet without looking the IP up yourself.
