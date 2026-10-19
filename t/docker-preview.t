@@ -33,8 +33,10 @@ sub preview {
     $log->spew('');
     local $ENV{PATH} = "$fake/bin:$ENV{PATH}";
     local @ENV{ keys %$env } = values %$env;
-    system 'bash', $fake->child( 'script', 'docker-preview.sh' ), @args;
-    return ( $? >> 8, $log->slurp );
+    my $err = $fake->child('stderr');
+    system 'sh', '-c', 'err=$1; shift; bash "$@" 2>"$err"', '_', $err,
+        $fake->child( 'script', 'docker-preview.sh' ), @args;
+    return ( $? >> 8, $log->slurp, $err->slurp );
 }
 
 my %base = ( ARTICLE => 'a.pod', HOST_UID_GID => '1:2', PREVIEW_PORT => 9999 );
@@ -63,9 +65,10 @@ subtest 'build fails' => sub {
 };
 
 subtest 'missing ARTICLE' => sub {
-    my ( $rc, $log ) = preview( { %base, ARTICLE => 'nope.pod' }, '--serve' );
-    isnt $rc, 0, 'exits non-zero';
-    unlike $log, qr{build-site|http_this}, 'neither builds nor serves';
+    my ( $rc, $log, $err ) = preview( { %base, ARTICLE => 'nope.pod' }, '--serve' );
+    is $rc, 1, 'exits 1';
+    is $log, '', 'does nothing else';
+    like $err, qr{no such file: nope\.pod}, 'says why';
 };
 
 subtest 'no HOST_UID_GID' => sub {
