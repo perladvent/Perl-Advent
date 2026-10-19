@@ -56,10 +56,10 @@ to list every target and its overridable variables. The common ones:
 - `make preview ARTICLE=2026/incoming/foo.pod` — render and serve a single article
 
 Run `make init` once in a fresh checkout to fetch the build submodules. The
-build scripts run the forked `advcal` from `inc/`, which the site needs, so
-don't call `advcal` yourself. The steps below are older manual commands, kept
-for reference; they use the stock CPAN `advcal`, so their output won't match
-the deployed site.
+build scripts run the forked `advcal` from `inc/`, which the site needs; to run
+`advcal` by hand, first `source script/use-forks.sh` (bash, from the repo
+root). The steps below are older manual commands, kept for reference; they use
+the stock CPAN `advcal`, so their output won't match the deployed site.
 
 **Using Docker?** See [DOCKER.md](DOCKER.md) for containerized build and preview instructions.
 

@@ -54,17 +54,20 @@ subtest 'render fails' => sub {
 
 subtest 'build fails' => sub {
     my ( $rc, $log ) = preview( { %base, BUILD_RC => 4 }, '--serve' );
-    isnt $rc, 0, 'exits non-zero';
+    is $rc, 4, 'propagates the build status';
+    like $log, qr{^chown }m, 'still hands out/ back';
     unlike $log, qr{preview-article|http_this}, 'neither renders nor serves';
 };
 
 subtest 'no HOST_UID_GID' => sub {
     my ( $rc, $log ) = preview( { %base, HOST_UID_GID => '' } );
+    is $rc, 0, 'exits 0';
     unlike $log, qr{chown}, 'skips chown';
 };
 
 subtest 'serve' => sub {
     my ( $rc, $log ) = preview( {%base}, '--serve' );
+    is $rc, 0, 'exits 0';
     like $log, qr{^http_this out --host 0\.0\.0\.0 --port 9999 --autoindex$}m,
         'serves out/ on PREVIEW_PORT';
 };
