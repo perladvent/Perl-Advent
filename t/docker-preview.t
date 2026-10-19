@@ -41,21 +41,23 @@ my %base = ( ARTICLE => 'a.pod', HOST_UID_GID => '1:2', PREVIEW_PORT => 9999 );
 subtest 'render ok' => sub {
     my ( $rc, $log ) = preview( {%base} );
     is $rc, 0, 'exits 0';
+    like $log, qr{^preview-article\.sh a\.pod$}m, 'renders ARTICLE';
     like $log, qr{^chown -R -- 1:2 out$}m, 'hands out/ back';
+    unlike $log, qr{build-site}, 'does not rebuild the site';
     unlike $log, qr{http_this}, 'does not serve';
 };
 
 subtest 'render fails' => sub {
     my ( $rc, $log ) = preview( { %base, RENDER_RC => 3 }, '--serve' );
     is $rc, 3, 'propagates the render status';
-    like $log, qr{^chown }m, 'still hands out/ back';
+    like $log, qr{^chown -R -- 1:2 out$}m, 'still hands out/ back';
     unlike $log, qr{http_this}, 'does not serve';
 };
 
 subtest 'build fails' => sub {
     my ( $rc, $log ) = preview( { %base, BUILD_RC => 4 }, '--serve' );
     is $rc, 4, 'propagates the build status';
-    like $log, qr{^chown }m, 'still hands out/ back';
+    like $log, qr{^chown -R -- 1:2 out$}m, 'still hands out/ back';
     unlike $log, qr{preview-article|http_this}, 'neither renders nor serves';
 };
 
@@ -68,8 +70,12 @@ subtest 'no HOST_UID_GID' => sub {
 subtest 'serve' => sub {
     my ( $rc, $log ) = preview( {%base}, '--serve' );
     is $rc, 0, 'exits 0';
-    like $log, qr{^http_this out --host 0\.0\.0\.0 --port 9999 --autoindex$}m,
-        'serves out/ on PREVIEW_PORT';
+    like $log, qr{
+        ^build-site\.sh\s*\n
+        preview-article\.sh\ a\.pod\n
+        chown\ -R\ --\ 1:2\ out\n
+        http_this\ out\ --host\ 0\.0\.0\.0\ --port\ 9999\ --autoindex$
+    }mx, 'builds, renders, hands out/ back, then serves on PREVIEW_PORT';
 };
 
 done_testing;
