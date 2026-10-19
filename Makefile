@@ -1,4 +1,4 @@
-.PHONY: help init hooks new-article uat uat-serve uat-serve-tailnet archives site e2e e2e-build preview preview-build preview-docker preview-tailnet approve-proposals
+.PHONY: help init hooks new-article uat uat-serve uat-serve-tailnet archives site e2e e2e-build check-article preview preview-build preview-docker preview-tailnet approve-proposals
 
 # Running `make` with no target prints this help. Each target's one-line
 # summary is the `## ...` text on its rule line below, so the list stays in
@@ -124,21 +124,24 @@ e2e: ## Run the Playwright e2e tests (override E2E_PORT=)
 #   make preview ARTICLE=... PORT=9000           # serve on a different port
 #   make preview-build ARTICLE=...               # build only (server already up)
 # Then open http://127.0.0.1:$(PORT)/2026/2026-12-01.html .
-preview: site preview-build ## Render one .pod as door 1 and serve it (ARTICLE= required; PREVIEW_HOST= for tailnet)
+
+# Fail before `site` spends minutes building every year for a mistyped path.
+check-article:
+	@test -n "$(ARTICLE)" || { echo "usage: make $(MAKECMDGOALS) ARTICLE=2026/incoming/foo.pod" >&2; exit 1; }
+	@test -f "$(ARTICLE)" || { echo "error: no such file: $(ARTICLE)" >&2; exit 1; }
+
+preview: check-article site preview-build ## Render one .pod as door 1 and serve it (ARTICLE= required; PREVIEW_HOST= for tailnet)
 	http_this out --port $(PORT) $(if $(PREVIEW_HOST),--host $(PREVIEW_HOST),) --autoindex
 
-preview-build: ## Render one .pod as door 1 without serving (ARTICLE= required)
-	@test -n "$(ARTICLE)" || { echo "usage: make preview-build ARTICLE=2026/incoming/foo.pod" >&2; exit 1; }
+preview-build: check-article ## Render one .pod as door 1 without serving (ARTICLE= required)
 	PORT=$(PORT) ./script/preview-article.sh $(ARTICLE)
 
 # Same as `make preview`, but in Docker (no local Perl needed), and saving the
 # article re-renders it (Compose Watch, Compose >= 2.32). Ctrl-C to stop.
-preview-docker: ## Like `make preview`, but in Docker; re-renders on save (ARTICLE= required)
-	@test -n "$(ARTICLE)" || { echo "usage: make preview-docker ARTICLE=2026/incoming/foo.pod" >&2; exit 1; }
-	@test -f "$(ARTICLE)" || { echo "error: no such file: $(ARTICLE)" >&2; exit 1; }
+preview-docker: check-article ## Like `make preview`, but in Docker; re-renders on save (ARTICLE= required)
 	@mkdir -p out
 	@echo "Building, then serving on http://127.0.0.1:$(PREVIEW_PORT)/2026/2026-12-01.html"
-	ARTICLE=$(ARTICLE) PREVIEW_PORT=$(PREVIEW_PORT) HOST_UID_GID=$$(id -u):$$(id -g) docker compose --profile preview up --build --watch preview
+	ARTICLE='$(ARTICLE)' PREVIEW_PORT=$(PREVIEW_PORT) HOST_UID_GID=$$(id -u):$$(id -g) docker compose --profile preview up --build --watch preview
 
 # Same as `make preview`, but auto-binds to this host's Tailscale IP so the
 # preview is reachable across your tailnet without looking the IP up yourself.
