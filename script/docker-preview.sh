@@ -14,6 +14,9 @@ cd "$(dirname "$0")/.."
 serve=""
 [[ "${1:-}" == --serve ]] && serve=1
 
+# Fail before the slow site build, not after it.
+[[ -f "$ARTICLE" ]] || { echo "error: no such file: $ARTICLE" >&2; exit 1; }
+
 rc=0
 [[ -z "$serve" ]] || bash script/build-site.sh || rc=$?
 [[ $rc -ne 0 ]] || bash script/preview-article.sh "$ARTICLE" || rc=$?
