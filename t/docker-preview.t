@@ -12,6 +12,7 @@ my $root = path( $FindBin::Bin, '..' )->realpath;
 # A fake repo whose build/render steps and chown/http_this just log their args.
 my $fake = path( tempdir( CLEANUP => 1 ) );
 my $log  = $fake->child('log');
+$fake->child('a.pod')->touch;
 $fake->child('script')->mkpath;
 $root->child( 'script', 'docker-preview.sh' )->copy( $fake->child('script') );
 my %stub = (
@@ -59,6 +60,12 @@ subtest 'build fails' => sub {
     is $rc, 4, 'propagates the build status';
     like $log, qr{^chown -R -- 1:2 out$}m, 'still hands out/ back';
     unlike $log, qr{preview-article|http_this}, 'neither renders nor serves';
+};
+
+subtest 'missing ARTICLE' => sub {
+    my ( $rc, $log ) = preview( { %base, ARTICLE => 'nope.pod' }, '--serve' );
+    isnt $rc, 0, 'exits non-zero';
+    unlike $log, qr{build-site|http_this}, 'neither builds nor serves';
 };
 
 subtest 'no HOST_UID_GID' => sub {

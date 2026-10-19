@@ -135,6 +135,7 @@ preview-build: ## Render one .pod as door 1 without serving (ARTICLE= required)
 # article re-renders it (Compose Watch, Compose >= 2.32). Ctrl-C to stop.
 preview-docker: ## Like `make preview`, but in Docker; re-renders on save (ARTICLE= required)
 	@test -n "$(ARTICLE)" || { echo "usage: make preview-docker ARTICLE=2026/incoming/foo.pod" >&2; exit 1; }
+	@test -f "$(ARTICLE)" || { echo "error: no such file: $(ARTICLE)" >&2; exit 1; }
 	@mkdir -p out
 	@echo "Building, then serving on http://127.0.0.1:$(PREVIEW_PORT)/2026/2026-12-01.html"
 	ARTICLE=$(ARTICLE) PREVIEW_PORT=$(PREVIEW_PORT) HOST_UID_GID=$$(id -u):$$(id -g) docker compose --profile preview up --build --watch preview
