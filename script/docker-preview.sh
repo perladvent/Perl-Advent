@@ -4,7 +4,7 @@
 # HOST_UID_GID even when that fails, since the container runs as root and
 # root-owned output would break a later host `make site`.
 #
-# Usage (env: ARTICLE, HOST_UID_GID, PREVIEW_PORT):
+# Usage (env: ARTICLE, HOST_UID_GID, PORT):
 #   script/docker-preview.sh --serve   # build the site, render, then serve
 #   script/docker-preview.sh           # re-render only (Compose Watch)
 
@@ -24,4 +24,4 @@ if [[ -n "${HOST_UID_GID:-}" ]]; then
     chown -R -- "$HOST_UID_GID" out || echo "warning: could not chown out/" >&2
 fi
 [[ $rc -eq 0 && -n "$serve" ]] || exit "$rc"
-exec http_this out --host 0.0.0.0 --port "$PREVIEW_PORT" --autoindex
+exec http_this out --host 0.0.0.0 --port "$PORT" --autoindex

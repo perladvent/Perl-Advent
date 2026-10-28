@@ -39,7 +39,7 @@ sub preview {
     return ( $? >> 8, $log->slurp, $err->slurp );
 }
 
-my %base = ( ARTICLE => 'a.pod', HOST_UID_GID => '1:2', PREVIEW_PORT => 9999 );
+my %base = ( ARTICLE => 'a.pod', HOST_UID_GID => '1:2', PORT => 9999 );
 
 subtest 'render ok' => sub {
     my ( $rc, $log ) = preview( {%base} );
@@ -85,7 +85,7 @@ subtest 'serve' => sub {
         preview-article\.sh\ a\.pod\n
         chown\ -R\ --\ 1:2\ out\n
         http_this\ out\ --host\ 0\.0\.0\.0\ --port\ 9999\ --autoindex$
-    }mx, 'builds, renders, hands out/ back, then serves on PREVIEW_PORT';
+    }mx, 'builds, renders, hands out/ back, then serves on PORT';
 };
 
 done_testing;

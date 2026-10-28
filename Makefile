@@ -140,8 +140,8 @@ preview-build: check-article ## Render one .pod as door 1 without serving (ARTIC
 # article re-renders it (Compose Watch, Compose >= 2.32). Ctrl-C to stop.
 preview-docker: check-article ## Like `make preview`, but in Docker; re-renders on save (ARTICLE= required)
 	@mkdir -p out
-	@echo "Building, then serving on http://127.0.0.1:$(PREVIEW_PORT)/2026/2026-12-01.html"
-	ARTICLE='$(ARTICLE)' PREVIEW_PORT=$(PREVIEW_PORT) HOST_UID_GID=$$(id -u):$$(id -g) docker compose --profile preview up --build --watch preview
+	@echo "Building, then serving on http://127.0.0.1:$(PORT)/2026/2026-12-01.html"
+	ARTICLE='$(ARTICLE)' PORT=$(PORT) HOST_UID_GID=$$(id -u):$$(id -g) docker compose --profile preview up --build --watch preview
 
 # Same as `make preview`, but auto-binds to this host's Tailscale IP so the
 # preview is reachable across your tailnet without looking the IP up yourself.
