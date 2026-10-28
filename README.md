@@ -37,10 +37,11 @@ that one file and open the URL it prints:
 make preview ARTICLE=2026/incoming/your-article.pod
 ```
 
-(Serving the preview needs `http_this`: install it once with
-`cpm install -g App::HTTPThis`. To share the preview with others on your
-tailnet, use `make preview-tailnet` instead. `make help` lists every build
-target.)
+(Run `make init` once first to fetch the build submodules. Serving the
+preview needs `http_this`: install it once with `cpm install -g App::HTTPThis`.
+No local Perl? `make preview-docker ARTICLE=...` does the same in Docker. To
+share the preview with others on your tailnet, use `make preview-tailnet`
+instead. `make help` lists every build target.)
 
 When you are satisfied, create a pull request. You can keep working
 on the article and pushing updates to your fork; the pull request
@@ -54,11 +55,11 @@ to list every target and its overridable variables. The common ones:
 - `make site` — build the whole site into `out/` (all years)
 - `make preview ARTICLE=2026/incoming/foo.pod` — render and serve a single article
 
-Run `make init` once in a fresh checkout to fetch the build submodules. Use
-the `make` targets rather than calling `script/build-site.sh` or `advcal`
-yourself: they run the forked `advcal` from `inc/`, which the site needs. The
-steps below are older manual commands, kept for reference; they use the stock
-CPAN `advcal`, so their output won't match the deployed site.
+Run `make init` once in a fresh checkout to fetch the build submodules. The
+build scripts run the forked `advcal` from `inc/`, which the site needs; to run
+`advcal` by hand, first `source script/use-forks.sh` (bash, from the repo
+root). The steps below are older manual commands, kept for reference; they use
+the stock CPAN `advcal`, so their output won't match the deployed site.
 
 **Using Docker?** See [DOCKER.md](DOCKER.md) for containerized build and preview instructions.
 

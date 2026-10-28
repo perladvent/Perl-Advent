@@ -66,9 +66,10 @@ find 2025/incoming | fzf | xargs -I {} perl script/assign-date.pl --article {} -
 ### Building the Site
 
 **The Makefile is the entry point.** Run `make help` to list every target.
-Don't call `script/build-site.sh` (or `advcal`) directly: the targets put the
-`inc/` forks on `PATH`/`PERL5LIB`, and the stock CPAN `advcal` a bare script
-call would pick up lacks the fork's options (e.g. `--https`) and fails.
+The build scripts source `script/use-forks.sh`, which puts the `inc/` forks on
+`PATH`/`PERL5LIB`. To run `advcal` by hand, source the forks in the same bash
+command, from the repo root: `source script/use-forks.sh && cd 2026 && advcal ...`.
+The stock CPAN `advcal` lacks the fork's options (e.g. `--https`).
 
 ```bash
 # Build entire site
@@ -203,7 +204,7 @@ Example:
 2. For 1999 and each year from 2011 (the `seq` range in the script; 2000-2010
    are copied verbatim):
    - Copy static assets to `out/YEAR/`
-   - Run `advcal -c advent.ini -o ../out/YEAR` to generate HTML
+   - Run `advcal -c advent.ini -o ../out/YEAR --https` to generate HTML
    - When advcal wrote its pre-season feed, `script/coming-soon-feed.sh` swaps
      in the static `coming-soon.atom.xml` (see the script's header)
 3. Copy root assets (images, CSS, HTML)

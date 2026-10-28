@@ -19,6 +19,7 @@
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
+source script/use-forks.sh
 
 YEAR=2026
 STATIC="$YEAR/share/static"
@@ -86,16 +87,14 @@ while IFS= read -r base; do
     fi
 done < <(grep -oE 'src="[^"]+"' "$ARTICLE" | sed -E 's/^src="//; s/"$//' | xargs -n1 basename 2>/dev/null | sort -u)
 
-# --- Render 2026 with the inc/ fork on PERL5LIB -------------------------------
+# --- Render 2026 ----------------------------------------------------------------
 # advent.ini's article_dir wins over the --article-dir flag, so render from a
 # temp ini that points article_dir at .preview (share_dir stays "share", so the
 # year-local templates load). --today opens door 25 so door 1 is reachable.
 sed 's|^article_dir.*|article_dir = .preview|' "$YEAR/advent.ini" > "$PREVIEW_INI"
-FORK_LIB="$PWD/inc/WWW-AdventCalendar/lib:$PWD/inc/Pod-Elemental-Transformer-SynHi/lib:$PWD/inc/PPI-HTML/lib"
 (
     cd "$YEAR"
-    PERL5LIB="$FORK_LIB${PERL5LIB:+:$PERL5LIB}" \
-        advcal -c .advent.preview.ini -o "../$OUT" --today "$YEAR-12-25"
+    advcal -c .advent.preview.ini -o "../$OUT" --today "$YEAR-12-25"
 )
 [[ -e "$YEAR/favicon.ico" ]] && cp "$YEAR/favicon.ico" "$OUT/" || true
 

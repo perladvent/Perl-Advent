@@ -13,10 +13,11 @@ The Docker setup provides a containerized environment with all dependencies pre-
 
 ### Services
 
-The `docker-compose.yml` defines two services:
+The `docker-compose.yml` defines three services:
 
 1. **perl-advent** - Builds the static site
 2. **perl-advent-server** - Serves the built site on port 7007
+3. **preview** - Renders and serves a single article (`make preview-docker`; only started via its `preview` profile)
 
 ### Key Components
 
@@ -96,6 +97,19 @@ docker compose run --rm perl-advent bash -c "bash script/build-site.sh --single-
 ```
 
 This is useful for testing how articles appear as they're published day-by-day throughout the month.
+
+### Preview a Single Article
+
+```bash
+make preview-docker ARTICLE=2026/incoming/your-article.pod
+```
+
+This renders the article as door 1 into your local `out/` and serves it at
+http://127.0.0.1:8026/2026/2026-12-01.html. It uses Compose Watch (Docker
+Compose 2.32 or later): each time you save the article it is re-rendered, so
+just refresh the browser. Press `Ctrl+C` to stop.
+
+Only saves to the `.pod` re-render; restart `make preview-docker` after changing images.
 
 ### Access Built Files Locally
 

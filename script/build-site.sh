@@ -13,6 +13,8 @@
 
 pwd
 set -eu -o pipefail
+# shellcheck source=script/use-forks.sh
+source "$(dirname "${BASH_SOURCE[0]}")/use-forks.sh"
 
 while [[ $# -gt 0 ]]; do
     key="$1"
