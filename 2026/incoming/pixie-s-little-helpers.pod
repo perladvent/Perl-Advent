@@ -1,0 +1,648 @@
+Author: Dave Cross <dave@perlhacks.com>
+Title: Pixie's Little Helpers
+Topic: AI-assisted coding
+
+=encoding utf8
+
+=for :html
+<img src="pixie-helpers.png">
+
+=head2 The sticky note
+
+Pixie the Elf (whose parents had strange ideas about names) had a sticky note
+on the edge of her monitor. It had been there so long that the glue had given
+up and she'd had to reattach it with sticky tape. Twice.
+
+The note was headed "ONE DAY" and it listed all the little jobs she was
+going to automate when she finally had a spare afternoon:
+
+=for :list
+* Diff the Naughty and Nice exports
+* Fix the photo filenames (!!!)
+* Check the newsletter links before it goes out
+* Make the expenses stop being a nightmare
+
+None of them was a big job. Each one cost her maybe ten or fifteen minutes of
+tedium a week. But each one would also take half a day to write properly.
+And in the run-up to Christmas, nobody at the North Pole has half a day to.
+spare. So the note stayed on the monitor and the jobs stayed tedious.
+
+This is the story of how that sticky note finally ended up in the recycling.
+
+=head2 Meet Tinsel
+
+In October, the Workshop's Platform team (led by an extremely enthusiastic
+elf called Jingle) rolled out a new tool to everyone in Engineering. It was a
+coding agent called Tinsel.
+
+"It's not like those chatbots," Jingle explained at the all-hands. "It lives
+in your terminal. You start it up in a project directory and tell it what you
+want in plain English. It reads your code, runs your tests, and suggests
+changes. It asks before it runs anything or touches any files. You stay in
+charge."
+
+Pixie was sceptical. She'd spent most of last December cleaning up after a
+junior elf who had pasted chatbot code straight into the sleigh routing
+system - code which cheerfully used a CPAN module called
+C<Sleigh::Route::Optimal>. That module did not exist. It had never existed.
+The chatbot had hallucinated it because it sounded plausible.
+
+But Jingle was persuasive (and was handing out candy canes), so Pixie decided
+to give Tinsel a fair trial. She started with something safe.
+
+=head3 Test one: explain this
+
+Deep in the Workshop's repository there was a program called C<manifest.pl>.
+It built the loading manifest for the sleigh every Christmas Eve. It had been
+written in 2003 by an elf who had since retired to a cabin in Lapland, and
+nobody else really understood it. Every year, someone changed one line with
+their eyes closed and hoped for the best.
+
+Pixie opened a terminal in the repository, started Tinsel and typed:
+
+  Read manifest.pl and explain to me what it does, section by
+  section. Don't change anything.
+
+A minute later she had a clear, accurate, section-by-section explanation of
+four hundred lines of Perl that she'd been avoiding for three years. Better
+still, Tinsel had noticed something:
+
+  One thing worth flagging: on line 212, the year is calculated as
+  (localtime)[5] + 1900, but on line 287 the code uses (localtime)[5]
+  directly when building the archive filename. That's why the
+  archived manifests have names like manifest-126.txt.
+
+Pixie checked the archive directory. There, in all their glory, were
+C<manifest-123.txt>, C<manifest-124.txt> and C<manifest-125.txt>. She'd
+always assumed someone had done that on purpose.
+
+=head3 Test two: fix this
+
+Next, she pointed Tinsel at a test in the NaughtyOrNice application that had
+been failing on and off for a fortnight.
+
+  t/scoring.t fails sometimes but not always. Find out why and
+  suggest a fix. Show me the diff before you change anything.
+
+Tinsel asked permission to run C<prove -lv t/scoring.t>. It ran it several
+times, noticed that it only failed when two children had exactly the same
+niceness score, and tracked it down to a C<sort> that didn't specify a
+tie-breaker - so the order depended on Perl's hash ordering, which is
+deliberately randomised. It proposed a two-line patch that sorted by name
+when the scores were equal, and added a test for this case.
+
+Pixie read the diff carefully. It was exactly the fix she'd have written -
+if she'd ever found the time to look.
+
+=head3 House rules
+
+By now Pixie was cautiously impressed. But she'd been programming long enough
+to know that a tool that's right most of the time is a tool you need to keep
+an eye on. Tinsel could read a file in the project directory called
+C<TINSEL.md> at the start of every session, so she wrote down some house
+rules:
+
+  # How we write Perl here
+
+  - Target Perl 5.36. Start every program with `use v5.36;`
+    (which gives us strict, warnings and signatures).
+  - Use well-known CPAN modules rather than writing your own
+    parsers. CSV means Text::CSV_XS. Never split CSV on commas.
+  - Only use modules that actually exist. If you're not sure,
+    check https://metacpan.org/ before using it.
+  - Anything that changes or deletes files must have a dry-run
+    mode, and dry-run is the default.
+  - Keep scripts short and readable. Comment the "why", not the
+    "what".
+  - Always show me the diff before changing existing code.
+
+It turned out that the rules made a big difference. Tinsel was perfectly
+capable of writing good Perl; it just needed to be told what "good" meant
+I<here>. Exactly like a new elf joining the team, really.
+
+And that was when Pixie looked at her sticky note.
+
+=head2 Helper one: the Naughty-and-Nice List Differ
+
+Every night, the NaughtyOrNice system dumps the whole list to a CSV file. And
+every morning, someone from the Department of Behavioural Assessment emails
+Pixie to ask "who changed yesterday?" Pixie had been answering by opening two
+files side by side and squinting.
+
+She typed:
+
+  Write a script called nice-diff that takes two of the daily
+  CSV exports (columns: child_id, name, status) and tells me who
+  was added, who was removed and whose status changed.
+
+Here's what she ended up with:
+
+  use v5.36;
+  use Text::CSV_XS qw(csv);
+
+  # Usage: nice-diff yesterday.csv today.csv
+  @ARGV == 2 or die "Usage: $0 OLD.csv NEW.csv\n";
+  my ($old_file, $new_file) = @ARGV;
+
+  # Each export has a header row: child_id,name,status
+  my $old = csv(in => $old_file, key => 'child_id') or die Text::CSV_XS->error_diag;
+  my $new = csv(in => $new_file, key => 'child_id') or die Text::CSV_XS->error_diag;
+
+  my (@added, @removed, @changed);
+
+  for my $id (sort keys %$new) {
+    if (!exists $old->{$id}) {
+      push @added, $new->{$id};
+    } elsif ($old->{$id}{status} ne $new->{$id}{status}) {
+      push @changed, [ $old->{$id}, $new->{$id} ];
+    }
+  }
+
+  for my $id (sort keys %$old) {
+    push @removed, $old->{$id} unless exists $new->{$id};
+  }
+
+  say 'Added (', scalar @added, '):';
+  say "  + $_->{name} ($_->{status})" for @added;
+
+  say 'Removed (', scalar @removed, '):';
+  say "  - $_->{name} (was $_->{status})" for @removed;
+
+  say 'Changed status (', scalar @changed, '):';
+  say "  * $_->[1]{name}: $_->[0]{status} -> $_->[1]{status}" for @changed;
+
+
+The C<csv()> function from L<Text::CSV_XS|https://metacpan.org/pod/Text::CSV_XS>
+does almost all of the work. Give it a C<key> and it returns a hash of
+hashes, keyed on that column. After that, it's just a couple of loops.
+
+  $ nice-diff 2026-12-01.csv 2026-12-02.csv
+  Added (1):
+    + Noel Nutmeg (Nice)
+  Removed (1):
+    - Billy Bauble (was Naughty)
+  Changed status (1):
+    * Timmy Tinsel: Nice -> Naughty
+
+(No relation to the coding agent, apparently. Pixie checked.)
+
+It's worth knowing that this I<wasn't> Tinsel's first draft. Before Pixie
+wrote her house rules, Tinsel's version read the files with C<split /,/>.
+That works right up to the moment you meet a child called "Holly, Jr." — and
+the North Pole has I<lots> of children with commas in their names. Once the
+rule was in C<TINSEL.md>, Tinsel never made that mistake again.
+
+Writing it, reviewing it and testing it took about ten minutes. Pixie
+crossed the first line off her sticky note.
+
+=head2 Helper two: the Terrible Filename Fixer
+
+The Workshop photographers are lovely elves who take beautiful pictures. They
+are also completely incapable of naming a file sensibly. Pixie's shared photo
+folder was full of things like C<IMG_7832.jpg>, C<DSC00421.JPG> and the dreaded
+C<final-final-2.jpg>.
+
+The information to fix this I<did> exist. The cameras record when every
+photo was taken, and the photographers (grudgingly) fill in a spreadsheet
+saying which event each photo was from and who's in it. It's just that
+nobody ever had time to put the two together.
+
+  Write a script called fix-photo-names. For every image in a
+  directory, get the date it was taken from the EXIF data, and
+  the event and subject from photos.csv (columns: filename,
+  event, subject). Rename it to something like
+  2026-12-03_toy-testing_rudolph.jpg. Never overwrite a file.
+
+Tinsel produced this:
+
+  use v5.36;
+  use File::Basename qw(fileparse);
+  use File::Spec::Functions qw(catfile);
+  use Getopt::Long qw(GetOptions);
+  use Image::ExifTool;
+  use POSIX qw(strftime);
+  use Text::CSV_XS qw(csv);
+
+  # Usage: fix-photo-names [--go] [--csv photos.csv] DIR
+  # Without --go, it just tells you what it *would* do.
+  GetOptions(
+    'go'    => \my $go,
+    'csv=s' => \(my $csv_file = 'photos.csv'),
+  ) or die "Usage: $0 [--go] [--csv FILE] DIR\n";
+
+  my $dir = shift // '.';
+
+  # photos.csv: filename,event,subject
+  my $info = csv(in => $csv_file, key => 'filename') or die Text::CSV_XS->error_diag;
+
+  my $exif = Image::ExifTool->new;
+  my %taken;  # new names we've already used
+
+  opendir my $dh, $dir or die "Can't open $dir: $!\n";
+
+  for my $file (sort grep { /\.(jpe?g|png|heic)\z/i } readdir $dh) {
+    # Already fixed on a previous run? Leave it alone.
+    next if $file =~ /^\d{4}-\d\d-\d\d_/;
+
+    my $path = catfile($dir, $file);
+    my (undef, undef, $ext) = fileparse($file, qr/\.[^.]+\z/);
+    $ext = lc $ext;
+    $ext = '.jpg' if $ext eq '.jpeg';
+
+    # When was it taken? Ask the EXIF data, fall back to the file's mtime.
+    $exif->ExtractInfo($path);
+    my $when = $exif->GetValue('DateTimeOriginal')
+            // $exif->GetValue('CreateDate');
+    my $date = $when && $when =~ /^(\d{4}):(\d\d):(\d\d)/
+             ? "$1-$2-$3"
+             : strftime('%Y-%m-%d', localtime((stat $path)[9]));
+
+    # What is it? Ask the CSV.
+    my $row  = $info->{$file};
+    my @bits = $row ? @$row{qw(event subject)} : ('unsorted');
+    my $stem = join '_', $date, map { slugify($_) } grep { length } @bits;
+
+    # Never overwrite anything - add a counter if we need to.
+    my $new = "$stem$ext";
+    my $n   = 1;
+    $new = "${stem}_" . ++$n . $ext
+      while $taken{$new} || ($new ne $file && -e catfile($dir, $new));
+    $taken{$new} = 1;
+
+    next if $new eq $file;
+
+    say "$file -> $new";
+    if ($go) {
+      rename $path, catfile($dir, $new) or warn "  Couldn't rename $file: $!\n";
+    }
+  }
+
+  say "\n(Dry run: use --go to actually rename things)" unless $go;
+
+  sub slugify ($str) {
+    $str = lc $str;
+    $str =~ s/[^a-z0-9]+/-/g;
+    $str =~ s/^-|-$//g;
+    return $str;
+  }
+
+
+This one leans on L<Image::ExifTool|https://metacpan.org/pod/Image::ExifTool>,
+which can read metadata from just about any image format ever invented. It
+also follows the house rules: by default it only tells you what it I<would>
+do.
+
+  $ fix-photo-names photos
+  DSC00421.JPG -> 2026-12-03_sleigh-polish_dasher-dancer.jpg
+  IMG_7832.jpg -> 2026-12-03_toy-testing_rudolph.jpg
+  IMG_7833.jpeg -> 2026-12-03_toy-testing_rudolph_2.jpg
+  final-final-2.jpg -> 2026-11-28_staff-party_mrs-claus.jpg
+  mystery.png -> 2026-11-30_unsorted.png
+
+  (Dry run: use --go to actually rename things)
+
+That dry run earned its keep. The first version didn't have the "Already
+fixed?" check near the top of the loop. Pixie ran it with C<--go>, then ran
+it again (as you do) to make sure it was happy and the dry run cheerfully
+announced that it was going to rename every single photo to
+C<2026-12-03_unsorted.jpg>, C<2026-12-03_unsorted_2.jpg> and so on. Of
+course: the newly renamed files weren't in the CSV any more.
+
+She explained the problem to Tinsel, which apologised (it was very polite
+like that) and added the two-line fix. The important thing is that the bug
+was caught by a I<dry run>, not by a photographer.
+
+Line two: crossed off.
+
+=head2 Helper three: the Newsletter Link Checker
+
+Every Friday, the Workshop sends out a newsletter: I<Workshop Weekly>. And
+every Friday afternoon, someone replies to tell Pixie that one of the links
+is broken. The reindeer rota was a particular favourite - it moved to a new
+location roughly once a month.
+
+  Write a script called check-links that finds every link and
+  image in an HTML newsletter, checks each one and reports which
+  ones are broken and which ones redirect somewhere else. Exit
+  with a non-zero status if anything is broken.
+
+That last requirement was Pixie being clever. A script that exits with an
+error when something is wrong can go straight into the newsletter's
+L<GitHub Actions|https://perladvent.org/2024/2024-12-04.html> workflow, so
+nobody can send out a newsletter with broken links ever again.
+
+  use v5.36;
+  use HTML::LinkExtor;
+  use HTTP::Tiny;
+  use URI;
+
+  # Usage: check-links newsletter.html [base_url]
+  my $file = shift or die "Usage: $0 FILE.html [BASE_URL]\n";
+  my $base = shift // 'https://northpole.example/newsletter/';
+
+  # Collect every link and image in the newsletter, made absolute.
+  my %urls;
+  my $extor = HTML::LinkExtor->new(sub ($tag, %attr) {
+    for my $url (values %attr) {
+      my $abs = URI->new_abs($url, $base);
+      $urls{ $abs->canonical } = 1 if $abs->scheme =~ /^https?\z/;
+    }
+  });
+  $extor->parse_file($file) or die "Can't parse $file: $!\n";
+
+  my $http = HTTP::Tiny->new(
+    agent        => 'PixieLinkChecker/1.0 ',
+    timeout      => 10,
+    max_redirect => 5,
+  );
+
+  my (@ok, @moved, @broken);
+
+  for my $url (sort keys %urls) {
+    # HEAD is cheaper, but some servers don't like it - so retry with GET.
+    my $res = $http->head($url);
+    $res = $http->get($url) if $res->{status} == 405 || $res->{status} == 501;
+
+    if (!$res->{success}) {
+      my $why = $res->{status} == 599 ? $res->{content} : "$res->{status} $res->{reason}";
+      chomp $why;
+      push @broken, "$url\n      $why";
+    } elsif ($res->{redirects}) {
+      push @moved, "$url\n      -> $res->{url}";
+    } else {
+      push @ok, $url;
+    }
+  }
+
+  printf "Checked %d links: %d OK, %d redirected, %d broken\n\n",
+    scalar keys %urls, scalar @ok, scalar @moved, scalar @broken;
+
+  say "BROKEN:\n", map { "  $_\n" } @broken if @broken;
+  say "REDIRECTED (consider updating):\n", map { "  $_\n" } @moved if @moved;
+
+  exit(@broken ? 1 : 0);
+
+
+L<HTML::LinkExtor|https://metacpan.org/pod/HTML::LinkExtor> finds every URL
+in the document (from C<< <a href> >>, C<< <img src> >> and friends),
+L<URI|https://metacpan.org/pod/URI> turns relative links into absolute ones,
+and L<HTTP::Tiny|https://metacpan.org/pod/HTTP::Tiny> — which has been in
+the Perl core since 5.14 — does the checking. HTTP::Tiny follows redirects
+for you and keeps a list of them in C<< $res->{redirects} >>, so spotting
+links that have moved is trivial. (If your links use C<https> — and they
+should — you'll need L<IO::Socket::SSL|https://metacpan.org/pod/IO::Socket::SSL>
+installed too.)
+
+Pixie's one contribution to the code was the C<HEAD>-then-C<GET> dance. The
+Elf HR system refuses C<HEAD> requests with a C<405 Method Not Allowed>,
+because of course it does. Tinsel's original version reported every HR link
+as broken.
+
+  $ check-links newsletter.html
+  Checked 5 links: 2 OK, 1 redirected, 2 broken
+
+  BROKEN:
+    https://northpole.example/gone/rota.pdf
+        404 Not Found
+    https://wiki.northpole.example/nobody-home
+        Could not connect to 'wiki.northpole.example:443': Connection refused
+
+  REDIRECTED (consider updating):
+    https://northpole.example/old-sleigh
+        -> https://northpole.example/sleigh-tracker
+
+The reindeer rota had moved again.
+
+=head2 Helper four: the Reindeer Expenses Wrangler
+
+And so to the last line of the sticky note - the one with three underlines.
+
+Every month, Pixie collected the expenses from three teams and passed them on
+to Accounts. And every month, each team sent them in a different format:
+
+=over 4
+
+=item *
+
+The Reindeer Barn used an Excel spreadsheet, with British-style dates and
+everything in Norwegian kroner.
+
+=item *
+
+The Toy Workshop sent a CSV file with ISO dates, a currency column (which
+they sometimes forgot to fill in) and thousands separators in the amounts.
+
+=item *
+
+The Wrapping Department sent a TSV file. Nobody knew why. Their dates
+looked like "3 Dec 2026" and their amounts looked like "€1.234,50".
+
+=back
+
+Accounts, naturally, wanted one CSV file in a completely different format.
+Pixie usually spent an hour every month with a spreadsheet, a calculator and
+a large mug of cocoa.
+
+  Write a script called wrangle-expenses that takes any number of
+  expense files from these three teams (I've put examples in
+  data/), works out which team each file came from by looking at
+  its header row, and writes a single CSV for Accounts with the
+  columns date, team, description, amount, currency. Dates should
+  be ISO 8601 and amounts should be plain numbers.
+
+Tinsel gave her this:
+
+  use v5.36;
+  use utf8;                             # there's a € in this file...
+  use open qw(:std :encoding(UTF-8));   # ...and in the output
+  use Spreadsheet::Read qw(ReadData rows);
+  use Text::CSV_XS qw(csv);
+  use Time::Piece;
+
+  # Usage: wrangle-expenses FILE... > for-accounts.csv
+  #
+  # Every team sends their expenses in a different shape. Each entry here
+  # describes one shape: how to recognise it (the header row), which column
+  # holds what, and how to read its dates and money.
+  my @formats = (
+    {
+      team     => 'Reindeer Barn',
+      headers  => [ 'Date', 'Item', 'Cost (NOK)' ],
+      columns  => { date => 'Date', description => 'Item', amount => 'Cost (NOK)' },
+      date_fmt => '%d/%m/%Y',
+      currency => 'NOK',
+    },
+    {
+      team     => 'Toy Workshop',
+      headers  => [ 'when', 'what', 'amount', 'currency' ],
+      columns  => { date => 'when', description => 'what',
+                    amount => 'amount', currency => 'currency' },
+      date_fmt => '%Y-%m-%d',
+      currency => 'USD',    # when they forget to fill that column in
+    },
+    {
+      team          => 'Wrapping Department',
+      headers       => [ 'Expense Date', 'Description', 'Total' ],
+      columns       => { date => 'Expense Date', description => 'Description',
+                         amount => 'Total' },
+      date_fmt      => '%d %b %Y',
+      decimal_comma => 1,   # they write 12,50 - not 12.50
+    },
+  );
+
+  my %symbol = ('€' => 'EUR', '£' => 'GBP', '$' => 'USD', 'kr' => 'NOK');
+
+  my @out;
+
+  for my $file (@ARGV) {
+    my %opt  = $file =~ /\.tsv\z/i ? (parser => 'csv', sep => "\t") : ();
+    my $book = ReadData($file, strip => 3, %opt)
+      or die "Can't read $file\n";
+    my ($header, @rows) = rows($book->[1]);
+
+    my $fmt = identify($header)
+      or die "$file: I don't recognise the columns [@$header]\n";
+    warn "$file: looks like $fmt->{team}\n";
+
+    my %col;   # header name => column index
+    @col{@$header} = 0 .. $#$header;
+
+    for my $row (@rows) {
+      next unless grep { defined && length } @$row;   # skip blank lines
+      my %rec = map { $_ => $row->[ $col{ $fmt->{columns}{$_} } ] }
+                keys %{ $fmt->{columns} };
+
+      my ($amount, $currency) = money($rec{amount}, $fmt);
+      push @out, {
+        date        => Time::Piece->strptime($rec{date}, $fmt->{date_fmt})->ymd,
+        team        => $fmt->{team},
+        description => $rec{description},
+        amount      => $amount,
+        currency    => uc($rec{currency} || $currency || $fmt->{currency} || '???'),
+      };
+    }
+  }
+
+  # This is the one format Accounts actually wants.
+  csv(
+    in      => [ sort { $a->{date} cmp $b->{date} } @out ],
+    out     => \*STDOUT,
+    headers => [ qw(date team description amount currency) ],
+  );
+
+  sub identify ($header) {
+    my $got = join "\0", map { lc } @$header;
+    for my $fmt (@formats) {
+      return $fmt if $got eq join "\0", map { lc } @{ $fmt->{headers} };
+    }
+    return;
+  }
+
+  sub money ($str, $fmt) {
+    my $currency;
+    for my $sym (keys %symbol) {
+      $currency = $symbol{$sym} if $str =~ s/\Q$sym\E//;
+    }
+    $str =~ s/\s+//g;
+    if ($fmt->{decimal_comma}) {
+      $str =~ tr/.//d;     # 1.234,50 -> 1234,50
+      $str =~ tr/,/./;     # 1234,50  -> 1234.50
+    } else {
+      $str =~ tr/,//d;     # 1,234.50 -> 1234.50
+    }
+    return (sprintf('%.2f', $str), $currency);
+  }
+
+
+The clever bit here isn't Pixie's I<or> Tinsel's - it's
+L<Spreadsheet::Read|https://metacpan.org/pod/Spreadsheet::Read>. It gives you
+the same interface whether you're reading an Excel file, a LibreOffice file,
+a CSV or (with a little persuasion) a TSV. Behind the scenes, it picks the
+right parser for the job (L<Spreadsheet::ParseXLSX|https://metacpan.org/pod/Spreadsheet::ParseXLSX>
+for the reindeer, Text::CSV_XS for everyone else).
+
+The design is nice, too. Each team's format is just a hash in the
+C<@formats> array, so when the Elf HR department inevitably starts sending in
+expenses as well, Pixie will only need to add another entry.
+
+  $ wrangle-expenses reindeer-barn.xlsx toy-workshop.csv wrapping.tsv
+  reindeer-barn.xlsx: looks like Reindeer Barn
+  toy-workshop.csv: looks like Toy Workshop
+  wrapping.tsv: looks like Wrapping Department
+  date,team,description,amount,currency
+  2026-12-01,"Reindeer Barn","Premium lichen",450.00,NOK
+  2026-12-01,"Toy Workshop","Spare springs",89.99,USD
+  2026-12-01,"Wrapping Department","Sticky tape",12.50,EUR
+  2026-12-02,"Reindeer Barn","Harness polish, extra shiny",1200.00,NOK
+  2026-12-02,"Toy Workshop","Glitter (industrial)",2350.75,USD
+  2026-12-03,"Wrapping Department","Ribbon (red)",1234.50,EUR
+  2026-12-04,"Reindeer Barn","Antler wax",1050.00,NOK
+
+Once again, it wasn't perfect first time. The first run said that the
+Wrapping Department had spent precisely 0.00 on everything, along with a
+couple of C<isn't numeric> warnings. The script had a C<€> in its source
+code, but no C<use utf8>, so Perl was looking for the three bytes of a UTF-8
+euro sign while Spreadsheet::Read was handing it a single, properly decoded
+character. Pixie spotted it because she I<always> reads the output before
+she sends it to Accounts. Tinsel added the C<use utf8> and C<use open> lines
+and, at Pixie's request, replaced a silent default currency with a very
+unsilent C<???>, so Accounts would notice if anything slipped through.
+
+Line four: crossed off. With three underlines.
+
+=head2 What Pixie learned
+
+On the afternoon of the 23rd, Santa wandered past Pixie's desk with a mince
+pie and noticed that something was missing.
+
+"Wasn't there a sticky note there?" he asked. "You've had it for years."
+
+"It's gone," said Pixie. "I finally did all the jobs on it."
+
+"All of them? When did you find the time?"
+
+Pixie thought about that for a moment.
+
+"I didn't," she said. "That's the point. None of those jobs was ever hard.
+They just weren't I<worth> it. Half a day to save fifteen minutes a week,
+right before Christmas? Never going to happen. But ten minutes to save fifteen
+minutes a week? That's a no-brainer."
+
+"So the elf-in-the-terminal wrote them all for you?"
+
+"Tinsel wrote the first drafts," said Pixie. "I decided what they should do,
+I set the rules, I read every line, and I caught the bugs. If I didn't know
+Perl, I wouldn't have spotted the comma in Holly Jr.'s name, or the
+renaming disaster, or the euro sign. And notice how short they all are?
+That's not because Tinsel is clever; it's because someone already wrote
+Text::CSV_XS, and Image::ExifTool, and HTTP::Tiny, and Spreadsheet::Read.
+Tinsel just knew where to find them."
+
+She took a bite of Santa's mince pie while he wasn't looking.
+
+"Here's the thing," she said. "LLMs have lowered the minimum size of a
+problem that's worth solving with code."
+
+Santa nodded slowly, in the way he did when he was going to pass something
+off as his own idea at the next all-hands.
+
+"Very good," he said. "In that case, you won't mind looking at the sleigh
+routing code. I've got a feeling someone's been using a module that doesn't
+exist."
+
+Pixie sighed, reached for a pad of sticky notes, and started a new list.
+
+=head2 Your own little helpers
+
+You probably have a sticky note of your own - a list of small, annoying jobs
+that have never quite been worth automating. If you've got access to a coding
+agent, it might be time to revisit that list. A few tips from Pixie:
+
+=for :list
+* Write down your house rules. Your agent doesn't know your conventions until you tell it, and a short file of rules saves a lot of correcting.
+* Insist on CPAN. A coding agent that reaches for Text::CSV_XS rather than C<split> is writing code you'll be happy to maintain.
+* Make destructive things dry-run by default. You I<will> need it.
+* Read every line, and look at the output. The agent writes the first draft; you're still the programmer.
+* Don't forget the small stuff. The best candidates are often the jobs that you'd never have bothered to write a program for.
+
+=cut
