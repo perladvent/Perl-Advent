@@ -44,6 +44,8 @@ Here's how to get your article written:
    make preview ARTICLE=$year/incoming/your-slug.pod
    ```
 
+   No local Perl? `make preview-docker ARTICLE=$year/incoming/your-slug.pod` does the same in Docker.
+
 4. Open a pull request. Keep pushing to your fork and the PR will update automatically.
 
 We like our articles to reflect the author's own unique voice. If you'd like to lean on an LLM to help with things like generating an image, whipping up some sample code, proofreading your article, etc, please do so, but please write the prose yourself. We want to hear your voice. Let your gift be something you put your heart into, rather than your tokens.
