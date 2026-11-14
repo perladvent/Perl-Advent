@@ -1,0 +1,177 @@
+Author: ADRI@cpan.org
+Title: Delivering packages for Christmas with Container::Builder
+Topic: Container::Builder
+
+=encoding utf8
+
+Delivering hundreds of millions of packages for December 25th each year requires a global operation. To support and track all the packages, Santas Elfs have created a lot of supporting software over the years. In recent years they've made the migration to container images so the Sysadmin Elfs don't have to provision VMs anymore with all the dependencies.
+
+But the Sysadmin Elfs have noticed that the container images have grown over time to multiple hundreds of megabytes, to some even going over a gigabyte in disk size. Having container images this big means that it takes longer to build the container, longer to distribute to container registries and longer to get it into production.
+
+So the Sysadmin Elfs went to work to create a way to make smaller container packages more easily.
+
+=head2 Creating a minimal container image
+
+The L<Container::Builder> package allows fine-grained control over the files that end up in container images.
+It provides the building blocks to make so-called "distroless" containers. L<Container::Builder> gives the predicates to make directories, files, users, groups, and to unpack Debian packages. Debian (data) packages contain what's essentially a file tree in a TAR file, which is also what container images are build of.
+
+Let's see this in practice.
+
+=head3 Creating a Container::Builder object
+
+	use Container::Builder;
+	my $builder = Container::Builder->new(debian_pkg_hostname => 'ftp.be.debian.org');
+
+We use the Builder pattern.
+
+=head3 Adding groups and users
+
+Let's add the base groups for a standard unix:
+
+	$builder->add_group('root', 0);
+	$builder->add_group('tty', 5);
+	$builder->add_group('staff', 50);
+	$builder->add_group('larry', 1337);
+	$builder->add_group('nobody', 65000);
+
+And let's make 3 users. We'll run our application under Larry.
+
+	$builder->add_user('root', 0, 0, '/sbin/nologin', '/root');
+	$builder->add_user('nobody', 65000, 65000, '/sbin/nologin', '/nohome');
+	$builder->add_user('larry', 1337, 1337, '/sbin/nologin', '/home/larry');
+
+=head3 Adding directories
+
+Let's create a base directory structure, where the first parameter is the folder path, the second the permissions, the third the user id, and fourth the group id.
+
+	$builder->create_directory('/', 0755, 0, 0);
+	$builder->create_directory('bin/', 0755, 0, 0);
+	$builder->create_directory('tmp/', 01777, 0, 0);
+	$builder->create_directory('root/', 0700, 0, 0);
+	$builder->create_directory('home/', 0755, 0, 0);
+	$builder->create_directory('home/larry/', 0700, 1337, 1337);
+	$builder->create_directory('etc/', 0755, 0, 0);
+	$builder->create_directory('app/', 0755, 1337, 1337);
+	$builder->create_directory('app/bin/', 0755, 1337, 1337);
+
+=head3 Adding pre-made packages
+
+Container::Builder also allows you to add pre-made packages from Debian mirrors. Since Debian packages are essentially a TAR file with all the files needed, we can use it as base building blocks for our container.
+
+	$builder->add_deb_package('base-files');
+	$builder->add_deb_package('netbase');
+	$builder->add_deb_package('tzdata');
+	$builder->add_deb_package('media-types');
+	my $nsswitch = <<'NSS';
+	# /etc/nsswitch.conf
+	#
+	# Example configuration of GNU Name Service Switch functionality.
+	# If you have the `glibc-doc-reference' and `info' packages installed, try:
+	# `info libc "Name Service Switch"' for information about this file.
+	passwd:         compat
+	group:          compat
+	shadow:         compat
+	gshadow:        files
+	hosts:          files dns
+	networks:       files
+	protocols:      db files
+	services:       db files
+	ethers:         db files
+	rpc:            db files
+	netgroup:       nis
+	NSS
+	$builder->add_file_from_string($nsswitch, '/etc/nsswitch.conf', 0644, 0, 0);
+	# C dependencies (to run a compiled executable)
+	$builder->add_deb_package('libc-bin');
+	$builder->add_deb_package('libc6');
+	# Perl dependencies (to run a basic Perl program)
+	$builder->add_deb_package('libcrypt1');
+
+=head2 Getting our application into the container
+
+So far we've added all that's necessary to run compiled binaries that use libc. But how do we get our Perl application into the container without painstackingly adding every Perl module that our app needs? The answer lies in pre-assembling our application before adding it to our container with `pp` and/or L<App::Fatpacker>. In the case of L<pp>, it can add a perl runtime into the packed executable so we don't have to add perl Debian packages to our image. In the case of L<App::Fatpacker>, we're limited to only packing pure Perl modules.
+
+=head3 Fatpacking a dancer2 application
+
+Santas Elfs have written a lot of web applications with dancer2, so we'll show how to pack these into a container image.
+
+	dancer2 gen --application SantasGift
+	cd SantasGift
+
+	fatpack trace --use=Template::Tiny bin/app.psgi
+	fatpack packlists-for `cat fatpacker.trace` > packlists
+	fatpack tree `cat packlists`
+	# Remove MIME::Types because it has a types.db which cannot be put inside the fatpack.
+	rm -rf fatlib/MIME
+	fatpack file bin/app.psgi > bin/fatpacked.app.psgi
+
+The output will show that it's unable to pack several shared objects into the fatpack because they're binary files and not perl files. We'll deal with these below.
+
+=head3 Packaging up the webserver
+
+To run our dancer2 app, we'll need a psgi webserver. We'll use L<pp> to package C<plackup> and also mention a list of extra modules to pack that Dancer2 needs but couldn't pack completely due to compiled code.
+
+	# On my 5.40.2 installation
+	pp -o plek2 -B -M Cpanel::JSON::XS -M HTML::Parser -M Ref::Util -M Ref::Util::XS -M WWW::Form::UrlEncoded -M WWW::Form::UrlEncoded -M Clone -M List::MoreUtils -M Template::Stash::** -M MIME::Types::* -M Plack::** -M FindBin /home/adri/.plenv/versions/5.40.2/bin/plackup
+
+	# On my 5.44.0 installation
+	pp -o plek2 -B -M Cpanel::JSON::XS -M HTML::Parser -M Ref::Util -M Ref::Util::XS -M WWW::Form::UrlEncoded -M WWW::Form::UrlEncoded -M Clone -M Template::Stash::** -M MIME::Types::* -M Plack::** -M Sub::Util -M Crypt::URandom -M FindBin /home/adri/.plenv/versions/5.44.0/bin/plackup
+
+It's important to understand that L<pp> can pack the perl interpreter and core modules additionally to the modules referenced in plackup and the modules mentioned explicitely on the command line. This allows us to make a packed file that is exactly the same as our development environment, rather than using the Perl debian packages that can contain older versions incompatible with the app.
+
+=head3 Preliminary testing
+
+Before we pack both fatpacked files into our container, we can already run them as such to make sure it works:
+
+	$ ./plek2 bin/fatpacked.app.psgi
+	Unknown configuration key 'strict_utf8'
+	Set strict_config => 0 to silence these warnings.
+	HTTP::Server::PSGI: Accepting connections at http://0:5000/
+
+=head2 Setting our runtime environment
+
+	$builder->runas_user('larry');
+	$builder->set_env('PATH', '/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin');
+	$builder->set_work_dir('/app');
+
+	$builder->add_file('plek2', '/app/plackup', 0755, 1337, 1337);
+	$builder->add_file('bin/fatpacked.app.psgi', '/app/app.psgi', 0755, 1337, 1337);
+	# Dancer2 folders
+	$builder->copy('views/', '/app/views', 0755, 1337, 1337);
+	$builder->copy('public/', '/app/public', 0755, 1337, 1337);
+	$builder->copy('environments/', '/app/environments', 0755, 1337, 1337);
+	# Config file
+	$builder->add_file('config.yml', '/app/config.yml', 0644, 1337, 1337);
+	$builder->set_entry('/app/plackup');
+
+=head2 Time to build!
+
+Now that we've added everything to our Builder object, we can call C<build()> to make the container image.
+
+	$builder->build('perladvent.tar');
+	say "Now run: podman load -i perladvent.tar";
+	say "Then run: podman tag " . substr($builder->get_digest(), 0, 12) . " localhost/perladvent:latest";
+
+Let's see what we've created:
+
+	$ perl build.pl
+	$ ls -lh perladvent.tar 
+	-rw-r--r-- 1 adri adri 18M Nov 14 19:26 perladvent.tar
+
+=head2 Time to ship and run!
+
+=head3 With podman
+
+	$ podman load -i perladvent.tar
+	$ podman tag a28f8a80541d localhost/perladvent:latest
+	$ podman image list
+	REPOSITORY                TAG                   IMAGE ID      CREATED         SIZE
+	localhost/perladvent      latest                a28f8a80541d  28 seconds ago  30.9 MB
+	$ podman run -p5000:5000 localhost/perladvent:latest /app/app.psgi
+
+=head3 With k3s
+
+	$ k3s ctr images import --base-name localhost/perladvent /home/bas/perladvent.tar --digests=true
+	$ k3s ctr images tag localhost/perladvent@sha256:b1c1f99cd05f3bd8344e9b23c7e2267f2d5dfe2febb8f1d232934280633256a0 localhost/perladvent:latest
+
+
